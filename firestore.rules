@@ -1,0 +1,87 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Role verification via Custom Claims (request.auth.token.role)
+    // or fallback to document lookup in users collection if custom claims aren't set
+    function isStaffOrAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'staff' ||
+        request.auth.token.role == 'admin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['staff', 'admin'])
+      );
+    }
+
+    // 1. Users Collection
+    // Customers can read only their own profile. Staff/Admins can read all profiles.
+    // Customers cannot update stamps, tickets, or role on their own document.
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isStaffOrAdmin();
+      
+      // User can create their initial customer record on signup
+      allow create: if isOwner(userId)
+                    && request.resource.data.role == 'customer'
+                    && request.resource.data.stamps == 0
+                    && request.resource.data.tickets == 0
+                    && request.resource.data.uid == request.auth.uid;
+
+      // Only staff/admins can update stamps, tickets, role, or staff notes
+      // Customers can only update their own basic profile fields (e.g., displayName)
+      allow update: if isStaffOrAdmin() || (
+        isOwner(userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'photoURL']) &&
+        request.resource.data.role == resource.data.role &&
+        request.resource.data.stamps == resource.data.stamps &&
+        request.resource.data.tickets == resource.data.tickets &&
+        request.resource.data.membershipNumber == resource.data.membershipNumber
+      );
+
+      // Only admins can delete user records
+      allow delete: if isAuthenticated() && (
+        request.auth.token.role == 'admin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    // 2. Prize Wheels Collection
+    // Customers can read active wheels to spin/view prizes.
+    // Staff/Admins have full read/write management access.
+    match /prizeWheels/{wheelId} {
+      allow read: if isAuthenticated() && (resource.data.active == true || isStaffOrAdmin());
+      allow create, update, delete: if isStaffOrAdmin();
+    }
+
+    // 3. Draws Collection (Periodic Prize Draws)
+    // Authenticated customers can view all upcoming and completed prize draw announcements.
+    // Only staff/admins can create draws, modify statuses, or execute winner selection.
+    match /draws/{drawId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isStaffOrAdmin();
+    }
+
+    // 4. StampLogs Collection (Audit Trail)
+    // Customers can only read their own audit logs.
+    // Staff can read all logs. Only staff can create audit logs. Audit logs are immutable.
+    match /stampLogs/{logId} {
+      allow read: if isStaffOrAdmin() || (
+        isAuthenticated() && resource.data.customerId == request.auth.uid
+      );
+      
+      // Stamp audit records must be authored by staff and cannot be modified or deleted
+      allow create: if isStaffOrAdmin() && request.resource.data.staffId == request.auth.uid;
+      allow update, delete: if false; // Immutable audit log
+    }
+  }
+}

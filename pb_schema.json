@@ -1,0 +1,431 @@
+[
+  {
+    "id": "_pb_users_auth_",
+    "name": "users",
+    "type": "auth",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "users_name",
+        "name": "name",
+        "type": "text",
+        "required": false,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "users_membershipNumber",
+        "name": "membershipNumber",
+        "type": "text",
+        "required": true,
+        "presentable": true,
+        "unique": true,
+        "options": {
+          "min": 10,
+          "max": 10,
+          "pattern": "^STK-\\d{6}$"
+        }
+      },
+      {
+        "system": false,
+        "id": "users_role",
+        "name": "role",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "customer",
+            "staff",
+            "admin"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "users_stamps",
+        "name": "stamps",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": 10,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "users_tickets",
+        "name": "tickets",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "users_lastStampedAt",
+        "name": "lastStampedAt",
+        "type": "date",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX `idx_membershipNumber` ON `users` (`membershipNumber`)"
+    ],
+    "listRule": "@request.auth.id = id || @request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "viewRule": "@request.auth.id = id || @request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "createRule": "",
+    "updateRule": "@request.auth.role = 'staff' || @request.auth.role = 'admin' || (@request.auth.id = id && @request.data.role:isset = false && @request.data.stamps:isset = false && @request.data.tickets:isset = false && @request.data.membershipNumber:isset = false)",
+    "deleteRule": "@request.auth.role = 'admin'"
+  },
+  {
+    "id": "prize_wheels_col",
+    "name": "prize_wheels",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "pw_title",
+        "name": "title",
+        "type": "text",
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "pw_active",
+        "name": "active",
+        "type": "bool",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "system": false,
+        "id": "pw_segments",
+        "name": "segments",
+        "type": "json",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSize": 2000000
+        }
+      }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\" && (active = true || @request.auth.role = 'staff' || @request.auth.role = 'admin')",
+    "viewRule": "@request.auth.id != \"\" && (active = true || @request.auth.role = 'staff' || @request.auth.role = 'admin')",
+    "createRule": "@request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "updateRule": "@request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "deleteRule": "@request.auth.role = 'admin'"
+  },
+  {
+    "id": "draws_col",
+    "name": "draws",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "dr_title",
+        "name": "title",
+        "type": "text",
+        "required": true,
+        "presentable": true,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "dr_prizeDesc",
+        "name": "prizeDescription",
+        "type": "text",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "dr_drawDate",
+        "name": "drawDate",
+        "type": "date",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "dr_status",
+        "name": "status",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "upcoming",
+            "completed"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "dr_winnerId",
+        "name": "winnerId",
+        "type": "relation",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "dr_winnerName",
+        "name": "winnerName",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "dr_winnerMem",
+        "name": "winnerMembershipNumber",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [],
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "@request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "updateRule": "@request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "deleteRule": "@request.auth.role = 'admin'"
+  },
+  {
+    "id": "stamp_logs_col",
+    "name": "stamp_logs",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "system": false,
+        "id": "sl_customerId",
+        "name": "customerId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_custName",
+        "name": "customerName",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_membership",
+        "name": "membershipNumber",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_staffId",
+        "name": "staffId",
+        "type": "relation",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "collectionId": "_pb_users_auth_",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": null
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_staffName",
+        "name": "staffName",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_action",
+        "name": "action",
+        "type": "select",
+        "required": true,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "add_stamp",
+            "redeem_reward"
+          ]
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_before",
+        "name": "stampsBefore",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": 10,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_after",
+        "name": "stampsAfter",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": 10,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_awarded",
+        "name": "ticketsAwarded",
+        "type": "number",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": null,
+          "noDecimal": true
+        }
+      },
+      {
+        "system": false,
+        "id": "sl_note",
+        "name": "note",
+        "type": "text",
+        "required": false,
+        "presentable": false,
+        "unique": false,
+        "options": {
+          "min": null,
+          "max": null,
+          "pattern": ""
+        }
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX `idx_sl_cust` ON `stamp_logs` (`customerId`)"
+    ],
+    "listRule": "customerId = @request.auth.id || @request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "viewRule": "customerId = @request.auth.id || @request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "createRule": "@request.auth.role = 'staff' || @request.auth.role = 'admin'",
+    "updateRule": null,
+    "deleteRule": null
+  }
+]

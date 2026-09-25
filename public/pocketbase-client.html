@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PocketBase Web App Client</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Official PocketBase JS SDK from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pocketbase/0.21.3/pocketbase.umd.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    code, pre, .font-mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+  </style>
+</head>
+<body class="bg-[#0c0e12] text-neutral-100 min-h-screen flex flex-col selection:bg-emerald-500 selection:text-black">
+  <!-- Top Navigation Header -->
+  <header class="border-b border-neutral-800 bg-[#12151c]/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-lg">
+          ⚡
+        </div>
+        <div>
+          <h1 class="text-sm sm:text-base font-extrabold tracking-tight text-white flex items-center gap-2">
+            PocketBase Web App
+            <span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-300 border border-neutral-700">Client v0.21</span>
+          </h1>
+          <p class="text-[11px] text-neutral-400 font-mono truncate max-w-xs sm:max-w-md" id="pb-url-label">
+            https://intelligent-traffic-icon-catherine.trycloudflare.com
+          </p>
+        </div>
+      </div>
+
+      <!-- Health Connection Status Badge -->
+      <div class="flex items-center gap-2.5">
+        <div id="status-pill" class="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-neutral-800 text-neutral-400 border border-neutral-700">
+          <span class="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" id="status-dot"></span>
+          <span id="status-text">Connecting...</span>
+        </div>
+        <button onclick="checkHealth()" class="p-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white transition-colors" title="Refresh health">
+          🔄
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 space-y-6">
+    <!-- Server Connection Card -->
+    <div class="bg-[#141820] border border-neutral-800 rounded-2xl p-5 shadow-xl">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Target PocketBase Host</h2>
+          <div class="flex items-center gap-2">
+            <span class="text-emerald-400 font-mono text-sm font-semibold truncate" id="active-url">
+              https://intelligent-traffic-icon-catherine.trycloudflare.com
+            </span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            id="custom-url-input"
+            value="https://intelligent-traffic-icon-catherine.trycloudflare.com"
+            class="px-3 py-1.5 bg-neutral-900 border border-neutral-700 rounded-xl text-xs font-mono text-neutral-200 focus:outline-none focus:border-emerald-500 w-64"
+          />
+          <button
+            onclick="updateServerUrl()"
+            class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+          >
+            Update URL
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Grid: Auth and Database Explorer -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Left Column: Authentication & Token Session -->
+      <div class="space-y-6">
+        <!-- Auth Card -->
+        <div class="bg-[#141820] border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex items-center justify-between border-b border-neutral-800 pb-3">
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span>🔐</span> User Authentication
+            </h3>
+            <span id="auth-state-badge" class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-neutral-800 text-neutral-400">
+              GUEST
+            </span>
+          </div>
+
+          <!-- Logged Out Form -->
+          <div id="auth-logged-out" class="space-y-3">
+            <div>
+              <label class="block text-[11px] font-semibold text-neutral-400 mb-1">Email / Username</label>
+              <input
+                type="email"
+                id="login-email"
+                placeholder="user@example.com"
+                class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-neutral-400 mb-1">Password</label>
+              <input
+                type="password"
+                id="login-password"
+                placeholder="••••••••"
+                class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-neutral-400 mb-1">Auth Collection</label>
+              <input
+                type="text"
+                id="login-collection"
+                value="users"
+                class="w-full px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-xl text-xs font-mono text-neutral-300 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <button
+              type="button"
+              onclick="handleLogin()"
+              class="w-full py-2.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs rounded-xl cursor-pointer transition-all shadow-lg shadow-emerald-500/10"
+            >
+              Sign In to PocketBase
+            </button>
+            <div id="auth-error" class="text-xs text-rose-400 hidden bg-rose-500/10 border border-rose-500/20 p-2.5 rounded-xl"></div>
+          </div>
+
+          <!-- Logged In Profile View -->
+          <div id="auth-logged-in" class="space-y-3 hidden">
+            <div class="bg-neutral-900 border border-neutral-800 rounded-xl p-3.5 space-y-2">
+              <div class="text-[11px] text-neutral-400">Signed in as:</div>
+              <div class="text-sm font-bold text-emerald-400 font-mono truncate" id="auth-user-email"></div>
+              <div class="text-[11px] text-neutral-500 font-mono truncate" id="auth-user-id"></div>
+            </div>
+            <button
+              type="button"
+              onclick="handleLogout()"
+              class="w-full py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white font-semibold text-xs rounded-xl cursor-pointer transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick API Actions -->
+        <div class="bg-[#141820] border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400">Quick API Operations</h3>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              onclick="checkHealth()"
+              class="px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-xs font-semibold text-neutral-200 transition-colors text-left"
+            >
+              Ping /api/health
+            </button>
+            <button
+              onclick="fetchRecords()"
+              class="px-3 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-xs font-semibold text-neutral-200 transition-colors text-left"
+            >
+              Fetch Records
+            </button>
+            <button
+              onclick="toggleRealtime()"
+              id="realtime-btn"
+              class="px-3 py-2 col-span-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-xl text-xs font-semibold text-emerald-400 transition-colors text-left flex items-center justify-between"
+            >
+              <span>Subscribe Real-time SSE</span>
+              <span class="w-2 h-2 rounded-full bg-neutral-600" id="sse-indicator"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Collection Records & Real-Time Event Feed -->
+      <div class="lg:col-span-2 space-y-6">
+        <!-- Records Explorer -->
+        <div class="bg-[#141820] border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-800 pb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-base">📁</span>
+              <h3 class="text-sm font-bold text-white">Collection Explorer</h3>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                id="collection-name"
+                value="users"
+                placeholder="Collection name"
+                class="px-3 py-1.5 bg-neutral-900 border border-neutral-700 rounded-xl text-xs font-mono text-neutral-200 focus:outline-none focus:border-emerald-500 w-36"
+              />
+              <button
+                onclick="fetchRecords()"
+                class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                Query
+              </button>
+              <button
+                onclick="showCreateModal()"
+                class="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                + New
+              </button>
+            </div>
+          </div>
+
+          <!-- Total Count & Page -->
+          <div class="flex items-center justify-between text-xs text-neutral-400 font-mono">
+            <span id="records-meta">Showing 0 records</span>
+            <div class="flex items-center gap-2">
+              <button onclick="prevPage()" class="px-2 py-1 bg-neutral-900 hover:bg-neutral-800 rounded text-neutral-300">Prev</button>
+              <span id="current-page">1</span>
+              <button onclick="nextPage()" class="px-2 py-1 bg-neutral-900 hover:bg-neutral-800 rounded text-neutral-300">Next</button>
+            </div>
+          </div>
+
+          <!-- Table Container -->
+          <div class="overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-950/60 min-h-[220px]">
+            <table class="w-full text-left text-xs border-collapse" id="records-table">
+              <thead class="bg-neutral-900/80 border-b border-neutral-800 text-neutral-400 font-mono text-[11px]">
+                <tr>
+                  <th class="p-3">ID</th>
+                  <th class="p-3">Data</th>
+                  <th class="p-3">Created</th>
+                  <th class="p-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody id="records-tbody" class="divide-y divide-neutral-800 font-mono text-neutral-300">
+                <tr>
+                  <td colspan="4" class="p-8 text-center text-neutral-500">
+                    Click "Query" to load records from PocketBase.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Live Real-Time Events Stream -->
+        <div class="bg-[#141820] border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-3">
+          <div class="flex items-center justify-between border-b border-neutral-800 pb-3">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-neutral-400 flex items-center gap-2">
+              <span>⚡</span> Real-time Event Stream
+            </h3>
+            <button onclick="clearLogs()" class="text-[11px] text-neutral-500 hover:text-neutral-300">
+              Clear stream
+            </button>
+          </div>
+          <div id="event-logs" class="h-44 overflow-y-auto bg-neutral-950 rounded-xl p-3 border border-neutral-800 font-mono text-[11px] text-neutral-300 space-y-1">
+            <div class="text-neutral-600">// Real-time events, health pings, and API responses will appear here...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Create Record Modal Dialog -->
+  <div id="create-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-[#141820] border border-neutral-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-neutral-800 pb-3">
+        <h3 class="text-sm font-bold text-white">Create New Record in <span id="modal-collection-name" class="font-mono text-emerald-400"></span></h3>
+        <button onclick="hideCreateModal()" class="text-neutral-400 hover:text-white">✕</button>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-neutral-400 mb-1">Record Payload (JSON)</label>
+        <textarea
+          id="record-json-input"
+          rows="6"
+          class="w-full p-3 bg-neutral-950 border border-neutral-700 rounded-xl text-xs font-mono text-neutral-200 focus:outline-none focus:border-emerald-500"
+        >{
+  "title": "Sample Record",
+  "status": "active"
+}</textarea>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button onclick="hideCreateModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-neutral-400 hover:text-white">Cancel</button>
+        <button onclick="submitNewRecord()" class="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs transition-colors">
+          Create Record
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Logic for PocketBase Connection -->
+  <script>
+    let pbUrl = 'https://intelligent-traffic-icon-catherine.trycloudflare.com';
+    let pb = new PocketBase(pbUrl);
+    pb.autoCancellation(false);
+
+    let currentPage = 1;
+    let isSubscribed = false;
+
+    function logEvent(text, colorClass = 'text-neutral-300') {
+      const logs = document.getElementById('event-logs');
+      const time = new Date().toLocaleTimeString();
+      const line = document.createElement('div');
+      line.className = colorClass;
+      line.innerHTML = `<span class="text-neutral-600">[${time}]</span> ${text}`;
+      logs.prepend(line);
+    }
+
+    function clearLogs() {
+      document.getElementById('event-logs').innerHTML = '';
+    }
+
+    // Health check function
+    async function checkHealth() {
+      const statusPill = document.getElementById('status-pill');
+      const statusDot = document.getElementById('status-dot');
+      const statusText = document.getElementById('status-text');
+
+      statusText.textContent = 'Checking...';
+      statusDot.className = 'w-2 h-2 rounded-full bg-yellow-400 animate-pulse';
+
+      const startTime = performance.now();
+      try {
+        const res = await pb.send('/api/health', { method: 'GET' });
+        const latency = Math.round(performance.now() - startTime);
+
+        statusDot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+        statusPill.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+        statusText.textContent = `Online (${latency}ms)`;
+
+        logEvent(`✅ Connected to PocketBase host (code: ${res.code || 200}, message: ${res.message || 'OK'}) in ${latency}ms`, 'text-emerald-400');
+      } catch (err) {
+        statusDot.className = 'w-2 h-2 rounded-full bg-rose-500';
+        statusPill.className = 'flex items-center gap-2 px-3 py-1 rounded-full text-xs font-mono font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/30';
+        statusText.textContent = 'Offline / Blocked';
+        logEvent(`❌ Health check failed: ${err.message}`, 'text-rose-400');
+      }
+    }
+
+    // Update PocketBase Host URL
+    function updateServerUrl() {
+      const input = document.getElementById('custom-url-input');
+      const newUrl = input.value.trim().replace(/\/+$/, '');
+      if (!newUrl) return;
+
+      pbUrl = newUrl;
+      pb = new PocketBase(pbUrl);
+      pb.autoCancellation(false);
+
+      document.getElementById('active-url').textContent = pbUrl;
+      document.getElementById('pb-url-label').textContent = pbUrl;
+      logEvent(`🔄 Updated PocketBase target URL to: ${pbUrl}`, 'text-blue-400');
+
+      syncAuthState();
+      checkHealth();
+    }
+
+    // Sync Auth State
+    function syncAuthState() {
+      const badge = document.getElementById('auth-state-badge');
+      const loggedOutDiv = document.getElementById('auth-logged-out');
+      const loggedInDiv = document.getElementById('auth-logged-in');
+      const userEmail = document.getElementById('auth-user-email');
+      const userId = document.getElementById('auth-user-id');
+
+      if (pb.authStore.isValid && pb.authStore.model) {
+        badge.textContent = 'AUTHENTICATED';
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        loggedOutDiv.classList.add('hidden');
+        loggedInDiv.classList.remove('hidden');
+        userEmail.textContent = pb.authStore.model.email || pb.authStore.model.username || 'User';
+        userId.textContent = `ID: ${pb.authStore.model.id}`;
+      } else {
+        badge.textContent = 'GUEST';
+        badge.className = 'px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-neutral-800 text-neutral-400';
+        loggedOutDiv.classList.remove('hidden');
+        loggedInDiv.classList.add('hidden');
+      }
+    }
+
+    // Handle Login
+    async function handleLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const collection = document.getElementById('login-collection').value.trim() || 'users';
+      const errBox = document.getElementById('auth-error');
+
+      errBox.classList.add('hidden');
+      if (!email || !password) {
+        errBox.textContent = 'Please enter both email and password';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        logEvent(`Authenticating with collection "${collection}"...`);
+        const authData = await pb.collection(collection).authWithPassword(email, password);
+        logEvent(`🎉 Sign-in successful: ${authData.record.email || authData.record.id}`, 'text-emerald-400');
+        syncAuthState();
+        fetchRecords();
+      } catch (err) {
+        errBox.textContent = err.message || 'Login failed';
+        errBox.classList.remove('hidden');
+        logEvent(`❌ Login error: ${err.message}`, 'text-rose-400');
+      }
+    }
+
+    // Handle Logout
+    function handleLogout() {
+      pb.authStore.clear();
+      syncAuthState();
+      logEvent('👋 Signed out of PocketBase');
+    }
+
+    // Fetch Records from Selected Collection
+    async function fetchRecords() {
+      const colName = document.getElementById('collection-name').value.trim();
+      if (!colName) return;
+
+      const tbody = document.getElementById('records-tbody');
+      tbody.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-neutral-400">Loading records...</td></tr>';
+
+      try {
+        logEvent(`Querying collection "${colName}" (page ${currentPage})...`);
+        const result = await pb.collection(colName).getList(currentPage, 10, {
+          sort: '-created',
+        });
+
+        document.getElementById('records-meta').textContent = `Total: ${result.totalItems} | Page: ${result.page} of ${result.totalPages || 1}`;
+        document.getElementById('current-page').textContent = result.page;
+
+        if (result.items.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-neutral-500">No records found in "${colName}".</td></tr>`;
+          logEvent(`ℹ️ 0 records in collection "${colName}"`);
+          return;
+        }
+
+        tbody.innerHTML = '';
+        result.items.forEach((item) => {
+          const row = document.createElement('tr');
+          row.className = 'hover:bg-neutral-900/60 transition-colors';
+          const preview = JSON.stringify(item).slice(0, 75) + '...';
+          const created = item.created ? new Date(item.created).toLocaleDateString() : 'N/A';
+
+          row.innerHTML = `
+            <td class="p-3 text-emerald-400 font-bold">${item.id}</td>
+            <td class="p-3 text-neutral-300 max-w-xs truncate" title='${JSON.stringify(item, null, 2)}'>${preview}</td>
+            <td class="p-3 text-neutral-500 text-[11px]">${created}</td>
+            <td class="p-3 text-right">
+              <button onclick="deleteRecord('${colName}', '${item.id}')" class="text-rose-400 hover:text-rose-300 px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 rounded text-[11px]">
+                Delete
+              </button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        logEvent(`✅ Loaded ${result.items.length} records from "${colName}"`, 'text-emerald-400');
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-rose-400">Error loading "${colName}": ${err.message}</td></tr>`;
+        logEvent(`❌ Error querying "${colName}": ${err.message}`, 'text-rose-400');
+      }
+    }
+
+    // Delete a record
+    async function deleteRecord(colName, id) {
+      if (!confirm(`Are you sure you want to delete record #${id}?`)) return;
+      try {
+        await pb.collection(colName).delete(id);
+        logEvent(`🗑️ Deleted record #${id}`, 'text-amber-400');
+        fetchRecords();
+      } catch (err) {
+        logEvent(`❌ Failed to delete #${id}: ${err.message}`, 'text-rose-400');
+      }
+    }
+
+    function prevPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        fetchRecords();
+      }
+    }
+
+    function nextPage() {
+      currentPage++;
+      fetchRecords();
+    }
+
+    // Toggle Realtime SSE Subscription
+    async function toggleRealtime() {
+      const colName = document.getElementById('collection-name').value.trim() || '*';
+      const indicator = document.getElementById('sse-indicator');
+      const btn = document.getElementById('realtime-btn');
+
+      if (isSubscribed) {
+        pb.collection(colName).unsubscribe();
+        isSubscribed = false;
+        indicator.className = 'w-2 h-2 rounded-full bg-neutral-600';
+        logEvent(`🔌 Unsubscribed from real-time events on "${colName}"`);
+      } else {
+        try {
+          await pb.collection(colName).subscribe('*', (e) => {
+            logEvent(`⚡ [REAL-TIME ${e.action.toUpperCase()}] Record: #${e.record.id}`, 'text-emerald-300 font-bold');
+            fetchRecords();
+          });
+          isSubscribed = true;
+          indicator.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-ping';
+          logEvent(`📡 Subscribed to real-time events for "${colName}"`, 'text-emerald-400');
+        } catch (err) {
+          logEvent(`❌ Real-time subscription error: ${err.message}`, 'text-rose-400');
+        }
+      }
+    }
+
+    // Modal helpers
+    function showCreateModal() {
+      const col = document.getElementById('collection-name').value.trim();
+      document.getElementById('modal-collection-name').textContent = col;
+      document.getElementById('create-modal').classList.remove('hidden');
+      document.getElementById('create-modal').classList.add('flex');
+    }
+
+    function hideCreateModal() {
+      document.getElementById('create-modal').classList.add('hidden');
+      document.getElementById('create-modal').classList.remove('flex');
+    }
+
+    async function submitNewRecord() {
+      const col = document.getElementById('collection-name').value.trim();
+      const rawJson = document.getElementById('record-json-input').value;
+
+      try {
+        const payload = JSON.parse(rawJson);
+        logEvent(`Creating record in "${col}"...`);
+        const res = await pb.collection(col).create(payload);
+        logEvent(`🎉 Created record #${res.id} in "${col}"!`, 'text-emerald-400');
+        hideCreateModal();
+        fetchRecords();
+      } catch (err) {
+        alert('Error creating record: ' + err.message);
+        logEvent(`❌ Create record error: ${err.message}`, 'text-rose-400');
+      }
+    }
+
+    // Initial load
+    window.addEventListener('DOMContentLoaded', () => {
+      syncAuthState();
+      checkHealth();
+    });
+  </script>
+</body>
+</html>

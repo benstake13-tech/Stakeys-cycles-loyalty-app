@@ -1,0 +1,6 @@
+{
+  "name": "Stakey's Cycles Loyalty & Rewards",
+  "description": "Digital loyalty stamp card, weekly prize wheel roulette, grand prize draws, and staff terminal for Stakey's Cycles bike shop.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
