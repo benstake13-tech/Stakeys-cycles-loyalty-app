@@ -32,7 +32,7 @@ import { BikesWeTrustSection } from './components/BikesWeTrustSection';
 import { DerailleurHangerIdentifier } from './components/DerailleurHangerIdentifier';
 
 function AppContent() {
-  const { currentUser, logoutUser, loginStaffWithPin, theme } = useShop();
+  const { currentUser, logoutUser, theme } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTabId>('customer');
@@ -51,25 +51,6 @@ function AppContent() {
       setActiveTab(isStaffUser ? 'staff' : 'customer');
     }
   }, [currentUser?.role, currentUser?.uid]);
-
-  const handleUnlockStaffWithPin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setModalPinError(null);
-    const clean = modalPinInput.trim();
-    if (clean !== STAFF_MASTER_PIN) {
-      setModalPinError('Access Denied: Incorrect Security PIN.');
-      return;
-    }
-
-    const res = await loginStaffWithPin('staff-ben-001', clean);
-    if (res.success) {
-      setShowStaffPinModal(false);
-      setModalPinInput('');
-      setActiveTab('staff');
-    } else {
-      setModalPinError(res.message || 'Staff authentication failed');
-    }
-  };
 
   // 1. FIRST SCREEN: If user is not authenticated, show LoginScreen or Guest Booking
   if (!currentUser) {
@@ -395,112 +376,7 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Quick Staff Terminal Master PIN Modal */}
-      {showStaffPinModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-              <div className="flex items-center gap-2 text-white font-bold text-sm">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <span>Unlock Workshop Staff Terminal</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowStaffPinModal(false)}
-                className="text-neutral-400 hover:text-white p-1 rounded-lg hover:bg-neutral-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-xs text-neutral-300">
-              Enter the Cytech Workshop Security PIN to switch to the Staff Terminal.
-            </p>
-
-            {modalPinError && (
-              <div className="p-2.5 rounded-lg bg-rose-950/80 border border-rose-700 text-rose-200 text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                <span>{modalPinError}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleUnlockStaffWithPin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-200 mb-1.5">
-                  Staff Security PIN
-                </label>
-                <input
-                  type="password"
-                  autoFocus
-                  required
-                  maxLength={6}
-                  value={modalPinInput}
-                  onChange={(e) => {
-                    setModalPinInput(e.target.value.replace(/\D/g, ''));
-                    setModalPinError(null);
-                  }}
-                  placeholder="••••••"
-                  className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-3.5 py-2.5 text-center text-lg font-mono tracking-widest text-white focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                />
-              </div>
-
-              {/* Quick keypad */}
-              <div className="grid grid-cols-3 gap-1.5 text-sm font-mono">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                  <button
-                    key={digit}
-                    type="button"
-                    onClick={() => {
-                      if (modalPinInput.length < 6) {
-                        setModalPinInput((p) => p + digit);
-                        setModalPinError(null);
-                      }
-                    }}
-                    className="py-2 rounded-lg bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 font-semibold text-center cursor-pointer active:scale-95"
-                  >
-                    {digit}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setModalPinInput('')}
-                  className="py-2 rounded-lg bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 text-xs font-sans cursor-pointer active:scale-95"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (modalPinInput.length < 6) {
-                      setModalPinInput((p) => p + '0');
-                      setModalPinError(null);
-                    }
-                  }}
-                  className="py-2 rounded-lg bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 font-semibold text-center cursor-pointer active:scale-95"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalPinInput((p) => p.slice(0, -1))}
-                  className="py-2 rounded-lg bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 text-xs font-sans cursor-pointer active:scale-95"
-                >
-                  ⌫
-                </button>
-              </div>
-
-              <button
-                type="submit"
-                disabled={modalPinInput.length === 0}
-                className="w-full py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Unlock Terminal</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Main App Content */}
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -509,11 +385,7 @@ function AppContent() {
           activeTab={activeTab}
           onSelectTab={(tab) => setActiveTab(tab)}
           isStaff={isStaff}
-          onUnlockStaffPin={() => {
-            setModalPinError(null);
-            setModalPinInput('');
-            setShowStaffPinModal(true);
-          }}
+          onUnlockStaffPin={() => {}}
         />
 
         {/* Tab Views */}

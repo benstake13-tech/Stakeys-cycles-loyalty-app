@@ -28,7 +28,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
-  const { loginWithCredentials, loginStaffWithPin, registerCustomerAccount, addCustomerBike } = useShop();
+  const { loginWithCredentials, loginStaff, registerCustomerAccount, addCustomerBike } = useShop();
 
   const [mode, setMode] = useState<'signin' | 'register' | 'staff'>('signin');
 
@@ -37,10 +37,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
   const [signInPassword, setSignInPassword] = useState('');
   const [showSignInPassword, setShowSignInPassword] = useState(false);
 
-  // Staff Station Sign In state (Secured with PIN 210803)
-  const [staffMemberId, setStaffMemberId] = useState('staff-ben-001');
-  const [staffPin, setStaffPin] = useState('');
-  const [showStaffPin, setShowStaffPin] = useState(false);
+  // Staff Station Sign In state (Email/Password)
+  const [staffEmail, setStaffEmail] = useState('');
+  const [staffPassword, setStaffPassword] = useState('');
+  const [showStaffPassword, setShowStaffPassword] = useState(false);
 
   // Customer Sign Up state
   const [registerName, setRegisterName] = useState('');
@@ -86,25 +86,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
     }
   };
 
-  // Dedicated Staff Station PIN Sign In
+  // Dedicated Staff Station Login handler (Email/Password)
   const handleStaffSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    const cleanPin = staffPin.trim();
-    if (!cleanPin) {
-      setError('Please enter the Staff Security PIN.');
-      return;
-    }
-
-    if (cleanPin !== STAFF_MASTER_PIN) {
-      setError('Access Denied: Incorrect Security PIN. Authorized workshop staff only.');
+    const cleanEmail = staffEmail.trim().toLowerCase();
+    const cleanPass = staffPassword.trim();
+    if (!cleanEmail || !cleanPass) {
+      setError('Please enter staff email and password.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await loginStaffWithPin(staffMemberId, cleanPin);
+      const res = await loginStaff(cleanEmail, cleanPass);
       if (!res.success) {
         setError(res.message || 'Staff login failed. Access Denied.');
       } else {
@@ -124,24 +120,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Quick PIN pad button click handler
-  const handleKeypadPress = (num: string) => {
-    if (staffPin.length < 6) {
-      setStaffPin((prev) => prev + num);
-      setError(null);
-    }
-  };
-
-  const handleKeypadBackspace = () => {
-    setStaffPin((prev) => prev.slice(0, -1));
-    setError(null);
-  };
-
-  const handleKeypadClear = () => {
-    setStaffPin('');
-    setError(null);
   };
 
   // Registration handler with password saving
@@ -188,18 +166,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
       }
 
       // If customer specified an initial bike, register it to their new garage
-      if (res.user && initialBikeCategory !== 'none' && initialBikeBrand) {
-        try {
-          await addCustomerBike({
-            brand: initialBikeBrand,
-            model: initialBikeModel.trim() || 'Standard Model',
-            category: initialBikeCategory,
-            categoryLabel: initialBikeCategory === 'cycle' ? 'Bicycle' : 'Electric Scooter',
-          });
-        } catch {
-          // Non-blocking bike registration
-        }
-      }
+      // NOTE: Because registration is now email-only confirmation, 
+      // we cannot automatically add a bike without active session.
+      // This flow needs adjustment in a future update.
 
       // Celebrate new account
       try {
@@ -341,99 +310,55 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 </p>
               </div>
 
-              {/* Staff Member Selection */}
+              {/* Staff Member Email & Password */}
               <div>
                 <label className="block text-xs font-semibold text-neutral-200 mb-1.5">
-                  Staff Member
+                  Staff Email
                 </label>
-                <select
-                  value={staffMemberId}
-                  onChange={(e) => setStaffMemberId(e.target.value)}
-                  className="w-full bg-neutral-950 border border-neutral-700/80 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
-                >
-                  <option value="staff-ben-001">Ben Stakey — Shop Owner &amp; Master Mechanic</option>
-                  <option value="staff-chloe-002">Chloe Stakey — Lead Cytech Mechanic</option>
-                  <option value="admin-sarah-002">Sarah Miller — Workshop Manager</option>
-                </select>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="email"
+                    required
+                    value={staffEmail}
+                    onChange={(e) => setStaffEmail(e.target.value)}
+                    placeholder="staff@stakeyscycles.com"
+                    className="w-full bg-neutral-950 border border-neutral-700/80 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-[#05C147] focus:ring-1 focus:ring-[#05C147] transition-all"
+                  />
+                </div>
               </div>
 
-              {/* Master Security PIN Input */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold text-neutral-200 flex items-center gap-1.5">
-                    <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Security PIN</span>
-                  </label>
-                </div>
+                <label className="block text-xs font-semibold text-neutral-200 mb-1.5">
+                  Password
+                </label>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
-                    type={showStaffPin ? 'text' : 'password'}
+                    type={showStaffPassword ? 'text' : 'password'}
                     required
-                    maxLength={6}
-                    value={staffPin}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, '');
-                      setStaffPin(val);
-                      setError(null);
-                    }}
+                    value={staffPassword}
+                    onChange={(e) => setStaffPassword(e.target.value)}
                     placeholder="••••••"
-                    className="w-full bg-neutral-950 border border-neutral-700/80 rounded-lg pl-10 pr-10 py-2.5 text-sm text-white font-mono tracking-widest placeholder-neutral-600 focus:outline-none focus:border-[#05C147] focus:ring-1 focus:ring-[#05C147] transition-all"
+                    className="w-full bg-neutral-950 border border-neutral-700/80 rounded-lg pl-10 pr-10 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-[#05C147] focus:ring-1 focus:ring-[#05C147] transition-all"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowStaffPin(!showStaffPin)}
+                    onClick={() => setShowStaffPassword(!showStaffPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 cursor-pointer"
                   >
-                    {showStaffPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Quick Keypad for Touchscreens / Shop Tablets */}
-              <div className="bg-neutral-950/80 border border-neutral-800/80 rounded-xl p-2.5">
-                <div className="grid grid-cols-3 gap-1.5 text-sm font-mono">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
-                    <button
-                      key={digit}
-                      type="button"
-                      onClick={() => handleKeypadPress(digit)}
-                      className="py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 font-semibold text-center active:scale-95 transition-all cursor-pointer"
-                    >
-                      {digit}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={handleKeypadClear}
-                    className="py-2 rounded-lg bg-neutral-900/60 hover:bg-neutral-900 border border-neutral-800 text-neutral-400 text-xs font-sans active:scale-95 transition-all cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleKeypadPress('0')}
-                    className="py-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 font-semibold text-center active:scale-95 transition-all cursor-pointer"
-                  >
-                    0
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleKeypadBackspace}
-                    className="py-2 rounded-lg bg-neutral-900/60 hover:bg-neutral-900 border border-neutral-800 text-neutral-400 text-xs font-sans active:scale-95 transition-all cursor-pointer"
-                  >
-                    ⌫
+                    {showStaffPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={isSubmitting || staffPin.length === 0}
+                disabled={isSubmitting}
                 className="w-full py-3 rounded-lg bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
-                  <span>Verifying PIN...</span>
+                  <span>Verifying...</span>
                 ) : (
                   <>
                     <Shield className="w-4 h-4" />

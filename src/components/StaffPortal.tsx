@@ -487,7 +487,7 @@ export const StaffPortal: React.FC = () => {
           }`}
         >
           <Scan className="w-4 h-4 text-emerald-400" />
-          <span>Till &amp; Scanner</span>
+          <span>Barcode Scanner</span>
         </button>
 
         <button

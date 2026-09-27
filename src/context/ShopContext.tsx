@@ -38,6 +38,7 @@ import {
 } from '../utils/notificationService';
 import { generateMembershipNumber } from '../api/firebaseService';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
+import { supabase } from '../lib/supabase';
 import {
   fetchCustomerBikesFromDb,
   insertCustomerBikeToDb,
@@ -94,8 +95,8 @@ interface ShopContextType {
   clearLatestSmsAlert: () => void;
   // Auth actions
   loginWithCredentials: (email: string, password?: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
-  loginStaffWithPin: (staffIdentifierOrUid: string, pin: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
-  registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
+  loginStaff: (email: string, password: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
+  registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string) => Promise<{ success: boolean; message?: string }>;
   logoutUser: () => void;
   // Bike actions
   addCustomerBike: (bike: Omit<CustomerBike, 'id' | 'addedAt'>) => Promise<CustomerBike>;
@@ -852,105 +853,64 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, user: matched };
   };
 
-  // Dedicated Staff Station PIN Login
-  const loginStaffWithPin = async (staffIdentifierOrUid: string, pin: string) => {
-    const cleanPin = (pin || '').trim();
-    if (cleanPin !== STAFF_MASTER_PIN) {
-      return {
-        success: false,
-        message: 'Access Denied: Incorrect Security PIN. Authorized workshop personnel only.',
-      };
+  // Dedicated Staff Station Login using Email/Password
+  const loginStaff = async (email: string, password: string) => {
+    try {
+      // 1. Authenticate with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (error || !data.user) {
+        return { success: false, message: 'Invalid credentials or access denied.' };
+      }
+
+      // 2. Validate user profile role
+      const staffUser = users.find((u) => u.uid === data.user.id);
+      if (!staffUser || (staffUser.role !== 'staff' && staffUser.role !== 'admin')) {
+        await supabase.auth.signOut();
+        return { success: false, message: 'Access Denied: Authorized workshop personnel only.' };
+      }
+
+      setCurrentUser(staffUser);
+      // Dynamic database fetch on staff login: syncs all workshop bookings and stamp logs
+      await syncUserFromDatabase(staffUser);
+      return { success: true, user: staffUser };
+    } catch (err: any) {
+      console.error('Staff login error:', err);
+      return { success: false, message: 'An unexpected error occurred.' };
     }
-
-    const cleanId = (staffIdentifierOrUid || '').trim().toLowerCase();
-    let staffUser: UserProfile | undefined;
-
-    if (cleanId) {
-      staffUser = users.find(
-        (u) =>
-          (u.role === 'staff' || u.role === 'admin') &&
-          (u.uid.toLowerCase() === cleanId ||
-            u.email.toLowerCase() === cleanId ||
-            u.displayName.toLowerCase().includes(cleanId) ||
-            (u.membershipNumber && u.membershipNumber.toLowerCase() === cleanId))
-      );
-    }
-
-    // If none specified or matching, default to Ben Stakey (shop owner)
-    if (!staffUser) {
-      staffUser =
-        users.find((u) => u.uid === 'staff-ben-001' || u.email.toLowerCase() === 'ben@stakeyscycles.com') ||
-        users.find((u) => u.role === 'staff' || u.role === 'admin');
-    }
-
-    if (!staffUser) {
-      return { success: false, message: 'No staff account configured in system.' };
-    }
-
-    setCurrentUser(staffUser);
-    // Dynamic database fetch on staff login: syncs all workshop bookings and stamp logs
-    syncUserFromDatabase(staffUser);
-    return { success: true, user: staffUser };
   };
 
-  // Register implementation with password saving
+  // Register implementation with Supabase Auth
   const registerCustomerAccount = async (
     email: string,
     password: string,
     name: string,
     phoneNumber?: string
   ) => {
-    const cleanEmail = email.trim().toLowerCase();
-    const existing = users.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (existing) {
-      return { success: false, message: 'An account with this email address already exists. Please sign in.' };
-    }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: name.trim(), phone: phoneNumber?.trim() },
+        },
+      });
 
-    const membershipNumber = generateMembershipNumber();
-    const newUser: UserProfile = {
-      uid: `cust-${Date.now()}`,
-      email: cleanEmail,
-      displayName: name.trim(),
-      phoneNumber: phoneNumber?.trim() || undefined,
-      role: 'customer',
-      membershipNumber,
-      stamps: 0,
-      tickets: 0,
-      merits: 0,
-      bikes: [],
-      serviceVouchers: [],
-      createdAt: new Date(),
-      lastStampedAt: null,
-    };
+      if (error) {
+        return { success: false, message: error.message };
+      }
 
-    // Store password strictly in credentials map
-    setCredentials((prev) => {
-      const updated = {
-        ...prev,
-        [cleanEmail]: password,
-        [membershipNumber.toLowerCase()]: password,
-        [newUser.uid]: password,
+      return {
+        success: true,
+        message: 'Account created! Please check your email to confirm your registration before signing in.',
       };
-      try {
-        localStorage.setItem(`${STORAGE_KEY}_credentials`, JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
-    setUsers((prev) => [...prev, newUser]);
-    setCurrentUser(newUser);
-
-    // Save profile to backend database table
-    updateUserProfileInDb(newUser.uid, newUser.membershipNumber, {
-      stamps: 0,
-      tickets: 0,
-      merits: 0,
-      displayName: name.trim(),
-      phoneNumber: phoneNumber?.trim(),
-    }).catch((e) => console.warn('[DB SYNC] Error saving profile:', e));
-
-    syncUserFromDatabase(newUser);
-    return { success: true, user: newUser };
+    } catch (err: any) {
+      console.error('Registration error:', err);
+      return { success: false, message: err.message || 'An unexpected error occurred during registration.' };
+    }
   };
 
   const logoutUser = () => {
@@ -2087,7 +2047,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         latestSmsAlert,
         clearLatestSmsAlert,
         loginWithCredentials,
-        loginStaffWithPin,
+        loginStaff,
         registerCustomerAccount,
         logoutUser,
         addCustomerBike,

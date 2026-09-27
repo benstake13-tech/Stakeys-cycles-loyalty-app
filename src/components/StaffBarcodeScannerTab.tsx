@@ -17,6 +17,7 @@ export const StaffBarcodeScannerTab: React.FC<StaffBarcodeScannerTabProps> = ({
   users,
   onSelectCustomer,
 }) => {
+  const safeUsers = users || [];
   const [scanInput, setScanInput] = useState('');
   const [lastScannedCode, setLastScannedCode] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<'listening' | 'success' | 'error'>('listening');
@@ -55,16 +56,16 @@ export const StaffBarcodeScannerTab: React.FC<StaffBarcodeScannerTabProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [users]);
+  }, [safeUsers]);
 
   const processScannedCode = (code: string) => {
     const clean = code.trim().toUpperCase();
     setLastScannedCode(clean);
 
-    const found = users.find(
+    const found = safeUsers.find(
       (u) =>
         u.role === 'customer' &&
-        (u.membershipNumber.toUpperCase() === clean ||
+        (u.membershipNumber?.toUpperCase() === clean ||
           u.uid.toUpperCase() === clean ||
           u.email.toUpperCase() === clean)
     );
@@ -173,7 +174,7 @@ export const StaffBarcodeScannerTab: React.FC<StaffBarcodeScannerTabProps> = ({
               Quick Test Membership Barcodes:
             </div>
             <div className="flex flex-wrap gap-2">
-              {users.filter((u) => u.role === 'customer').slice(0, 4).map((c) => (
+              {safeUsers.filter((u) => u.role === 'customer').slice(0, 4).map((c) => (
                 <button
                   key={c.uid}
                   onClick={() => processScannedCode(c.membershipNumber)}
