@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useShop, STAFF_MASTER_PIN } from '../context/ShopContext';
 import { StakeysLogo } from './StakeysLogo';
+import { ThemeToggle } from './ThemeToggle';
 import { VehicleCategory } from '../types/bikeShop';
 import confetti from 'canvas-confetti';
 
@@ -235,6 +236,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
 
       {/* Main Container Card */}
       <div className="w-full max-w-md z-10 relative">
+        {/* Top Floating Theme Toggle */}
+        <div className="flex justify-end mb-3">
+          <ThemeToggle showLabel={true} />
+        </div>
+
         <div className="bg-neutral-900/95 border border-neutral-700/80 rounded-2xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(5,193,71,0.12)] backdrop-blur-xl ring-1 ring-emerald-500/20">
           {/* Stakey's Brand Header */}
           <div className="flex flex-col items-center text-center mb-5">
@@ -594,7 +600,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-200 mb-1">
-                  Mobile Phone <span className="text-neutral-500 font-normal">(Optional, for repair SMS)</span>
+                  Mobile Phone <span className="text-neutral-500 font-normal">(Optional, for workshop contact)</span>
                 </label>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -716,15 +722,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
 
           {/* Guest Walk-In Service Booking Option */}
           {onGoToBooking && (
-            <div className="mt-5 pt-4 border-t border-neutral-800 text-center">
+            <div className="mt-5 pt-4 border-t border-neutral-800 text-center space-y-1.5">
               <button
                 type="button"
                 onClick={onGoToBooking}
-                className="w-full py-2.5 rounded-lg bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 hover:border-neutral-700 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/60 text-xs text-emerald-400 hover:text-emerald-300 font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Wrench className="w-3.5 h-3.5" />
-                <span>Book Workshop Service Directly as Guest (No Login Required)</span>
+                <Wrench className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Book Repair as Guest (Name &amp; Phone Only · Requires Staff Approval)</span>
               </button>
+              <p className="text-[11px] text-neutral-500">
+                No sign-up needed. Mechanics review and dispatch email acceptance or declination.
+              </p>
             </div>
           )}
         </div>

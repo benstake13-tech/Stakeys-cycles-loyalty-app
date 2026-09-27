@@ -13,6 +13,8 @@ import {
   X,
   ShieldCheck,
   AlertCircle,
+  Tag,
+  Search,
 } from 'lucide-react';
 import { ShopProvider, useShop, STAFF_MASTER_PIN } from './context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
@@ -23,12 +25,17 @@ import { DeliverablesViewer } from './components/DeliverablesViewer';
 import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner';
 import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
-import { POCKETBASE_URL } from './pocketbase';
+import { Navigation3DDeck, NavTabId } from './components/Navigation3DDeck';
+import { ThemeToggle } from './components/ThemeToggle';
+import { PromotionsCarousel } from './components/PromotionsCarousel';
+import { BikesWeTrustSection } from './components/BikesWeTrustSection';
+import { DerailleurHangerIdentifier } from './components/DerailleurHangerIdentifier';
 
 function AppContent() {
-  const { currentUser, logoutUser, loginStaffWithPin } = useShop();
+  const { currentUser, logoutUser, loginStaffWithPin, theme } = useShop();
+  const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
-  const [activeTab, setActiveTab] = useState<'customer' | 'booking' | 'staff' | 'deliverables'>('customer');
+  const [activeTab, setActiveTab] = useState<NavTabId>('customer');
 
   // Quick Staff Terminal PIN modal state for quick shop switching
   const [showStaffPinModal, setShowStaffPinModal] = useState(false);
@@ -68,29 +75,33 @@ function AppContent() {
   if (!currentUser) {
     if (showGuestBooking) {
       return (
-        <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
-          <header className="sticky top-0 z-40 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-800">
+        <div className={`min-h-screen ${isDark ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
+          <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="p-1 rounded-2xl bg-neutral-900 border border-emerald-500/40 shadow-lg shadow-emerald-500/10 shrink-0">
+                <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
                   <StakeysLogo className="w-10 h-10" />
                 </div>
                 <div>
-                  <span className="font-black text-lg tracking-tight text-white flex items-center gap-1.5">
+                  <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
                     STAKEYS
                     <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">
                       Cycles &amp; Scooter
                     </span>
                   </span>
-                  <div className="text-[11px] text-neutral-400 font-mono">Workshop Service Booking</div>
+                  <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Workshop Service Booking</div>
                 </div>
               </div>
-              <button
-                onClick={() => setShowGuestBooking(false)}
-                className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold cursor-pointer"
-              >
-                Back to Sign In
-              </button>
+
+              <div className="flex items-center gap-3">
+                <ThemeToggle showLabel={false} />
+                <button
+                  onClick={() => setShowGuestBooking(false)}
+                  className={`px-4 py-2 rounded-xl ${isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-white' : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-900'} text-xs font-semibold cursor-pointer`}
+                >
+                  Back to Sign In
+                </button>
+              </div>
             </div>
           </header>
           <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -103,16 +114,16 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* Broadcast Winner Announcement to Everybody */}
       <WinnerAnnouncementBanner />
 
       {/* Top Navigation Bar: Strict 3-zone contract */}
-      <header className="sticky top-0 z-40 bg-[#090b0e]/95 backdrop-blur-md border-b border-neutral-800/80">
+      <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#090b0e]/95 border-neutral-800/80 text-white' : 'bg-white/95 border-neutral-200 text-neutral-900'} backdrop-blur-md border-b`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Zone 1: Brand title, single element */}
           <div className="flex items-center gap-3">
-            <div className="p-1 rounded-xl bg-neutral-900 border border-emerald-500/30 text-emerald-400 shrink-0">
+            <div className={`p-1 rounded-xl ${isDark ? 'bg-neutral-900 border-emerald-500/30' : 'bg-neutral-100 border-emerald-500/30'} border text-emerald-400 shrink-0`}>
               <StakeysLogo className="w-7 h-7" />
             </div>
             <a
@@ -121,7 +132,7 @@ function AppContent() {
                 e.preventDefault();
                 setActiveTab(isStaff ? 'staff' : 'customer');
               }}
-              className="font-display font-extrabold text-lg sm:text-xl tracking-tight text-white flex items-baseline gap-1.5"
+              className={`font-display font-extrabold text-lg sm:text-xl tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-baseline gap-1.5`}
             >
               STAKEY'S
               <span className="text-[#05C147] font-semibold text-xs tracking-wider uppercase font-sans">
@@ -136,10 +147,10 @@ function AppContent() {
             <button
               type="button"
               onClick={() => setActiveTab('customer')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'customer'
-                  ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                  ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
+                  : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
               }`}
             >
               <User className="w-3.5 h-3.5 text-emerald-400" />
@@ -150,14 +161,56 @@ function AppContent() {
             <button
               type="button"
               onClick={() => setActiveTab('booking')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'booking'
-                  ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60'
-                  : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                  ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
+                  : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
               }`}
             >
               <Wrench className="w-3.5 h-3.5 text-emerald-400" />
               <span>Book Service</span>
+            </button>
+
+            {/* Promotions Tab */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('promotions')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'promotions'
+                  ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
+                  : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5 text-amber-400" />
+              <span>Promotions</span>
+            </button>
+
+            {/* Bikes We Trust Tab */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('bikes_we_trust')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'bikes_we_trust'
+                  ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
+                  : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+              }`}
+            >
+              <Bike className="w-3.5 h-3.5 text-sky-400" />
+              <span>Bikes We Trust</span>
+            </button>
+
+            {/* Derailleur Hangers Tab */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('hangers')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'hangers'
+                  ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
+                  : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5 text-violet-400" />
+              <span>Hangers</span>
             </button>
 
             {/* Staff Terminal: visible & accessible to staff, or prompt PIN for customer sessions */}
@@ -165,10 +218,10 @@ function AppContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('staff')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'staff'
                     ? 'bg-emerald-950/80 text-emerald-300 shadow-sm border border-emerald-500/50'
-                    : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                    : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
                 }`}
               >
                 <Scan className="w-3.5 h-3.5 text-emerald-400" />
@@ -182,7 +235,7 @@ function AppContent() {
                   setModalPinInput('');
                   setShowStaffPinModal(true);
                 }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-neutral-900 border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-neutral-900/60 border border-amber-500/30 transition-all cursor-pointer flex items-center gap-1.5"
                 title="Unlock Staff Terminal"
               >
                 <Shield className="w-3.5 h-3.5" />
@@ -195,33 +248,36 @@ function AppContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('deliverables')}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-2 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'deliverables'
-                    ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60'
-                    : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                    ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
+                    : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
                 }`}
               >
                 <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                <span>System Config</span>
+                <span>Config</span>
               </button>
             )}
           </nav>
 
           {/* Zone 3: Primary actions & User status */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Theme Toggle Button */}
+            <ThemeToggle showLabel={false} />
+
             {/* Live PocketBase Service Connection Indicator */}
             <ServiceStatusBadge variant="header" />
 
-            <div className="hidden sm:flex items-center gap-2 text-xs text-neutral-300">
-              <span className="font-semibold text-white">{currentUser.displayName}</span>
+            <div className={`hidden sm:flex items-center gap-2 text-xs ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+              <span className={`font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{currentUser.displayName}</span>
               {isStaff ? (
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/50">
                   Staff Verified
                 </span>
               ) : (
                 <>
-                  <span aria-hidden="true" className="text-neutral-600">·</span>
-                  <span className="text-neutral-400 font-mono text-[11px]">{currentUser.membershipNumber}</span>
+                  <span aria-hidden="true" className={isDark ? 'text-neutral-600' : 'text-neutral-400'}>·</span>
+                  <span className={`font-mono text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{currentUser.membershipNumber}</span>
                 </>
               )}
             </div>
@@ -229,7 +285,11 @@ function AppContent() {
             <button
               type="button"
               onClick={logoutUser}
-              className="px-3 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-rose-400 transition-colors text-xs font-medium flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+              className={`px-3 py-1.5 rounded-lg border transition-colors text-xs font-medium flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                isDark
+                  ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800 text-neutral-300 hover:text-rose-400'
+                  : 'bg-neutral-100 hover:bg-neutral-200 border-neutral-300 text-neutral-700 hover:text-rose-600'
+              }`}
               title="Sign Out"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -239,31 +299,72 @@ function AppContent() {
         </div>
 
         {/* Mobile secondary tab strip */}
-        <div className="md:hidden flex items-center gap-1 px-4 py-2 border-t border-neutral-800/60 overflow-x-auto bg-[#090b0e]">
+        <div className={`md:hidden flex items-center gap-1 px-4 py-2 border-t overflow-x-auto ${isDark ? 'border-neutral-800/60 bg-[#090b0e]' : 'border-neutral-200 bg-white'}`}>
           <button
             type="button"
             onClick={() => setActiveTab('customer')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'customer'
-                ? 'bg-neutral-800 text-white'
-                : 'text-neutral-400 hover:text-white'
+                ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
+                : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
             }`}
           >
             <User className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{isStaff ? 'Customer' : 'My Garage'}</span>
+            <span>{isStaff ? 'Customer' : 'Garage'}</span>
           </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('booking')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'booking'
-                ? 'bg-neutral-800 text-white'
-                : 'text-neutral-400 hover:text-white'
+                ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
+                : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
             }`}
           >
             <Wrench className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Book Service</span>
+            <span>Book</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('promotions')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'promotions'
+                ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
+                : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Tag className="w-3.5 h-3.5 text-amber-400" />
+            <span>Promos</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('bikes_we_trust')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'bikes_we_trust'
+                ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
+                : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Bike className="w-3.5 h-3.5 text-sky-400" />
+            <span>Bikes</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('hangers')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'hangers'
+                ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
+                : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
+            }`}
+          >
+            <Search className="w-3.5 h-3.5 text-violet-400" />
+            <span>Hangers</span>
+          </button>
+
           {isStaff ? (
             <button
               type="button"
@@ -271,7 +372,7 @@ function AppContent() {
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'staff'
                   ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/50'
-                  : 'text-neutral-400 hover:text-white'
+                  : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
               }`}
             >
               <Scan className="w-3.5 h-3.5 text-emerald-400" />
@@ -288,21 +389,7 @@ function AppContent() {
               className="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 text-amber-400 border border-amber-500/30"
             >
               <Shield className="w-3.5 h-3.5" />
-              <span>Staff Station</span>
-            </button>
-          )}
-          {isStaff && (
-            <button
-              type="button"
-              onClick={() => setActiveTab('deliverables')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'deliverables'
-                  ? 'bg-neutral-800 text-white'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Config</span>
+              <span>Staff</span>
             </button>
           )}
         </div>
@@ -416,10 +503,49 @@ function AppContent() {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Interactive 3D Navigation Deck */}
+        <Navigation3DDeck
+          activeTab={activeTab}
+          onSelectTab={(tab) => setActiveTab(tab)}
+          isStaff={isStaff}
+          onUnlockStaffPin={() => {
+            setModalPinError(null);
+            setModalPinInput('');
+            setShowStaffPinModal(true);
+          }}
+        />
+
+        {/* Tab Views */}
         {activeTab === 'customer' && <CustomerPortal />}
         {activeTab === 'booking' && <BookingPortal />}
-        {activeTab === 'staff' && isStaff && <StaffPortal />}
+        {activeTab === 'promotions' && <PromotionsCarousel />}
+        {activeTab === 'bikes_we_trust' && <BikesWeTrustSection />}
+        {activeTab === 'hangers' && <DerailleurHangerIdentifier />}
+        {activeTab === 'staff' && (
+          isStaff ? (
+            <StaffPortal />
+          ) : (
+            <div className="bg-[#0d1015] border border-amber-500/40 rounded-3xl p-8 text-center space-y-4 max-w-md mx-auto">
+              <ShieldCheck className="w-12 h-12 text-amber-400 mx-auto" />
+              <h3 className="text-lg font-bold text-white">Staff Terminal Locked</h3>
+              <p className="text-xs text-neutral-400">
+                The Cytech Workshop Terminal requires staff authentication with the master PIN.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setModalPinError(null);
+                  setModalPinInput('');
+                  setShowStaffPinModal(true);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider cursor-pointer"
+              >
+                Enter Staff PIN
+              </button>
+            </div>
+          )
+        )}
         {activeTab === 'deliverables' && isStaff && <DeliverablesViewer />}
       </main>
 

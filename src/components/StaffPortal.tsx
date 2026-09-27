@@ -28,16 +28,24 @@ import {
   CheckCircle2,
   Calendar,
   Ticket,
+  Tag,
+  UserPlus,
+  Trash2,
+  Sliders,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { UserProfile, PrizeWheelSegment } from '../types/bikeShop';
+import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
 import { BarcodeVisual } from './BarcodeVisual';
 import { PrizeWheelModal } from './PrizeWheelModal';
 import { WheelEditorModal } from './WheelEditorModal';
 import { StaffBookingsTab } from './StaffBookingsTab';
 import { CustomerDatabaseTab } from './CustomerDatabaseTab';
+import { StaffManagementTab } from './StaffManagementTab';
+import { PromotionsManagerTab } from './PromotionsManagerTab';
+import { DerailleurHangerIdentifier } from './DerailleurHangerIdentifier';
 import { BikeScraperTab } from './BikeScraperTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
+import { StaffBarcodeScannerTab } from './StaffBarcodeScannerTab';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 
 export const StaffPortal: React.FC = () => {
@@ -48,15 +56,27 @@ export const StaffPortal: React.FC = () => {
     draws,
     stampLogs,
     bookings,
+    staffMembers,
+    promotions,
     addStamp,
     redeemReward,
     updateWheel,
     executePrizeDraw,
     createDraw,
+    updateDraw,
+    deleteDraw,
   } = useShop();
 
   const [staffTab, setStaffTab] = useState<
-    'bookings' | 'scraper' | 'scanner' | 'customers' | 'draws' | 'logs'
+    | 'bookings'
+    | 'staff_roster'
+    | 'promotions'
+    | 'customers'
+    | 'draws'
+    | 'hangers'
+    | 'scraper'
+    | 'scanner'
+    | 'logs'
   >('bookings');
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
@@ -78,6 +98,17 @@ export const StaffPortal: React.FC = () => {
   const [showNewDrawModal, setShowNewDrawModal] = useState(false);
   const [newDrawTitle, setNewDrawTitle] = useState('');
   const [newDrawPrize, setNewDrawPrize] = useState('');
+  const [newDrawDate, setNewDrawDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split('T')[0];
+  });
+
+  // Edit Draw form state
+  const [editingDraw, setEditingDraw] = useState<PrizeDraw | null>(null);
+  const [editDrawTitle, setEditDrawTitle] = useState('');
+  const [editDrawPrize, setEditDrawPrize] = useState('');
+  const [editDrawDate, setEditDrawDate] = useState('');
 
   // Wheel preview & editor
   const [previewWheel, setPreviewWheel] = useState<any | null>(null);
@@ -172,9 +203,9 @@ export const StaffPortal: React.FC = () => {
     if (!newDrawTitle || !newDrawPrize) return;
 
     await createDraw(
-      newDrawTitle,
-      newDrawPrize,
-      new Date(Date.now() + 14 * 24 * 3600 * 1000)
+      newDrawTitle.trim(),
+      newDrawPrize.trim(),
+      newDrawDate ? new Date(newDrawDate) : new Date(Date.now() + 14 * 24 * 3600 * 1000)
     );
     setNewDrawTitle('');
     setNewDrawPrize('');
@@ -183,6 +214,41 @@ export const StaffPortal: React.FC = () => {
       success: true,
       message: 'New periodic prize draw announced and scheduled!',
     });
+  };
+
+  const handleOpenEditDraw = (draw: PrizeDraw) => {
+    setEditingDraw(draw);
+    setEditDrawTitle(draw.title);
+    setEditDrawPrize(draw.prizeDescription);
+    setEditDrawDate(
+      draw.drawDate ? new Date(draw.drawDate).toISOString().split('T')[0] : ''
+    );
+  };
+
+  const handleSaveEditDraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDraw || !editDrawTitle.trim()) return;
+
+    await updateDraw(editingDraw.id, {
+      title: editDrawTitle.trim(),
+      prizeDescription: editDrawPrize.trim(),
+      drawDate: editDrawDate ? new Date(editDrawDate) : new Date(editingDraw.drawDate),
+    });
+    setEditingDraw(null);
+    setActionFeedback({
+      success: true,
+      message: `Prize draw entry "${editDrawTitle}" updated successfully!`,
+    });
+  };
+
+  const handleDeleteDraw = async (drawId: string, title: string) => {
+    if (confirm(`Are you sure you want to delete prize draw "${title}"?`)) {
+      await deleteDraw(drawId);
+      setActionFeedback({
+        success: true,
+        message: `Prize draw "${title}" removed from schedule.`,
+      });
+    }
   };
 
   // Toggle active wheel
@@ -250,15 +316,29 @@ export const StaffPortal: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setStaffTab('customers')}
+              onClick={() => setStaffTab('staff_roster')}
               className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
             >
               <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Reward Ready
+                Staff Roster
+              </div>
+              <div className="text-xl font-black text-emerald-400 mt-0.5">
+                {staffMembers.length}{' '}
+                <span className="text-xs text-neutral-500 font-normal">Active</span>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setStaffTab('promotions')}
+              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+            >
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                Promotions
               </div>
               <div className="text-xl font-black text-amber-400 mt-0.5">
-                {rewardReadyCount}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Riders</span>
+                {promotions.filter((p) => p.status === 'active').length}{' '}
+                <span className="text-xs text-neutral-500 font-normal">Live</span>
               </div>
             </button>
 
@@ -297,14 +377,14 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('bookings')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
             staffTab === 'bookings'
               ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
           }`}
         >
           <Wrench className="w-4 h-4 text-emerald-400" />
-          <span>Workshop Bookings &amp; Intake</span>
+          <span>Workshop Bookings</span>
           <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
             {bookings.length}
           </span>
@@ -312,44 +392,47 @@ export const StaffPortal: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setStaffTab('scraper')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'scraper'
+          onClick={() => setStaffTab('staff_roster')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'staff_roster'
               ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
           }`}
         >
-          <Bike className="w-4 h-4 text-emerald-400" />
-          <span>Bike Stock Scraper &amp; Upgrades</span>
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-            OEM Intel
+          <UserPlus className="w-4 h-4 text-emerald-400" />
+          <span>Staff Management</span>
+          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
+            {staffMembers.length}
           </span>
         </button>
 
         <button
           type="button"
-          onClick={() => setStaffTab('scanner')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'scanner'
+          onClick={() => setStaffTab('promotions')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'promotions'
               ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
           }`}
         >
-          <Scan className="w-4 h-4 text-emerald-400" />
-          <span>Loyalty Till &amp; Scanner</span>
+          <Tag className="w-4 h-4 text-amber-400" />
+          <span>Promotions Manager</span>
+          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
+            {promotions.length}
+          </span>
         </button>
 
         <button
           type="button"
           onClick={() => setStaffTab('customers')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
             staffTab === 'customers'
               ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
           }`}
         >
           <Users className="w-4 h-4 text-emerald-400" />
-          <span>Customer Roster &amp; Garage</span>
+          <span>Loyalty Members</span>
           <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
             {customerList.length}
           </span>
@@ -358,7 +441,7 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('draws')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
             staffTab === 'draws'
               ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
@@ -370,18 +453,54 @@ export const StaffPortal: React.FC = () => {
 
         <button
           type="button"
+          onClick={() => setStaffTab('hangers')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'hangers'
+              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
+          }`}
+        >
+          <Search className="w-4 h-4 text-violet-400" />
+          <span>Hanger Identifier</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStaffTab('scraper')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'scraper'
+              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
+          }`}
+        >
+          <Bike className="w-4 h-4 text-emerald-400" />
+          <span>OEM Parts Scraper</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStaffTab('scanner')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'scanner'
+              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
+          }`}
+        >
+          <Scan className="w-4 h-4 text-emerald-400" />
+          <span>Till &amp; Scanner</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setStaffTab('logs')}
-          className={`px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
             staffTab === 'logs'
               ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
               : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
           }`}
         >
           <History className="w-4 h-4 text-emerald-400" />
-          <span>Stamp Audit History</span>
-          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
-            {stampLogs.length}
-          </span>
+          <span>Audit Logs</span>
         </button>
       </div>
 
@@ -389,6 +508,15 @@ export const StaffPortal: React.FC = () => {
 
       {/* VIEW 1: Service Bookings Management */}
       {staffTab === 'bookings' && <StaffBookingsTab />}
+
+      {/* VIEW 1B: Staff Management Module (Full CRUD) */}
+      {staffTab === 'staff_roster' && <StaffManagementTab />}
+
+      {/* VIEW 1C: Promotions Manager (Full CRUD) */}
+      {staffTab === 'promotions' && <PromotionsManagerTab />}
+
+      {/* VIEW 1D: Derailleur Hanger Identifier Module */}
+      {staffTab === 'hangers' && <DerailleurHangerIdentifier />}
 
       {/* VIEW 2: Bike OEM Stock Parts Scraper & Upgrade Inspector */}
       {staffTab === 'scraper' && <BikeScraperTab initialCustomer={selectedCustomer} />}
@@ -403,262 +531,9 @@ export const StaffPortal: React.FC = () => {
         />
       )}
 
-      {/* VIEW 4: Loyalty Till & Scanner */}
+      {/* VIEW 4: Dedicated Staff Barcode Scanner Interface */}
       {staffTab === 'scanner' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Quick Lookup & Barcode Search (5 cols) */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl">
-              <h3 className="text-base font-bold text-white mb-3 flex items-center gap-2">
-                <Search className="w-4 h-4 text-emerald-500" />
-                Member Barcode Scan &amp; Till Search
-              </h3>
-
-              <form onSubmit={handleSearch} className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Scan barcode or type STK-839201..."
-                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 font-mono"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Scan className="w-4 h-4" />
-                  Find
-                </button>
-              </form>
-
-              {/* Quick Select Pill Strip */}
-              <div className="mt-4 pt-3 border-t border-neutral-800/80">
-                <span className="text-[11px] text-neutral-400 font-mono block mb-2">
-                  Quick Select Active Riders:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {customerList.slice(0, 6).map((cust) => (
-                    <button
-                      key={cust.uid}
-                      type="button"
-                      onClick={() => handleSelectCustomer(cust)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-                        selectedCustomer?.uid === cust.uid
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                          : 'bg-neutral-950 hover:bg-neutral-800 text-neutral-300 border border-neutral-800'
-                      }`}
-                    >
-                      {cust.displayName.split(' ')[0]}{' '}
-                      <span className="font-mono text-[10px] opacity-75">
-                        ({cust.membershipNumber})
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Selected Customer Card */}
-            {selectedCustomer ? (
-              <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-5">
-                <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-emerald-600 flex items-center justify-center font-bold text-neutral-950 text-lg shadow-md">
-                      {selectedCustomer.displayName.charAt(0)}
-                    </div>
-                    <div>
-                      <h4 className="text-lg font-bold text-white">
-                        {selectedCustomer.displayName}
-                      </h4>
-                      <div className="text-xs text-neutral-400 font-mono">
-                        {selectedCustomer.membershipNumber}
-                      </div>
-                    </div>
-                  </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    VERIFIED MEMBER
-                  </span>
-                </div>
-
-                {/* Stats Counters */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-neutral-950 p-4 rounded-2xl border border-neutral-800">
-                    <div className="text-[11px] font-semibold text-neutral-400 uppercase">
-                      Active Stamps
-                    </div>
-                    <div className="text-2xl font-black text-emerald-400 mt-0.5">
-                      {selectedCustomer.stamps || 0}{' '}
-                      <span className="text-xs text-neutral-500 font-normal">/ 10</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-neutral-950 p-4 rounded-2xl border border-neutral-800">
-                    <div className="text-[11px] font-semibold text-neutral-400 uppercase">
-                      Draw Tickets
-                    </div>
-                    <div className="text-2xl font-black text-emerald-400 mt-0.5">
-                      {selectedCustomer.tickets || 0}{' '}
-                      <span className="text-xs text-neutral-500 font-normal">Entries</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Rate limit status pill */}
-                <div className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 text-xs">
-                  {rateLimitStatus.allowed ? (
-                    <div className="flex items-center gap-2 text-emerald-400 font-medium">
-                      <CheckCircle className="w-4 h-4 shrink-0" />
-                      <span>Eligible for today's visit stamp.</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-amber-400 font-medium">
-                      <ShieldAlert className="w-4 h-4 shrink-0" />
-                      <span className="leading-tight">
-                        Stamp already added today (
-                        {new Date(selectedCustomer.lastStampedAt).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                        ).
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Staff Action Buttons */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between text-xs text-neutral-400 px-1">
-                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={bypassRateLimit}
-                        onChange={(e) => setBypassRateLimit(e.target.checked)}
-                        className="rounded border-neutral-700 text-emerald-500 focus:ring-0 bg-neutral-950"
-                      />
-                      <span>Staff Override (Bypass 1-stamp/day limit)</span>
-                    </label>
-                  </div>
-
-                  <button
-                    onClick={handleAddStamp}
-                    disabled={!rateLimitStatus.allowed && !bypassRateLimit}
-                    className={`w-full py-3.5 px-4 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${
-                      rateLimitStatus.allowed || bypassRateLimit
-                        ? 'bg-emerald-500 hover:bg-emerald-400 text-neutral-950 shadow-lg shadow-emerald-500/20 active:scale-95 cursor-pointer'
-                        : 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-neutral-700'
-                    }`}
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    Apply +1 Visit Stamp to Customer
-                  </button>
-
-                  <button
-                    onClick={handleRedeemTuneUp}
-                    className="w-full py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 border border-neutral-700 transition-all cursor-pointer"
-                  >
-                    <Award className="w-4 h-4 text-emerald-400" />
-                    Redeem Perk (Safety Check / Tune)
-                  </button>
-                </div>
-
-                {/* Action feedback */}
-                {actionFeedback && (
-                  <div
-                    className={`p-3.5 rounded-xl flex items-center gap-2.5 text-xs animate-fade-in ${
-                      actionFeedback.success
-                        ? 'bg-emerald-950/80 border border-emerald-700 text-emerald-200'
-                        : 'bg-rose-950/80 border border-rose-700 text-rose-200'
-                    }`}
-                  >
-                    {actionFeedback.success ? (
-                      <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                    )}
-                    <span>{actionFeedback.message}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-8 text-center text-neutral-500">
-                <Scan className="w-10 h-10 mx-auto text-neutral-600 mb-2" />
-                <p className="text-sm">Scan a barcode or search a customer to begin.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Customer Garage & Quick Actions (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
-            {selectedCustomer ? (
-              <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-5">
-                <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
-                  <div className="flex items-center gap-2 text-white font-bold text-base">
-                    <Bike className="w-5 h-5 text-emerald-500" />
-                    Rider's Registered Garage &amp; Bikes
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setStaffTab('scraper')}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 font-semibold text-xs border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Search className="w-3.5 h-3.5" />
-                    <span>Scrape Stock Specs</span>
-                  </button>
-                </div>
-
-                {selectedCustomer.bikes && selectedCustomer.bikes.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {selectedCustomer.bikes.map((bike) => (
-                      <div
-                        key={bike.id}
-                        className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-bold text-white text-sm">
-                            {bike.brand} {bike.model}
-                          </span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-neutral-900 text-emerald-400 border border-neutral-800 font-mono">
-                            {bike.categoryLabel}
-                          </span>
-                        </div>
-                        {bike.colour && (
-                          <div className="text-xs text-neutral-400 font-mono">
-                            Colour: {bike.colour}
-                          </div>
-                        )}
-                        {bike.stockSpecsScraped && (
-                          <div className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>OEM Specs Verified ({bike.scrapedData?.components.length || 0} parts)</span>
-                          </div>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setStaffTab('scraper')}
-                          className="w-full py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 text-xs font-semibold flex items-center justify-center gap-1 cursor-pointer border border-neutral-800"
-                        >
-                          <span>Inspect Parts &amp; Upgrades</span>
-                          <ArrowRight className="w-3 h-3 text-emerald-400" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="p-8 rounded-2xl bg-neutral-950 border border-neutral-800 text-center text-neutral-500 text-xs">
-                    No bikes currently registered in customer garage.
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-8 text-center text-neutral-500">
-                <Users className="w-10 h-10 mx-auto text-neutral-600 mb-2" />
-                <p className="text-sm">Select a member to view garage bikes and fast rewards.</p>
-              </div>
-            )}
-          </div>
-        </div>
+        <StaffBarcodeScannerTab users={users} onSelectCustomer={handleSelectCustomer} />
       )}
 
       {/* VIEW 5: Prize Draws & Wheel Hub */}
@@ -691,13 +566,26 @@ export const StaffPortal: React.FC = () => {
               <div className="space-y-3">
                 {draws.map((draw) => {
                   const isUpcoming = draw.status === 'upcoming';
+                  const formattedDate = draw.drawDate
+                    ? new Date(draw.drawDate).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })
+                    : 'Scheduled';
+
                   return (
                     <div
                       key={draw.id}
-                      className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2"
+                      className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2.5 hover:border-neutral-700 transition-all"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm text-white">{draw.title}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-white">{draw.title}</span>
+                          <span className="text-[11px] font-mono text-neutral-400">
+                            • {formattedDate}
+                          </span>
+                        </div>
                         <span
                           className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
                             isUpcoming
@@ -708,24 +596,57 @@ export const StaffPortal: React.FC = () => {
                           {draw.status}
                         </span>
                       </div>
-                      <p className="text-xs text-neutral-400">{draw.prizeDescription}</p>
+
+                      <p className="text-xs text-neutral-300 leading-relaxed">
+                        {draw.prizeDescription}
+                      </p>
+
+                      <div className="flex items-center gap-2 text-[11px] text-neutral-400 font-mono">
+                        <Ticket className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Requires: 1 Prize Draw Ticket (Earned via 10-stamp full card)</span>
+                      </div>
+
                       {draw.winnerName && (
                         <div className="text-xs text-emerald-400 font-semibold pt-1 flex items-center gap-1.5">
                           <Trophy className="w-3.5 h-3.5" />
                           Winner: {draw.winnerName}
                         </div>
                       )}
-                      {isUpcoming && (
-                        <button
-                          type="button"
-                          onClick={() => handleRunDraw(draw.id)}
-                          disabled={runningDrawId === draw.id}
-                          className="w-full mt-2 py-2 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
-                        >
-                          <Dices className="w-4 h-4" />
-                          {runningDrawId === draw.id ? 'Executing Draw...' : 'Execute Draw Now'}
-                        </button>
-                      )}
+
+                      {/* Staff CRUD & Execution Toolbar */}
+                      <div className="pt-2 border-t border-neutral-800/80 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditDraw(draw)}
+                            className="px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <Edit3 className="w-3 h-3 text-emerald-400" />
+                            <span>Edit Entry</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteDraw(draw.id, draw.title)}
+                            className="p-1 rounded-lg bg-rose-950/30 hover:bg-rose-900/60 border border-rose-800/40 text-rose-400 hover:text-rose-200 text-[11px] cursor-pointer transition-colors"
+                            title="Delete prize draw entry"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {isUpcoming && (
+                          <button
+                            type="button"
+                            onClick={() => handleRunDraw(draw.id)}
+                            disabled={runningDrawId === draw.id}
+                            className="py-1.5 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                          >
+                            <Dices className="w-3.5 h-3.5" />
+                            <span>{runningDrawId === draw.id ? 'Running...' : 'Execute Draw'}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -966,6 +887,19 @@ export const StaffPortal: React.FC = () => {
                 />
               </div>
 
+              <div>
+                <label className="block text-neutral-400 font-semibold mb-1">
+                  Draw Scheduled End Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={newDrawDate}
+                  onChange={(e) => setNewDrawDate(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
@@ -979,6 +913,75 @@ export const StaffPortal: React.FC = () => {
                   className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold uppercase text-[11px] cursor-pointer"
                 >
                   Schedule Draw
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Draw Entry Modal */}
+      {editingDraw && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <div className="w-full max-w-md bg-neutral-900 border border-neutral-800 rounded-3xl p-6 text-white shadow-2xl space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Edit3 className="w-5 h-5 text-emerald-500" />
+              Edit Prize Draw Entry
+            </h3>
+
+            <form onSubmit={handleSaveEditDraw} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-neutral-400 font-semibold mb-1">
+                  Draw Title / Event Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editDrawTitle}
+                  onChange={(e) => setEditDrawTitle(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 font-semibold mb-1">
+                  Prize Package Description
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={editDrawPrize}
+                  onChange={(e) => setEditDrawPrize(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-neutral-400 font-semibold mb-1">
+                  Draw Scheduled End Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={editDrawDate}
+                  onChange={(e) => setEditDrawDate(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDraw(null)}
+                  className="flex-1 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold uppercase text-[11px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold uppercase text-[11px] cursor-pointer"
+                >
+                  Save Changes
                 </button>
               </div>
             </form>

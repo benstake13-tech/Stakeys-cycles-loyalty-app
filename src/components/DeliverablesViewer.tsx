@@ -12,10 +12,10 @@ import {
   Terminal,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { POCKETBASE_URL } from '../pocketbase';
+import { DEFAULT_SUPABASE_URL } from '../supabase';
 
 export const DeliverablesViewer: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'rules' | 'service' | 'schema' | 'guide'>('rules');
+  const [activeTab, setActiveTab] = useState<'rls' | 'service' | 'schema' | 'guide'>('rls');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const { users, prizeWheels, draws, stampLogs } = useShop();
@@ -26,303 +26,184 @@ export const DeliverablesViewer: React.FC = () => {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  const pocketbaseRulesGuide = `// POCKETBASE API ACCESS RULES (Enforced at http://127.0.0.1:8080)
+  const supabaseRlsGuide = `-- SUPABASE ROW LEVEL SECURITY (RLS) POLICIES
+-- Run in Supabase SQL Editor to enable open public read/write access for cross-device syncing
 
-1. "users" Collection (Auth type)
-   - listRule:   @request.auth.id = id || @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - viewRule:   @request.auth.id = id || @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - createRule: "" (Public registration allowed for new customers)
-   - updateRule: @request.auth.role = 'staff' || @request.auth.role = 'admin' || (@request.auth.id = id && @request.data.role:isset = false && @request.data.stamps:isset = false && @request.data.tickets:isset = false && @request.data.membershipNumber:isset = false)
-   - deleteRule: @request.auth.role = 'admin'
-   * Note: Customers CANNOT tamper with their own stamps, tickets, membershipNumber, or role!
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.customer_bikes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.service_bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stamp_logs ENABLE ROW LEVEL SECURITY;
 
-2. "prize_wheels" Collection (Base type)
-   - listRule:   @request.auth.id != "" && (active = true || @request.auth.role = 'staff' || @request.auth.role = 'admin')
-   - viewRule:   @request.auth.id != "" && (active = true || @request.auth.role = 'staff' || @request.auth.role = 'admin')
-   - createRule: @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - updateRule: @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - deleteRule: @request.auth.role = 'admin'
+CREATE POLICY "Allow public select profiles" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Allow public insert profiles" ON public.profiles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update profiles" ON public.profiles FOR UPDATE USING (true);
 
-3. "draws" Collection (Base type)
-   - listRule:   @request.auth.id != ""
-   - viewRule:   @request.auth.id != ""
-   - createRule: @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - updateRule: @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - deleteRule: @request.auth.role = 'admin'
+CREATE POLICY "Allow public select customer_bikes" ON public.customer_bikes FOR SELECT USING (true);
+CREATE POLICY "Allow public insert customer_bikes" ON public.customer_bikes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update customer_bikes" ON public.customer_bikes FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete customer_bikes" ON public.customer_bikes FOR DELETE USING (true);
 
-4. "stamp_logs" Collection (Base type - Immutable Audit Trail)
-   - listRule:   customerId = @request.auth.id || @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - viewRule:   customerId = @request.auth.id || @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - createRule: @request.auth.role = 'staff' || @request.auth.role = 'admin'
-   - updateRule: null (Locked / Immutable audit records)
-   - deleteRule: null (Locked / Immutable audit records)`;
+CREATE POLICY "Allow public select service_bookings" ON public.service_bookings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert service_bookings" ON public.service_bookings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update service_bookings" ON public.service_bookings FOR UPDATE USING (true);
 
-  const pocketbaseClientServiceCode = `/**
- * PocketBase Modular Service for Stakey's Cycles
- * Server: http://127.0.0.1:8080
+CREATE POLICY "Allow public select stamp_logs" ON public.stamp_logs FOR SELECT USING (true);
+CREATE POLICY "Allow public insert stamp_logs" ON public.stamp_logs FOR INSERT WITH CHECK (true);`;
+
+  const supabaseServiceCode = `/**
+ * Stakey's Cycles - Supabase Backend Synchronization Service
+ * Cloud URL: https://lhojocpygcnkxvkrcuxh.supabase.co
  */
-import PocketBase from 'pocketbase';
+import { createClient } from '@supabase/supabase-js';
 
-export const pb = new PocketBase('http://127.0.0.1:8080');
+const SUPABASE_URL = 'https://lhojocpygcnkxvkrcuxh.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
 
-// 1. Authenticate with Email & Password
-export async function loginCustomer(email, password) {
-  const authData = await pb.collection('users').authWithPassword(email, password);
-  return authData.record;
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// 1. Fetch Customer Bikes from Supabase
+export async function fetchCustomerBikes(userId: string) {
+  const { data, error } = await supabase
+    .from('customer_bikes')
+    .select('*')
+    .eq('customer_id', userId);
+  if (error) throw error;
+  return data;
 }
 
-// 2. Register Customer with generated membership number
-export async function registerCustomer(email, password, name) {
-  const randomSixDigits = Math.floor(100000 + Math.random() * 900000);
-  const membershipNumber = \`STK-\${randomSixDigits}\`;
-
-  const record = await pb.collection('users').create({
-    email,
-    password,
-    passwordConfirm: password,
-    name,
-    membershipNumber,
-    role: 'customer',
-    stamps: 0,
-    tickets: 0,
-  });
-
-  return record;
+// 2. Insert Service Booking
+export async function insertBooking(booking: any) {
+  const { error } = await supabase
+    .from('service_bookings')
+    .insert(booking);
+  if (error) throw error;
+  return true;
 }
 
-// 3. Add Stamp to Customer (with daily rate-limiting & 10-stamp rewards)
-export async function addStampToCustomer(customerId, staffId, bypassRateLimit = false) {
-  const customer = await pb.collection('users').getOne(customerId);
-
-  // 1-visit-per-day rate limit
-  if (!bypassRateLimit && customer.lastStampedAt) {
-    const lastStamped = new Date(customer.lastStampedAt);
-    const now = new Date();
-    if (
-      lastStamped.getFullYear() === now.getFullYear() &&
-      lastStamped.getMonth() === now.getMonth() &&
-      lastStamped.getDate() === now.getDate()
-    ) {
-      throw new Error('Daily Rate Limit: 1 stamp per day allowed.');
-    }
-  }
-
-  const currentStamps = Number(customer.stamps || 0);
-  const currentTickets = Number(customer.tickets || 0);
-
-  let nextStamps = currentStamps + 1;
-  let nextTickets = currentTickets;
-  let cardCompleted = false;
-
-  // 10th Stamp milestone
-  if (nextStamps >= 10) {
-    nextStamps = 0; // Reset card
-    nextTickets += 1; // Award +1 Prize Draw ticket
-    cardCompleted = true;
-  }
-
-  // Update customer record
-  await pb.collection('users').update(customerId, {
-    stamps: nextStamps,
-    tickets: nextTickets,
-    lastStampedAt: new Date().toISOString(),
-  });
-
-  // Write immutable audit log to stamp_logs
-  await pb.collection('stamp_logs').create({
-    customerId,
-    customerName: customer.name,
-    membershipNumber: customer.membershipNumber,
-    staffId,
-    action: 'add_stamp',
-    stampsBefore: currentStamps,
-    stampsAfter: nextStamps,
-    ticketsAwarded: cardCompleted ? 1 : 0,
-    note: cardCompleted ? 'Completed 10-stamp card (+1 Ticket)' : 'Visit stamp added',
-  });
-
-  return { success: true, nextStamps, nextTickets, cardCompleted };
-}
-
-// 4. Run Periodic Prize Draw
-export async function runPrizeDraw(drawId) {
-  const draw = await pb.collection('draws').getOne(drawId);
-  const ticketHolders = await pb.collection('users').getFullList({
-    filter: "role = 'customer' && tickets > 0",
-  });
-
-  if (ticketHolders.length === 0) {
-    throw new Error('No eligible customers with tickets > 0 found.');
-  }
-
-  // Create weighted ticket pool
-  const pool = [];
-  ticketHolders.forEach((user) => {
-    const count = Math.max(1, user.tickets || 1);
-    for (let i = 0; i < count; i++) pool.push(user);
-  });
-
-  const winner = pool[Math.floor(Math.random() * pool.length)];
-
-  await pb.collection('draws').update(drawId, {
-    status: 'completed',
-    winnerId: winner.id,
-    winnerName: winner.name,
-    winnerMembershipNumber: winner.membershipNumber,
-  });
-
-  return { drawId, winner, totalEntries: pool.length };
+// 3. Realtime Subscription across devices
+export function subscribeToChanges(onChanged: () => void) {
+  return supabase
+    .channel('public-db-changes')
+    .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+      onChanged();
+    })
+    .subscribe();
 }`;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Header */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
             <Server className="w-4 h-4 text-emerald-500" />
-            PocketBase Deliverables & Architecture
+            Supabase Cloud Deliverables &amp; Architecture
           </div>
-          <h2 className="text-2xl font-black text-white mt-1">PocketBase Exclusively (127.0.0.1:8080)</h2>
+          <h2 className="text-2xl font-black text-white mt-1">Supabase Cloud Database &amp; Realtime</h2>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Target backend: <code className="text-emerald-400 font-mono">{POCKETBASE_URL}</code> • API Rules, pb_schema.json, and SDK client.
+            Target Cloud URL: <code className="text-emerald-400 font-mono">{DEFAULT_SUPABASE_URL}</code> • RLS Policies, SQL Schema, and Realtime Sync.
           </p>
         </div>
 
         {/* Tab Selector */}
         <div className="flex flex-wrap items-center gap-1.5 bg-neutral-950 p-1.5 rounded-2xl border border-neutral-800 text-xs">
           <button
-            onClick={() => setActiveTab('rules')}
+            onClick={() => setActiveTab('rls')}
             className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'rules'
-                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20'
+              activeTab === 'rls'
+                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20 font-bold'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
-            PocketBase API Rules
+            Supabase RLS Policies
           </button>
 
           <button
             onClick={() => setActiveTab('service')}
             className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'service'
-                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20'
+                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20 font-bold'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Code className="w-3.5 h-3.5" />
-            pocketbaseService.ts
+            supabase.ts Client
           </button>
 
           <button
             onClick={() => setActiveTab('schema')}
             className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'schema'
-                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20'
+                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20 font-bold'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Database className="w-3.5 h-3.5" />
-            pb_schema.json
+            SQL Schema Setup
           </button>
 
           <button
             onClick={() => setActiveTab('guide')}
             className={`px-3 py-1.5 rounded-xl font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               activeTab === 'guide'
-                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20'
+                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20 font-bold'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
             <Terminal className="w-3.5 h-3.5" />
-            PocketBase Setup Guide
+            Cross-Device Guide
           </button>
         </div>
       </div>
 
-      {/* Tab 1: PocketBase API Rules */}
-      {activeTab === 'rules' && (
+      {/* Tab 1: RLS Policies */}
+      {activeTab === 'rls' && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Lock className="w-4 h-4 text-emerald-400" />
-                PocketBase Declarative API Rules
+                Supabase Row Level Security (RLS) SQL
               </h3>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Customers can ONLY see their own personal user doc & audit records. Stamp modifications strictly restricted to staff/admin.
+                Ensures cross-device requests and mobile cellular connections are fully authorized without HTTP 401/403 errors.
               </p>
             </div>
             <button
-              onClick={() => handleCopy('rules', pocketbaseRulesGuide)}
+              onClick={() => handleCopy('rls', supabaseRlsGuide)}
               className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 flex items-center gap-1.5 transition-all cursor-pointer"
             >
-              {copiedKey === 'rules' ? (
+              {copiedKey === 'rls' ? (
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
               ) : (
                 <Copy className="w-3.5 h-3.5" />
               )}
-              <span>{copiedKey === 'rules' ? 'Copied' : 'Copy Rules'}</span>
+              <span>{copiedKey === 'rls' ? 'Copied' : 'Copy SQL'}</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs mb-2">
-            <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800">
-              <span className="font-bold text-emerald-400 block mb-1">users</span>
-              <p className="text-neutral-400">
-                <code>@request.auth.id = id || @request.auth.role = 'staff'</code>
-                <br />
-                Customers only see their own profile.
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800">
-              <span className="font-bold text-emerald-400 block mb-1">prize_wheels</span>
-              <p className="text-neutral-400">
-                <code>active = true || @request.auth.role = 'staff'</code>
-                <br />
-                Customers read active wheels; staff manage.
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800">
-              <span className="font-bold text-sky-400 block mb-1">draws</span>
-              <p className="text-neutral-400">
-                <code>@request.auth.id != ""</code>
-                <br />
-                Upcoming and completed draws viewable by members.
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-neutral-950 border border-neutral-800">
-              <span className="font-bold text-purple-400 block mb-1">stamp_logs</span>
-              <p className="text-neutral-400">
-                <code>customerId = @request.auth.id</code>
-                <br />
-                Immutable audit trail. Customers see only their own visits.
-              </p>
-            </div>
-          </div>
-
-          <pre className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 font-mono text-xs text-neutral-200 overflow-x-auto leading-relaxed">
-            {pocketbaseRulesGuide}
+          <pre className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 font-mono text-xs text-emerald-300 overflow-x-auto leading-relaxed">
+            {supabaseRlsGuide}
           </pre>
         </div>
       )}
 
-      {/* Tab 2: pocketbaseService.ts */}
+      {/* Tab 2: Service Code */}
       {activeTab === 'service' && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Code className="w-4 h-4 text-emerald-400" />
-                PocketBase Service API (`src/api/pocketbaseService.ts`)
+                Supabase Client &amp; Realtime Service (`src/supabase.ts`)
               </h3>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Official PocketBase JavaScript SDK client configured for http://127.0.0.1:8080.
+                Official `@supabase/supabase-js` client configuration with persistent sessions and automatic token refresh.
               </p>
             </div>
             <button
-              onClick={() => handleCopy('service', pocketbaseClientServiceCode)}
+              onClick={() => handleCopy('service', supabaseServiceCode)}
               className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 flex items-center gap-1.5 transition-all cursor-pointer"
             >
               {copiedKey === 'service' ? (
@@ -330,115 +211,71 @@ export async function runPrizeDraw(drawId) {
               ) : (
                 <Copy className="w-3.5 h-3.5" />
               )}
-              <span>{copiedKey === 'service' ? 'Copied' : 'Copy Service Code'}</span>
+              <span>{copiedKey === 'service' ? 'Copied' : 'Copy Code'}</span>
             </button>
           </div>
 
           <pre className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 font-mono text-xs text-neutral-200 overflow-x-auto leading-relaxed">
-            {pocketbaseClientServiceCode}
+            {supabaseServiceCode}
           </pre>
         </div>
       )}
 
-      {/* Tab 3: pb_schema.json */}
+      {/* Tab 3: SQL Schema */}
       {activeTab === 'schema' && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
             <div>
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Database className="w-4 h-4 text-sky-400" />
-                PocketBase Schema File (`pb_schema.json`)
+                Supabase Database Tables (`supabase_setup.sql`)
               </h3>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Can be imported directly into PocketBase Admin UI under Settings → Import collections.
+                Tables provisioned in Supabase cloud PostgreSQL for profiles, customer_bikes, service_bookings, and stamp_logs.
               </p>
             </div>
-            <button
-              onClick={() =>
-                handleCopy(
-                  'schema',
-                  JSON.stringify(
-                    [
-                      { name: 'users', type: 'auth' },
-                      { name: 'prize_wheels', type: 'base' },
-                      { name: 'draws', type: 'base' },
-                      { name: 'stamp_logs', type: 'base' },
-                    ],
-                    null,
-                    2
-                  )
-                )
-              }
-              className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-xs font-semibold text-neutral-200 flex items-center gap-1.5 transition-all cursor-pointer"
-            >
-              {copiedKey === 'schema' ? (
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-              <span>{copiedKey === 'schema' ? 'Copied' : 'Copy Schema'}</span>
-            </button>
           </div>
 
           <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-3 text-xs">
-            <div className="font-semibold text-emerald-400">Collections Defined in pb_schema.json:</div>
+            <div className="font-semibold text-emerald-400">Core Tables Configured:</div>
             <ul className="list-disc list-inside space-y-1.5 text-neutral-300">
               <li>
-                <strong className="text-white font-mono">users (Auth)</strong>: `name`, `membershipNumber` (unique), `role` ('customer'|'staff'|'admin'), `stamps` (0-10), `tickets`, `lastStampedAt`
+                <strong className="text-white font-mono">profiles</strong>: User accounts, membership numbers, roles, stamps &amp; tickets.
               </li>
               <li>
-                <strong className="text-white font-mono">prize_wheels (Base)</strong>: `title`, `active`, `segments` (JSON)
+                <strong className="text-white font-mono">customer_bikes</strong>: Connected garage bikes, stock specs, and scraped component JSON.
               </li>
               <li>
-                <strong className="text-white font-mono">draws (Base)</strong>: `title`, `prizeDescription`, `drawDate`, `status`, `winnerId`, `winnerName`, `winnerMembershipNumber`
+                <strong className="text-white font-mono">service_bookings</strong>: Workshop appointments, status, staff notes, and approval records.
               </li>
               <li>
-                <strong className="text-white font-mono">stamp_logs (Base)</strong>: `customerId`, `customerName`, `membershipNumber`, `staffId`, `staffName`, `action`, `stampsBefore`, `stampsAfter`, `ticketsAwarded`, `note`
+                <strong className="text-white font-mono">stamp_logs</strong>: Immutable visit stamp audit trail and reward logs.
               </li>
             </ul>
           </div>
         </div>
       )}
 
-      {/* Tab 4: Setup Guide */}
+      {/* Tab 4: Guide */}
       {activeTab === 'guide' && (
         <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Terminal className="w-4 h-4 text-emerald-400" />
-            Quick Setup: Running PocketBase at http://127.0.0.1:8080
+            Cross-Device &amp; Cross-Network Connectivity Guide
           </h3>
 
           <div className="space-y-4 text-xs text-neutral-300 leading-relaxed">
             <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2">
-              <div className="font-bold text-white">Step 1: Download & Run PocketBase</div>
+              <div className="font-bold text-white">1. Cloud HTTPS Endpoint</div>
               <p className="text-neutral-400">
-                Download the single binary from{' '}
-                <a
-                  href="https://pocketbase.io/docs/"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-emerald-400 underline"
-                >
-                  pocketbase.io
-                </a>{' '}
-                and launch it on port 8080:
-              </p>
-              <pre className="p-2.5 bg-neutral-900 rounded-lg text-emerald-400 font-mono text-[11px]">
-                ./pocketbase serve --http="127.0.0.1:8080"
-              </pre>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2">
-              <div className="font-bold text-white">Step 2: Import Collections Schema</div>
-              <p className="text-neutral-400">
-                Open <code className="text-emerald-400 font-mono">http://127.0.0.1:8080/_/</code> in your browser, create your admin account, go to <strong>Settings → Import collections</strong>, and paste the contents of <code className="text-white font-mono">pb_schema.json</code>.
+                All database calls target <code className="text-emerald-400 font-mono">https://lhojocpygcnkxvkrcuxh.supabase.co</code>, ensuring seamless connectivity over mobile cellular networks, external Wi-Fi, and different computers without local tunnel drops.
               </p>
             </div>
 
             <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2">
-              <div className="font-bold text-white">Step 3: Instant Live Sync</div>
+              <div className="font-bold text-white">2. Realtime WebSocket Synchronization</div>
               <p className="text-neutral-400">
-                This app will immediately connect to <code className="text-emerald-400 font-mono">http://127.0.0.1:8080</code> via the official PocketBase SDK. All customers, stamps, prize wheels, and periodic prize draws are synchronized in real time!
+                Supabase Realtime subscriptions automatically broadcast changes across devices when staff add stamps or customers book services.
               </p>
             </div>
           </div>

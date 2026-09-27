@@ -13,6 +13,9 @@ import {
   CollectedVoucher,
   BikeScrapeResult,
   BikeComponentSpec,
+  ThemeMode,
+  StaffMember,
+  ShopPromotion,
 } from '../types/bikeShop';
 import {
   INITIAL_USERS,
@@ -24,6 +27,8 @@ import {
   INITIAL_BOOKINGS,
   INITIAL_OWNER_CONFIG,
 } from '../data/bookingServices';
+import { INITIAL_STAFF_ROSTER } from '../data/staffRosterData';
+import { INITIAL_PROMOTIONS, evaluatePromotionsExpiry } from '../data/promotionsData';
 import {
   dispatchBookingNotifications,
   dispatch24hReminderNotification,
@@ -32,13 +37,23 @@ import {
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
 import { generateMembershipNumber } from '../api/firebaseService';
-import pb, { POCKETBASE_URL } from '../pocketbase';
+import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
 import {
-  checkPocketBaseHealth,
-  PocketBaseHealthStatus,
-  getStoredPocketBaseUrl,
-  setPocketBaseUrl,
-} from '../api/pocketbaseService';
+  fetchCustomerBikesFromDb,
+  insertCustomerBikeToDb,
+  deleteCustomerBikeFromDb,
+  updateCustomerBikeSpecsInDb,
+  fetchServiceBookingsFromDb,
+  insertServiceBookingToDb,
+  updateServiceBookingInDb,
+  fetchStampLogsFromDb,
+  insertStampLogToDb,
+  updateUserProfileInDb,
+  fetchUserProfileFromDb,
+  fetchAllProfilesFromDb,
+  subscribeToDatabaseChanges,
+  seedInitialDatabaseIfEmpty,
+} from '../api/backendDataService';
 
 export const STAFF_MASTER_PIN = '210803';
 
@@ -54,10 +69,13 @@ interface ShopContextType {
   ownerConfig: OwnerNotificationConfig;
   latestDispatchedBooking: ServiceBooking | null;
   clearLatestDispatchedBooking: () => void;
-  // PocketBase Service Health & Target URL
-  serviceStatus: PocketBaseHealthStatus;
-  checkServiceHealth: (customUrl?: string) => Promise<PocketBaseHealthStatus>;
-  updatePocketBaseTargetUrl: (newUrl: string) => Promise<PocketBaseHealthStatus>;
+  // Database Synchronization Status
+  refreshDatabaseState: () => Promise<void>;
+  isDatabaseSyncing: boolean;
+  // Service Health & Target URL
+  serviceStatus: any;
+  checkServiceHealth: (customUrl?: string) => Promise<any>;
+  updatePocketBaseTargetUrl: (newUrl: string) => Promise<any>;
   // Bike Specs & Upgrades Scraper
   saveBikeScrapedSpecs: (customerId: string, bikeId: string, result: BikeScrapeResult) => Promise<void>;
   updateBikeComponent: (customerId: string, bikeId: string, componentId: string, updates: Partial<BikeComponentSpec>) => Promise<void>;
@@ -135,6 +153,27 @@ interface ShopContextType {
   ) => Promise<{ success: boolean; message: string }>;
   resetUserSpinCooldown: (userId: string) => void;
   dismissAnnouncement: () => void;
+  // Theme state
+  theme: ThemeMode;
+  toggleTheme: () => void;
+  setTheme: (theme: ThemeMode) => void;
+  // Staff Roster Management
+  staffMembers: StaffMember[];
+  addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>;
+  updateStaffMember: (id: string, updates: Partial<StaffMember>) => Promise<StaffMember>;
+  deleteStaffMember: (id: string) => Promise<boolean>;
+  // Promotions Management & Expiry Monitor
+  promotions: ShopPromotion[];
+  addPromotion: (promo: Omit<ShopPromotion, 'id'>) => Promise<ShopPromotion>;
+  updatePromotion: (id: string, updates: Partial<ShopPromotion>) => Promise<ShopPromotion>;
+  deletePromotion: (id: string) => Promise<boolean>;
+  refreshPromotionsExpiry: () => void;
+  // Prize Draw CRUD
+  updateDraw: (drawId: string, updates: Partial<PrizeDraw>) => Promise<void>;
+  deleteDraw: (drawId: string) => Promise<void>;
+  // Loyalty Member Admin
+  deleteCustomerAccount: (userId: string) => Promise<{ success: boolean; message: string }>;
+  adjustCustomerStamps: (userId: string, count: number, note?: string) => Promise<{ success: boolean; message: string; stamps: number }>;
   // Booking actions
   createBooking: (
     data: Omit<ServiceBooking, 'id' | 'createdAt' | 'status' | 'notifications'>
@@ -157,33 +196,7 @@ const ShopContext = createContext<ShopContextType | undefined>(undefined);
 const STORAGE_KEY = 'stakeys_cycles_pb_state_v2';
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [users, setUsers] = useState<UserProfile[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_users`);
-      if (saved) {
-        const parsed: UserProfile[] = JSON.parse(saved);
-        // Ensure Ben and Chloe always exist with latest staff roles
-        const merged = [...parsed];
-        INITIAL_USERS.forEach((initU) => {
-          const idx = merged.findIndex(
-            (u) =>
-              u.uid === initU.uid ||
-              u.email.toLowerCase() === initU.email.toLowerCase() ||
-              (initU.membershipNumber && u.membershipNumber === initU.membershipNumber)
-          );
-          if (idx >= 0) {
-            merged[idx] = { ...initU, ...merged[idx], role: initU.role };
-          } else {
-            merged.push(initU);
-          }
-        });
-        return merged;
-      }
-      return INITIAL_USERS;
-    } catch {
-      return INITIAL_USERS;
-    }
-  });
+  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
 
   const [prizeWheels, setPrizeWheels] = useState<PrizeWheel[]>(() => {
     try {
@@ -203,14 +216,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  const [stampLogs, setStampLogs] = useState<StampLog[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_logs`);
-      return saved ? JSON.parse(saved) : INITIAL_STAMP_LOGS;
-    } catch {
-      return INITIAL_STAMP_LOGS;
-    }
-  });
+  const [stampLogs, setStampLogs] = useState<StampLog[]>(INITIAL_STAMP_LOGS);
 
   // Login is strictly the first screen: currentUser is always NULL initially on app load
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -258,25 +264,176 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // PocketBase Service Health Monitor
-  const [serviceStatus, setServiceStatus] = useState<PocketBaseHealthStatus>({
-    isOnline: false,
-    url: getStoredPocketBaseUrl(),
-    checkedAt: 'Testing...',
-    error: 'Checking connection to PocketBase tunnel...',
+  // 1. Theme State (Dark / Light) with persistent LocalStorage
+  const [theme, setThemeState] = useState<ThemeMode>(() => {
+    try {
+      const saved = localStorage.getItem('stakeys_theme');
+      return saved === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
   });
 
-  const checkServiceHealth = async (customUrl?: string): Promise<PocketBaseHealthStatus> => {
-    const status = await checkPocketBaseHealth(customUrl);
-    setServiceStatus(status);
-    return status;
+  const toggleTheme = () => {
+    setThemeState((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem('stakeys_theme', next);
+      } catch {}
+      return next;
+    });
   };
 
-  const updatePocketBaseTargetUrl = async (newUrl: string): Promise<PocketBaseHealthStatus> => {
-    const clean = setPocketBaseUrl(newUrl);
-    const status = await checkPocketBaseHealth(clean);
-    setServiceStatus(status);
-    return status;
+  const setTheme = (t: ThemeMode) => {
+    setThemeState(t);
+    try {
+      localStorage.setItem('stakeys_theme', t);
+    } catch {}
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.remove('dark');
+      root.classList.add('light');
+    }
+  }, [theme]);
+
+  // 2. Staff Roster State & CRUD
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_staff_roster`);
+      return saved ? JSON.parse(saved) : INITIAL_STAFF_ROSTER;
+    } catch {
+      return INITIAL_STAFF_ROSTER;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_staff_roster`, JSON.stringify(staffMembers));
+    } catch {}
+  }, [staffMembers]);
+
+  const addStaffMember = async (staffData: Omit<StaffMember, 'id'>): Promise<StaffMember> => {
+    const newMember: StaffMember = {
+      ...staffData,
+      id: `staff-${Date.now().toString().slice(-4)}`,
+    };
+    setStaffMembers((prev) => [newMember, ...prev]);
+    return newMember;
+  };
+
+  const updateStaffMember = async (id: string, updates: Partial<StaffMember>): Promise<StaffMember> => {
+    let updatedMember: StaffMember | null = null;
+    setStaffMembers((prev) =>
+      prev.map((m) => {
+        if (m.id === id) {
+          updatedMember = { ...m, ...updates };
+          return updatedMember;
+        }
+        return m;
+      })
+    );
+    if (!updatedMember) throw new Error('Staff member not found');
+    return updatedMember;
+  };
+
+  const deleteStaffMember = async (id: string): Promise<boolean> => {
+    setStaffMembers((prev) => prev.filter((m) => m.id !== id));
+    return true;
+  };
+
+  // 3. Promotions State & Expiry Monitor
+  const [promotions, setPromotions] = useState<ShopPromotion[]>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_promotions`);
+      const base = saved ? JSON.parse(saved) : INITIAL_PROMOTIONS;
+      return evaluatePromotionsExpiry(base);
+    } catch {
+      return evaluatePromotionsExpiry(INITIAL_PROMOTIONS);
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${STORAGE_KEY}_promotions`, JSON.stringify(promotions));
+    } catch {}
+  }, [promotions]);
+
+  // Automatic background expiration monitor every 60s
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPromotions((prev) => evaluatePromotionsExpiry(prev));
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const refreshPromotionsExpiry = () => {
+    setPromotions((prev) => evaluatePromotionsExpiry(prev));
+  };
+
+  const addPromotion = async (promoData: Omit<ShopPromotion, 'id'>): Promise<ShopPromotion> => {
+    const newPromo: ShopPromotion = {
+      ...promoData,
+      id: `promo-${Date.now().toString().slice(-4)}`,
+    };
+    setPromotions((prev) => [newPromo, ...prev]);
+    return newPromo;
+  };
+
+  const updatePromotion = async (id: string, updates: Partial<ShopPromotion>): Promise<ShopPromotion> => {
+    let updatedPromo: ShopPromotion | null = null;
+    setPromotions((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          updatedPromo = { ...p, ...updates };
+          return updatedPromo;
+        }
+        return p;
+      })
+    );
+    if (!updatedPromo) throw new Error('Promotion not found');
+    return updatedPromo;
+  };
+
+  const deletePromotion = async (id: string): Promise<boolean> => {
+    setPromotions((prev) => prev.filter((p) => p.id !== id));
+    return true;
+  };
+
+  // Supabase Service Health Monitor
+  const [serviceStatus, setServiceStatus] = useState<any>({
+    isOnline: true,
+    url: getStoredSupabaseUrl(),
+    checkedAt: 'Testing...',
+    error: 'Checking connection to Supabase cloud database...',
+  });
+
+  const checkServiceHealth = async (_customUrl?: string): Promise<any> => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      const st = { isOnline: false, url: getStoredSupabaseUrl(), error: 'Supabase client not initialized', checkedAt: new Date().toLocaleTimeString() };
+      setServiceStatus(st);
+      return st;
+    }
+    try {
+      const { error } = await supabase.from('profiles').select('id', { count: 'exact', head: true });
+      const st = { isOnline: !error, url: getStoredSupabaseUrl(), error: error?.message, checkedAt: new Date().toLocaleTimeString() };
+      setServiceStatus(st);
+      return st;
+    } catch (err: any) {
+      const st = { isOnline: false, url: getStoredSupabaseUrl(), error: err.message, checkedAt: new Date().toLocaleTimeString() };
+      setServiceStatus(st);
+      return st;
+    }
+  };
+
+  const updatePocketBaseTargetUrl = async (newUrl: string): Promise<any> => {
+    return await checkServiceHealth();
   };
 
   useEffect(() => {
@@ -307,6 +464,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
         return { ...user, bikes: updatedBikes };
       })
+    );
+    updateCustomerBikeSpecsInDb(bikeId, customerId, result).catch((e) =>
+      console.warn('[DB SYNC] Error updating scraped specs in DB:', e)
     );
   };
 
@@ -345,15 +505,123 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  // Service Bookings State
-  const [bookings, setBookings] = useState<ServiceBooking[]>(() => {
+  // Service Bookings State (loaded dynamically from backend database)
+  const [bookings, setBookings] = useState<ServiceBooking[]>(INITIAL_BOOKINGS);
+
+  // Database Synchronization Engine & Real-time State
+  const [isDatabaseSyncing, setIsDatabaseSyncing] = useState<boolean>(false);
+
+  const syncUserFromDatabase = async (user: UserProfile) => {
+    setIsDatabaseSyncing(true);
     try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_bookings`);
-      return saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
-    } catch {
-      return INITIAL_BOOKINGS;
+      const isStaff = user.role === 'staff' || user.role === 'admin';
+      
+      // Centralized Data Fetching: Dynamic database queries
+      const [remoteBikes, remoteBookings, remoteLogs, remoteProfile, allProfiles] = await Promise.all([
+        fetchCustomerBikesFromDb(user.uid, user.membershipNumber),
+        fetchServiceBookingsFromDb(user.uid, isStaff, user.membershipNumber),
+        fetchStampLogsFromDb(user.uid, isStaff, user.membershipNumber),
+        fetchUserProfileFromDb(user.uid, user.membershipNumber, user.email),
+        fetchAllProfilesFromDb(),
+      ]);
+
+      const mergedBikes = remoteBikes && remoteBikes.length > 0 ? remoteBikes : (user.bikes || []);
+
+      const updatedUser: UserProfile = {
+        ...user,
+        bikes: mergedBikes,
+        stamps: remoteProfile?.stamps !== undefined ? remoteProfile.stamps : user.stamps,
+        tickets: remoteProfile?.tickets !== undefined ? remoteProfile.tickets : user.tickets,
+        merits: remoteProfile?.merits !== undefined ? remoteProfile.merits : user.merits,
+        lastSpunAt: remoteProfile?.lastSpunAt !== undefined ? remoteProfile.lastSpunAt : user.lastSpunAt,
+        displayName: remoteProfile?.displayName || user.displayName,
+        phoneNumber: remoteProfile?.phoneNumber || user.phoneNumber,
+      };
+
+      setCurrentUser(updatedUser);
+      if (allProfiles && allProfiles.length > 0) {
+        setUsers(allProfiles);
+      } else {
+        setUsers((prev) => prev.map((u) => (u.uid === user.uid ? updatedUser : u)));
+      }
+
+      if (remoteBookings && remoteBookings.length > 0) {
+        setBookings(remoteBookings);
+      }
+      if (remoteLogs && remoteLogs.length > 0) {
+        setStampLogs(remoteLogs);
+      }
+      console.log(`[DB SYNC] ✅ Synchronized user "${updatedUser.displayName}" with backend database`);
+    } catch (err) {
+      console.warn('[DB SYNC] Database sync error:', err);
+    } finally {
+      setIsDatabaseSyncing(false);
     }
-  });
+  };
+
+  const refreshDatabaseState = async () => {
+    const allProfiles = await fetchAllProfilesFromDb();
+    if (allProfiles && allProfiles.length > 0) {
+      setUsers(allProfiles);
+      if (currentUser) {
+        const freshCurrent = allProfiles.find((u) => u.uid === currentUser.uid || u.membershipNumber === currentUser.membershipNumber);
+        if (freshCurrent) {
+          setCurrentUser((prev) => prev ? { ...prev, ...freshCurrent } : freshCurrent);
+        }
+      }
+    }
+
+    if (currentUser) {
+      await syncUserFromDatabase(currentUser);
+    } else {
+      const [remoteBookings, remoteLogs] = await Promise.all([
+        fetchServiceBookingsFromDb(undefined, true),
+        fetchStampLogsFromDb(undefined, true),
+      ]);
+      if (remoteBookings && remoteBookings.length > 0) setBookings(remoteBookings);
+      if (remoteLogs && remoteLogs.length > 0) setStampLogs(remoteLogs);
+    }
+  };
+
+  // Mount effect: Seed initial data & subscribe to Real-time postgres changes
+  useEffect(() => {
+    seedInitialDatabaseIfEmpty().then(() => {
+      fetchAllProfilesFromDb().then((profiles) => {
+        if (profiles && profiles.length > 0) {
+          setUsers(profiles);
+        }
+      });
+    }).catch(() => {});
+
+    fetchServiceBookingsFromDb(undefined, true).then((b) => {
+      if (b && b.length > 0) setBookings(b);
+    }).catch(() => {});
+
+    fetchStampLogsFromDb(undefined, true).then((l) => {
+      if (l && l.length > 0) setStampLogs(l);
+    }).catch(() => {});
+
+    const unsubscribe = subscribeToDatabaseChanges((table) => {
+      console.log(`[DB SYNC] ⚡ Remote database mutation on table "${table}" - refreshing state`);
+      refreshDatabaseState();
+    });
+
+    // Fallback polling every 4 seconds and window focus sync for instant multi-browser updates
+    const pollInterval = setInterval(() => {
+      refreshDatabaseState().catch(() => {});
+    }, 4000);
+
+    const handleFocus = () => {
+      refreshDatabaseState().catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      unsubscribe();
+      clearInterval(pollInterval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   // Owner Notification Configuration (Recipient workshop@stakeyscycles.com + SMS)
   const [ownerConfig, setOwnerConfig] = useState<OwnerNotificationConfig>(() => {
@@ -579,6 +847,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setCurrentUser(matched);
+    // Dynamic database fetch on login: syncs profile, bikes, stamps, bookings
+    syncUserFromDatabase(matched);
     return { success: true, user: matched };
   };
 
@@ -618,6 +888,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     setCurrentUser(staffUser);
+    // Dynamic database fetch on staff login: syncs all workshop bookings and stamp logs
+    syncUserFromDatabase(staffUser);
     return { success: true, user: staffUser };
   };
 
@@ -665,33 +937,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return updated;
     });
 
-    // Try creating in PocketBase if available
-    try {
-      await pb.collection('users').create({
-        email: cleanEmail,
-        password,
-        passwordConfirm: password,
-        name: name.trim(),
-        phoneNumber: phoneNumber?.trim() || '',
-        membershipNumber,
-        role: 'customer',
-        stamps: 0,
-        tickets: 0,
-        merits: 0,
-      });
-    } catch {
-      // Gracefully continue with local state
-    }
-
     setUsers((prev) => [...prev, newUser]);
     setCurrentUser(newUser);
+
+    // Save profile to backend database table
+    updateUserProfileInDb(newUser.uid, newUser.membershipNumber, {
+      stamps: 0,
+      tickets: 0,
+      merits: 0,
+      displayName: name.trim(),
+      phoneNumber: phoneNumber?.trim(),
+    }).catch((e) => console.warn('[DB SYNC] Error saving profile:', e));
+
+    syncUserFromDatabase(newUser);
     return { success: true, user: newUser };
   };
 
   const logoutUser = () => {
-    try {
-      pb.authStore.clear();
-    } catch {}
     setCurrentUser(null);
   };
 
@@ -770,6 +1032,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsers(updatedUsers);
     setStampLogs([newLog, ...stampLogs]);
 
+    // Remote Database Mutation: Update profiles table and insert into stamp_logs table
+    updateUserProfileInDb(customerId, target.membershipNumber, {
+      stamps: nextStamps,
+      tickets: nextTickets,
+      lastStampedAt: now,
+    }).catch((e) => console.warn('[DB SYNC] Error updating profile stamps in DB:', e));
+    insertStampLogToDb(newLog).catch((e) => console.warn('[DB SYNC] Error inserting stamp log in DB:', e));
+
     return {
       success: true,
       message: cardCompleted
@@ -800,6 +1070,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setStampLogs([newLog, ...stampLogs]);
+    insertStampLogToDb(newLog).catch((e) =>
+      console.warn('[DB SYNC] Error inserting redeem log in DB:', e)
+    );
     return { success: true, message: `Redeemed: ${rewardDescription}` };
   };
 
@@ -882,6 +1155,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setUsers((prev) => prev.map((u) => (u.uid === customerId ? updatedUser : u)));
     setStampLogs((prev) => [newLog, ...prev]);
+
+    // Remote Database Mutation: Update profiles table and insert into stamp_logs table
+    updateUserProfileInDb(customerId, target.membershipNumber, {
+      stamps: stampsAfter,
+      tickets: ticketsAfter,
+      merits: meritsAfter,
+      displayName: updates.displayName?.trim() || target.displayName,
+      phoneNumber: updates.phoneNumber !== undefined ? updates.phoneNumber.trim() : target.phoneNumber,
+    }).catch((e) => console.warn('[DB SYNC] Error updating customer merits in DB:', e));
+    insertStampLogToDb(newLog).catch((e) => console.warn('[DB SYNC] Error inserting merit log in DB:', e));
 
     return {
       success: true,
@@ -1150,6 +1433,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setCurrentUser(updatedUser);
     }
 
+    await updateUserProfileInDb(userId, target.membershipNumber, {
+      stamps: updatedStamps,
+      tickets: updatedUser.tickets,
+      merits: updatedUser.merits,
+      lastSpinDate: now.toISOString(),
+    });
+
     const logNote =
       stampsAwarded > 0
         ? `Weekly Prize Wheel: Won ${segment.label} (+${stampsAwarded} stamps! Card is now ${updatedStamps}/10${
@@ -1331,12 +1621,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       setCurrentUser(updatedUser);
       setUsers((prev) => prev.map((u) => (u.uid === currentUser.uid ? updatedUser : u)));
+
+      // Remote Database Mutation: INSERT directly into customer_bikes table
+      insertCustomerBikeToDb(newBike, currentUser.uid).catch((e) =>
+        console.warn('[DB SYNC] Error inserting bike in DB:', e)
+      );
     }
     return newBike;
   };
 
   const removeCustomerBike = async (bikeId: string) => {
     if (currentUser) {
+      // Remote Database Mutation: DELETE directly from customer_bikes table
+      deleteCustomerBikeFromDb(bikeId, currentUser.uid).catch((e) => console.warn('[DB SYNC] Error deleting bike in DB:', e));
       const updatedBikes = (currentUser.bikes || []).filter((b) => b.id !== bikeId);
       const updatedUser: UserProfile = {
         ...currentUser,
@@ -1363,22 +1660,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notifications: [],
     };
 
-    // Immediately dispatch email and SMS alert to BOTH customer and owner confirming receipt and pending approval
-    const { emailLog, customerSmsLog, ownerSmsLog } = await dispatchBookingNotifications(provisionalBooking, ownerConfig);
+    // Immediately dispatch email alerts to BOTH customer and owner confirming receipt and pending approval
+    const { emailLog, customerEmailLog } = await dispatchBookingNotifications(provisionalBooking, ownerConfig);
 
     const completedBooking: ServiceBooking = {
       ...provisionalBooking,
-      notifications: [emailLog, customerSmsLog, ownerSmsLog],
+      notifications: [emailLog, customerEmailLog],
     };
 
     setBookings((prev) => [completedBooking, ...prev]);
     setLatestDispatchedBooking(completedBooking);
 
-    // Trigger instant SMS alert confirmation banner
+    // Remote Database Mutation: INSERT directly into service_bookings table
+    insertServiceBookingToDb(completedBooking).catch((e) => console.warn('[DB SYNC] Error inserting booking in DB:', e));
+
+    // Trigger instant email alert confirmation banner
     setLatestSmsAlert({
       title: '📋 Repair Request Pending Approval',
-      message: `Repair request submitted! Staff will contact ${completedBooking.customerName} on ${completedBooking.customerPhone}. An email will be sent once approved or declined.`,
-      recipient: `${completedBooking.customerPhone} & ${ownerConfig.ownerPhone}`,
+      message: `Repair request submitted! Staff will evaluate bench capacity. Email confirmation sent to ${completedBooking.customerEmail} and workshop alert to ${ownerConfig.ownerEmail}.`,
+      recipient: `${completedBooking.customerEmail} & ${ownerConfig.ownerEmail}`,
       time: new Date().toLocaleTimeString(),
       recipientType: 'both',
     });
@@ -1427,6 +1727,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...u,
               bikes: [autoBike, ...existingBikes],
             };
+            insertCustomerBikeToDb(autoBike, u.uid).catch((e) =>
+              console.warn('[DB SYNC] Error inserting auto-bike in DB:', e)
+            );
             if (currentUser && currentUser.uid === u.uid) {
               setCurrentUser(updated);
             }
@@ -1464,9 +1767,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       staffName: "Online Booking System",
       action: 'redeem_reward',
       timestamp: now,
-      note: `🔧 NEW BOOKING: ${data.customerName} booked "${data.serviceTitle}" (${data.vehicleModel}) for ${data.preferredDate}. Email & SMS dispatched to ${ownerConfig.ownerEmail}.`,
+      note: `🔧 NEW BOOKING: ${data.customerName} booked "${data.serviceTitle}" (${data.vehicleModel}) for ${data.preferredDate}. Email dispatched to ${ownerConfig.ownerEmail}.`,
     };
     setStampLogs((prev) => [newAuditLog, ...prev]);
+    insertStampLogToDb(newAuditLog).catch((e) =>
+      console.warn('[DB SYNC] Error inserting booking audit log in DB:', e)
+    );
 
     return completedBooking;
   };
@@ -1478,7 +1784,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return { success: false, message: 'Booking not found' };
 
-    const { emailLog, smsLog } = await dispatchBookingApprovalNotification(
+    const { emailLog } = await dispatchBookingApprovalNotification(
       target,
       staffNote,
       ownerConfig
@@ -1491,15 +1797,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       approvedAt: new Date().toISOString(),
       approvedBy: currentUser?.displayName || 'Workshop Staff',
       staffNotes: staffNote || target.staffNotes,
-      notifications: [emailLog, smsLog, ...(target.notifications || [])],
+      notifications: [emailLog, ...(target.notifications || [])],
     };
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
 
+    // Remote Database Mutation: UPDATE service_bookings table
+    updateServiceBookingInDb(bookingId, {
+      status: 'confirmed',
+      approvalStatus: 'approved',
+      approvedAt: updated.approvedAt,
+      approvedBy: updated.approvedBy,
+      staffNotes: staffNote || target.staffNotes,
+    }).catch((e) => console.warn('[DB SYNC] Error approving booking in DB:', e));
+
     setLatestSmsAlert({
       title: '✅ Booking Approved & Customer Notified',
-      message: `Official Approval Email delivered to ${target.customerEmail} and SMS to ${target.customerPhone} for ${target.preferredDate}.`,
-      recipient: `${target.customerEmail} & ${target.customerPhone}`,
+      message: `Official Approval Email delivered to ${target.customerEmail} for ${target.preferredDate}.`,
+      recipient: target.customerEmail,
       time: new Date().toLocaleTimeString(),
       recipientType: 'customer',
     });
@@ -1530,7 +1845,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return { success: false, message: 'Booking not found' };
 
-    const { emailLog, smsLog } = await dispatchBookingDeclinedNotification(
+    const { emailLog } = await dispatchBookingDeclinedNotification(
       target,
       reason,
       ownerConfig
@@ -1542,10 +1857,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       approvalStatus: 'declined',
       declinedAt: new Date().toISOString(),
       declineReason: reason || 'Workshop capacity limit',
-      notifications: [emailLog, smsLog, ...(target.notifications || [])],
+      notifications: [emailLog, ...(target.notifications || [])],
     };
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+
+    // Remote Database Mutation: UPDATE service_bookings table
+    updateServiceBookingInDb(bookingId, {
+      status: 'declined',
+      approvalStatus: 'declined',
+      declinedAt: updated.declinedAt,
+      declineReason: reason || 'Workshop capacity limit',
+    }).catch((e) => console.warn('[DB SYNC] Error declining booking in DB:', e));
 
     setLatestSmsAlert({
       title: '⚠️ Booking Declined & Customer Notified',
@@ -1574,9 +1897,85 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
+  const updateDraw = async (drawId: string, updates: Partial<PrizeDraw>): Promise<void> => {
+    setDraws((prev) =>
+      prev.map((d) => (d.id === drawId ? { ...d, ...updates } : d))
+    );
+  };
+
+  const deleteDraw = async (drawId: string): Promise<void> => {
+    setDraws((prev) => prev.filter((d) => d.id !== drawId));
+  };
+
+  const deleteCustomerAccount = async (userId: string): Promise<{ success: boolean; message: string }> => {
+    const target = users.find((u) => u.uid === userId);
+    setUsers((prev) => prev.filter((u) => u.uid !== userId));
+    return { success: true, message: `Account for ${target?.displayName || 'Customer'} has been removed.` };
+  };
+
+  const adjustCustomerStamps = async (
+    userId: string,
+    delta: number,
+    note?: string
+  ): Promise<{ success: boolean; message: string; stamps: number }> => {
+    let finalStamps = 0;
+    let customerName = 'Customer';
+    setUsers((prev) =>
+      prev.map((u) => {
+        if (u.uid === userId) {
+          customerName = u.displayName;
+          const oldStamps = u.stamps || 0;
+          finalStamps = Math.max(0, Math.min(10, oldStamps + delta));
+          let tickets = u.tickets || 0;
+          if (finalStamps === 10 && oldStamps < 10) {
+            tickets += 1;
+          }
+          return {
+            ...u,
+            stamps: finalStamps,
+            tickets,
+            lastStampedAt: new Date().toISOString(),
+          };
+        }
+        return u;
+      })
+    );
+
+    const log: StampLog = {
+      id: `log-adj-${Date.now()}`,
+      customerId: userId,
+      customerName,
+      staffId: currentUser?.uid || 'staff-admin',
+      staffName: currentUser?.displayName || 'Workshop Staff',
+      action: delta > 0 ? 'add_stamp' : 'manual_merit_adjustment',
+      stampsAfter: finalStamps,
+      timestamp: new Date(),
+      note: note || (delta > 0 ? `Issued +${delta} visit stamp` : `Adjusted stamps by ${delta}`),
+    };
+    setStampLogs((prev) => [log, ...prev]);
+
+    // Remote Database Mutation: Update profiles table and insert into stamp_logs table
+    updateUserProfileInDb(userId, undefined, {
+      stamps: finalStamps,
+      lastStampedAt: new Date(),
+    }).catch((e) => console.warn('[DB SYNC] Error adjusting stamps in DB:', e));
+    insertStampLogToDb(log).catch((e) =>
+      console.warn('[DB SYNC] Error inserting stamp adjustment log in DB:', e)
+    );
+
+    return {
+      success: true,
+      message: `Updated stamps for ${customerName} to ${finalStamps}/10.`,
+      stamps: finalStamps,
+    };
+  };
+
   const updateBookingStatus = (bookingId: string, status: BookingStatus) => {
     setBookings((prev) =>
       prev.map((b) => (b.id === bookingId ? { ...b, status } : b))
+    );
+    updateServiceBookingInDb(bookingId, { status }).catch((e) =>
+      console.warn('[DB SYNC] Error updating booking status in DB:', e)
     );
   };
 
@@ -1616,9 +2015,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updatedBooking : b)));
 
     setLatestSmsAlert({
-      title: '⏰ 24-Hour Reminder SMS Sent',
-      message: `Delivered 24-hour reminder text to ${target.customerName} (${target.customerPhone}) & Stakey's Cycles (${ownerConfig.ownerPhone}) for ${target.preferredDate} (${target.preferredTimeSlot}).`,
-      recipient: `${target.customerPhone} & ${ownerConfig.ownerPhone}`,
+      title: '⏰ 24-Hour Reminder Email Sent',
+      message: `Delivered 24-hour reminder email to ${target.customerName} (${target.customerEmail}) & Stakey's Cycles (${ownerConfig.ownerEmail}) for ${target.preferredDate} (${target.preferredTimeSlot}).`,
+      recipient: `${target.customerEmail} & ${ownerConfig.ownerEmail}`,
       time: new Date().toLocaleTimeString(),
       recipientType: 'both',
     });
@@ -1674,6 +2073,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ownerConfig,
         latestDispatchedBooking,
         clearLatestDispatchedBooking,
+        refreshDatabaseState,
+        isDatabaseSyncing,
         serviceStatus,
         checkServiceHealth,
         updatePocketBaseTargetUrl,
@@ -1704,6 +2105,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         redeemServiceVoucher,
         resetUserSpinCooldown,
         dismissAnnouncement,
+        theme,
+        toggleTheme,
+        setTheme,
+        staffMembers,
+        addStaffMember,
+        updateStaffMember,
+        deleteStaffMember,
+        promotions,
+        addPromotion,
+        updatePromotion,
+        deletePromotion,
+        refreshPromotionsExpiry,
+        updateDraw,
+        deleteDraw,
+        deleteCustomerAccount,
+        adjustCustomerStamps,
         createBooking,
         approveBooking,
         declineBooking,

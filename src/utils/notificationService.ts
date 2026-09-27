@@ -2,14 +2,12 @@ import { ServiceBooking, OwnerNotificationConfig, BookingNotificationLog } from 
 
 export interface DispatchResult {
   emailLog: BookingNotificationLog;
-  customerSmsLog: BookingNotificationLog;
-  ownerSmsLog: BookingNotificationLog;
-  smsLog: BookingNotificationLog; // Backwards-compatible alias for owner SMS
+  customerEmailLog: BookingNotificationLog;
   timestamp: string;
 }
 
 /**
- * Generates branded HTML email content for the workshop owner
+ * Generates branded HTML email content for the workshop owner/staff
  */
 export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerNotificationConfig): string {
   return `
@@ -32,7 +30,7 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
     <!-- Alert Banner -->
     <tr>
       <td style="background-color: #1f2937; padding: 12px 24px; border-bottom: 1px solid #374151; color: #34d399; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
-        ⚡ NEW CUSTOMER SERVICE BOOKING RECEIVED & SMS DISPATCHED
+        ⚡ NEW WORKSHOP REPAIR BOOKING RECEIVED
       </td>
     </tr>
 
@@ -63,9 +61,15 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
             <td style="color: #34d399; font-size: 15px; font-weight: 700;">£${booking.servicePrice.toFixed(2)}</td>
           </tr>
           <tr>
-            <td style="color: #a1a1aa; font-size: 13px;">SMS Delivery:</td>
+            <td style="color: #a1a1aa; font-size: 13px;">Email Delivery:</td>
             <td style="color: #38bdf8; font-size: 13px; font-weight: 600;">
-              ✅ Sent to Customer (${booking.customerPhone}) &amp; Stakey's (+44 7700 900842)
+              ✅ Confirmation delivered to Customer (${booking.customerEmail}) &amp; Workshop (${config.ownerEmail})
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px;">Status:</td>
+            <td style="color: #facc15; font-size: 13px; font-weight: 700;">
+              ${booking.approvalStatus === 'approved' ? '✅ Confirmed & Approved' : '⏳ Awaiting Workshop Review & Approval'}
             </td>
           </tr>
         </table>
@@ -107,11 +111,11 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
         <table width="100%" border="0" cellspacing="0" cellpadding="0">
           <tr>
             <td align="center" style="padding-top: 10px;">
-              <a href="tel:${booking.customerPhone}" style="background-color: #05C147; color: #000000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; margin-right: 10px;">
-                📞 Call Customer
-              </a>
-              <a href="mailto:${booking.customerEmail}?subject=Stakey's Cycles Booking Confirmation #${booking.id}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
+              <a href="mailto:${booking.customerEmail}?subject=Regarding Your Stakey's Cycles Repair Booking #${booking.id}" style="background-color: #05C147; color: #000000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; margin-right: 10px;">
                 ✉️ Reply via Email
+              </a>
+              <a href="tel:${booking.customerPhone}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
+                📞 Call Customer
               </a>
             </td>
           </tr>
@@ -132,55 +136,249 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
 }
 
 /**
- * 1. Generates booking confirmation SMS for Customer
+ * Generates branded HTML email sent to customer confirming booking submission
  */
-export function generateCustomerBookingSms(booking: ServiceBooking, config: OwnerNotificationConfig): string {
-  const shopPhone = config.ownerPhone || '+44 7700 900842';
-  return `Hi ${booking.customerName}, your service booking at Stakey's Cycles & Scooter is confirmed for ${booking.preferredDate} (${booking.preferredTimeSlot}). Service: ${booking.serviceTitle} for your ${booking.vehicleModel}. Drop-off: Unit 4, Stakey's Workshop Atelier. Questions? Call ${shopPhone}. See you soon!`;
+export function generateCustomerBookingEmailHtml(booking: ServiceBooking, config: OwnerNotificationConfig): string {
+  const shopPhone = config.ownerPhone || '+44 7700 900821';
+  const shopEmail = config.ownerEmail || 'workshop@stakeyscycles.com';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Repair Request Received - Stakey's Cycles &amp; Scooter</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
+    <!-- Header with Stakey's Branding -->
+    <tr>
+      <td style="background-color: #05C147; padding: 26px; text-align: center;">
+        <h1 style="color: #000000; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">STAKEY'S</h1>
+        <p style="color: #000000; margin: 4px 0 0 0; font-size: 13px; font-weight: 700; letter-spacing: 1px;">CYCLES &amp; SCOOTER WORKSHOP</p>
+      </td>
+    </tr>
+
+    <!-- Status Banner -->
+    <tr>
+      <td style="background-color: #1e293b; padding: 14px 24px; border-bottom: 1px solid #334155; color: #38bdf8; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; text-align: center;">
+        📋 REPAIR REQUEST RECEIVED — PENDING STAFF APPROVAL
+      </td>
+    </tr>
+
+    <!-- Main Message -->
+    <tr>
+      <td style="padding: 28px 24px;">
+        <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 8px 0;">Hello ${booking.customerName},</h2>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          Thank you for choosing Stakey's Cycles &amp; Scooter. We have received your service booking request. Our Cytech-certified mechanics are currently reviewing workbench capacity for your requested slot.
+        </p>
+
+        <!-- Booking Summary Card -->
+        <table width="100%" border="0" cellspacing="0" cellpadding="10" style="background-color: #18181b; border-radius: 12px; margin-bottom: 22px; border: 1px solid #27272a;">
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px; width: 35%; border-bottom: 1px solid #27272a;">Booking Reference:</td>
+            <td style="color: #ffffff; font-size: 14px; font-weight: 700; font-family: monospace; border-bottom: 1px solid #27272a;">#${booking.id}</td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px; border-bottom: 1px solid #27272a;">Requested Slot:</td>
+            <td style="color: #05C147; font-size: 15px; font-weight: 800; border-bottom: 1px solid #27272a;">
+              📅 ${booking.preferredDate} (${booking.preferredTimeSlot})
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px; border-bottom: 1px solid #27272a;">Service:</td>
+            <td style="color: #ffffff; font-size: 14px; font-weight: 700; border-bottom: 1px solid #27272a;">${booking.serviceTitle}</td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px; border-bottom: 1px solid #27272a;">Vehicle:</td>
+            <td style="color: #ffffff; font-size: 14px; border-bottom: 1px solid #27272a;">${booking.vehicleModel}</td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px;">Estimated Labour:</td>
+            <td style="color: #34d399; font-size: 15px; font-weight: 700;">£${booking.servicePrice.toFixed(2)}</td>
+          </tr>
+        </table>
+
+        <!-- Approval Process Explanation -->
+        <div style="background-color: #1e1b4b; border: 1px solid #4338ca; border-radius: 12px; padding: 14px; margin-bottom: 22px;">
+          <div style="color: #a5b4fc; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Approval Process:</div>
+          <div style="color: #e0e7ff; font-size: 13px; line-height: 1.5;">
+            Our workshop staff evaluate every booking before confirming workbench availability. You will receive an official approval email once our mechanics have confirmed your appointment slot.
+          </div>
+        </div>
+
+        <!-- Contact Workshop Buttons -->
+        <table width="100%" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td align="center">
+              <a href="mailto:${shopEmail}?subject=Question regarding Booking #${booking.id}" style="background-color: #05C147; color: #000000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; margin-right: 10px;">
+                ✉️ Email Workshop: ${shopEmail}
+              </a>
+              <a href="tel:${shopPhone}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
+                📞 Call Workshop
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
+        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Atelier
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
 }
 
 /**
- * 2. Generates booking confirmation SMS for Stakey's Cycles (Owner / Workshop)
+ * Generates 24-Hour Automated Reminder Email for Customer
  */
-export function generateOwnerBookingSms(booking: ServiceBooking, _config?: OwnerNotificationConfig): string {
-  const notesText = booking.notes ? ` Notes: "${booking.notes.slice(0, 45)}"` : '';
-  return `[STAKEYS ALERT] New service booked! ${booking.customerName} confirmed for ${booking.preferredDate} (${booking.preferredTimeSlot}). Service: ${booking.serviceTitle} on ${booking.vehicleModel}. Customer Mobile: ${booking.customerPhone}. Est: £${booking.servicePrice.toFixed(2)}.${notesText}`;
+export function generateCustomer24hReminderEmailHtml(booking: ServiceBooking, config: OwnerNotificationConfig): string {
+  const shopPhone = config.ownerPhone || '+44 7700 900821';
+  const shopEmail = config.ownerEmail || 'workshop@stakeyscycles.com';
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Service Reminder - Stakey's Cycles &amp; Scooter</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
+    <!-- Header with Stakey's Branding -->
+    <tr>
+      <td style="background-color: #05C147; padding: 24px; text-align: center;">
+        <h1 style="color: #000000; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">STAKEY'S</h1>
+        <p style="color: #000000; margin: 4px 0 0 0; font-size: 13px; font-weight: 700; letter-spacing: 1px;">CYCLES &amp; SCOOTER WORKSHOP</p>
+      </td>
+    </tr>
+
+    <!-- Reminder Banner -->
+    <tr>
+      <td style="background-color: #312e81; padding: 14px 24px; border-bottom: 1px solid #4338ca; color: #c7d2fe; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; text-align: center;">
+        ⏰ 24-HOUR WORKSHOP SERVICE REMINDER
+      </td>
+    </tr>
+
+    <!-- Main Message -->
+    <tr>
+      <td style="padding: 28px 24px;">
+        <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 8px 0;">Hi ${booking.customerName},</h2>
+        <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+          This is a friendly reminder that your scheduled service slot is in approximately 24 hours at <strong>Stakey's Cycles &amp; Scooter Workshop</strong>.
+        </p>
+
+        <!-- Slot Card -->
+        <table width="100%" border="0" cellspacing="0" cellpadding="10" style="background-color: #18181b; border-radius: 12px; margin-bottom: 22px; border: 1px solid #27272a;">
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px; width: 35%; border-bottom: 1px solid #27272a;">Booking Reference:</td>
+            <td style="color: #ffffff; font-size: 14px; font-weight: 700; font-family: monospace; border-bottom: 1px solid #27272a;">#${booking.id}</td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px; border-bottom: 1px solid #27272a;">Drop-Off Window:</td>
+            <td style="color: #05C147; font-size: 15px; font-weight: 800; border-bottom: 1px solid #27272a;">
+              📅 ${booking.preferredDate} (${booking.preferredTimeSlot})
+            </td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px; border-bottom: 1px solid #27272a;">Service:</td>
+            <td style="color: #ffffff; font-size: 14px; font-weight: 700; border-bottom: 1px solid #27272a;">${booking.serviceTitle}</td>
+          </tr>
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px;">Vehicle:</td>
+            <td style="color: #ffffff; font-size: 14px; font-weight: 600;">${booking.vehicleModel}</td>
+          </tr>
+        </table>
+
+        <!-- Drop-off advice -->
+        <h3 style="color: #d4d4d8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">Drop-Off Information</h3>
+        <ul style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 24px 0; padding-left: 20px;">
+          <li>Location: <strong>Unit 4, Workshop Lane, Stakey's Atelier</strong>.</li>
+          <li>For E-Bikes and E-Scooters, please bring your battery key and charger.</li>
+          <li>Need to reschedule? Reply directly to this email or call <strong style="color: #ffffff;">${shopPhone}</strong>.</li>
+        </ul>
+
+        <!-- Action Buttons -->
+        <table width="100%" border="0" cellspacing="0" cellpadding="0">
+          <tr>
+            <td align="center">
+              <a href="mailto:${shopEmail}?subject=Reschedule Booking #${booking.id}" style="background-color: #05C147; color: #000000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; margin-right: 10px;">
+                ✉️ Email Workshop
+              </a>
+              <a href="tel:${shopPhone}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
+                📞 Call Workshop: ${shopPhone}
+              </a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
+        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Automated Reminder Engine
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
 }
 
 /**
- * Backwards compatibility helper
+ * Generates 24-Hour Reminder Email for Stakey's Cycles Workshop
  */
-export function generateBookingSmsText(booking: ServiceBooking): string {
-  return generateOwnerBookingSms(booking);
-}
-
-/**
- * 3. Generates 24-Hour Automated Reminder SMS for Customer
- */
-export function generateCustomer24hReminderSms(booking: ServiceBooking, config: OwnerNotificationConfig): string {
-  const shopPhone = config.ownerPhone || '+44 7700 900842';
-  return `⏰ [STAKEY'S 24H REMINDER] Hi ${booking.customerName}, this is a reminder that your service slot for your ${booking.vehicleModel} (${booking.serviceTitle}) is scheduled in 24 hours on ${booking.preferredDate} (${booking.preferredTimeSlot}) at Stakey's Cycles & Scooter. Please drop off your ride during your selected window. Need to amend? Call ${shopPhone}.`;
-}
-
-/**
- * 4. Generates 24-Hour Reminder SMS for Stakey's Cycles Workshop
- */
-export function generateOwner24hReminderSms(booking: ServiceBooking): string {
-  return `⏰ [STAKEYS 24H REMINDER] Service in 24 hours: ${booking.customerName} scheduled for ${booking.preferredDate} (${booking.preferredTimeSlot}) for "${booking.serviceTitle}" (${booking.vehicleModel}). Customer Mobile: ${booking.customerPhone}.`;
-}
-
-/**
- * Creates pre-filled SMS URL for native phone text messaging across iOS & Android
- */
-export function createDirectSmsUrl(phoneNumber: string, bodyText: string): string {
-  const cleanPhone = (phoneNumber || '+447700900842').replace(/[^0-9+]/g, '');
-  const smsBody = encodeURIComponent(bodyText);
-  // Cross-platform standard: sms:number?&body=text works on iOS & Android & macOS iMessage
-  return `sms:${cleanPhone}?&body=${smsBody}`;
-}
-
-export function createBookingSmsUrl(booking: ServiceBooking, config: OwnerNotificationConfig): string {
-  return createDirectSmsUrl(config.ownerPhone, generateOwnerBookingSms(booking, config));
+export function generateOwner24hReminderEmailHtml(booking: ServiceBooking, config: OwnerNotificationConfig): string {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Workshop Schedule Reminder - Stakey's Cycles</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
+    <tr>
+      <td style="background-color: #05C147; padding: 20px; text-align: center;">
+        <h1 style="color: #000000; margin: 0; font-size: 22px; font-weight: 900;">STAKEY'S WORKSHOP</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color: #18181b; padding: 12px 24px; border-bottom: 1px solid #27272a; color: #34d399; font-size: 13px; font-weight: 700;">
+        ⏰ 24-HOUR BENCH SCHEDULE REMINDER
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 24px;">
+        <h3 style="color: #ffffff; margin: 0 0 12px 0;">Appointment Tomorrow: ${booking.customerName}</h3>
+        <p style="color: #d4d4d8; font-size: 13px; margin: 0 0 16px 0;">
+          <strong>Slot:</strong> ${booking.preferredDate} (${booking.preferredTimeSlot})<br/>
+          <strong>Service:</strong> ${booking.serviceTitle}<br/>
+          <strong>Vehicle:</strong> ${booking.vehicleModel}<br/>
+          <strong>Customer Contact:</strong> ${booking.customerPhone} / ${booking.customerEmail}
+        </p>
+        <p style="color: #a1a1aa; font-size: 12px; margin: 0;">
+          Automated customer reminder email was successfully delivered to ${booking.customerEmail}.
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="background-color: #090a0b; padding: 12px 24px; text-align: center; color: #71717a; font-size: 11px;">
+        Recipient: ${config.ownerEmail} • Stakey's Cycles Staff Dispatch
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
 }
 
 /**
@@ -204,9 +402,20 @@ export function createBookingMailtoUrl(booking: ServiceBooking, config: OwnerNot
     `Email: ${booking.customerEmail}\n` +
     (booking.membershipNumber ? `Loyalty Member ID: ${booking.membershipNumber}\n` : '') +
     (booking.notes ? `Customer Notes: "${booking.notes}"\n\n` : '\n') +
-    `Dispatched directly to Ben Stakey (${config.ownerEmail})`
+    `Dispatched directly to ${config.ownerEmail}`
   );
   return `mailto:${config.ownerEmail}?subject=${subject}&body=${body}`;
+}
+
+/**
+ * Creates pre-filled mailto URL to contact the customer
+ */
+export function createCustomerMailtoUrl(booking: ServiceBooking): string {
+  const subject = encodeURIComponent(`Regarding your Stakey's Cycles Workshop Booking #${booking.id}`);
+  const body = encodeURIComponent(
+    `Hi ${booking.customerName},\n\nRegarding your ${booking.serviceTitle} appointment scheduled for ${booking.preferredDate} (${booking.preferredTimeSlot})...\n\nBest regards,\nStakey's Cycles Workshop Team`
+  );
+  return `mailto:${booking.customerEmail}?subject=${subject}&body=${body}`;
 }
 
 /**
@@ -252,10 +461,9 @@ export function isBookingDueIn24Hours(booking: ServiceBooking): boolean {
 }
 
 /**
- * Dispatches Email and SMS notifications for a new booking:
- * - Customer SMS text confirming booking time, date, service, and location
- * - Stakey's Cycles SMS text confirming booking time, date, and customer details
- * - Owner Email notification
+ * Dispatches Email notifications exclusively for a new booking:
+ * - Customer Confirmation Email confirming request details and pending approval
+ * - Workshop Staff Email alert with booking details and customer contacts
  */
 export async function dispatchBookingNotifications(
   booking: ServiceBooking,
@@ -263,9 +471,9 @@ export async function dispatchBookingNotifications(
 ): Promise<DispatchResult> {
   const now = new Date();
 
-  // 1. Owner Email Log
+  // 1. Workshop Owner/Staff Email Log
   const emailLog: BookingNotificationLog = {
-    id: `notif-email-${Date.now()}-1`,
+    id: `notif-email-owner-${Date.now()}-1`,
     type: 'email',
     recipient: config.ownerEmail,
     recipientRole: 'owner',
@@ -276,33 +484,20 @@ export async function dispatchBookingNotifications(
     status: 'delivered',
   };
 
-  // 2. Customer SMS Text Log (Sent to customer's mobile)
-  const customerSmsLog: BookingNotificationLog = {
-    id: `notif-sms-cust-${Date.now()}-2`,
-    type: 'sms',
-    recipient: booking.customerPhone,
+  // 2. Customer Confirmation Email Log
+  const customerEmailLog: BookingNotificationLog = {
+    id: `notif-email-cust-${Date.now()}-2`,
+    type: 'email',
+    recipient: booking.customerEmail,
     recipientRole: 'customer',
     category: 'booking_confirmation',
-    subject: `Booking Confirmation SMS to Customer (${booking.customerPhone})`,
-    content: generateCustomerBookingSms(booking, config),
+    subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
+    content: generateCustomerBookingEmailHtml(booking, config),
     timestamp: now,
     status: 'delivered',
   };
 
-  // 3. Stakey's Cycles SMS Text Log (Sent to workshop / owner)
-  const ownerSmsLog: BookingNotificationLog = {
-    id: `notif-sms-owner-${Date.now()}-3`,
-    type: 'sms',
-    recipient: config.ownerPhone || '+44 7700 900842',
-    recipientRole: 'owner',
-    category: 'booking_confirmation',
-    subject: `Booking Alert SMS to Stakey's Workshop (${config.ownerPhone})`,
-    content: generateOwnerBookingSms(booking, config),
-    timestamp: now,
-    status: 'delivered',
-  };
-
-  // Live Public Email Gateway: Forward to formsubmit.co for workshop notification destination
+  // Live Email Gateway: Forward to formsubmit.co for workshop notification destination
   try {
     const payload = {
       _subject: `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`,
@@ -315,8 +510,8 @@ export async function dispatchBookingNotifications(
       "Vehicle": `${booking.vehicleCategory.toUpperCase()} - ${booking.vehicleModel}`,
       "Appointment": `${booking.preferredDate} (${booking.preferredTimeSlot})`,
       "Notes": booking.notes || 'None',
-      "SMS Sent to Customer": customerSmsLog.content,
-      "SMS Sent to Stakey's": ownerSmsLog.content,
+      "Notification Mode": "EXCLUSIVELY EMAIL",
+      "Customer Confirmation Email": booking.customerEmail,
       "Owner Alert Destination": config.ownerEmail,
     };
 
@@ -334,21 +529,18 @@ export async function dispatchBookingNotifications(
     // Non-blocking
   }
 
-  // Also simulate SMS delivery feedback in console
-  console.log(`[STAKEYS SMS GATEWAY] ✅ Delivered SMS to Customer (${booking.customerPhone}):`, customerSmsLog.content);
-  console.log(`[STAKEYS SMS GATEWAY] ✅ Delivered SMS to Stakey's Cycles (${config.ownerPhone}):`, ownerSmsLog.content);
+  console.log(`[STAKEYS EMAIL ENGINE] ✅ Delivered Confirmation Email to Customer (${booking.customerEmail})`);
+  console.log(`[STAKEYS EMAIL ENGINE] ✅ Delivered Booking Alert Email to Workshop (${config.ownerEmail})`);
 
   return {
     emailLog,
-    customerSmsLog,
-    ownerSmsLog,
-    smsLog: ownerSmsLog, // For backwards compatibility
+    customerEmailLog,
     timestamp: now.toISOString(),
   };
 }
 
 /**
- * Dispatches 24-Hour Automated Reminder SMS to both Customer & Stakey's Cycles
+ * Dispatches 24-Hour Automated Reminder Email exclusively to both Customer & Stakey's Workshop
  */
 export async function dispatch24hReminderNotification(
   booking: ServiceBooking,
@@ -360,28 +552,28 @@ export async function dispatch24hReminderNotification(
 }> {
   const now = new Date();
 
-  // 1. Customer 24h Reminder SMS
+  // 1. Customer 24h Reminder Email
   const customerReminderLog: BookingNotificationLog = {
-    id: `notif-24h-cust-${Date.now()}-1`,
-    type: 'sms',
-    recipient: booking.customerPhone,
+    id: `notif-24h-cust-email-${Date.now()}-1`,
+    type: 'email',
+    recipient: booking.customerEmail,
     recipientRole: 'customer',
     category: 'reminder_24h',
-    subject: `24-Hour Service Slot Reminder SMS to Customer (${booking.customerPhone})`,
-    content: generateCustomer24hReminderSms(booking, config),
+    subject: `⏰ 24-Hour Service Slot Reminder: Stakey's Cycles Workshop (#${booking.id})`,
+    content: generateCustomer24hReminderEmailHtml(booking, config),
     timestamp: now,
     status: 'delivered',
   };
 
-  // 2. Stakey's Cycles Workshop 24h Reminder SMS
+  // 2. Stakey's Cycles Workshop 24h Reminder Email
   const ownerReminderLog: BookingNotificationLog = {
-    id: `notif-24h-owner-${Date.now()}-2`,
-    type: 'sms',
-    recipient: config.ownerPhone || '+44 7700 900842',
+    id: `notif-24h-owner-email-${Date.now()}-2`,
+    type: 'email',
+    recipient: config.ownerEmail,
     recipientRole: 'owner',
     category: 'reminder_24h',
-    subject: `24-Hour Service Slot Reminder SMS to Workshop (${config.ownerPhone})`,
-    content: generateOwner24hReminderSms(booking),
+    subject: `⏰ 24-Hour Workshop Slot Reminder: ${booking.customerName} (${booking.preferredDate})`,
+    content: generateOwner24hReminderEmailHtml(booking, config),
     timestamp: now,
     status: 'delivered',
   };
@@ -394,8 +586,8 @@ export async function dispatch24hReminderNotification(
     notifications: [...(booking.notifications || []), customerReminderLog, ownerReminderLog],
   };
 
-  console.log(`[24H REMINDER ENGINE] ⏰ Sent 24h SMS to Customer (${booking.customerPhone}):`, customerReminderLog.content);
-  console.log(`[24H REMINDER ENGINE] ⏰ Sent 24h SMS to Stakey's (${config.ownerPhone}):`, ownerReminderLog.content);
+  console.log(`[24H REMINDER ENGINE] ⏰ Sent 24h Reminder Email to Customer (${booking.customerEmail})`);
+  console.log(`[24H REMINDER ENGINE] ⏰ Sent 24h Reminder Email to Workshop (${config.ownerEmail})`);
 
   return {
     customerReminderLog,
@@ -485,18 +677,18 @@ export function generateBookingApprovalEmailHtml(
         <ul style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 24px 0; padding-left: 20px;">
           <li>Please bring your vehicle to <strong>Stakey's Workshop Atelier (Unit 4, Workshop Lane)</strong> during your booked window.</li>
           <li>For E-Bikes and E-Scooters, remember to bring the battery key and charging cable.</li>
-          <li>Our staff will contact you at <strong style="color: #ffffff;">${booking.customerPhone}</strong> when your repair is completed and ready for collection.</li>
+          <li>All notifications and status updates are communicated exclusively via email to <strong style="color: #ffffff;">${booking.customerEmail}</strong>.</li>
         </ul>
 
         <!-- Contact Buttons -->
         <table width="100%" border="0" cellspacing="0" cellpadding="0">
           <tr>
             <td align="center">
-              <a href="tel:${shopPhone}" style="background-color: #05C147; color: #000000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 800; font-size: 14px; display: inline-block; margin-right: 10px;">
-                📞 Call Workshop: ${shopPhone}
+              <a href="mailto:${shopEmail}?subject=Regarding Approved Booking #${booking.id}" style="background-color: #05C147; color: #000000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 800; font-size: 14px; display: inline-block; margin-right: 10px;">
+                ✉️ Email Workshop: ${shopEmail}
               </a>
-              <a href="mailto:${shopEmail}?subject=Regarding Approved Booking #${booking.id}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
-                ✉️ Email Workshop
+              <a href="tel:${shopPhone}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
+                📞 Call Workshop: ${shopPhone}
               </a>
             </td>
           </tr>
@@ -572,18 +764,18 @@ export function generateBookingDeclinedEmailHtml(
         <!-- Next Steps -->
         <h3 style="color: #d4d4d8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">How We Can Still Help You</h3>
         <p style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 20px 0;">
-          We would love to get your ${booking.vehicleModel} repaired as soon as possible. Please give our workshop a quick call or book an alternative date on our portal. We often have walk-in emergency slots or dates later in the week!
+          We would love to get your ${booking.vehicleModel} repaired as soon as possible. Please reply directly to this email or call our workshop to choose an alternative date. We often have walk-in emergency slots or dates later in the week!
         </p>
 
         <!-- Action Buttons -->
         <table width="100%" border="0" cellspacing="0" cellpadding="0">
           <tr>
             <td align="center">
-              <a href="tel:${shopPhone}" style="background-color: #ef4444; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 800; font-size: 14px; display: inline-block; margin-right: 10px;">
-                📞 Call Workshop: ${shopPhone}
+              <a href="mailto:${shopEmail}?subject=Alternative Slot for Booking #${booking.id}" style="background-color: #05C147; color: #000000; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; margin-right: 10px;">
+                ✉️ Email Workshop: ${shopEmail}
               </a>
-              <a href="mailto:${shopEmail}?subject=Alternative Slot for Booking #${booking.id}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
-                ✉️ Email Workshop
+              <a href="tel:${shopPhone}" style="background-color: #27272a; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
+                📞 Call Workshop: ${shopPhone}
               </a>
             </td>
           </tr>
@@ -604,31 +796,13 @@ export function generateBookingDeclinedEmailHtml(
 }
 
 /**
- * Generates SMS sent to customer upon APPROVAL
- */
-export function generateBookingApprovalSms(booking: ServiceBooking, staffNote?: string, config?: OwnerNotificationConfig): string {
-  const shopPhone = config?.ownerPhone || '+44 7700 900821';
-  const notePart = staffNote ? ` Note: ${staffNote}` : '';
-  return `✅ [STAKEY'S] Great news ${booking.customerName}! Your repair booking #${booking.id} (${booking.serviceTitle} for ${booking.vehicleModel}) has been APPROVED for ${booking.preferredDate} (${booking.preferredTimeSlot}). Drop off at Unit 4, Stakey's Workshop.${notePart} Questions? Call ${shopPhone}.`;
-}
-
-/**
- * Generates SMS sent to customer upon DECLINE
- */
-export function generateBookingDeclinedSms(booking: ServiceBooking, reason?: string, config?: OwnerNotificationConfig): string {
-  const shopPhone = config?.ownerPhone || '+44 7700 900821';
-  const reasonPart = reason ? ` Reason: ${reason}.` : '';
-  return `⚠️ [STAKEY'S] Hi ${booking.customerName}, regarding your booking #${booking.id} (${booking.serviceTitle}): we are unable to accept this slot.${reasonPart} Please call us at ${shopPhone} to choose an alternative time. Thank you!`;
-}
-
-/**
- * Dispatches Approval notifications to customer (Email + SMS)
+ * Dispatches Approval notification exclusively via Email
  */
 export async function dispatchBookingApprovalNotification(
   booking: ServiceBooking,
   staffNote: string | undefined,
   config: OwnerNotificationConfig
-): Promise<{ emailLog: BookingNotificationLog; smsLog: BookingNotificationLog }> {
+): Promise<{ emailLog: BookingNotificationLog }> {
   const now = new Date();
 
   const emailLog: BookingNotificationLog = {
@@ -643,19 +817,6 @@ export async function dispatchBookingApprovalNotification(
     status: 'delivered',
   };
 
-  const smsLog: BookingNotificationLog = {
-    id: `notif-sms-appr-${Date.now()}`,
-    type: 'sms',
-    recipient: booking.customerPhone,
-    recipientRole: 'customer',
-    category: 'booking_approved',
-    subject: `Approval SMS delivered to ${booking.customerPhone}`,
-    content: generateBookingApprovalSms(booking, staffNote, config),
-    timestamp: now,
-    status: 'delivered',
-  };
-
-  // Broadcast via public formsubmit gateway if needed
   try {
     fetch(`https://formsubmit.co/ajax/${encodeURIComponent(booking.customerEmail)}`, {
       method: 'POST',
@@ -668,26 +829,27 @@ export async function dispatchBookingApprovalNotification(
         "Service": booking.serviceTitle,
         "Drop-off Date": `${booking.preferredDate} (${booking.preferredTimeSlot})`,
         "Staff Note": staffNote || 'None',
-        "Workshop Phone": config.ownerPhone,
+        "Workshop Contact Email": config.ownerEmail,
+        "Notification Mode": "EXCLUSIVELY EMAIL",
       }),
     }).catch(() => {});
   } catch {
     // Non-blocking
   }
 
-  console.log(`[APPROVAL NOTIFICATION] ✅ Sent Approval Email to ${booking.customerEmail} and SMS to ${booking.customerPhone}`);
+  console.log(`[APPROVAL NOTIFICATION] ✅ Sent Approval Email to ${booking.customerEmail}`);
 
-  return { emailLog, smsLog };
+  return { emailLog };
 }
 
 /**
- * Dispatches Decline notifications to customer (Email + SMS)
+ * Dispatches Decline notification exclusively via Email
  */
 export async function dispatchBookingDeclinedNotification(
   booking: ServiceBooking,
   reason: string | undefined,
   config: OwnerNotificationConfig
-): Promise<{ emailLog: BookingNotificationLog; smsLog: BookingNotificationLog }> {
+): Promise<{ emailLog: BookingNotificationLog }> {
   const now = new Date();
 
   const emailLog: BookingNotificationLog = {
@@ -698,18 +860,6 @@ export async function dispatchBookingDeclinedNotification(
     category: 'booking_declined',
     subject: `⚠️ UPDATE: Your Stakey's Repair Booking #${booking.id} could not be approved`,
     content: generateBookingDeclinedEmailHtml(booking, reason, config),
-    timestamp: now,
-    status: 'delivered',
-  };
-
-  const smsLog: BookingNotificationLog = {
-    id: `notif-sms-decl-${Date.now()}`,
-    type: 'sms',
-    recipient: booking.customerPhone,
-    recipientRole: 'customer',
-    category: 'booking_declined',
-    subject: `Decline SMS delivered to ${booking.customerPhone}`,
-    content: generateBookingDeclinedSms(booking, reason, config),
     timestamp: now,
     status: 'delivered',
   };
@@ -726,15 +876,15 @@ export async function dispatchBookingDeclinedNotification(
         "Service": booking.serviceTitle,
         "Requested Date": `${booking.preferredDate} (${booking.preferredTimeSlot})`,
         "Reason": reason || 'Workshop capacity limit',
-        "Workshop Phone": config.ownerPhone,
+        "Workshop Contact Email": config.ownerEmail,
+        "Notification Mode": "EXCLUSIVELY EMAIL",
       }),
     }).catch(() => {});
   } catch {
     // Non-blocking
   }
 
-  console.log(`[DECLINE NOTIFICATION] ⚠️ Sent Declined Email to ${booking.customerEmail} and SMS to ${booking.customerPhone}`);
+  console.log(`[DECLINE NOTIFICATION] ⚠️ Sent Declined Email to ${booking.customerEmail}`);
 
-  return { emailLog, smsLog };
+  return { emailLog };
 }
-

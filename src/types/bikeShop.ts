@@ -2,7 +2,92 @@
  * Stakey's Cycles - Data Models and Type Definitions
  */
 
+export type ThemeMode = 'dark' | 'light';
+
 export type UserRole = 'customer' | 'staff' | 'admin';
+
+export type StaffRole =
+  | 'Barista'
+  | 'Shift Supervisor'
+  | 'Store Manager'
+  | 'Admin'
+  | 'Cytech Mechanic';
+
+export type StaffWorkStatus = 'Active' | 'On Leave' | 'Inactive';
+
+export interface StaffMember {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: StaffRole;
+  status: StaffWorkStatus;
+  joinedDate: string;
+  cytechLevel?: string;
+  avatarColor?: string;
+  notes?: string;
+}
+
+export interface ShopPromotion {
+  id: string;
+  title: string;
+  subtitle: string;
+  code: string;
+  discountPercentage?: number;
+  discountAmount?: number;
+  badgeText: string;
+  status: 'active' | 'upcoming' | 'expired';
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  termsAndConditions: string[];
+  eligibleCategories: VehicleCategory[];
+  bgGradient: string;
+  featured?: boolean;
+}
+
+export interface TrustedBikeRecommendation {
+  id: string;
+  name: string;
+  brand: string;
+  category: 'Commuter' | 'Gravel' | 'Mountain' | 'Road' | 'Hybrid';
+  price: number; // £500 - £1200
+  retailer: 'Halfords' | 'Evans Cycles' | 'Leisure Lakes Bikes';
+  retailerUrl: string;
+  imageUrl: string;
+  mechanicRating: number; // 1.0 - 5.0
+  frameMaterial: 'Alloy 6061' | 'Alloy with Carbon Fork' | 'Double-Butted Chromoly' | 'Lightweight Aluminum' | 'Alpha Gold Aluminum' | string;
+  groupset: string;
+  brakes: string;
+  keyStrengths: string[];
+  watchOuts: string[];
+  mechanicVerdict: string;
+  bestFor: string;
+}
+
+export interface DerailleurHangerItem {
+  id: string;
+  code: string;
+  name: string;
+  brand: string;
+  compatibleModels: string[];
+  compatibleYears: number[];
+  frameMaterials: ('Carbon' | 'Alloy' | 'Titanium' | 'Steel')[];
+  axleStandard:
+    | '12x142mm Thru-Axle'
+    | '12x148mm Boost'
+    | 'QR 135mm'
+    | '12x100mm Thru-Axle'
+    | 'Speed Release';
+  fastenerType: string;
+  torqueSpecNm: number;
+  oemPartNumbers: string[];
+  wheelsMfgEquivalent?: string;
+  piloEquivalent?: string;
+  sramUdhCompatible: boolean;
+  directMountAvailable: boolean;
+  diagramShape: 'two_bolt_tang' | 'single_counterbore' | 'conical_axle' | 'sram_udh' | 'direct_mount_link';
+  notes?: string;
+}
 
 export interface BikeComponentSpec {
   id: string;
@@ -39,6 +124,8 @@ export interface CustomerBike {
   model: string;
   year?: string | number;
   colour?: string;
+  color?: string;
+  serialNumber?: string;
   frameSizeOrNotes?: string;
   addedAt: any;
   lastServiceDate?: string;
@@ -203,7 +290,7 @@ export interface OwnerNotificationConfig {
   ownerEmail: string;
   ownerPhone: string;
   emailAlertsEnabled: boolean;
-  smsAlertsEnabled: boolean;
+  smsAlertsEnabled?: boolean;
   businessName: string;
 }
 

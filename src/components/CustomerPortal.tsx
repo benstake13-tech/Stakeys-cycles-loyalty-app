@@ -30,7 +30,11 @@ import {
 import { generateBarcodeValue } from '../api/firebaseService';
 import { scrapeBikeStockSpecs } from '../utils/bikeScraperService';
 
-export const CustomerPortal: React.FC = () => {
+interface CustomerPortalProps {
+  onStaffScanCustomer?: (membershipNumber: string) => void;
+}
+
+export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCustomer }) => {
   const {
     currentUser,
     bookings,
@@ -123,6 +127,25 @@ export const CustomerPortal: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
+      <section aria-label="Digital Membership Pass & Barcode" className="w-full">
+        <BarcodeVisual
+          value={barcodeValue}
+          membershipNumber={currentUser.membershipNumber}
+          customerName={currentUser.displayName}
+          stamps={currentUser.stamps || 0}
+          maxStamps={10}
+          tickets={currentUser.tickets || 0}
+          showScanLine={true}
+          variant="hero"
+          onStaffScanTest={(barcodeVal) => {
+            if (onStaffScanCustomer) {
+              onStaffScanCustomer(barcodeVal);
+            }
+          }}
+        />
+      </section>
+
       {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
       <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
         {/* Background Workshop Image Asset */}

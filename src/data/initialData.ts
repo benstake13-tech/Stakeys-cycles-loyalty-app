@@ -7,10 +7,10 @@ export const INITIAL_USERS: UserProfile[] = [
     displayName: 'Alex Henderson',
     role: 'customer',
     membershipNumber: 'STK-839201',
-    stamps: 6,
-    tickets: 3,
+    stamps: 0,
+    tickets: 0,
     createdAt: new Date('2026-08-10T10:00:00Z'),
-    lastStampedAt: new Date(Date.now() - 36 * 3600 * 1000), // 36 hours ago (eligible today)
+    lastStampedAt: undefined,
     phoneNumber: '+1 (555) 392-1084',
     bikes: [
       {
@@ -53,10 +53,10 @@ export const INITIAL_USERS: UserProfile[] = [
     displayName: 'Maya Chen',
     role: 'customer',
     membershipNumber: 'STK-492104',
-    stamps: 9, // 1 away from 10-stamp prize
-    tickets: 5,
+    stamps: 0,
+    tickets: 0,
     createdAt: new Date('2026-07-15T14:30:00Z'),
-    lastStampedAt: new Date(Date.now() - 48 * 3600 * 1000),
+    lastStampedAt: undefined,
     phoneNumber: '+1 (555) 741-8923',
     bikes: [
       {
@@ -98,11 +98,11 @@ export const INITIAL_USERS: UserProfile[] = [
     displayName: 'Liam Rossi',
     role: 'customer',
     membershipNumber: 'STK-129482',
-    stamps: 2,
-    tickets: 1,
+    stamps: 0,
+    tickets: 0,
     createdAt: new Date('2026-09-01T09:15:00Z'),
-    lastStampedAt: new Date(Date.now() - 2 * 3600 * 1000), // Stamped 2 hours ago (testing daily rate limit!)
-    lastSpunAt: new Date(Date.now() - 2 * 24 * 3600 * 1000), // Spun 2 days ago (testing weekly spin cooldown!)
+    lastStampedAt: undefined,
+    lastSpunAt: undefined,
     phoneNumber: '+1 (555) 892-3490',
     bikes: [
       {
@@ -302,3 +302,5 @@ export const INITIAL_STAMP_LOGS: StampLog[] = [
     note: 'Visit stamp for handlebar tape wrap.',
   },
 ];
+
+export { INITIAL_BOOKINGS } from './bookingServices';

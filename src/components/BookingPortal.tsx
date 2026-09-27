@@ -15,6 +15,7 @@ import {
   Sparkles,
   Award,
   MessageSquare,
+  ShieldCheck,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory } from '../types/bikeShop';
@@ -26,9 +27,8 @@ import {
 } from '../data/bikeCatalog';
 import { StakeysLogo } from './StakeysLogo';
 import {
-  generateCustomerBookingSms,
-  generateOwnerBookingSms,
-  createDirectSmsUrl,
+  createBookingMailtoUrl,
+  createCustomerMailtoUrl,
 } from '../utils/notificationService';
 import confetti from 'canvas-confetti';
 
@@ -111,15 +111,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     setFormError(null);
 
     if (!customerName.trim()) {
-      setFormError('Please enter your name.');
-      return;
-    }
-    if (!customerEmail.trim() || !customerEmail.includes('@')) {
-      setFormError('Please enter a valid email address so we can send your confirmation.');
+      setFormError('Please enter your full name.');
       return;
     }
     if (!customerPhone.trim()) {
-      setFormError('Please enter your phone number so our workshop team can text you when your bike is ready.');
+      setFormError('Please enter your phone number so our workshop team can contact you.');
+      return;
+    }
+    if (customerEmail.trim() && !customerEmail.includes('@')) {
+      setFormError('Please enter a valid email address or leave it blank to be notified via phone.');
       return;
     }
     if (!preferredDate) {
@@ -151,9 +151,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         .filter(Boolean)
         .join(' • ');
 
+      const sanitizedEmail =
+        customerEmail.trim() ||
+        `${customerName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'guest'}-${customerPhone.replace(/[^0-9]/g, '').slice(-4) || 'quick'}@guest.stakeysbikes.co.uk`;
+
       const newBooking = await createBooking({
         customerName: customerName.trim(),
-        customerEmail: customerEmail.trim(),
+        customerEmail: sanitizedEmail,
         customerPhone: customerPhone.trim(),
         customerId: currentUser?.uid,
         membershipNumber: currentUser?.membershipNumber,
@@ -212,10 +216,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </div>
 
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-white">
-              Workshop Booking Confirmed
+              Workshop Repair Request Submitted
             </h2>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+              <Clock className="w-3.5 h-3.5" />
+              <span>Awaiting Mechanic Review &amp; Approval</span>
+            </div>
             <p className="text-xs text-neutral-300 max-w-md mx-auto">
-              Your service appointment is reserved on Stakey's workshop bench.
+              Staff will contact you and evaluate bench capacity. An automated email notification will be dispatched to inform you immediately once approved or declined.
             </p>
           </div>
 
@@ -242,67 +250,65 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">Mechanic Contact:</span>
-              <span className="text-neutral-300 font-mono">{submittedBooking.customerPhone}</span>
+              <span className="text-neutral-400">Customer Contact:</span>
+              <span className="text-neutral-300 font-mono">{submittedBooking.customerEmail}</span>
             </div>
           </div>
 
-          {/* SMS Confirmations Dispatched to Customer & Stakey's Cycles */}
+          {/* Email Confirmations Dispatched to Customer & Stakey's Cycles */}
           {(() => {
-            const customerSmsText = generateCustomerBookingSms(submittedBooking, ownerConfig);
-            const ownerSmsText = generateOwnerBookingSms(submittedBooking, ownerConfig);
             return (
               <div className="py-5 space-y-4 border-b border-neutral-800/80">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-white">
-                    <MessageSquare className="w-4 h-4 text-emerald-400" />
-                    <span>SMS Text Confirmations Delivered</span>
+                    <Mail className="w-4 h-4 text-[#05C147]" />
+                    <span>Email Confirmations Dispatched</span>
                   </div>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    2 / 2 TEXTS SENT
+                    2 / 2 EMAILS SENT
                   </span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  {/* Customer Text */}
+                  {/* Customer Email */}
                   <div className="bg-neutral-950/90 border border-emerald-500/30 rounded-xl p-3.5 space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-semibold text-emerald-400 flex items-center gap-1.5">
-                        <Phone className="w-3 h-3" />
-                        <span>Customer Mobile</span>
+                        <Mail className="w-3 h-3" />
+                        <span>Customer Email</span>
                       </span>
-                      <span className="font-mono text-white text-[11px]">{submittedBooking.customerPhone}</span>
+                      <span className="font-mono text-white text-[11px] truncate max-w-[150px]">{submittedBooking.customerEmail}</span>
                     </div>
                     <p className="text-[11px] text-neutral-300 leading-relaxed font-mono bg-neutral-900/90 p-2.5 rounded-lg border border-neutral-800">
-                      "{customerSmsText}"
+                      "Repair request #{submittedBooking.id} received for {submittedBooking.serviceTitle}. Confirmation sent to your inbox."
                     </p>
                     <a
-                      href={createDirectSmsUrl(submittedBooking.customerPhone, customerSmsText)}
+                      href={createCustomerMailtoUrl(submittedBooking)}
                       className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
                     >
-                      <MessageSquare className="w-3 h-3" />
-                      <span>Open in Text Messages App (SMS)</span>
+                      <Mail className="w-3 h-3" />
+                      <span>Open Customer Email Draft</span>
                     </a>
                   </div>
 
-                  {/* Stakey's Cycles Text */}
+                  {/* Stakey's Cycles Workshop Email */}
                   <div className="bg-neutral-950/90 border border-neutral-800 rounded-xl p-3.5 space-y-2">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="font-semibold text-neutral-200 flex items-center gap-1.5">
-                        <Wrench className="w-3 h-3 text-emerald-400" />
-                        <span>Stakey's Cycles</span>
+                        <Wrench className="w-3 h-3 text-[#05C147]" />
+                        <span>Workshop Intake</span>
                       </span>
-                      <span className="font-mono text-neutral-300 text-[11px]">{ownerConfig.ownerPhone}</span>
+                      <span className="font-mono text-neutral-300 text-[11px] truncate max-w-[150px]">{ownerConfig.ownerEmail}</span>
                     </div>
                     <p className="text-[11px] text-neutral-300 leading-relaxed font-mono bg-neutral-900/90 p-2.5 rounded-lg border border-neutral-800">
-                      "{ownerSmsText}"
+                      "New booking #{submittedBooking.id} assigned to intake queue at {ownerConfig.ownerEmail}."
                     </p>
                     <a
-                      href={createDirectSmsUrl(ownerConfig.ownerPhone, ownerSmsText)}
+                      href={createBookingMailtoUrl(submittedBooking, ownerConfig)}
                       className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
                     >
-                      <MessageSquare className="w-3 h-3" />
-                      <span>Open Workshop SMS Alert</span>
+                      <Mail className="w-3 h-3" />
+                      <span>Open Workshop Email Alert</span>
                     </a>
                   </div>
                 </div>
@@ -313,9 +319,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                     <Clock className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-bold text-white mb-0.5">Automated 24-Hour Booking Reminder Active</div>
+                    <div className="font-bold text-white mb-0.5">Automated 24-Hour Email Reminder Active</div>
                     <div className="text-neutral-300 leading-relaxed text-[11px]">
-                      An automated SMS reminder text will be delivered to your phone (<strong>{submittedBooking.customerPhone}</strong>) 24 hours prior to your scheduled service slot on <strong>{submittedBooking.preferredDate}</strong> ({submittedBooking.preferredTimeSlot}).
+                      An automated reminder email will be delivered to your inbox (<strong>{submittedBooking.customerEmail}</strong>) 24 hours prior to your scheduled service slot on <strong>{submittedBooking.preferredDate}</strong> ({submittedBooking.preferredTimeSlot}).
                     </div>
                   </div>
                 </div>
@@ -681,7 +687,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Mobile Phone (SMS updates)
+                Contact Phone Number
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -697,20 +703,28 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Email Address
+              <label className="block text-xs font-medium text-neutral-300 mb-1.5 flex items-center justify-between">
+                <span>Email Address (for notifications)</span>
+                <span className="text-[10px] text-neutral-500 font-normal">Required for confirmations</span>
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="email"
-                  required
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
                   placeholder="john@example.com"
                   className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold text-white">Repair Booking Policy: </span>
+              All bookings are submitted as <em>Pending Staff Approval</em>. Once reviewed, you receive an automated confirmation email notifying you if the booking has been accepted or declined.
             </div>
           </div>
 

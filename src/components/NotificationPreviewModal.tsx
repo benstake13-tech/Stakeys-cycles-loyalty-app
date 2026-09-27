@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, MessageSquare, X, CheckCircle2, Phone, Calendar, Clock, User, Shield, Sparkles, Send } from 'lucide-react';
+import { Mail, X, CheckCircle2, Wrench, User, Calendar, Clock } from 'lucide-react';
 import { ServiceBooking, OwnerNotificationConfig } from '../types/bikeShop';
 import { StakeysLogo } from './StakeysLogo';
 
@@ -16,12 +16,17 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
   onClose,
   ownerConfig,
 }) => {
-  const [activeTab, setActiveTab] = useState<'email' | 'sms'>('email');
+  const [activeTab, setActiveTab] = useState<'owner_email' | 'customer_email'>('owner_email');
 
   if (!isOpen || !booking) return null;
 
-  const emailLog = booking.notifications.find((n) => n.type === 'email');
-  const smsLog = booking.notifications.find((n) => n.type === 'sms');
+  const ownerEmailLog = booking.notifications.find(
+    (n) => n.recipientRole === 'owner' || (n.type === 'email' && n.recipient === ownerConfig.ownerEmail)
+  ) || booking.notifications.find((n) => n.type === 'email');
+
+  const customerEmailLog = booking.notifications.find(
+    (n) => n.recipientRole === 'customer' || (n.type === 'email' && n.recipient === booking.customerEmail)
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
@@ -33,14 +38,14 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-black text-white">
-                  Owner Notification Dispatch
+                  Dispatched Email Notifications
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  DISPATCHED
+                  EXCLUSIVELY EMAIL
                 </span>
               </div>
               <p className="text-xs text-neutral-400">
-                Live delivery confirmation to <strong>{ownerConfig.ownerEmail}</strong> &amp; <strong>{ownerConfig.ownerPhone}</strong>
+                Delivered to Workshop <strong>({ownerConfig.ownerEmail})</strong> &amp; Customer <strong>({booking.customerEmail})</strong>
               </p>
             </div>
           </div>
@@ -56,71 +61,69 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
         {/* Tab Switcher */}
         <div className="px-6 pt-4 pb-2 bg-neutral-950/40 border-b border-neutral-800/80 flex items-center gap-2">
           <button
-            onClick={() => setActiveTab('email')}
+            onClick={() => setActiveTab('owner_email')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-              activeTab === 'email'
-                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20'
+              activeTab === 'owner_email'
+                ? 'bg-[#05C147] text-neutral-950 shadow-md shadow-emerald-500/20'
                 : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
             }`}
           >
-            <Mail className="w-4 h-4" />
-            <span>Email Alert ({ownerConfig.ownerEmail})</span>
+            <Wrench className="w-4 h-4" />
+            <span>Workshop Alert ({ownerConfig.ownerEmail})</span>
             <CheckCircle2 className="w-3.5 h-3.5 ml-1" />
           </button>
 
           <button
-            onClick={() => setActiveTab('sms')}
+            onClick={() => setActiveTab('customer_email')}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-              activeTab === 'sms'
-                ? 'bg-emerald-500 text-neutral-950 shadow-md shadow-emerald-500/20'
+              activeTab === 'customer_email'
+                ? 'bg-[#05C147] text-neutral-950 shadow-md shadow-emerald-500/20'
                 : 'text-neutral-400 hover:text-white hover:bg-neutral-800'
             }`}
           >
-            <MessageSquare className="w-4 h-4" />
-            <span>SMS Alert ({ownerConfig.ownerPhone})</span>
+            <Mail className="w-4 h-4" />
+            <span>Customer Confirmation ({booking.customerEmail})</span>
             <CheckCircle2 className="w-3.5 h-3.5 ml-1" />
           </button>
         </div>
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-neutral-900/60">
-          {activeTab === 'email' ? (
+          {activeTab === 'owner_email' ? (
             <div className="space-y-4">
               {/* Delivery Meta */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-xs space-y-1.5">
                 <div className="flex items-center justify-between text-neutral-400">
                   <span>To: <strong className="text-white">{ownerConfig.ownerEmail}</strong></span>
-                  <span className="text-emerald-400 font-mono text-[11px]">Status: 250 OK (Delivered)</span>
+                  <span className="text-emerald-400 font-mono text-[11px]">Status: 250 OK (Email Delivered)</span>
                 </div>
                 <div className="text-neutral-400">
-                  Subject: <span className="text-neutral-200 font-semibold">{emailLog?.subject || `⚡ NEW BOOKING: ${booking.customerName}`}</span>
+                  Subject: <span className="text-neutral-200 font-semibold">{ownerEmailLog?.subject || `⚡ NEW BOOKING: ${booking.customerName} - ${booking.serviceTitle}`}</span>
                 </div>
                 <div className="text-neutral-500 text-[11px] font-mono">
-                  Timestamp: {emailLog ? new Date(emailLog.timestamp).toLocaleString() : new Date().toLocaleString()}
+                  Timestamp: {ownerEmailLog ? new Date(ownerEmailLog.timestamp).toLocaleString() : new Date().toLocaleString()}
                 </div>
               </div>
 
-              {/* Email Client Visual Preview */}
+              {/* Email Visual Preview */}
               <div className="border border-neutral-700/80 rounded-2xl overflow-hidden bg-neutral-950 shadow-inner">
-                {/* Email Client Mock Top Bar */}
                 <div className="bg-neutral-900 px-4 py-2.5 border-b border-neutral-800 flex items-center justify-between text-[11px] text-neutral-400">
                   <span className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    Stakey's Mail Notification Engine
+                    Stakey's Workshop Dispatch Email
                   </span>
-                  <span className="font-mono">HTML Preview</span>
+                  <span className="font-mono text-emerald-400">Workshop Notification</span>
                 </div>
 
-                {/* Email Content Box */}
                 <div className="p-6 max-w-xl mx-auto space-y-6 bg-neutral-900/90 rounded-2xl m-4 border border-neutral-800 text-neutral-100">
-                  {/* Stakey's Shield Banner */}
+                  {/* Stakey's Banner */}
                   <div className="bg-[#05C147] text-neutral-950 p-5 rounded-2xl text-center space-y-1 shadow-md">
                     <h2 className="text-2xl font-black tracking-widest uppercase">STAKEYS</h2>
-                    <p className="text-xs font-bold tracking-wider uppercase opacity-90">CYCLES &amp; SCOOTER</p>
+                    <p className="text-xs font-bold tracking-wider uppercase opacity-90">CYCLES &amp; SCOOTER WORKSHOP</p>
                   </div>
 
                   <div className="p-3 bg-neutral-950 rounded-xl border border-emerald-500/30 text-emerald-400 text-xs font-bold text-center">
-                    ⚡ NEW CUSTOMER SERVICE BOOKING RECEIVED
+                    ⚡ NEW REPAIR BOOKING RECEIVED FOR WORKSHOP INTAKE
                   </div>
 
                   {/* Booking Details Table */}
@@ -178,16 +181,16 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
                   {/* Quick Action Buttons */}
                   <div className="flex gap-2">
                     <a
-                      href={`tel:${booking.customerPhone}`}
+                      href={`mailto:${booking.customerEmail}?subject=${encodeURIComponent(`Regarding Your Stakey's Cycles Booking #${booking.id}`)}`}
                       className="flex-1 py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider text-center transition-all"
                     >
-                      📞 Call Customer
+                      ✉️ Reply to Customer via Email
                     </a>
                     <a
-                      href={`mailto:${booking.customerEmail}`}
-                      className="flex-1 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs uppercase tracking-wider text-center transition-all"
+                      href={`tel:${booking.customerPhone}`}
+                      className="py-2.5 px-4 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs text-center transition-all"
                     >
-                      ✉️ Reply Email
+                      📞 Call Phone
                     </a>
                   </div>
                 </div>
@@ -195,52 +198,90 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
             </div>
           ) : (
             <div className="space-y-4">
-              {/* SMS Delivery Meta */}
+              {/* Customer Delivery Meta */}
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-xs space-y-1.5">
                 <div className="flex items-center justify-between text-neutral-400">
-                  <span>To: <strong className="text-white">{ownerConfig.ownerPhone}</strong></span>
-                  <span className="text-emerald-400 font-mono text-[11px]">Status: Delivered via SMS Gateway</span>
+                  <span>To: <strong className="text-white">{booking.customerEmail}</strong></span>
+                  <span className="text-emerald-400 font-mono text-[11px]">Status: 250 OK (Email Delivered)</span>
+                </div>
+                <div className="text-neutral-400">
+                  Subject: <span className="text-neutral-200 font-semibold">{customerEmailLog?.subject || `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`}</span>
                 </div>
                 <div className="text-neutral-500 text-[11px] font-mono">
-                  Timestamp: {smsLog ? new Date(smsLog.timestamp).toLocaleString() : new Date().toLocaleString()}
+                  Timestamp: {customerEmailLog ? new Date(customerEmailLog.timestamp).toLocaleString() : new Date().toLocaleString()}
                 </div>
               </div>
 
-              {/* Smartphone SMS Simulator */}
-              <div className="max-w-sm mx-auto bg-neutral-950 border-4 border-neutral-800 rounded-[36px] p-4 shadow-2xl relative overflow-hidden">
-                {/* Phone Speaker Notch */}
-                <div className="w-20 h-4 bg-neutral-800 rounded-full mx-auto mb-4" />
-
-                <div className="text-center pb-3 border-b border-neutral-800/80 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto mb-1">
-                    <StakeysLogo className="w-6 h-6" />
-                  </div>
-                  <div className="text-xs font-bold text-white">Stakey's Alerts</div>
-                  <div className="text-[10px] text-neutral-400">SMS Notification Gateway</div>
+              {/* Customer Email Visual Preview */}
+              <div className="border border-neutral-700/80 rounded-2xl overflow-hidden bg-neutral-950 shadow-inner">
+                <div className="bg-neutral-900 px-4 py-2.5 border-b border-neutral-800 flex items-center justify-between text-[11px] text-neutral-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    Customer Inbox View
+                  </span>
+                  <span className="font-mono text-emerald-400">Client Confirmation Email</span>
                 </div>
 
-                {/* SMS Bubble */}
-                <div className="space-y-3 pb-8">
-                  <div className="text-center text-[10px] text-neutral-500 font-mono">Today • Just now</div>
+                <div className="p-6 max-w-xl mx-auto space-y-6 bg-neutral-900/90 rounded-2xl m-4 border border-neutral-800 text-neutral-100">
+                  {/* Stakey's Banner */}
+                  <div className="bg-[#05C147] text-neutral-950 p-5 rounded-2xl text-center space-y-1 shadow-md">
+                    <h2 className="text-2xl font-black tracking-widest uppercase">STAKEY'S</h2>
+                    <p className="text-xs font-bold tracking-wider uppercase opacity-90">CYCLES &amp; SCOOTER</p>
+                  </div>
 
-                  <div className="bg-emerald-600/90 text-neutral-950 font-medium p-3.5 rounded-2xl rounded-tl-sm text-xs leading-relaxed shadow-lg">
-                    <p className="font-bold text-black mb-1">[STAKEYS ALERT] New service booked!</p>
-                    <p className="text-neutral-950 mb-1">
-                      <strong>{booking.customerName}</strong> booked <strong>"{booking.serviceTitle}"</strong> on {booking.preferredDate} ({booking.preferredTimeSlot}).
-                    </p>
-                    <p className="text-neutral-950 text-[11px]">
-                      Vehicle: {booking.vehicleModel} • Tel: {booking.customerPhone}
-                    </p>
-                    {booking.notes && (
-                      <p className="text-neutral-900 text-[11px] mt-1 italic border-t border-black/15 pt-1">
-                        Note: {booking.notes}
-                      </p>
-                    )}
+                  <div className="p-3 bg-neutral-950 rounded-xl border border-emerald-500/30 text-emerald-400 text-xs font-bold text-center">
+                    📋 REPAIR BOOKING CONFIRMATION &amp; INTAKE INSTRUCTIONS
+                  </div>
+
+                  <div className="text-xs text-neutral-300 leading-relaxed">
+                    Hello <strong className="text-white">{booking.customerName}</strong>, thank you for booking your workshop service at Stakey's Cycles &amp; Scooter. Below are your booking details:
+                  </div>
+
+                  {/* Summary Card */}
+                  <div className="space-y-3 bg-neutral-950/80 p-4 rounded-xl border border-neutral-800 text-xs">
+                    <div className="flex justify-between pb-2 border-b border-neutral-800">
+                      <span className="text-neutral-400">Booking Number:</span>
+                      <span className="font-mono font-bold text-white">#{booking.id}</span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-neutral-800">
+                      <span className="text-neutral-400">Service:</span>
+                      <span className="font-bold text-[#05C147]">{booking.serviceTitle}</span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-neutral-800">
+                      <span className="text-neutral-400">Bike / Vehicle:</span>
+                      <span className="text-white font-medium">{booking.vehicleModel}</span>
+                    </div>
+                    <div className="flex justify-between pb-2 border-b border-neutral-800">
+                      <span className="text-neutral-400">Scheduled Date:</span>
+                      <span className="text-emerald-400 font-bold">
+                        {booking.preferredDate} ({booking.preferredTimeSlot})
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-400">Approval Status:</span>
+                      <span className="text-amber-300 font-bold">
+                        {booking.approvalStatus === 'approved' ? 'Approved & Confirmed' : 'Pending Staff Review'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-neutral-950 rounded-xl border border-neutral-800 text-xs space-y-1.5 text-neutral-300">
+                    <div className="font-bold text-white">Workshop Drop-Off Location:</div>
+                    <div>Stakey's Cycles &amp; Scooter Workshop Bay, Main Street</div>
+                    <div className="text-neutral-400 text-[11px]">
+                      Drop off your vehicle during your selected time window. Our Cytech mechanic will conduct a safety check on arrival.
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <a
+                      href={`mailto:${ownerConfig.ownerEmail}?subject=${encodeURIComponent(`Query regarding Booking #${booking.id}`)}`}
+                      className="flex-1 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs uppercase tracking-wider text-center transition-all"
+                    >
+                      ✉️ Email Stakey's Workshop
+                    </a>
                   </div>
                 </div>
-
-                {/* Bottom home indicator bar */}
-                <div className="w-28 h-1 bg-neutral-700 rounded-full mx-auto mt-2" />
               </div>
             </div>
           )}
@@ -249,7 +290,7 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
         {/* Modal Footer */}
         <div className="p-4 bg-neutral-950 border-t border-neutral-800 flex items-center justify-between">
           <span className="text-xs text-neutral-400">
-            Delivered to Stakey's Cycles &amp; Scooter Owner Notification Hub
+            Automated notification dispatch powered exclusively by Stakey's Email Engine
           </span>
           <button
             onClick={onClose}

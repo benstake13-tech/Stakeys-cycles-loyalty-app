@@ -25,6 +25,8 @@ import {
   ChevronRight,
   X,
   SlidersHorizontal,
+  Trash2,
+  Minus,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, StampLog } from '../types/bikeShop';
@@ -45,6 +47,8 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
     addStamp,
     updateCustomerMerits,
     createCustomerByStaff,
+    deleteCustomerAccount,
+    adjustCustomerStamps,
   } = useShop();
 
   // Search & Filter State
@@ -152,6 +156,26 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
       success: res.success,
       message: res.message,
     });
+  };
+
+  const handleQuickMinusStamp = async (cust: UserProfile) => {
+    if ((cust.stamps || 0) <= 0) return;
+    const res = await adjustCustomerStamps(cust.uid, -1, 'Staff manual correction: -1 stamp');
+    setFeedback({
+      success: res.success,
+      message: res.message,
+    });
+  };
+
+  const handleDeleteCustomer = async (cust: UserProfile) => {
+    if (confirm(`Are you sure you want to delete customer account "${cust.displayName}" (${cust.membershipNumber})? This cannot be undone.`)) {
+      const res = await deleteCustomerAccount(cust.uid);
+      setFeedback({
+        success: res.success,
+        message: res.message,
+      });
+      setTimeout(() => setFeedback(null), 3000);
+    }
   };
 
   return (
@@ -518,9 +542,20 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
                     type="button"
                     onClick={() => handleQuickAddStamp(cust)}
                     title="Add 1 visit stamp right now"
-                    className="px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/30 hover:border-emerald-500 text-emerald-400 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                    className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 hover:border-emerald-500 text-emerald-400 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                   >
                     <span>+1 Stamp</span>
+                  </button>
+
+                  {/* Quick -1 Stamp */}
+                  <button
+                    type="button"
+                    onClick={() => handleQuickMinusStamp(cust)}
+                    disabled={(cust.stamps || 0) <= 0}
+                    title="Correct accidental stamp (-1 stamp)"
+                    className="px-2.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-600 text-neutral-400 hover:text-neutral-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <Minus className="w-3 h-3" />
                   </button>
 
                   {/* Quick +1 Ticket */}
@@ -532,6 +567,16 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
                   >
                     <Ticket className="w-3.5 h-3.5" />
                     <span>+1</span>
+                  </button>
+
+                  {/* Delete Customer Account */}
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteCustomer(cust)}
+                    title="Delete customer loyalty account"
+                    className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/80 border border-rose-800/60 hover:border-rose-700 text-rose-400 hover:text-rose-200 text-xs transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
                   {/* Send to Scanner */}
