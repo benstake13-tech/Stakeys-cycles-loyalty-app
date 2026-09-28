@@ -45,6 +45,7 @@ import { PromotionsManagerTab } from './PromotionsManagerTab';
 import { DerailleurHangerIdentifier } from './DerailleurHangerIdentifier';
 import { BikeScraperTab } from './BikeScraperTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
+import { AdminDashboard } from './AdminDashboard';
 import { StaffBarcodeScannerTab } from './StaffBarcodeScannerTab';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 
@@ -68,6 +69,7 @@ export const StaffPortal: React.FC = () => {
   } = useShop();
 
   const [staffTab, setStaffTab] = useState<
+    | 'dashboard'
     | 'bookings'
     | 'staff_roster'
     | 'promotions'
@@ -77,7 +79,7 @@ export const StaffPortal: React.FC = () => {
     | 'scraper'
     | 'scanner'
     | 'logs'
-  >('bookings');
+  >('dashboard');
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -374,6 +376,19 @@ export const StaffPortal: React.FC = () => {
 
       {/* 3. WORKSTATION NAVIGATOR: Clean, High-Affordance Switcher */}
       <div className="bg-[#0b0e13] border border-neutral-800/90 rounded-2xl p-1.5 flex items-center gap-1.5 overflow-x-auto shadow-md">
+        <button
+          type="button"
+          onClick={() => setStaffTab('dashboard')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'dashboard'
+              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
+          }`}
+        >
+          <Layers className="w-4 h-4 text-emerald-400" />
+          <span>Dashboard</span>
+        </button>
+
         <button
           type="button"
           onClick={() => setStaffTab('bookings')}

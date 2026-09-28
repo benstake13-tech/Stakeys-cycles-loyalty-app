@@ -18,7 +18,6 @@ import {
   ShopPromotion,
 } from '../types/bikeShop';
 import {
-  INITIAL_USERS,
   INITIAL_PRIZE_WHEELS,
   INITIAL_DRAWS,
   INITIAL_STAMP_LOGS,
@@ -198,7 +197,7 @@ const ShopContext = createContext<ShopContextType | undefined>(undefined);
 const STORAGE_KEY = 'stakeys_cycles_pb_state_v2';
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [users, setUsers] = useState<UserProfile[]>(INITIAL_USERS);
+  const [users, setUsers] = useState<UserProfile[]>([]);
 
   const [prizeWheels, setPrizeWheels] = useState<PrizeWheel[]>(() => {
     try {
@@ -741,36 +740,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [users]);
 
-  // Credentials store for strict customer password authentication
-  const DEFAULT_CUSTOMER_CREDENTIALS: Record<string, string> = {
-    'alex.henderson@example.com': 'password123',
-    'maya.chen@example.com': 'password123',
-    'liam.rossi@example.com': 'password123',
-    'stk-839201': 'password123',
-    'stk-492104': 'password123',
-    'stk-129482': 'password123',
-    'alex': 'password123',
-    'maya': 'password123',
-    'liam': 'password123',
-  };
-
-  const [credentials, setCredentials] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_credentials`);
-      return saved ? { ...DEFAULT_CUSTOMER_CREDENTIALS, ...JSON.parse(saved) } : DEFAULT_CUSTOMER_CREDENTIALS;
-    } catch {
-      return DEFAULT_CUSTOMER_CREDENTIALS;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_credentials`, JSON.stringify(credentials));
-    } catch (e) {
-      console.warn('Storage failed for credentials', e);
-    }
-  }, [credentials]);
-
   const activeWheel = prizeWheels.find((w) => w.active) || null;
 
   // Customer Login with Supabase Auth
@@ -842,16 +811,33 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // 2. Validate user profile role
-      const staffUser = users.find((u) => u.uid === data.user.id);
-      if (!staffUser || (staffUser.role !== 'staff' && staffUser.role !== 'admin')) {
+      let staffUser = users.find((u) => u.uid === data.user.id);
+      
+      // Fallback: Fetch from DB if not in local state
+      if (!staffUser) {
+        console.log('[DEBUG] Fetching staffUser from DB for ID:', data.user.id);
+        const remoteProfile = await fetchUserProfileFromDb(data.user.id);
+        console.log('[DEBUG] remoteProfile:', remoteProfile);
+        if (remoteProfile) {
+          staffUser = remoteProfile as UserProfile;
+        }
+      }
+
+      console.log('[DEBUG] staffUser role check:', staffUser?.role);
+      
+      // FIX: Ensure we have a user and check if role is either 'staff' OR 'admin'
+      const hasStaffAccess = staffUser && (staffUser.role === 'staff' || staffUser.role === 'admin');
+
+      if (!hasStaffAccess) {
+        console.log('[DEBUG] Access Denied: User does not have staff or admin role.');
         await supabase.auth.signOut();
         return { success: false, message: 'Access Denied: Authorized workshop personnel only.' };
       }
 
-      setCurrentUser(staffUser);
+      setCurrentUser(staffUser as UserProfile);
       // Dynamic database fetch on staff login: syncs all workshop bookings and stamp logs
-      await syncUserFromDatabase(staffUser);
-      return { success: true, user: staffUser };
+      await syncUserFromDatabase(staffUser as UserProfile);
+      return { success: true, user: staffUser as UserProfile };
     } catch (err: any) {
       console.error('Staff login error:', err);
       return { success: false, message: 'An unexpected error occurred.' };
@@ -1942,7 +1928,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem(`${STORAGE_KEY}_owner_config`);
     localStorage.removeItem(`${STORAGE_KEY}_active_user`);
     localStorage.removeItem(`${STORAGE_KEY}_latest_announcement`);
-    setUsers(INITIAL_USERS);
+    setUsers([]); // Clear users instead of resetting to INITIAL_USERS
     setPrizeWheels(INITIAL_PRIZE_WHEELS);
     setDraws(INITIAL_DRAWS);
     setStampLogs(INITIAL_STAMP_LOGS);

@@ -490,6 +490,7 @@ export async function fetchUserProfileFromDb(
     if (data && data.length > 0) {
       const row = data[0];
       return {
+        uid: row.id,
         displayName: row.display_name,
         email: row.email,
         phoneNumber: row.phone || undefined,
