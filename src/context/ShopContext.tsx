@@ -97,6 +97,7 @@ interface ShopContextType {
   loginWithCredentials: (email: string, password?: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
   loginStaff: (email: string, password: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
   registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string) => Promise<{ success: boolean; message?: string }>;
+  resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
   logoutUser: () => void;
   // Bike actions
   addCustomerBike: (bike: Omit<CustomerBike, 'id' | 'addedAt'>) => Promise<CustomerBike>;
@@ -772,85 +773,59 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const activeWheel = prizeWheels.find((w) => w.active) || null;
 
-  // Customer Login with strict password verification (No login without correct password)
+  // Customer Login with Supabase Auth
   const loginWithCredentials = async (email: string, password = '') => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPass = password.trim();
+    try {
+      // 1. Authenticate with Supabase Auth
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: password.trim(),
+      });
 
-    if (!cleanEmail) {
-      return { success: false, message: 'Please enter your email, username, or membership ID.' };
-    }
-    if (!cleanPass) {
-      return { success: false, message: 'Password is required. Please enter your account password.' };
-    }
-
-    // Direct instant matching in local state
-    let matched = users.find((u) => u.email.toLowerCase() === cleanEmail);
-    if (!matched) {
-      if (cleanEmail === 'alex' || cleanEmail.includes('alex')) {
-        matched = users.find((u) => u.uid === 'cust-alex-839201' || u.email.toLowerCase() === 'alex.henderson@example.com');
-      } else if (cleanEmail === 'maya' || cleanEmail.includes('maya')) {
-        matched = users.find((u) => u.uid === 'cust-maya-492104' || u.email.toLowerCase() === 'maya.chen@example.com');
-      } else if (cleanEmail === 'liam' || cleanEmail.includes('liam')) {
-        matched = users.find((u) => u.uid === 'cust-liam-129482' || u.email.toLowerCase() === 'liam.rossi@example.com');
-      } else if (
-        cleanEmail === 'ben' ||
-        cleanEmail === 'ben@stakeyscycles.com' ||
-        cleanEmail === 'stk-staff-ben' ||
-        cleanEmail === 'chloe' ||
-        cleanEmail === 'chloe@stakeyscycles.com' ||
-        cleanEmail === 'chloe.stakey@gmail.com' ||
-        cleanEmail === 'stk-staff-chloe' ||
-        cleanEmail === 'sarah' ||
-        cleanEmail === 'sarah.manager@stakeyscycles.com'
-      ) {
-        return {
-          success: false,
-          message: 'This is an authorized Staff account. Please use the "Staff Station" tab and enter your staff PIN.',
-        };
-      } else {
-        matched = users.find(
-          (u) =>
-            u.membershipNumber?.toLowerCase() === cleanEmail ||
-            u.displayName.toLowerCase() === cleanEmail ||
-            u.uid.toLowerCase() === cleanEmail
-        );
+      if (error || !data.user) {
+        return { success: false, message: 'Invalid email or password.' };
       }
-    }
 
-    if (!matched) {
-      return {
-        success: false,
-        message: `Could not find an account for "${email}". Please verify your email or click "Create Account".`,
+      // 2. Fetch profile from database using the authenticated user ID
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError || !profile) {
+        console.error('Profile fetch error:', profileError);
+        return { success: false, message: 'Login successful, but could not load profile. Please contact support.' };
+      }
+
+      // Map DB profile to UserProfile type
+      const userProfile: UserProfile = {
+        uid: profile.id,
+        email: profile.email,
+        displayName: profile.display_name,
+        phoneNumber: profile.phone || undefined,
+        role: profile.role || 'customer',
+        membershipNumber: profile.membership_number,
+        stamps: profile.stamps || 0,
+        tickets: profile.completed_cards || 0,
+        merits: profile.merit_points || 0,
+        bikes: [], // Will be populated by syncUserFromDatabase
+        createdAt: new Date(profile.created_at),
+        lastStampedAt: profile.last_stamped_at ? new Date(profile.last_stamped_at) : null,
       };
+
+      if (userProfile.role === 'staff' || userProfile.role === 'admin') {
+        await supabase.auth.signOut();
+        return { success: false, message: 'Please use the Staff Station tab to log in.' };
+      }
+
+      setCurrentUser(userProfile);
+      await syncUserFromDatabase(userProfile);
+      return { success: true, user: userProfile };
+    } catch (err: any) {
+      console.error('Login error:', err);
+      return { success: false, message: 'An unexpected error occurred.' };
     }
-
-    // Staff accounts must strictly use the dedicated Staff Login area with PIN
-    if (matched.role === 'staff' || matched.role === 'admin') {
-      return {
-        success: false,
-        message: 'This is an authorized Staff account. Please use the "Staff Station" tab and enter your staff PIN.',
-      };
-    }
-
-    // STRICT PASSWORD VERIFICATION
-    const expectedPassword =
-      credentials[cleanEmail] ||
-      credentials[matched.email.toLowerCase()] ||
-      (matched.membershipNumber ? credentials[matched.membershipNumber.toLowerCase()] : undefined) ||
-      credentials[matched.uid];
-
-    if (!expectedPassword || expectedPassword !== cleanPass) {
-      return {
-        success: false,
-        message: 'Incorrect password. Access denied. Please enter the correct password for your account.',
-      };
-    }
-
-    setCurrentUser(matched);
-    // Dynamic database fetch on login: syncs profile, bikes, stamps, bookings
-    syncUserFromDatabase(matched);
-    return { success: true, user: matched };
   };
 
   // Dedicated Staff Station Login using Email/Password
@@ -910,6 +885,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       console.error('Registration error:', err);
       return { success: false, message: err.message || 'An unexpected error occurred during registration.' };
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      return { success: true, message: 'Password reset link sent to your email.' };
+    } catch (err: any) {
+      console.error('Password reset error:', err);
+      return { success: false, message: 'An unexpected error occurred.' };
     }
   };
 
@@ -2049,6 +2039,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithCredentials,
         loginStaff,
         registerCustomerAccount,
+        resetPassword,
         logoutUser,
         addCustomerBike,
         removeCustomerBike,
