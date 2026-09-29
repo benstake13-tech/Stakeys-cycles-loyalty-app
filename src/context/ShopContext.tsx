@@ -36,6 +36,7 @@ import {
   dispatchBookingDeclinedNotification,
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
+import { staffBookingAudio } from '../utils/staffAlertAudio';
 import { generateMembershipNumber } from '../api/firebaseService';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
 import { supabase } from '../lib/supabase';
@@ -191,6 +192,11 @@ interface ShopContextType {
   updateBookingStatus: (bookingId: string, status: BookingStatus) => void;
   updateOwnerConfig: (config: Partial<OwnerNotificationConfig>) => void;
   resetAllDemoData: () => void;
+  // Staff loud booking alert & push notifications
+  isStaffBookingSoundEnabled: boolean;
+  toggleStaffBookingSound: () => boolean;
+  playStaffBookingAlertPing: () => void;
+  requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported'>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -509,6 +515,89 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Service Bookings State (loaded dynamically from backend database)
   const [bookings, setBookings] = useState<ServiceBooking[]>(INITIAL_BOOKINGS);
+  const knownBookingIdsRef = React.useRef<Set<string>>(new Set(INITIAL_BOOKINGS.map((b) => b.id)));
+  const isInitialBookingsLoadRef = React.useRef<boolean>(true);
+  const currentUserRef = React.useRef<UserProfile | null>(currentUser);
+  currentUserRef.current = currentUser;
+
+  const [isStaffBookingSoundEnabled, setIsStaffBookingSoundEnabled] = useState<boolean>(() =>
+    staffBookingAudio.isSoundEnabled()
+  );
+
+  const toggleStaffBookingSound = () => {
+    const newState = staffBookingAudio.toggleSound();
+    setIsStaffBookingSoundEnabled(newState);
+    if (newState) {
+      staffBookingAudio.playLoudBookingPing();
+      toast.success('🔊 Workshop booking audio alert activated (Loud Ping)', { icon: '🔔' });
+    } else {
+      toast('🔇 Workshop booking audio alert muted', { icon: '🔕' });
+    }
+    return newState;
+  };
+
+  const playStaffBookingAlertPing = () => {
+    staffBookingAudio.playLoudBookingPing();
+    staffBookingAudio.dispatchPushNotification(
+      '🔔 Workshop Audio Alert Test',
+      "Loud alert ping sounded! Workshop terminals are armed for real-time booking alerts."
+    );
+  };
+
+  const requestPushNotificationPermission = async () => {
+    const perm = await staffBookingAudio.requestNotificationPermission();
+    if (perm === 'granted') {
+      toast.success('✅ Desktop push notifications enabled for Workshop bookings!', { icon: '🔔' });
+      staffBookingAudio.dispatchPushNotification('Stakey’s Cycles Workshop', 'Push notifications are now active!');
+    } else if (perm === 'denied') {
+      toast.error('Push notification permission was denied in your browser settings.');
+    }
+    return perm;
+  };
+
+  const updateBookingsWithStaffAlert = (incomingBookings: ServiceBooking[]) => {
+    if (!incomingBookings || incomingBookings.length === 0) return;
+
+    if (isInitialBookingsLoadRef.current) {
+      incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
+      isInitialBookingsLoadRef.current = false;
+      setBookings(incomingBookings);
+      return;
+    }
+
+    const isStaff = currentUserRef.current?.role === 'staff' || currentUserRef.current?.role === 'admin';
+    const brandNewBookings = incomingBookings.filter((b) => !knownBookingIdsRef.current.has(b.id));
+
+    incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
+    setBookings(incomingBookings);
+
+    // ONLY staff receives the loud audio ping and push notification!
+    if (isStaff && brandNewBookings.length > 0) {
+      staffBookingAudio.playLoudBookingPing();
+
+      const latest = brandNewBookings[0];
+      staffBookingAudio.dispatchPushNotification(
+        `🚨 New Workshop Booking: #${latest.id}`,
+        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`
+      );
+
+      toast(
+        `🚨 NEW WORKSHOP BOOKING #${latest.id}!\n${latest.customerName} • ${latest.serviceTitle}`,
+        {
+          icon: '🔔',
+          duration: 9000,
+          style: {
+            background: '#071d12',
+            color: '#4ade80',
+            border: '2px solid #22c55e',
+            boxShadow: '0 10px 25px -5px rgba(34, 197, 94, 0.4)',
+            fontSize: '13px',
+            fontWeight: 700,
+          },
+        }
+      );
+    }
+  };
 
   // Database Synchronization Engine & Real-time State
   const [isDatabaseSyncing, setIsDatabaseSyncing] = useState<boolean>(false);
@@ -529,10 +618,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const mergedBikes = remoteBikes && remoteBikes.length > 0 ? remoteBikes : (user.bikes || []);
 
+      const previousStamps = user.stamps || 0;
+      const remoteStamps = remoteProfile?.stamps !== undefined ? remoteProfile.stamps : user.stamps;
+
+      if (remoteProfile?.stamps !== undefined && remoteProfile.stamps > previousStamps) {
+        const gained = remoteProfile.stamps - previousStamps;
+        toast.success(
+          `🎉 +${gained} New Stamp${gained > 1 ? 's' : ''} Received! Total: ${remoteProfile.stamps}/10`,
+          { icon: '🎟️', duration: 4500 }
+        );
+      }
+
       const updatedUser: UserProfile = {
         ...user,
         bikes: mergedBikes,
-        stamps: remoteProfile?.stamps !== undefined ? remoteProfile.stamps : user.stamps,
+        stamps: remoteStamps,
         tickets: remoteProfile?.tickets !== undefined ? remoteProfile.tickets : user.tickets,
         merits: remoteProfile?.merits !== undefined ? remoteProfile.merits : user.merits,
         lastSpunAt: remoteProfile?.lastSpunAt !== undefined ? remoteProfile.lastSpunAt : user.lastSpunAt,
@@ -548,7 +648,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (remoteBookings && remoteBookings.length > 0) {
-        setBookings(remoteBookings);
+        updateBookingsWithStaffAlert(remoteBookings);
       }
       if (remoteLogs && remoteLogs.length > 0) {
         setStampLogs(remoteLogs);
@@ -580,7 +680,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchServiceBookingsFromDb(undefined, true),
         fetchStampLogsFromDb(undefined, true),
       ]);
-      if (remoteBookings && remoteBookings.length > 0) setBookings(remoteBookings);
+      if (remoteBookings && remoteBookings.length > 0) updateBookingsWithStaffAlert(remoteBookings);
       if (remoteLogs && remoteLogs.length > 0) setStampLogs(remoteLogs);
     }
   };
@@ -596,7 +696,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).catch(() => {});
 
     fetchServiceBookingsFromDb(undefined, true).then((b) => {
-      if (b && b.length > 0) setBookings(b);
+      if (b && b.length > 0) updateBookingsWithStaffAlert(b);
     }).catch(() => {});
 
     fetchStampLogsFromDb(undefined, true).then((l) => {
@@ -836,6 +936,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setCurrentUser(staffUser as UserProfile);
+      // Automatically request notification permissions for staff terminals
+      staffBookingAudio.requestNotificationPermission().catch(() => {});
       // Dynamic database fetch on staff login: syncs all workshop bookings and stamp logs
       await syncUserFromDatabase(staffUser as UserProfile);
       return { success: true, user: staffUser as UserProfile };
@@ -1295,6 +1397,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const target = users.find((u) => u.uid === userId);
     if (target) {
+      toast.success(`🏆 Prize awarded: ${prizeTitle}!`, { icon: '🏆', duration: 5000 });
       const newLog: StampLog = {
         id: `log-${Date.now()}`,
         customerId: userId,
@@ -1418,6 +1521,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setStampLogs((prev) => [newLog, ...prev]);
 
+    const toastMsg =
+      stampsAwarded > 0
+        ? `🎉 Won ${segment.label}! (+${stampsAwarded} ${stampsAwarded === 1 ? 'stamp' : 'stamps'} added)`
+        : `🎉 Won ${segment.label}!`;
+    toast.success(toastMsg, {
+      icon: stampsAwarded > 0 ? '🎟️' : '🎁',
+      duration: 5000,
+    });
+
     return {
       success: true,
       message: `Congratulations! You won ${segment.label}!`,
@@ -1480,6 +1592,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       note: `Customer pressed collect: Eligible for £40 service (labour only parts not included) - Voucher Code: ${voucherCode}`,
     };
     setStampLogs((prev) => [newLog, ...prev]);
+
+    toast.success(
+      '🎉 Congratulations! £40 Workshop Service Voucher claimed! Valid for 12 months.',
+      { icon: '🎁', duration: 6000 }
+    );
 
     return {
       success: true,
@@ -1625,10 +1742,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setBookings((prev) => [completedBooking, ...prev]);
+    knownBookingIdsRef.current.add(completedBooking.id);
     setLatestDispatchedBooking(completedBooking);
 
     // Remote Database Mutation: INSERT directly into service_bookings table
     insertServiceBookingToDb(completedBooking).catch((e) => console.warn('[DB SYNC] Error inserting booking in DB:', e));
+
+    // Audio Alert & Push: ONLY staff hears this loud ping (customer will never hear it)
+    const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
+    if (isStaff) {
+      staffBookingAudio.playLoudBookingPing();
+      staffBookingAudio.dispatchPushNotification(
+        `🚨 New Workshop Booking #${completedBooking.id}`,
+        `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`
+      );
+    }
 
     // Trigger instant email alert confirmation banner
     setLatestSmsAlert({
@@ -2084,6 +2212,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateBookingStatus,
         updateOwnerConfig,
         resetAllDemoData,
+        isStaffBookingSoundEnabled,
+        toggleStaffBookingSound,
+        playStaffBookingAlertPing,
+        requestPushNotificationPermission,
       }}
     >
       {children}

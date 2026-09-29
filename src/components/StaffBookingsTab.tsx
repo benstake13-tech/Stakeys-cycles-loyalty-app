@@ -18,6 +18,9 @@ import {
   ShieldAlert,
   Zap,
   Bike,
+  Volume2,
+  VolumeX,
+  Bell,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus, VehicleCategory } from '../types/bikeShop';
@@ -32,6 +35,10 @@ export const StaffBookingsTab: React.FC = () => {
     updateBookingStatus,
     ownerConfig,
     updateOwnerConfig,
+    isStaffBookingSoundEnabled,
+    toggleStaffBookingSound,
+    playStaffBookingAlertPing,
+    requestPushNotificationPermission,
   } = useShop();
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
@@ -239,8 +246,70 @@ export const StaffBookingsTab: React.FC = () => {
               className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
             >
               <Send className="w-4 h-4" />
-              <span>Send Test Alert</span>
+              <span>Send Test Email</span>
             </button>
+          </div>
+        </div>
+
+        {/* Workshop Sound & Realtime Push Alert Bar */}
+        <div className="mt-4 pt-4 border-t border-neutral-800/80 flex flex-wrap items-center justify-between gap-3 bg-neutral-950/40 p-3.5 rounded-2xl border border-neutral-800">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl border flex items-center justify-center shrink-0 ${
+              isStaffBookingSoundEnabled
+                ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                : 'bg-neutral-800/80 border-neutral-700 text-neutral-400'
+            }`}>
+              {isStaffBookingSoundEnabled ? <Volume2 className="w-5 h-5 animate-pulse" /> : <VolumeX className="w-5 h-5" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Workshop Loud Booking Ping
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                  isStaffBookingSoundEnabled
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                }`}>
+                  {isStaffBookingSoundEnabled ? '🔔 LOUD PING ARMED' : '🔕 MUTED'}
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-0.5">
+                Staff terminals ping loudly as soon as a customer submits a repair booking. Customers never hear it.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={playStaffBookingAlertPing}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-500/40 shadow-sm"
+              title="Test the loud workshop alert ping sound"
+            >
+              <Bell className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Test Loud Ping</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={toggleStaffBookingSound}
+              className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer border border-neutral-700"
+            >
+              {isStaffBookingSoundEnabled ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+              <span>{isStaffBookingSoundEnabled ? 'Mute' : 'Unmute'}</span>
+            </button>
+
+            {'Notification' in window && Notification.permission !== 'granted' && (
+              <button
+                type="button"
+                onClick={requestPushNotificationPermission}
+                className="px-3 py-1.5 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-sky-500/40"
+              >
+                <Zap className="w-3.5 h-3.5 text-sky-400" />
+                <span>Enable Desktop Push</span>
+              </button>
+            )}
           </div>
         </div>
 

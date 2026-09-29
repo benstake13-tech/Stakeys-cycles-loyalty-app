@@ -32,6 +32,9 @@ import {
   UserPlus,
   Trash2,
   Sliders,
+  Volume2,
+  VolumeX,
+  Bell,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -66,6 +69,9 @@ export const StaffPortal: React.FC = () => {
     createDraw,
     updateDraw,
     deleteDraw,
+    isStaffBookingSoundEnabled,
+    toggleStaffBookingSound,
+    playStaffBookingAlertPing,
   } = useShop();
 
   const [staffTab, setStaffTab] = useState<
@@ -298,6 +304,33 @@ export const StaffPortal: React.FC = () => {
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
               Organized workshop management: manage service bookings, inspect customer bikes &amp; OEM specs, stamp loyalty cards, and manage prize wheels.
             </p>
+
+            <div className="flex flex-wrap items-center gap-2 mt-3.5">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs shadow-inner">
+                <span className={`w-2 h-2 rounded-full ${isStaffBookingSoundEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
+                <span className="text-neutral-400 text-[11px] font-medium">Workshop Audio Ping:</span>
+                <span className={`font-mono text-[11px] font-bold ${isStaffBookingSoundEnabled ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                  {isStaffBookingSoundEnabled ? 'LOUD PING ACTIVE' : 'MUTED'}
+                </span>
+                <button
+                  type="button"
+                  onClick={playStaffBookingAlertPing}
+                  className="ml-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-[10px] tracking-wide uppercase transition-colors cursor-pointer border border-emerald-500/30 flex items-center gap-1"
+                  title="Test loud workshop bell ping sound"
+                >
+                  <Bell className="w-3 h-3 text-emerald-400" />
+                  <span>Test Ping</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleStaffBookingSound}
+                  className="px-1.5 py-0.5 rounded-lg text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                  title={isStaffBookingSoundEnabled ? 'Mute booking ping' : 'Unmute booking ping'}
+                >
+                  {isStaffBookingSoundEnabled ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Quick Metrics Cards */}
@@ -520,6 +553,9 @@ export const StaffPortal: React.FC = () => {
       </div>
 
       {/* 4. WORKSTATION VIEWS */}
+
+      {/* VIEW 0: Workshop Metrics & Loyalty Admin Dashboard */}
+      {staffTab === 'dashboard' && <AdminDashboard />}
 
       {/* VIEW 1: Service Bookings Management */}
       {staffTab === 'bookings' && <StaffBookingsTab />}

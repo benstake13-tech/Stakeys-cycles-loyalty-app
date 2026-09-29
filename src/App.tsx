@@ -95,7 +95,6 @@ function AppContent() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
-      <Toaster position="top-right" />
       {/* Broadcast Winner Announcement to Everybody */}
       <WinnerAnnouncementBanner />
 
@@ -381,6 +380,27 @@ function AppContent() {
 export default function App() {
   return (
     <ShopProvider>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4500,
+          style: {
+            background: '#12161c',
+            color: '#f3f4f6',
+            border: '1px solid #262626',
+            borderRadius: '14px',
+            fontSize: '13px',
+            fontWeight: 600,
+            boxShadow: '0 10px 30px -10px rgba(0, 0, 0, 0.6)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#05C147',
+              secondary: '#12161c',
+            },
+          },
+        }}
+      />
       <AppContent />
     </ShopProvider>
   );
