@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
   UserProfile,
   CustomerBike,
@@ -976,11 +977,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }).catch((e) => console.warn('[DB SYNC] Error updating profile stamps in DB:', e));
     insertStampLogToDb(newLog).catch((e) => console.warn('[DB SYNC] Error inserting stamp log in DB:', e));
 
+    const successMessage = cardCompleted
+      ? `🎉 10TH STAMP ACHIEVED! Card reset and 1 Prize Draw ticket credited to ${target.displayName}!`
+      : `Visit stamp added for ${target.displayName}! (${nextStamps}/10)`;
+
+    toast.success(successMessage, { icon: cardCompleted ? '🎉' : '🎟️' });
+
     return {
       success: true,
-      message: cardCompleted
-        ? `🎉 10TH STAMP ACHIEVED! Card reset and 1 Prize Draw ticket credited to ${target.displayName}!`
-        : `Visit stamp added for ${target.displayName}! (${nextStamps}/10)`,
+      message: successMessage,
     };
   };
 
@@ -1009,6 +1014,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     insertStampLogToDb(newLog).catch((e) =>
       console.warn('[DB SYNC] Error inserting redeem log in DB:', e)
     );
+    toast.success(`Redeemed: ${rewardDescription}`);
     return { success: true, message: `Redeemed: ${rewardDescription}` };
   };
 

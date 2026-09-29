@@ -30,6 +30,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { BikesWeTrustSection } from './components/BikesWeTrustSection';
 import { DerailleurHangerIdentifier } from './components/DerailleurHangerIdentifier';
+import { Toaster } from 'react-hot-toast';
 
 function AppContent() {
   const { currentUser, logoutUser, theme } = useShop();
@@ -96,6 +97,7 @@ function AppContent() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
+      <Toaster position="top-right" />
       {/* Broadcast Winner Announcement to Everybody */}
       <WinnerAnnouncementBanner />
 

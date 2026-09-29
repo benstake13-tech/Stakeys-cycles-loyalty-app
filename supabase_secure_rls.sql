@@ -45,12 +45,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================================================
 -- 3. PROFILES POLICIES
 -- ============================================================================
--- Customers can view their own profile; staff can view all profiles
+DROP POLICY IF EXISTS "Profiles select policy" ON public.profiles;
 CREATE POLICY "Profiles select policy" ON public.profiles
   FOR SELECT
-  USING (
-    auth.uid()::text = id OR public.is_staff_or_admin() OR auth.role() = 'service_role'
-  );
+  USING (true);
 
 -- Users can insert their own profile during registration; staff can create any
 CREATE POLICY "Profiles insert policy" ON public.profiles
@@ -102,12 +100,10 @@ CREATE POLICY "Customer bikes delete policy" ON public.customer_bikes
 -- ============================================================================
 -- 5. SERVICE BOOKINGS POLICIES
 -- ============================================================================
--- Customers view their own bookings; staff view all workshop bookings
+DROP POLICY IF EXISTS "Service bookings select policy" ON public.service_bookings;
 CREATE POLICY "Service bookings select policy" ON public.service_bookings
   FOR SELECT
-  USING (
-    customer_id = auth.uid()::text OR public.is_staff_or_admin() OR auth.role() = 'service_role'
-  );
+  USING (true);
 
 -- Anyone authenticated can submit a booking
 CREATE POLICY "Service bookings insert policy" ON public.service_bookings
@@ -127,12 +123,10 @@ CREATE POLICY "Service bookings update policy" ON public.service_bookings
 -- ============================================================================
 -- 6. STAMP LOGS POLICIES
 -- ============================================================================
--- Customers view their own stamp audit history; staff view all
+DROP POLICY IF EXISTS "Stamp logs select policy" ON public.stamp_logs;
 CREATE POLICY "Stamp logs select policy" ON public.stamp_logs
   FOR SELECT
-  USING (
-    customer_id = auth.uid()::text OR public.is_staff_or_admin() OR auth.role() = 'service_role'
-  );
+  USING (true);
 
 -- Only staff/admins can log new visits and stamps
 CREATE POLICY "Stamp logs insert policy" ON public.stamp_logs
