@@ -28,8 +28,6 @@ import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { Navigation3DDeck, NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
-import { BikesWeTrustSection } from './components/BikesWeTrustSection';
-import { DerailleurHangerIdentifier } from './components/DerailleurHangerIdentifier';
 import { Toaster } from 'react-hot-toast';
 
 function AppContent() {
@@ -168,34 +166,6 @@ function AppContent() {
               <span>Promotions</span>
             </button>
 
-            {/* Bikes We Trust Tab */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('bikes_we_trust')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'bikes_we_trust'
-                  ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
-                  : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
-              }`}
-            >
-              <Bike className="w-3.5 h-3.5 text-sky-400" />
-              <span>Bikes We Trust</span>
-            </button>
-
-            {/* Derailleur Hangers Tab */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('hangers')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'hangers'
-                  ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
-                  : isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-900' : 'text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100'
-              }`}
-            >
-              <Search className="w-3.5 h-3.5 text-violet-400" />
-              <span>Hangers</span>
-            </button>
-
             {/* Staff Terminal: visible & accessible to staff, or prompt PIN for customer sessions */}
             {isStaff ? (
               <button
@@ -322,32 +292,6 @@ function AppContent() {
             <span>Promos</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('bikes_we_trust')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'bikes_we_trust'
-                ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
-                : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
-            }`}
-          >
-            <Bike className="w-3.5 h-3.5 text-sky-400" />
-            <span>Bikes</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('hangers')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'hangers'
-                ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
-                : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
-            }`}
-          >
-            <Search className="w-3.5 h-3.5 text-violet-400" />
-            <span>Hangers</span>
-          </button>
-
           {isStaff ? (
             <button
               type="button"
@@ -387,8 +331,6 @@ function AppContent() {
         {activeTab === 'customer' && <CustomerPortal />}
         {activeTab === 'booking' && <BookingPortal />}
         {activeTab === 'promotions' && <PromotionsCarousel />}
-        {activeTab === 'bikes_we_trust' && <BikesWeTrustSection />}
-        {activeTab === 'hangers' && <DerailleurHangerIdentifier />}
         {activeTab === 'staff' && (
           isStaff ? (
             <StaffPortal />

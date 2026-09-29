@@ -1,4 +1,5 @@
 import { ServiceBooking, OwnerNotificationConfig, BookingNotificationLog } from '../types/bikeShop';
+import { getSupabaseClient } from '../lib/supabase';
 
 export interface DispatchResult {
   emailLog: BookingNotificationLog;
@@ -497,36 +498,28 @@ export async function dispatchBookingNotifications(
     status: 'delivered',
   };
 
-  // Live Email Gateway: Forward to formsubmit.co for workshop notification destination
+  // Live Email Gateway: Forward to Supabase Edge Function
   try {
-    const payload = {
-      _subject: `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`,
-      _replyto: booking.customerEmail,
-      "Customer Name": booking.customerName,
-      "Customer Phone": booking.customerPhone,
-      "Customer Email": booking.customerEmail,
-      "Service": booking.serviceTitle,
-      "Price": `£${booking.servicePrice.toFixed(2)}`,
-      "Vehicle": `${booking.vehicleCategory.toUpperCase()} - ${booking.vehicleModel}`,
-      "Appointment": `${booking.preferredDate} (${booking.preferredTimeSlot})`,
-      "Notes": booking.notes || 'None',
-      "Notification Mode": "EXCLUSIVELY EMAIL",
-      "Customer Confirmation Email": booking.customerEmail,
-      "Owner Alert Destination": config.ownerEmail,
-    };
-
-    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(config.ownerEmail)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+    const supabase = getSupabaseClient();
+    await supabase.functions.invoke('send-email', {
+      body: {
+        from: 'noreply@stakeyscyles.co.uk',
+        to: config.ownerEmail,
+        subject: `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`,
+        html: generateBookingEmailHtml(booking, config),
       },
-      body: JSON.stringify(payload),
-    }).catch(() => {
-      // Continue seamlessly
     });
-  } catch {
-    // Non-blocking
+    
+    await supabase.functions.invoke('send-email', {
+      body: {
+        from: 'noreply@stakeyscyles.co.uk',
+        to: booking.customerEmail,
+        subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
+        html: generateCustomerBookingEmailHtml(booking, config),
+      },
+    });
+  } catch (err) {
+    console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
   }
 
   console.log(`[STAKEYS EMAIL ENGINE] ✅ Delivered Confirmation Email to Customer (${booking.customerEmail})`);
@@ -818,23 +811,17 @@ export async function dispatchBookingApprovalNotification(
   };
 
   try {
-    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(booking.customerEmail)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        _subject: emailLog.subject,
-        "Booking ID": booking.id,
-        "Status": "APPROVED",
-        "Customer": booking.customerName,
-        "Service": booking.serviceTitle,
-        "Drop-off Date": `${booking.preferredDate} (${booking.preferredTimeSlot})`,
-        "Staff Note": staffNote || 'None',
-        "Workshop Contact Email": config.ownerEmail,
-        "Notification Mode": "EXCLUSIVELY EMAIL",
-      }),
-    }).catch(() => {});
-  } catch {
-    // Non-blocking
+    const supabase = getSupabaseClient();
+    await supabase.functions.invoke('send-email', {
+      body: {
+        from: 'noreply@stakeyscyles.co.uk',
+        to: booking.customerEmail,
+        subject: emailLog.subject,
+        html: emailLog.content,
+      },
+    });
+  } catch (err) {
+    console.error('[APPROVAL NOTIFICATION] Failed to send via Edge Function:', err);
   }
 
   console.log(`[APPROVAL NOTIFICATION] ✅ Sent Approval Email to ${booking.customerEmail}`);
@@ -865,23 +852,17 @@ export async function dispatchBookingDeclinedNotification(
   };
 
   try {
-    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(booking.customerEmail)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        _subject: emailLog.subject,
-        "Booking ID": booking.id,
-        "Status": "DECLINED",
-        "Customer": booking.customerName,
-        "Service": booking.serviceTitle,
-        "Requested Date": `${booking.preferredDate} (${booking.preferredTimeSlot})`,
-        "Reason": reason || 'Workshop capacity limit',
-        "Workshop Contact Email": config.ownerEmail,
-        "Notification Mode": "EXCLUSIVELY EMAIL",
-      }),
-    }).catch(() => {});
-  } catch {
-    // Non-blocking
+    const supabase = getSupabaseClient();
+    await supabase.functions.invoke('send-email', {
+      body: {
+        from: 'noreply@stakeyscyles.co.uk',
+        to: booking.customerEmail,
+        subject: emailLog.subject,
+        html: emailLog.content,
+      },
+    });
+  } catch (err) {
+    console.error('[DECLINE NOTIFICATION] Failed to send via Edge Function:', err);
   }
 
   console.log(`[DECLINE NOTIFICATION] ⚠️ Sent Declined Email to ${booking.customerEmail}`);

@@ -256,7 +256,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </div>
 
           {/* Email Confirmations Dispatched to Customer & Stakey's Cycles */}
-          {(() => {
+          {(currentUser?.role === 'staff' || currentUser?.role === 'admin') && (() => {
             return (
               <div className="py-5 space-y-4 border-b border-neutral-800/80">
                 <div className="flex items-center justify-between">

@@ -1358,6 +1358,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const currentStamps = target.stamps || 0;
     const updatedStamps = Math.min(10, currentStamps + stampsAwarded);
     const isFull = updatedStamps >= 10;
+    
+    // Add Cooldown check (7 days)
+    const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+    const lastSpin = target.lastSpunAt ? new Date(target.lastSpunAt).getTime() : 0;
+    const nowTime = now.getTime();
+    
+    // Allow spin if lastSpin was > 7 days ago, OR if override is used (for testing)
+    // Note: 'isStaff' isn't explicitly passed, but we can check currentUser
+    const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
+    const isCooldownActive = !isStaff && (nowTime - lastSpin < sevenDaysInMs);
+
+    if (isCooldownActive) {
+      return { success: false, message: 'You have already spun the wheel this week. Please come back in 7 days!' };
+    }
 
     const updatedUser: UserProfile = {
       ...target,

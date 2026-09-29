@@ -673,9 +673,10 @@ export const StaffBookingsTab: React.FC = () => {
               </div>
             </div>
 
+            {/* Workshop Mechanic Drop-Off Instructions / SMS Note */}
             <div>
               <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
-                Workshop Mechanic Drop-Off Instructions / Note (Optional)
+                Workshop Mechanic Drop-Off Instructions / SMS Note (Optional)
               </label>
               <textarea
                 rows={3}
@@ -685,7 +686,7 @@ export const StaffBookingsTab: React.FC = () => {
                 className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-[#05C147]"
               />
               <span className="text-[11px] text-neutral-400 mt-1 block">
-                This note will be formatted prominently in the official approval email delivered to {approvingBooking.customerEmail}.
+                This note will be formatted prominently in the official approval SMS delivered to {approvingBooking.customerPhone}.
               </span>
             </div>
 
@@ -701,11 +702,17 @@ export const StaffBookingsTab: React.FC = () => {
               <button
                 type="button"
                 disabled={isApproving}
-                onClick={handleConfirmApprove}
+                onClick={async () => {
+                  await handleConfirmApprove(); // Triggers existing approval/email logic
+                  const smsLink = `sms:${approvingBooking.customerPhone.replace(/\s+/g, '')}?body=${encodeURIComponent(
+                    `Hi ${approvingBooking.customerName}! Your booking #${approvingBooking.id} is approved. ${approvalNote.trim() ? `Note: ${approvalNote.trim()}` : ''} See you at Stakey's!`
+                  )}`;
+                  window.location.href = smsLink; // Redirects to device SMS app
+                }}
                 className="px-5 py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>{isApproving ? 'Approving & Delivering Email...' : 'Confirm & Dispatch Approval Email'}</span>
+                <span>{isApproving ? 'Processing...' : 'Confirm, Dispatch Email & SMS'}</span>
               </button>
             </div>
           </div>
