@@ -22,6 +22,7 @@ import { BarcodeVisual } from './BarcodeVisual';
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
+import BicycleWheelModal from './BicycleWheelModal.jsx';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
 import {
@@ -43,12 +44,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     addCustomerBike,
     removeCustomerBike,
     saveBikeScrapedSpecs,
+    refreshDatabaseState,
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps'>('garage');
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
   const [viewingCustomerInvoice, setViewingCustomerInvoice] = useState<ServiceBooking | null>(null);
+  const [isBicycleWheelOpen, setIsBicycleWheelOpen] = useState(false);
 
   // Modal for adding a new bike to profile
   const [isAddBikeModalOpen, setIsAddBikeModalOpen] = useState(false);
@@ -588,11 +591,38 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
       {/* TAB: WEEKLY PRIZE WHEEL */}
       {activeTab === 'wheel' && (
-        <WeeklyPrizeWheel
-          onGoToStamps={() => setActiveTab('stamps')}
-          onGoToBooking={() => setActiveTab('booking')}
-        />
+        <div className="space-y-6">
+          <div className="p-4 rounded-xl bg-[#0d1015] border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Bike className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div>
+                <h4 className="text-xs font-bold text-white">Two-Stage Bicycle Prize Wheel</h4>
+                <p className="text-[11px] text-neutral-400">
+                  Spin the Front Wheel and unlock the Rear Wheel for premium prizes.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsBicycleWheelOpen(true)}
+              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+            >
+              Open Bicycle Wheel
+            </button>
+          </div>
+          <WeeklyPrizeWheel
+            onGoToStamps={() => setActiveTab('stamps')}
+            onGoToBooking={() => setActiveTab('booking')}
+          />
+        </div>
       )}
+
+      <BicycleWheelModal
+        isOpen={isBicycleWheelOpen}
+        onClose={() => setIsBicycleWheelOpen(false)}
+        user={currentUser ? { id: currentUser.uid } : null}
+        onRewardsUpdated={refreshDatabaseState}
+      />
 
       {/* TAB 4: LOYALTY PASS & STAMPS */}
       {activeTab === 'stamps' && (
