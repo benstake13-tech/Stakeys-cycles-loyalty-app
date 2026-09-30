@@ -256,6 +256,54 @@ export interface BookingNotificationLog {
     | 'status_update';
 }
 
+export interface InvoiceLineItem {
+  id: string;
+  description: string;
+  category: 'Labour' | 'Part' | 'Consumable' | 'Diagnostic';
+  quantity: number;
+  unitPrice: number;
+  total: number; // auto-calculated qty * unitPrice
+  partNumber?: string;
+}
+
+export interface RepairChecklistItem {
+  id: string;
+  label: string;
+  category: 'Safety' | 'Brakes' | 'Drivetrain' | 'Wheels' | 'Final Inspection';
+  completed: boolean;
+  notes?: string;
+}
+
+export interface RepairInvoice {
+  id: string;
+  invoiceNumber: string; // e.g. INV-2026-0842
+  bookingId: string;
+  issuedAt: any;
+  completedAt: any;
+  leadMechanic: string;
+  cytechCertification?: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  membershipNumber?: string;
+  vehicleModel: string;
+  vehicleCategory: VehicleCategory;
+  items: InvoiceLineItem[];
+  checklistSignoff: RepairChecklistItem[];
+  labourSubtotal: number;
+  partsSubtotal: number;
+  subtotal: number;
+  vatRate: number; // e.g. 0.20 or 0
+  vatAmount: number;
+  voucherDiscount: number;
+  voucherCode?: string;
+  grandTotal: number;
+  paymentStatus: 'unpaid' | 'paid_card' | 'paid_cash' | 'paid_online';
+  paymentDate?: any;
+  mechanicNotes?: string;
+  warrantyPeriod: string; // e.g. '30-Day Stakey Workshop Warranty'
+}
+
 export interface ServiceBooking {
   id: string;
   customerName: string;
@@ -269,9 +317,12 @@ export interface ServiceBooking {
   serviceId: string;
   serviceTitle: string;
   servicePrice: number;
+  quotedPrice?: number;
   preferredDate: string; // YYYY-MM-DD
   preferredTimeSlot: string;
   notes?: string;
+  selectedIssues?: string[];
+  otherNotes?: string;
   status: BookingStatus;
   approvalStatus?: 'pending_approval' | 'approved' | 'declined';
   approvedAt?: any;
@@ -284,6 +335,7 @@ export interface ServiceBooking {
   reminder24hSent?: boolean;
   reminder24hSentAt?: any;
   reminder24hDeliveryStatus?: 'scheduled' | 'sent' | 'delivered';
+  invoice?: RepairInvoice;
 }
 
 export interface OwnerNotificationConfig {

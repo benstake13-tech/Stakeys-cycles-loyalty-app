@@ -58,6 +58,9 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
 }) => {
   const { currentUser, promotions, bookings, theme } = useShop();
   const isDark = theme === 'dark';
+  const freshBookingsCount = isStaff
+    ? bookings.filter((b) => b.status === 'pending' || b.approvalStatus === 'pending_approval').length
+    : 0;
 
   // Flipped state per card: id -> boolean (flip 180° to reveal micro-content)
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
@@ -167,8 +170,12 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
     {
       id: 'staff',
       title: isStaff ? 'Staff Command Terminal' : 'Staff Terminal (Locked)',
-      badge: isStaff ? 'Workshop Admin' : 'PIN Required',
-      badgeColor: isStaff ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+      badge: isStaff ? (freshBookingsCount > 0 ? `⚡ ${freshBookingsCount} FRESH JOBS` : 'Workshop Admin') : 'PIN Required',
+      badgeColor: isStaff && freshBookingsCount > 0
+        ? 'bg-amber-400 text-neutral-950 font-black border-amber-300 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.85)]'
+        : isStaff
+        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+        : 'bg-amber-500/20 text-amber-300 border-amber-500/30',
       subtitle: isStaff ? 'Roster CRUD, Promotions CRUD, Wheel Slices CRUD, Member Manager & Intake.' : 'Master Cytech terminal with full workshop CRUD tools. Requires security PIN.',
       icon: <ShieldCheck className="w-5 h-5 text-emerald-400" />,
       accentColor: '#05C147',

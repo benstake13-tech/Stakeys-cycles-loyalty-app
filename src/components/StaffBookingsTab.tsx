@@ -21,11 +21,15 @@ import {
   Volume2,
   VolumeX,
   Bell,
+  FileText,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { ServiceBooking, BookingStatus, VehicleCategory } from '../types/bikeShop';
+import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../types/bikeShop';
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
+import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import { RepairCompletionModal } from './RepairCompletionModal';
+import { RepairInvoiceModal } from './RepairInvoiceModal';
 
 export const StaffBookingsTab: React.FC = () => {
   const {
@@ -33,17 +37,26 @@ export const StaffBookingsTab: React.FC = () => {
     approveBooking,
     declineBooking,
     updateBookingStatus,
+    saveRepairInvoice,
+    updateInvoicePaymentStatus,
+    currentUser,
     ownerConfig,
     updateOwnerConfig,
     isStaffBookingSoundEnabled,
     toggleStaffBookingSound,
     playStaffBookingAlertPing,
+    workshopAudioVolume,
+    cycleWorkshopAudioVolume,
     requestPushNotificationPermission,
   } = useShop();
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('all');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
+
+  // Invoice & Repair Completion Modal States
+  const [completingBooking, setCompletingBooking] = useState<ServiceBooking | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<{ invoice: RepairInvoice; booking: ServiceBooking } | null>(null);
 
   // Approval / Decline Modal States
   const [approvingBooking, setApprovingBooking] = useState<ServiceBooking | null>(null);
@@ -281,6 +294,17 @@ export const StaffBookingsTab: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {isStaffBookingSoundEnabled && (
+              <button
+                type="button"
+                onClick={cycleWorkshopAudioVolume}
+                className="px-2.5 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-amber-400 font-mono text-xs font-bold border border-amber-500/30 transition-colors cursor-pointer"
+                title="Cycle loudness boost"
+              >
+                🔊 {workshopAudioVolume === 'max_workshop' ? 'MAX BOOST (220% LOUD)' : workshopAudioVolume === 'loud' ? 'LOUD (160%)' : 'NORMAL (100%)'}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={playStaffBookingAlertPing}
@@ -419,17 +443,23 @@ export const StaffBookingsTab: React.FC = () => {
 
       {/* Pending Repair Requests Banner */}
       {pendingCount > 0 && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-amber-950/40 border border-amber-500/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-amber-200 shadow-xl">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 shrink-0 border border-amber-500/30">
-              <Clock className="w-5 h-5 animate-pulse" />
+        <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-neutral-900 border-2 border-amber-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-amber-200 shadow-[0_0_35px_rgba(245,158,11,0.4)] animate-fade-in">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-400 text-neutral-950 shrink-0 border border-amber-300 flex items-center justify-center font-black shadow-lg shadow-amber-400/40 animate-bounce">
+              <Clock className="w-6 h-6 text-neutral-950" />
             </div>
             <div>
-              <strong className="text-sm font-bold text-amber-300 block">
-                {pendingCount} Workshop Repair Request{pendingCount > 1 ? 's' : ''} Awaiting Staff Approval
-              </strong>
-              <p className="text-[11px] text-amber-200/80 mt-0.5 max-w-2xl leading-relaxed">
-                Guests and customers have submitted their name and phone number for repair. You must grant approval; customers automatically receive a branded acceptance email with workshop drop-off details, or a decline email explaining the decision.
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-neutral-950 uppercase tracking-wider flex items-center gap-1 border border-amber-300 shadow-sm">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                  ACTION REQUIRED
+                </span>
+                <strong className="text-sm sm:text-base font-extrabold text-amber-300 block">
+                  {pendingCount} Fresh Workshop Request{pendingCount > 1 ? 's' : ''} Awaiting Review
+                </strong>
+              </div>
+              <p className="text-[11px] text-neutral-300 mt-1 max-w-2xl leading-relaxed">
+                Guests and loyalty riders have submitted intake bookings. Approve to allocate bench slots and deliver customer confirmations, or decline with feedback.
               </p>
             </div>
           </div>
@@ -437,9 +467,9 @@ export const StaffBookingsTab: React.FC = () => {
           <button
             type="button"
             onClick={() => setSelectedStatusFilter('pending')}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs uppercase tracking-wider shrink-0 cursor-pointer shadow-md"
+            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs uppercase tracking-wider shrink-0 cursor-pointer shadow-lg shadow-amber-400/30 border border-amber-300 transition-all hover:scale-[1.02]"
           >
-            Review Pending ({pendingCount})
+            Review Fresh Jobs ({pendingCount})
           </button>
         </div>
       )}
@@ -459,12 +489,23 @@ export const StaffBookingsTab: React.FC = () => {
               className={`px-3 py-1.5 rounded-xl capitalize font-semibold transition-all cursor-pointer ${
                 selectedStatusFilter === status
                   ? 'bg-[#05C147] text-neutral-950 shadow-sm shadow-emerald-500/20 font-bold'
+                  : status === 'pending' && pendingCount > 0
+                  ? 'bg-amber-950/60 text-amber-300 border border-amber-500/40 hover:bg-amber-900/60 font-bold'
                   : 'bg-neutral-950 text-neutral-400 hover:text-white border border-neutral-800'
               }`}
             >
-              {status === 'pending'
-                ? `Pending (${pendingCount})`
-                : status.replace('_', ' ')}
+              {status === 'pending' ? (
+                <span className="flex items-center gap-1.5">
+                  <span>Pending</span>
+                  {pendingCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-black bg-amber-400 text-neutral-950 animate-pulse border border-amber-300">
+                      ⚡ {pendingCount} FRESH
+                    </span>
+                  )}
+                </span>
+              ) : (
+                status.replace('_', ' ')
+              )}
             </button>
           ))}
         </div>
@@ -496,36 +537,66 @@ export const StaffBookingsTab: React.FC = () => {
             <p className="text-xs text-neutral-500 mt-1">New appointments will appear here as soon as customers book.</p>
           </div>
         ) : (
-          filteredBookings.map((b) => (
-            <div
-              key={b.id}
-              className="bg-neutral-900 hover:bg-neutral-850/80 transition-all border border-neutral-800 rounded-3xl p-5 sm:p-6 shadow-lg space-y-4"
-            >
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-neutral-950 border border-neutral-800 text-[#05C147] flex items-center justify-center shrink-0">
-                    {b.vehicleCategory === 'electric_scooter' ? (
-                      <Zap className="w-5 h-5" />
-                    ) : (
-                      <Bike className="w-5 h-5" />
-                    )}
+          filteredBookings.map((b) => {
+            const isFresh = b.status === 'pending' || b.approvalStatus === 'pending_approval';
+            return (
+              <div
+                key={b.id}
+                className={`transition-all rounded-3xl p-5 sm:p-6 shadow-lg space-y-4 relative ${
+                  isFresh
+                    ? 'bg-[#12100d] border-2 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.25)] ring-1 ring-amber-400/50'
+                    : 'bg-neutral-900 hover:bg-neutral-850/80 border border-neutral-800'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 ${
+                      isFresh
+                        ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-md shadow-amber-400/30 font-black'
+                        : 'bg-neutral-950 border-neutral-800 text-[#05C147]'
+                    }`}>
+                      {b.vehicleCategory === 'electric_scooter' ? (
+                        <Zap className="w-5 h-5" />
+                      ) : (
+                        <Bike className="w-5 h-5" />
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs text-neutral-400 font-bold">#{b.id}</span>
+                        <h4 className="text-base font-bold text-white">{b.serviceTitle}</h4>
+                        {getStatusBadge(b.status)}
+                        {isFresh && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                            ⚡ FRESH INCOMING
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-neutral-300 mt-0.5">
+                        <strong className="text-white">{b.vehicleModel}</strong> ({b.vehicleCategory.toUpperCase().replace('_', ' ')})
+                      </div>
+                    </div>
                   </div>
 
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs text-neutral-400 font-bold">#{b.id}</span>
-                      <h4 className="text-base font-bold text-white">{b.serviceTitle}</h4>
-                      {getStatusBadge(b.status)}
-                    </div>
-                    <div className="text-xs text-neutral-300 mt-0.5">
-                      <strong className="text-white">{b.vehicleModel}</strong> ({b.vehicleCategory.toUpperCase().replace('_', ' ')})
-                    </div>
-                  </div>
-                </div>
-
-                <div className="text-right flex items-baseline sm:flex-col sm:items-end justify-between w-full sm:w-auto gap-2">
-                  <span className="text-lg font-black text-[#05C147]">£{b.servicePrice.toFixed(2)}</span>
-                  <span className="text-[11px] text-neutral-400 font-mono">
+                <div className="text-right flex items-baseline sm:flex-col sm:items-end justify-between w-full sm:w-auto gap-1">
+                  {b.invoice ? (
+                    <>
+                      <span className="text-lg font-black text-[#05C147]">£{b.invoice.grandTotal.toFixed(2)}</span>
+                      <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase">
+                        Invoiced #{b.invoice.invoiceNumber}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-sm font-bold text-amber-400 font-mono">Quote Pending</span>
+                      <span className="text-[10px] text-neutral-400 font-mono">
+                        Priced upon repair completion
+                      </span>
+                    </>
+                  )}
+                  <span className="text-[11px] text-neutral-400 font-mono mt-0.5">
                     Slot: {b.preferredDate} • {b.preferredTimeSlot.split(' ')[0]}
                   </span>
                 </div>
@@ -576,10 +647,39 @@ export const StaffBookingsTab: React.FC = () => {
                 </div>
               </div>
 
+              {/* Reported Issues / Symptoms Checklist */}
+              {b.selectedIssues && b.selectedIssues.length > 0 && (
+                <div className="bg-neutral-950/90 p-3.5 rounded-2xl border border-emerald-500/30 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-emerald-400 font-mono uppercase tracking-wider">
+                    <span className="flex items-center gap-1.5">
+                      <Wrench className="w-3.5 h-3.5 text-[#05C147]" />
+                      Reported Bike Issues Checklist ({b.selectedIssues.length})
+                    </span>
+                    <span className="text-[10px] text-neutral-400 font-normal normal-case">Cytech intake inspection</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {b.selectedIssues.map((id) => {
+                      const item = ALL_BIKE_ISSUES_MAP.get(id);
+                      return (
+                        <span
+                          key={id}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-900 border border-neutral-700 text-xs text-neutral-200"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#05C147]" />
+                          <strong className="text-emerald-400 font-mono text-[10px]">[{item?.category || 'Issue'}]</strong>
+                          <span>{item?.label || id}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Customer Notes */}
               {b.notes && (
-                <div className="text-xs text-neutral-300 bg-neutral-950 p-3 rounded-xl border border-neutral-800 italic">
-                  Notes: "{b.notes}"
+                <div className="text-xs text-neutral-300 bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 whitespace-pre-line leading-relaxed font-mono">
+                  <span className="text-neutral-500 font-mono text-[10px] uppercase block mb-1">Customer / Diagnostic Notes</span>
+                  {b.notes}
                 </div>
               )}
 
@@ -647,6 +747,66 @@ export const StaffBookingsTab: React.FC = () => {
                 </div>
               )}
 
+              {/* REPAIR INVOICE & WORKSHOP COMPLETION WORKFLOW */}
+              <div className="p-4 rounded-2xl bg-neutral-950/90 border border-neutral-800 space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Wrench className="w-4 h-4 text-[#05C147]" />
+                      <span className="font-bold text-white text-xs sm:text-sm">
+                        {b.invoice ? `Official Invoice: ${b.invoice.invoiceNumber}` : 'Repair Completion & Invoice'}
+                      </span>
+                      {b.invoice ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                          Total: £{b.invoice.grandTotal.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                          Quote Pending
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-neutral-400 mt-0.5">
+                      {b.invoice
+                        ? `${b.invoice.items.length} parts/labour line items · ${b.invoice.paymentStatus.toUpperCase().replace('_', ' ')} · Lead: ${b.invoice.leadMechanic}`
+                        : 'Sign off completion checklist, price up parts & labour manually, and build customer invoice.'}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {b.invoice ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setViewingInvoice({ invoice: b.invoice!, booking: b })}
+                          className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-850 border border-emerald-500/30 hover:border-emerald-500 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>View &amp; Print Invoice</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCompletingBooking(b)}
+                          className="px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                          title="Edit Line Items & Checklist"
+                        >
+                          <span>Edit Invoice</span>
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCompletingBooking(b)}
+                        className="px-4 py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20 active:scale-95 transition-all"
+                      >
+                        <Wrench className="w-4 h-4" />
+                        <span>Complete Repairs &amp; Build Invoice</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Action Toolbar */}
               <div className="pt-2 border-t border-neutral-800 flex flex-wrap items-center justify-between gap-3 text-xs">
                 {/* Status Switcher (for approved / active bookings) */}
@@ -691,8 +851,9 @@ export const StaffBookingsTab: React.FC = () => {
                 </button>
               </div>
             </div>
-          ))
-        )}
+          );
+        })
+      )}
       </div>
 
       {/* APPROVAL MODAL */}
@@ -886,6 +1047,38 @@ export const StaffBookingsTab: React.FC = () => {
           isOpen={!!selectedBookingForPreview}
           onClose={() => setSelectedBookingForPreview(null)}
           ownerConfig={ownerConfig}
+        />
+      )}
+
+      {/* Repair Completion & Pricing Builder Modal */}
+      {completingBooking && (
+        <RepairCompletionModal
+          booking={completingBooking}
+          isOpen={!!completingBooking}
+          onClose={() => setCompletingBooking(null)}
+          onSaveInvoice={async (invoice) => {
+            await saveRepairInvoice(completingBooking.id, invoice);
+            setViewingInvoice({ invoice, booking: completingBooking });
+            setCompletingBooking(null);
+          }}
+          currentStaffName={currentUser?.displayName || 'Ben Stake - Cytech Master'}
+        />
+      )}
+
+      {/* Professional High-Detailed Invoice Document Modal */}
+      {viewingInvoice && (
+        <RepairInvoiceModal
+          invoice={viewingInvoice.invoice}
+          booking={viewingInvoice.booking}
+          isOpen={!!viewingInvoice}
+          onClose={() => setViewingInvoice(null)}
+          onUpdatePaymentStatus={async (status) => {
+            await updateInvoicePaymentStatus(viewingInvoice.booking.id, status);
+            setViewingInvoice((prev) =>
+              prev ? { ...prev, invoice: { ...prev.invoice, paymentStatus: status } } : null
+            );
+          }}
+          isStaff={true}
         />
       )}
     </div>

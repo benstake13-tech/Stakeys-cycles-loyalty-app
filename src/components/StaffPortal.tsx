@@ -72,6 +72,8 @@ export const StaffPortal: React.FC = () => {
     isStaffBookingSoundEnabled,
     toggleStaffBookingSound,
     playStaffBookingAlertPing,
+    workshopAudioVolume,
+    cycleWorkshopAudioVolume,
   } = useShop();
 
   const [staffTab, setStaffTab] = useState<
@@ -280,10 +282,56 @@ export const StaffPortal: React.FC = () => {
     (b) => b.status !== 'completed' && b.status !== 'cancelled'
   ).length;
 
+  // Fresh, unreviewed repair bookings requiring workshop bench intake
+  const freshBookings = bookings.filter(
+    (b) => b.status === 'pending' || b.approvalStatus === 'pending_approval'
+  );
+  const latestFresh = freshBookings[0] || null;
+
   return (
     <div className="space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
       {/* 1. TOP COMMAND BAR: Online Service Status & Diagnostics */}
       <ServiceStatusBadge variant="full" />
+
+      {/* 1B. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
+      {freshBookings.length > 0 && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-400 text-neutral-950 flex items-center justify-center font-black shadow-lg shadow-amber-400/50 shrink-0 animate-bounce">
+                <Bell className="w-6 h-6 text-neutral-950" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-neutral-950 tracking-wider uppercase shadow-sm flex items-center gap-1.5 border border-amber-300">
+                    <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                    NEW BOOKING ALERT
+                  </span>
+                  <span className="font-mono text-xs font-bold text-amber-300">
+                    ⚡ {freshBookings.length} Fresh Request{freshBookings.length > 1 ? 's' : ''} Awaiting Bench Capacity Review
+                  </span>
+                </div>
+                {latestFresh && (
+                  <p className="text-xs sm:text-sm font-semibold text-white mt-1.5">
+                    Latest Request: <strong className="text-amber-300 font-extrabold">{latestFresh.customerName}</strong> (<span className="text-neutral-200">{latestFresh.vehicleModel}</span> • <span className="text-emerald-400 font-bold">{latestFresh.serviceTitle}</span>) scheduled for <strong className="text-white font-mono">{latestFresh.preferredDate}</strong> ({latestFresh.preferredTimeSlot})
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setStaffTab('bookings')}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-400/40 flex items-center justify-center gap-2 cursor-pointer border border-amber-300 hover:scale-[1.02]"
+              >
+                <Wrench className="w-4 h-4 text-neutral-950" />
+                <span>Review {freshBookings.length} Fresh Booking{freshBookings.length > 1 ? 's' : ''}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. STATION OVERVIEW & METRICS BAR */}
       <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
@@ -308,10 +356,22 @@ export const StaffPortal: React.FC = () => {
             <div className="flex flex-wrap items-center gap-2 mt-3.5">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs shadow-inner">
                 <span className={`w-2 h-2 rounded-full ${isStaffBookingSoundEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
-                <span className="text-neutral-400 text-[11px] font-medium">Workshop Audio Ping:</span>
+                <span className="text-neutral-400 text-[11px] font-medium">Audio Alert:</span>
                 <span className={`font-mono text-[11px] font-bold ${isStaffBookingSoundEnabled ? 'text-emerald-400' : 'text-neutral-500'}`}>
                   {isStaffBookingSoundEnabled ? 'LOUD PING ACTIVE' : 'MUTED'}
                 </span>
+
+                {isStaffBookingSoundEnabled && (
+                  <button
+                    type="button"
+                    onClick={cycleWorkshopAudioVolume}
+                    className="px-2 py-0.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-amber-400 font-mono text-[10px] font-bold border border-amber-500/30 transition-colors cursor-pointer"
+                    title="Toggle loudness boost"
+                  >
+                    🔊 {workshopAudioVolume === 'max_workshop' ? 'MAX (220%)' : workshopAudioVolume === 'loud' ? 'LOUD (160%)' : 'NORMAL (100%)'}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={playStaffBookingAlertPing}
@@ -319,7 +379,7 @@ export const StaffPortal: React.FC = () => {
                   title="Test loud workshop bell ping sound"
                 >
                   <Bell className="w-3 h-3 text-emerald-400" />
-                  <span>Test Ping</span>
+                  <span>Test Loud Ping</span>
                 </button>
                 <button
                   type="button"
@@ -338,10 +398,22 @@ export const StaffPortal: React.FC = () => {
             <button
               type="button"
               onClick={() => setStaffTab('bookings')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+              className={`p-3 rounded-xl bg-neutral-950 border text-left transition-all cursor-pointer relative overflow-hidden ${
+                freshBookings.length > 0
+                  ? 'border-amber-400/90 shadow-[0_0_18px_rgba(245,158,11,0.3)] hover:border-amber-300'
+                  : 'border-neutral-800 hover:border-emerald-500/40'
+              }`}
             >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Workshop Jobs
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  Workshop Jobs
+                </div>
+                {freshBookings.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-sm flex items-center gap-1">
+                    <span className="w-1 h-1 rounded-full bg-red-600 animate-ping" />
+                    {freshBookings.length} NEW
+                  </span>
+                )}
               </div>
               <div className="text-xl font-black text-emerald-400 mt-0.5">
                 {activeBookingsCount}{' '}
@@ -436,6 +508,12 @@ export const StaffPortal: React.FC = () => {
           <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
             {bookings.length}
           </span>
+          {freshBookings.length > 0 && (
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+              ⚡ {freshBookings.length} NEW
+            </span>
+          )}
         </button>
 
         <button

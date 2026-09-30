@@ -2,17 +2,26 @@
  * Stakey's Cycles Staff Booking Audio Alert Synthesizer
  * High-decibel, high-clarity Web Audio API alert ping for workshop terminals.
  * Fires exclusively for staff sessions when a customer submits a repair booking.
+ * 
+ * Engineered for maximum acoustic penetration and high RMS loudness in busy workshops.
  */
+
+export type WorkshopAudioVolume = 'normal' | 'loud' | 'max_workshop';
 
 class StaffBookingAlertAudio {
   private ctx: AudioContext | null = null;
   private isEnabled: boolean = true;
+  private volumeLevel: WorkshopAudioVolume = 'max_workshop';
 
   constructor() {
     try {
-      const saved = localStorage.getItem('stakeys_staff_booking_sound_enabled');
-      if (saved !== null) {
-        this.isEnabled = JSON.parse(saved);
+      const savedEnabled = localStorage.getItem('stakeys_staff_booking_sound_enabled');
+      if (savedEnabled !== null) {
+        this.isEnabled = JSON.parse(savedEnabled);
+      }
+      const savedVolume = localStorage.getItem('stakeys_staff_audio_volume');
+      if (savedVolume === 'normal' || savedVolume === 'loud' || savedVolume === 'max_workshop') {
+        this.volumeLevel = savedVolume;
       }
     } catch {}
   }
@@ -43,6 +52,28 @@ class StaffBookingAlertAudio {
   public toggleSound(): boolean {
     this.setSoundEnabled(!this.isEnabled);
     return this.isEnabled;
+  }
+
+  public getVolumeLevel(): WorkshopAudioVolume {
+    return this.volumeLevel;
+  }
+
+  public setVolumeLevel(level: WorkshopAudioVolume) {
+    this.volumeLevel = level;
+    try {
+      localStorage.setItem('stakeys_staff_audio_volume', level);
+    } catch {}
+  }
+
+  public cycleVolumeLevel(): WorkshopAudioVolume {
+    const next: Record<WorkshopAudioVolume, WorkshopAudioVolume> = {
+      normal: 'loud',
+      loud: 'max_workshop',
+      max_workshop: 'normal',
+    };
+    const nextLevel = next[this.volumeLevel] || 'max_workshop';
+    this.setVolumeLevel(nextLevel);
+    return nextLevel;
   }
 
   /**
@@ -83,9 +114,9 @@ class StaffBookingAlertAudio {
   }
 
   /**
-   * Loud, sharp double-tone workshop bell ping designed to cut through shop floor noise.
-   * Chime 1: C6 (1046.5 Hz) + C7 (2093 Hz) -> punchy attack
-   * Chime 2: E6 (1318.5 Hz) + G6 (1568 Hz) -> bright high ping
+   * Ultra-Loud, Penetrating Workshop Alert Chime
+   * Uses multi-harmonic frequency stacking and dynamic compression
+   * to deliver maximum acoustic energy and cut through air compressors, tools, and background music.
    */
   public playLoudBookingPing(): void {
     if (!this.isEnabled) return;
@@ -96,61 +127,100 @@ class StaffBookingAlertAudio {
 
       const now = this.ctx.currentTime;
 
-      // Master output limiter / booster for loud audibility
+      // Calculate gain multiplier based on volumeLevel setting
+      const volMultiplier =
+        this.volumeLevel === 'max_workshop' ? 2.2 : this.volumeLevel === 'loud' ? 1.6 : 1.0;
+
+      // 1. Studio-grade Master Dynamics Compressor & Limiter to prevent clipping while maxing RMS loudness
+      const compressor = this.ctx.createDynamicsCompressor();
+      compressor.threshold.setValueAtTime(-24, now);
+      compressor.knee.setValueAtTime(6, now);
+      compressor.ratio.setValueAtTime(14, now);
+      compressor.attack.setValueAtTime(0.001, now);
+      compressor.release.setValueAtTime(0.08, now);
+
+      // 2. High-makeup master booster stage
       const masterGain = this.ctx.createGain();
-      masterGain.gain.setValueAtTime(0.92, now); // Loud workshop volume
-      masterGain.connect(this.ctx.destination);
+      masterGain.gain.setValueAtTime(0.95 * volMultiplier, now);
 
-      // Chime Tone 1: 1046.5 Hz (Bright C6) with metallic transient
-      const playTone = (freq: number, startDelay: number, duration: number, peakVol: number) => {
+      masterGain.connect(compressor);
+      compressor.connect(this.ctx.destination);
+
+      // Helper function to synthesize rich, multi-layered chime strikes
+      const triggerChimeStrike = (
+        baseFreq: number,
+        startDelay: number,
+        duration: number,
+        strikePower: number
+      ) => {
         if (!this.ctx) return;
+        const strikeTime = now + startDelay;
 
-        const startTime = now + startDelay;
-        const osc = this.ctx.createOscillator();
-        const overtone = this.ctx.createOscillator();
-        const noteGain = this.ctx.createGain();
+        // Layer A: Pure fundamental bell sine
+        const oscA = this.ctx.createOscillator();
+        oscA.type = 'sine';
+        oscA.frequency.setValueAtTime(baseFreq, strikeTime);
+
+        // Layer B: Bright metallic overtone (harmonic sparkle)
+        const oscB = this.ctx.createOscillator();
+        oscB.type = 'triangle';
+        oscB.frequency.setValueAtTime(baseFreq * 2.02, strikeTime);
+
+        // Layer C: High-frequency resonant bell ring
+        const oscC = this.ctx.createOscillator();
+        oscC.type = 'sine';
+        oscC.frequency.setValueAtTime(baseFreq * 3.01, strikeTime);
+
+        // Layer D: Acoustic transient bite (filtered triangle wave for sharp click attack)
+        const oscD = this.ctx.createOscillator();
+        oscD.type = 'triangle';
+        oscD.frequency.setValueAtTime(baseFreq * 0.5, strikeTime);
+
+        // Bandpass filter for bright, piercing workshop frequency response (1.2kHz - 3.5kHz range)
         const filter = this.ctx.createBiquadFilter();
-
-        // Fundamental tone
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startTime);
-
-        // High shimmer overtone (bell/metallic ping)
-        overtone.type = 'triangle';
-        overtone.frequency.setValueAtTime(freq * 2.01, startTime);
-
-        // Bandpass filter to sculpt a clean, ringing bell frequency
         filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(freq * 1.5, startTime);
-        filter.Q.setValueAtTime(4.0, startTime);
+        filter.frequency.setValueAtTime(Math.min(4200, baseFreq * 1.8), strikeTime);
+        filter.Q.setValueAtTime(3.0, strikeTime);
 
-        // Envelope: ultra-fast transient attack (1ms), natural bell decay
-        noteGain.gain.setValueAtTime(0.0001, startTime);
-        noteGain.gain.linearRampToValueAtTime(peakVol, startTime + 0.003);
-        noteGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+        // Envelope shaper: Instant sharp attack, punchy decay
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.setValueAtTime(0.0001, strikeTime);
+        gainNode.gain.linearRampToValueAtTime(strikePower * 0.95, strikeTime + 0.003);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, strikeTime + duration);
 
-        osc.connect(filter);
-        overtone.connect(filter);
-        filter.connect(noteGain);
-        noteGain.connect(masterGain);
+        oscA.connect(gainNode);
+        oscB.connect(filter);
+        oscC.connect(filter);
+        oscD.connect(gainNode);
 
-        osc.start(startTime);
-        overtone.start(startTime);
-        osc.stop(startTime + duration + 0.05);
-        overtone.stop(startTime + duration + 0.05);
+        filter.connect(gainNode);
+        gainNode.connect(masterGain);
+
+        oscA.start(strikeTime);
+        oscB.start(strikeTime);
+        oscC.start(strikeTime);
+        oscD.start(strikeTime);
+
+        const stopTime = strikeTime + duration + 0.06;
+        oscA.stop(stopTime);
+        oscB.stop(stopTime);
+        oscC.stop(stopTime);
+        oscD.stop(stopTime);
       };
 
-      // Sound signature: 3-phase rapid workshop alert chime
-      // 1. Initial high ping
-      playTone(1046.5, 0.0, 0.35, 0.95);
-      // 2. Harmonic accent ping
-      playTone(1318.5, 0.08, 0.40, 0.90);
-      // 3. Final loud piercing high bell ping (E6 / G6 harmonic)
-      playTone(1567.98, 0.22, 0.70, 1.0);
-      playTone(2093.0, 0.22, 0.50, 0.65);
+      // Signature 4-Stage High-Decibel Workshop Alert Pattern:
+      // Rapid ascending sequence with maximum human ear sensitivity (~1kHz to 2.4kHz)
+      // Strike 1: 1046.5 Hz (High C6)
+      triggerChimeStrike(1046.5, 0.00, 0.35, 1.0);
+      // Strike 2: 1318.5 Hz (Bright E6)
+      triggerChimeStrike(1318.5, 0.14, 0.40, 1.1);
+      // Strike 3: 1568.0 Hz (Piercing G6 - Climax chime)
+      triggerChimeStrike(1568.0, 0.28, 0.55, 1.25);
+      // Strike 4: 2093.0 Hz (High C7 - Lingering bell resonance)
+      triggerChimeStrike(2093.0, 0.38, 0.85, 1.3);
 
     } catch (err) {
-      console.warn('[STAFF ALERT] AudioContext error while playing loud booking ping:', err);
+      console.warn('[STAFF ALERT] Web Audio synthesizer error:', err);
     }
   }
 }

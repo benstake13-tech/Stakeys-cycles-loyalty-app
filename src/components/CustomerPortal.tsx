@@ -15,13 +15,15 @@ import {
   CheckCircle2,
   TrendingUp,
   Info,
+  FileText,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { BarcodeVisual } from './BarcodeVisual';
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
-import { VehicleCategory, CustomerBike } from '../types/bikeShop';
+import { RepairInvoiceModal } from './RepairInvoiceModal';
+import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
 import {
   POPULAR_BIKE_BRANDS,
   BRAND_MODELS_MAP,
@@ -46,6 +48,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps'>('garage');
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
+  const [viewingCustomerInvoice, setViewingCustomerInvoice] = useState<ServiceBooking | null>(null);
 
   // Modal for adding a new bike to profile
   const [isAddBikeModalOpen, setIsAddBikeModalOpen] = useState(false);
@@ -545,7 +548,15 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                     </div>
                     <div className="text-sm font-semibold text-neutral-200">
                       {b.serviceTitle}
-                      <span className="ml-2 font-mono text-emerald-400 tabular-nums">£{b.servicePrice}</span>
+                      {b.invoice ? (
+                        <span className="ml-2 font-mono text-[#05C147] font-bold">
+                          £{b.invoice.grandTotal.toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="ml-2 font-mono text-amber-400 text-xs">
+                          (Quote on inspection)
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-neutral-400 flex items-center gap-2">
                       <Clock className="w-3.5 h-3.5 text-neutral-500" />
@@ -553,10 +564,20 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                     </div>
                   </div>
 
-                  <div className="text-right">
+                  <div className="flex flex-col sm:items-end gap-2">
                     <span className="text-xs font-mono font-medium text-neutral-300">
                       Status: <strong className="text-white uppercase font-normal">{b.status}</strong>
                     </span>
+                    {b.invoice && (
+                      <button
+                        type="button"
+                        onClick={() => setViewingCustomerInvoice(b)}
+                        className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/40 text-emerald-400 hover:text-emerald-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>View Invoice ({b.invoice.invoiceNumber})</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -863,6 +884,17 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
             </div>
           </div>
         </div>
+      )}
+
+      {/* Viewing Invoice Modal for Customer */}
+      {viewingCustomerInvoice && viewingCustomerInvoice.invoice && (
+        <RepairInvoiceModal
+          invoice={viewingCustomerInvoice.invoice}
+          booking={viewingCustomerInvoice}
+          isOpen={!!viewingCustomerInvoice}
+          onClose={() => setViewingCustomerInvoice(null)}
+          isStaff={false}
+        />
       )}
     </div>
   );

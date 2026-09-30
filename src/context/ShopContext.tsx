@@ -17,6 +17,7 @@ import {
   ThemeMode,
   StaffMember,
   ShopPromotion,
+  RepairInvoice,
 } from '../types/bikeShop';
 import {
   INITIAL_PRIZE_WHEELS,
@@ -36,7 +37,7 @@ import {
   dispatchBookingDeclinedNotification,
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
-import { staffBookingAudio } from '../utils/staffAlertAudio';
+import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { generateMembershipNumber } from '../api/firebaseService';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
 import { supabase } from '../lib/supabase';
@@ -190,12 +191,22 @@ interface ShopContextType {
     reason?: string
   ) => Promise<{ success: boolean; message?: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => void;
+  saveRepairInvoice: (
+    bookingId: string,
+    invoice: RepairInvoice
+  ) => Promise<{ success: boolean; message?: string }>;
+  updateInvoicePaymentStatus: (
+    bookingId: string,
+    paymentStatus: 'unpaid' | 'paid_card' | 'paid_cash' | 'paid_online'
+  ) => Promise<void>;
   updateOwnerConfig: (config: Partial<OwnerNotificationConfig>) => void;
   resetAllDemoData: () => void;
   // Staff loud booking alert & push notifications
   isStaffBookingSoundEnabled: boolean;
   toggleStaffBookingSound: () => boolean;
   playStaffBookingAlertPing: () => void;
+  workshopAudioVolume: WorkshopAudioVolume;
+  cycleWorkshopAudioVolume: () => WorkshopAudioVolume;
   requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported'>;
 }
 
@@ -523,6 +534,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isStaffBookingSoundEnabled, setIsStaffBookingSoundEnabled] = useState<boolean>(() =>
     staffBookingAudio.isSoundEnabled()
   );
+  const [workshopAudioVolume, setWorkshopAudioVolume] = useState<WorkshopAudioVolume>(() =>
+    staffBookingAudio.getVolumeLevel()
+  );
 
   const toggleStaffBookingSound = () => {
     const newState = staffBookingAudio.toggleSound();
@@ -534,6 +548,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast('🔇 Workshop booking audio alert muted', { icon: '🔕' });
     }
     return newState;
+  };
+
+  const cycleWorkshopAudioVolume = () => {
+    const next = staffBookingAudio.cycleVolumeLevel();
+    setWorkshopAudioVolume(next);
+    staffBookingAudio.playLoudBookingPing();
+    const label =
+      next === 'max_workshop'
+        ? 'MAX WORKSHOP BOOST (220% LOUD)'
+        : next === 'loud'
+        ? 'LOUD (160%)'
+        : 'NORMAL (100%)';
+    toast.success(`🔊 Alert Loudness: ${label}`, { icon: '📢' });
+    return next;
   };
 
   const playStaffBookingAlertPing = () => {
@@ -2063,6 +2091,92 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
+  const saveRepairInvoice = async (
+    bookingId: string,
+    invoice: RepairInvoice
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    const emailContent = `Your bicycle repair is complete! Invoice ${invoice.invoiceNumber} for £${invoice.grandTotal.toFixed(2)} has been generated. Ready for collection at Stakey's Cycles bench.`;
+    const notificationLog = {
+      id: `notif-inv-${Date.now()}`,
+      type: 'email' as const,
+      recipient: invoice.customerEmail,
+      recipientRole: 'customer' as const,
+      subject: `Official Workshop Invoice: ${invoice.invoiceNumber} - Stakey's Cycles`,
+      content: emailContent,
+      timestamp: new Date().toISOString(),
+      status: 'delivered' as const,
+      category: 'status_update' as const,
+    };
+
+    const updated: ServiceBooking = {
+      ...target,
+      status: 'ready_for_pickup',
+      servicePrice: invoice.grandTotal,
+      quotedPrice: invoice.grandTotal,
+      invoice,
+      notifications: [notificationLog, ...(target.notifications || [])],
+    };
+
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+
+    updateServiceBookingInDb(bookingId, {
+      status: 'ready_for_pickup',
+      servicePrice: invoice.grandTotal,
+    }).catch((e) => console.warn('[DB SYNC] Error saving invoice in DB:', e));
+
+    setLatestSmsAlert({
+      title: `📄 Invoice ${invoice.invoiceNumber} Dispatched`,
+      message: `Repair completed! High-detailed invoice (£${invoice.grandTotal.toFixed(2)}) delivered to ${invoice.customerEmail}. Bike marked ready for pickup.`,
+      recipient: invoice.customerEmail,
+      time: new Date().toLocaleTimeString(),
+      recipientType: 'customer',
+    });
+
+    const auditLog: StampLog = {
+      id: `log-inv-${Date.now()}`,
+      customerId: target.customerId || 'guest',
+      customerName: target.customerName,
+      membershipNumber: target.membershipNumber,
+      staffId: currentUser?.uid || 'staff-001',
+      staffName: currentUser?.displayName || 'Ben Stake',
+      action: 'edit_profile',
+      timestamp: new Date(),
+      note: `🛠️ REPAIR COMPLETED: Generated Invoice ${invoice.invoiceNumber} (£${invoice.grandTotal.toFixed(2)}) for ${target.customerName}. Marked Ready for Pickup.`,
+    };
+    setStampLogs((prev) => [auditLog, ...prev]);
+
+    return {
+      success: true,
+      message: `Invoice ${invoice.invoiceNumber} generated! Customer notified.`,
+    };
+  };
+
+  const updateInvoicePaymentStatus = async (
+    bookingId: string,
+    paymentStatus: 'unpaid' | 'paid_card' | 'paid_cash' | 'paid_online'
+  ): Promise<void> => {
+    setBookings((prev) =>
+      prev.map((b) => {
+        if (b.id === bookingId && b.invoice) {
+          const updatedInvoice: RepairInvoice = {
+            ...b.invoice,
+            paymentStatus,
+            paymentDate: paymentStatus !== 'unpaid' ? new Date().toISOString() : undefined,
+          };
+          return {
+            ...b,
+            status: paymentStatus !== 'unpaid' ? 'completed' : b.status,
+            invoice: updatedInvoice,
+          };
+        }
+        return b;
+      })
+    );
+  };
+
   const updateOwnerConfig = (config: Partial<OwnerNotificationConfig>) => {
     setOwnerConfig((prev) => ({ ...prev, ...config }));
   };
@@ -2210,11 +2324,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         approveBooking,
         declineBooking,
         updateBookingStatus,
+        saveRepairInvoice,
+        updateInvoicePaymentStatus,
         updateOwnerConfig,
         resetAllDemoData,
         isStaffBookingSoundEnabled,
         toggleStaffBookingSound,
         playStaffBookingAlertPing,
+        workshopAudioVolume,
+        cycleWorkshopAudioVolume,
         requestPushNotificationPermission,
       }}
     >

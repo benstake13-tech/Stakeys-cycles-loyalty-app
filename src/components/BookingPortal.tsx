@@ -26,6 +26,8 @@ import {
   FRIENDLY_SERVICE_OPTIONS,
 } from '../data/bikeCatalog';
 import { StakeysLogo } from './StakeysLogo';
+import { BikeIssuesChecklist } from './BikeIssuesChecklist';
+import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import {
   createBookingMailtoUrl,
   createCustomerMailtoUrl,
@@ -58,6 +60,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   );
   const [customModelText, setCustomModelText] = useState<string>('');
   const [bikeColour, setBikeColour] = useState<string>(initialBike?.colour || '');
+
+  // Structured Problem Checklist State (Choose all that apply)
+  const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([
+    'brakes-squeaky',
+  ]);
+  const [problemNotes, setProblemNotes] = useState<string>('');
+  const [problemSelectionMode, setProblemSelectionMode] = useState<'checklist' | 'packages'>('checklist');
 
   // Selected Friendly Problem / Service
   const [selectedProblemId, setSelectedProblemId] = useState<string>('opt-general-tune');
@@ -102,9 +111,69 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     setBikeColour(found.colour || '');
   };
 
-  const currentProblem =
-    FRIENDLY_SERVICE_OPTIONS.find((p) => p.id === selectedProblemId) ||
-    FRIENDLY_SERVICE_OPTIONS[0];
+  const computedService = React.useMemo(() => {
+    if (problemSelectionMode === 'packages') {
+      const p =
+        FRIENDLY_SERVICE_OPTIONS.find((opt) => opt.id === selectedProblemId) ||
+        FRIENDLY_SERVICE_OPTIONS[0];
+      return {
+        serviceId: p.serviceId,
+        headline: p.headline,
+        estimatedPrice: 0,
+        pricingLabel: 'Ask for a quote',
+        duration: p.duration,
+      };
+    }
+
+    // Checklist mode
+    if (selectedIssueIds.length === 0) {
+      if (problemNotes.trim()) {
+        return {
+          serviceId: 'cycle-tune',
+          headline: 'Custom Workshop Diagnostic & Repair',
+          estimatedPrice: 0,
+          pricingLabel: 'Ask for a quote',
+          duration: '30 mins',
+        };
+      }
+      return {
+        serviceId: 'cycle-tune',
+        headline: 'General Workshop Diagnostic & Inspection',
+        estimatedPrice: 0,
+        pricingLabel: 'Ask for a quote',
+        duration: '45 mins',
+      };
+    }
+
+    if (selectedIssueIds.length === 1) {
+      const item = ALL_BIKE_ISSUES_MAP.get(selectedIssueIds[0]);
+      return {
+        serviceId:
+          selectedIssueIds[0] === 'wheels-flat-puncture' ? 'cycle-puncture' : 'cycle-tune',
+        headline: item ? `${item.category}: ${item.label}` : 'Single Issue Repair',
+        estimatedPrice: 0,
+        pricingLabel: 'Ask for a quote',
+        duration: '30 mins',
+      };
+    }
+
+    // Multiple issues selected
+    const categories = Array.from(
+      new Set(
+        selectedIssueIds
+          .map((id) => ALL_BIKE_ISSUES_MAP.get(id)?.category)
+          .filter(Boolean)
+      )
+    );
+    const catStr = categories.slice(0, 2).join(' & ');
+    return {
+      serviceId: 'cycle-tune',
+      headline: `${catStr} Repair (${selectedIssueIds.length} Symptoms Selected)`,
+      estimatedPrice: 0,
+      pricingLabel: 'Ask for a quote',
+      duration: '45-60 mins',
+    };
+  }, [problemSelectionMode, selectedProblemId, selectedIssueIds, problemNotes]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,6 +196,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       return;
     }
 
+    if (
+      problemSelectionMode === 'checklist' &&
+      selectedIssueIds.length === 0 &&
+      !problemNotes.trim()
+    ) {
+      setFormError('Please select at least one problem symptom or describe your issue.');
+      return;
+    }
+
     // Determine final model string
     const finalModel =
       selectedModel.includes('Other')
@@ -137,19 +215,33 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
     const selectedVoucher =
       applyVoucher && availableServiceVouchers.length > 0 ? availableServiceVouchers[0] : null;
-    const voucherDiscount = selectedVoucher
-      ? Math.min(currentProblem.estimatedPrice, selectedVoucher.value)
-      : 0;
-    const effectivePrice = Math.max(0, currentProblem.estimatedPrice - voucherDiscount);
+    const effectivePrice = 0; // Priced upon completion by staff quote/invoice
 
     setIsSubmitting(true);
     try {
       const voucherNote = selectedVoucher
-        ? `Applied £40 Service Voucher: ${selectedVoucher.code} (Labour only, parts not included - £${voucherDiscount} applied)`
+        ? `Applied £40 Service Voucher: ${selectedVoucher.code} (To be credited on final repair invoice)`
         : '';
-      const finalNotes = [notes.trim(), voucherNote, bikeColour ? `Colour: ${bikeColour}` : '']
+
+      const issueItems = selectedIssueIds
+        .map((id) => ALL_BIKE_ISSUES_MAP.get(id))
+        .filter(Boolean);
+
+      const issuesBlock =
+        issueItems.length > 0
+          ? `Reported Symptoms (${issueItems.length}):\n` +
+            issueItems.map((it) => `• [${it?.category}] ${it?.label}`).join('\n')
+          : '';
+
+      const finalNotes = [
+        issuesBlock,
+        problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
+        notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
+        voucherNote,
+        bikeColour ? `Colour: ${bikeColour}` : '',
+      ]
         .filter(Boolean)
-        .join(' • ');
+        .join('\n\n');
 
       const sanitizedEmail =
         customerEmail.trim() ||
@@ -163,14 +255,16 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         membershipNumber: currentUser?.membershipNumber,
         vehicleCategory: selectedCategory,
         vehicleModel: formattedVehicleName,
-        serviceId: currentProblem.serviceId,
+        serviceId: computedService.serviceId,
         serviceTitle: selectedVoucher
-          ? `${currentProblem.headline} (£40 Voucher Applied)`
-          : currentProblem.headline,
+          ? `${computedService.headline} (£40 Voucher Applied)`
+          : computedService.headline,
         servicePrice: effectivePrice,
         preferredDate,
         preferredTimeSlot,
         notes: finalNotes,
+        selectedIssues: selectedIssueIds,
+        otherNotes: problemNotes.trim() || undefined,
       });
 
       if (selectedVoucher && currentUser) {
@@ -238,9 +332,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <span className="font-semibold text-emerald-400">{submittedBooking.serviceTitle}</span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">Estimated Price:</span>
-              <span className="font-mono text-white font-bold tabular-nums">
-                {submittedBooking.servicePrice === 0 ? 'Free Inspection' : `£${submittedBooking.servicePrice}`}
+              <span className="text-neutral-400">Pricing / Quote:</span>
+              <span className="font-mono text-emerald-400 font-bold">
+                Ask for a quote (Itemized invoice sent upon repair completion)
               </span>
             </div>
             <div className="flex justify-between py-1">
@@ -253,6 +347,29 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <span className="text-neutral-400">Customer Contact:</span>
               <span className="text-neutral-300 font-mono">{submittedBooking.customerEmail}</span>
             </div>
+
+            {/* Reported Symptoms Badges in Confirmation */}
+            {submittedBooking.selectedIssues && submittedBooking.selectedIssues.length > 0 && (
+              <div className="pt-2.5 mt-2 border-t border-neutral-800/80">
+                <span className="text-neutral-400 block mb-1.5 font-medium text-[11px] uppercase tracking-wider font-mono">
+                  Reported Issues / Symptoms ({submittedBooking.selectedIssues.length}):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {submittedBooking.selectedIssues.map((id: string) => {
+                    const it = ALL_BIKE_ISSUES_MAP.get(id);
+                    return (
+                      <span
+                        key={id}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-900 border border-neutral-700 text-xs text-neutral-200"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#05C147]" />
+                        <span>{it ? it.label : id}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Email Confirmations Dispatched to Customer & Stakey's Cycles */}
@@ -569,51 +686,119 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </div>
         </div>
 
-        {/* STEP 3: What do you need help with? */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              03
+        {/* STEP 3: Problem Identification & Services */}
+        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
+                03
+              </div>
+              <div>
+                <h3 className="font-display text-base font-bold text-white">Identify Bike Issues &amp; Service</h3>
+                <p className="text-xs text-neutral-400">Select specific symptoms or choose an all-inclusive service package.</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-display text-base font-bold text-white">Select Service Package</h3>
-              <p className="text-xs text-neutral-400">Written in plain language — no technical cycling jargon.</p>
+
+            {/* Mode Switcher Tabs */}
+            <div className="inline-flex p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setProblemSelectionMode('checklist')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  problemSelectionMode === 'checklist'
+                    ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <span>Choose Symptoms (Checklist)</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  problemSelectionMode === 'checklist' ? 'bg-neutral-950/20 text-neutral-950' : 'bg-emerald-500/20 text-emerald-400'
+                }`}>
+                  Popular
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setProblemSelectionMode('packages')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  problemSelectionMode === 'packages'
+                    ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <span>Fixed Packages</span>
+              </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-            {FRIENDLY_SERVICE_OPTIONS.map((opt) => (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setSelectedProblemId(opt.id)}
-                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  selectedProblemId === opt.id
-                    ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
-                    : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700'
-                }`}
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-1.5">
-                    <span className={`text-xs font-semibold ${selectedProblemId === opt.id ? 'text-white' : 'text-neutral-200'}`}>
-                      {opt.headline}
-                    </span>
-                    <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums shrink-0">
-                      {opt.estimatedPrice === 0 ? 'Free' : `£${opt.estimatedPrice}`}
-                    </span>
+          {/* Mode 1: Multi-Select Issues Checklist */}
+          {problemSelectionMode === 'checklist' ? (
+            <div className="space-y-4 pt-1">
+              <BikeIssuesChecklist
+                selectedIssueIds={selectedIssueIds}
+                onChange={setSelectedIssueIds}
+                otherNotes={problemNotes}
+                onOtherNotesChange={setProblemNotes}
+                vehicleCategory={selectedCategory}
+              />
+            </div>
+          ) : (
+            /* Mode 2: Fixed Service Packages */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+              {FRIENDLY_SERVICE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setSelectedProblemId(opt.id)}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    selectedProblemId === opt.id
+                      ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
+                      : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <span className={`text-xs font-semibold ${selectedProblemId === opt.id ? 'text-white' : 'text-neutral-200'}`}>
+                        {opt.headline}
+                      </span>
+                      <span className="text-xs font-mono font-bold text-emerald-400 tabular-nums shrink-0">
+                        Ask for a quote
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-neutral-400 leading-relaxed">
+                      {opt.symptom}
+                    </p>
                   </div>
-                  <p className="text-[11px] text-neutral-400 leading-relaxed">
-                    {opt.symptom}
-                  </p>
-                </div>
-                <div className="mt-3 pt-2 border-t border-neutral-800/80 flex items-center justify-between text-[10px] text-neutral-500 font-mono">
-                  <span>Est. {opt.duration}</span>
-                  {selectedProblemId === opt.id && (
-                    <span className="text-emerald-400 font-bold">Selected</span>
-                  )}
-                </div>
-              </button>
-            ))}
+                  <div className="mt-3 pt-2 border-t border-neutral-800/80 flex items-center justify-between text-[10px] text-neutral-500 font-mono">
+                    <span>Est. {opt.duration}</span>
+                    {selectedProblemId === opt.id && (
+                      <span className="text-emerald-400 font-bold">Selected</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Dynamic Workshop Diagnostic Summary Card */}
+          <div className="p-4 rounded-xl bg-neutral-950/80 border border-neutral-800/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <div className="space-y-0.5">
+              <span className="text-neutral-400 block text-[11px] font-mono uppercase tracking-wider">
+                Intake Assessment Summary
+              </span>
+              <div className="font-bold text-white flex items-center gap-2 flex-wrap">
+                <span>{computedService.headline}</span>
+                <span className="text-neutral-500">•</span>
+                <span className="text-neutral-400 font-normal">Est. Duration: {computedService.duration}</span>
+              </div>
+            </div>
+
+            <div className="sm:text-right shrink-0">
+              <div className="text-[10px] text-neutral-500 font-mono uppercase">Workshop Pricing</div>
+              <div className="text-sm font-bold text-emerald-400">
+                Ask for a quote (Quoted upon inspection)
+              </div>
+            </div>
           </div>
         </div>
 
@@ -769,7 +954,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </p>
             {applyVoucher && (
               <div className="text-[11px] text-emerald-300 font-semibold bg-emerald-500/20 px-2.5 py-1 rounded-md inline-block">
-                ✓ £{Math.min(currentProblem.estimatedPrice, 40)} labour credit will be applied at till (Labour only, parts not included)
+                ✓ £40 Service Voucher will be credited directly against your final itemized repair invoice (Labour only, parts not included)
               </div>
             )}
           </div>
@@ -785,38 +970,23 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
         {/* Submit Action */}
         <div className="pt-2">
-          {(() => {
-            const selectedVoucher =
-              applyVoucher && availableServiceVouchers.length > 0 ? availableServiceVouchers[0] : null;
-            const voucherDiscount = selectedVoucher
-              ? Math.min(currentProblem.estimatedPrice, selectedVoucher.value)
-              : 0;
-            const effectivePrice = Math.max(0, currentProblem.estimatedPrice - voucherDiscount);
-
-            return (
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm shadow-xl shadow-emerald-500/15 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isSubmitting ? (
-                  <span>Confirming Your Workshop Booking...</span>
-                ) : (
-                  <>
-                    <Wrench className="w-4 h-4" />
-                    <span>
-                      Confirm Service Booking ·{' '}
-                      {effectivePrice === 0 ? 'Free Service' : `£${effectivePrice}`}
-                      {voucherDiscount > 0 ? ' (£40 Labour Credit Applied)' : ''}
-                    </span>
-                    <ArrowRight className="w-4 h-4" />
-                  </>
-                )}
-              </button>
-            );
-          })()}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full py-3.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm shadow-xl shadow-emerald-500/15 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isSubmitting ? (
+              <span>Confirming Your Workshop Booking...</span>
+            ) : (
+              <>
+                <Wrench className="w-4 h-4" />
+                <span>Book Workshop Service · Ask for a Quote</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
           <div className="text-center text-xs text-neutral-400 mt-2">
-            No upfront payment required. You only pay after your cycle has been serviced and inspected.
+            No upfront payment required. Our Cytech mechanic will evaluate your bike upon drop-off, complete repairs, and provide an itemized quote/invoice.
           </div>
         </div>
       </form>

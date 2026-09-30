@@ -31,7 +31,7 @@ import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { Toaster } from 'react-hot-toast';
 
 function AppContent() {
-  const { currentUser, logoutUser, theme } = useShop();
+  const { currentUser, logoutUser, theme, bookings } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTabId>('customer');
@@ -42,6 +42,9 @@ function AppContent() {
   const [modalPinError, setModalPinError] = useState<string | null>(null);
 
   const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
+  const freshBookingsCount = isStaff
+    ? bookings.filter((b) => b.status === 'pending' || b.approvalStatus === 'pending_approval').length
+    : 0;
 
   // Keep activeTab in sync with user role changes without violating Hook rules
   React.useEffect(() => {
@@ -178,6 +181,12 @@ function AppContent() {
               >
                 <Scan className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Staff Terminal</span>
+                {freshBookingsCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse shadow-[0_0_15px_rgba(245,158,11,0.9)] flex items-center gap-1 border border-amber-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
+                    {freshBookingsCount} NEW
+                  </span>
+                )}
               </button>
             ) : (
               <button
