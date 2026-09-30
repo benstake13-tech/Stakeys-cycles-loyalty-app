@@ -1,18 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Loader2, Trophy, Sparkles, Lock } from 'lucide-react';
+import { X, Loader2, Trophy, Sparkles } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { supabase } from '../lib/supabase';
 
 const SPIN_MS = 3500;
 const VIEW_W = 1000;
-const VIEW_H = 580;
-const WHEEL_R = 190;
-const HUBS = { rear: { x: 230, y: 370 }, front: { x: 770, y: 370 } };
-const BB = { x: 470, y: 380 };
-const SEAT = { x: 425, y: 160 };
-const HEAD_TOP = { x: 700, y: 120 };
-const HEAD_BOTTOM = { x: 716, y: 180 };
-const SLICE_VIEW = 320;
-const SR = SLICE_VIEW / 2;
+const VIEW_H = 620;
+const TYRE_R = 195;
+const RIM_R = 172;
+const SLICE_R = 166;
+const HUBS = { rear: { x: 222, y: 400 }, front: { x: 778, y: 400 } };
+const BB = { x: 490, y: 418 };
+const SEAT_JOINT = { x: 452, y: 200 };
+const SEAT = { x: 440, y: 150 };
+const HEAD_TOP = { x: 722, y: 150 };
+const HEAD_BOTTOM = { x: 740, y: 200 };
+const GROUND_Y = 604;
 
 const DEFAULT_SLICES = {
   front: [
@@ -39,20 +42,19 @@ const pickWeightedIndex = (slices) => {
   return slices.length - 1;
 };
 
-// Angles measured clockwise from 12 o'clock.
-const polar = (deg, radius) => {
+const polar = (cx, cy, deg, radius) => {
   const rad = ((deg - 90) * Math.PI) / 180;
-  return [SR + radius * Math.cos(rad), SR + radius * Math.sin(rad)];
+  return [cx + radius * Math.cos(rad), cy + radius * Math.sin(rad)];
 };
 
-const slicePath = (start, end) => {
-  const [x1, y1] = polar(start, SR);
-  const [x2, y2] = polar(end, SR);
+const slicePath = (cx, cy, start, end, radius) => {
+  const [x1, y1] = polar(cx, cy, start, radius);
+  const [x2, y2] = polar(cx, cy, end, radius);
   const large = end - start > 180 ? 1 : 0;
-  return `M ${SR} ${SR} L ${x1} ${y1} A ${SR} ${SR} 0 ${large} 1 ${x2} ${y2} Z`;
+  return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${large} 1 ${x2} ${y2} Z`;
 };
 
-const wrapLabel = (label, max = 12) =>
+const wrapLabel = (label, max = 11) =>
   label.split(' ').reduce((lines, word) => {
     const last = lines[lines.length - 1];
     if (last && `${last} ${word}`.length <= max) lines[lines.length - 1] = `${last} ${word}`;
@@ -60,126 +62,253 @@ const wrapLabel = (label, max = 12) =>
     return lines;
   }, []);
 
-const pct = (value, total) => `${(value / total) * 100}%`;
+const oddsPct = (slice, slices) => {
+  const total = slices.reduce((sum, s) => sum + Math.max(0, Number(s.weight) || 0), 0);
+  return total > 0 ? Math.round(((Number(slice.weight) || 0) / total) * 100) : 0;
+};
+
+const Tube = ({ d, width = 13 }) => (
+  <g strokeLinecap="round" strokeLinejoin="round" fill="none">
+    <path d={d} stroke="#020617" strokeWidth={width + 7} />
+    <path d={d} stroke="url(#bw-frame)" strokeWidth={width} />
+    <path d={d} stroke="#a7f3d0" strokeOpacity="0.55" strokeWidth={Math.max(2, width / 5)} transform="translate(-1.5 -2.5)" />
+  </g>
+);
+
+const line = (a, b) => `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
+
+function SvgDefs() {
+  return (
+    <defs>
+      <radialGradient id="bw-stage" cx="50%" cy="55%" r="60%">
+        <stop offset="0%" stopColor="#10b981" stopOpacity="0.14" />
+        <stop offset="100%" stopColor="#020617" stopOpacity="0" />
+      </radialGradient>
+      <radialGradient id="bw-tyre" cx="50%" cy="50%" r="50%">
+        <stop offset="86%" stopColor="#1e293b" />
+        <stop offset="93%" stopColor="#0f172a" />
+        <stop offset="100%" stopColor="#020617" />
+      </radialGradient>
+      <linearGradient id="bw-rim" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stopColor="#f8fafc" />
+        <stop offset="35%" stopColor="#94a3b8" />
+        <stop offset="55%" stopColor="#e2e8f0" />
+        <stop offset="100%" stopColor="#475569" />
+      </linearGradient>
+      <radialGradient id="bw-shade" cx="50%" cy="50%" r="50%">
+        <stop offset="55%" stopColor="#000" stopOpacity="0" />
+        <stop offset="100%" stopColor="#000" stopOpacity="0.4" />
+      </radialGradient>
+      <linearGradient id="bw-gloss" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#fff" stopOpacity="0.22" />
+        <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+      </linearGradient>
+      <radialGradient id="bw-hub" cx="35%" cy="35%" r="70%">
+        <stop offset="0%" stopColor="#f1f5f9" />
+        <stop offset="60%" stopColor="#64748b" />
+        <stop offset="100%" stopColor="#1e293b" />
+      </radialGradient>
+      <linearGradient id="bw-frame" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#34d399" />
+        <stop offset="100%" stopColor="#047857" />
+      </linearGradient>
+      <linearGradient id="bw-pointer-on" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#6ee7b7" />
+        <stop offset="100%" stopColor="#059669" />
+      </linearGradient>
+      <linearGradient id="bw-pointer-off" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="#94a3b8" />
+        <stop offset="100%" stopColor="#334155" />
+      </linearGradient>
+      <radialGradient id="bw-ground" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#000" stopOpacity="0.7" />
+        <stop offset="100%" stopColor="#000" stopOpacity="0" />
+      </radialGradient>
+    </defs>
+  );
+}
 
 function PrizeWheel({ slices, rotation, spinning, active, locked, hub }) {
   const sliceDeg = 360 / slices.length;
+  const { x, y } = hub;
   return (
-    <div
-      className={`absolute transition-opacity duration-500 ${active ? 'opacity-100' : 'opacity-60'}`}
+    <g
       style={{
-        left: pct(hub.x - WHEEL_R, VIEW_W),
-        top: pct(hub.y - WHEEL_R, VIEW_H),
-        width: pct(WHEEL_R * 2, VIEW_W),
-        height: pct(WHEEL_R * 2, VIEW_H),
+        filter: active ? 'drop-shadow(0 0 18px rgba(16,185,129,0.45))' : 'none',
       }}
     >
-      <div
-        className={`relative h-full w-full rounded-full border-[8px] border-slate-900 sm:border-[14px] ${
-          active ? 'shadow-[0_0_20px_rgba(16,185,129,0.25)]' : ''
-        }`}
+      <g
+        style={{
+          transform: `rotate(${rotation}deg)`,
+          transformOrigin: `${x}px ${y}px`,
+          transition: spinning ? `transform ${SPIN_MS}ms cubic-bezier(0.17, 0.67, 0.21, 1)` : 'none',
+        }}
       >
-        <div className="pointer-events-none absolute -inset-[6px] rounded-full border-2 border-dashed border-slate-600 sm:-inset-[9px]" />
-        <svg
-          viewBox={`0 0 ${SLICE_VIEW} ${SLICE_VIEW}`}
-          className="block h-full w-full rounded-full"
-          style={{
-            transform: `rotate(${rotation}deg)`,
-            transition: spinning ? `transform ${SPIN_MS}ms cubic-bezier(0.17, 0.67, 0.21, 1)` : 'none',
-          }}
-        >
-          {slices.map((s, i) => {
-            const start = i * sliceDeg;
-            return (
-              <g key={i}>
-                <path d={slicePath(start, start + sliceDeg)} fill={s.color} stroke="#0f172a" strokeWidth="2" />
-                <text
-                  x={SR}
-                  y={SR * 0.34}
-                  transform={`rotate(${start + sliceDeg / 2} ${SR} ${SR})`}
-                  textAnchor="middle"
-                  fill="#ffffff"
-                  stroke="#020617"
-                  strokeWidth="3"
-                  paintOrder="stroke"
-                  fontSize={slices.length > 3 ? 15 : 16}
-                  fontWeight="800"
-                >
-                  {wrapLabel(s.label).map((line, li) => (
-                    <tspan key={li} x={SR} dy={li === 0 ? 0 : '1.15em'}>
-                      {line}
-                    </tspan>
-                  ))}
-                </text>
-              </g>
-            );
-          })}
-          {Array.from({ length: 16 }).map((_, i) => {
-            const [x, y] = polar(i * 22.5, SR - 4);
-            return <line key={i} x1={SR} y1={SR} x2={x} y2={y} stroke="#e2e8f0" strokeOpacity="0.18" strokeWidth="1.2" />;
-          })}
-        </svg>
-        {locked && (
-          <div className="absolute inset-0 flex items-end justify-center rounded-full bg-slate-950/55 pb-[18%]">
-            <span className="flex items-center gap-1 rounded-full border border-amber-500/40 bg-slate-950/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400 sm:text-xs">
-              <Lock className="h-3 w-3" /> Locked
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="absolute left-1/2 top-0 z-20 -translate-x-1/2 -translate-y-2">
-        <div
-          className={`h-0 w-0 border-x-[10px] border-t-[18px] border-x-transparent drop-shadow-[0_2px_6px_rgba(0,0,0,0.9)] sm:border-x-[14px] sm:border-t-[24px] ${
-            active ? 'border-t-emerald-400' : 'border-t-slate-500'
-          }`}
-        />
-      </div>
-    </div>
+        <circle cx={x} cy={y} r={TYRE_R} fill="url(#bw-tyre)" stroke="#020617" strokeWidth="4" />
+        {Array.from({ length: 60 }).map((_, i) => (
+          <rect
+            key={i}
+            x={x - 5}
+            y={y - TYRE_R - 3}
+            width="10"
+            height="9"
+            rx="2.5"
+            fill="#1e293b"
+            stroke="#020617"
+            strokeWidth="1.5"
+            transform={`rotate(${i * 6} ${x} ${y})`}
+          />
+        ))}
+        <circle cx={x} cy={y} r={TYRE_R - 13} fill="none" stroke="#475569" strokeWidth="2" strokeDasharray="10 7" />
+        <circle cx={x} cy={y} r={RIM_R} fill="#020617" stroke="url(#bw-rim)" strokeWidth="10" />
+        {slices.map((s, i) => {
+          const start = i * sliceDeg;
+          const mid = start + sliceDeg / 2;
+          const lines = wrapLabel(s.label);
+          const lh = 21;
+          return (
+            <g key={i}>
+              <path d={slicePath(x, y, start, start + sliceDeg, SLICE_R)} fill={s.color} stroke="#f8fafc" strokeOpacity="0.85" strokeWidth="2.5" />
+              <text
+                transform={`rotate(${mid - 90} ${x} ${y})`}
+                textAnchor="middle"
+                fill="#ffffff"
+                stroke="#020617"
+                strokeWidth="4"
+                strokeLinejoin="round"
+                paintOrder="stroke"
+                fontSize="19"
+                fontWeight="900"
+                letterSpacing="0.3"
+              >
+                {lines.map((ln, li) => (
+                  <tspan key={li} x={x + 100} y={y + (li - (lines.length - 1) / 2) * lh + 7}>
+                    {ln}
+                  </tspan>
+                ))}
+              </text>
+            </g>
+          );
+        })}
+        {Array.from({ length: 32 }).map((_, i) => {
+          const off = i % 2 === 0 ? 14 : -14;
+          const [x1, y1] = polar(x, y, i * 11.25 + off, 22);
+          const [x2, y2] = polar(x, y, i * 11.25, SLICE_R);
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#e2e8f0" strokeOpacity="0.28" strokeWidth="1.3" />;
+        })}
+        {Array.from({ length: 32 }).map((_, i) => {
+          const [nx, ny] = polar(x, y, i * 11.25, RIM_R - 3);
+          return <circle key={i} cx={nx} cy={ny} r="2" fill="#cbd5e1" />;
+        })}
+      </g>
+      <circle cx={x} cy={y} r={SLICE_R} fill="url(#bw-shade)" pointerEvents="none" />
+      <path
+        d={`M ${x - SLICE_R + 22} ${y - 30} A ${SLICE_R - 20} ${SLICE_R - 20} 0 0 1 ${x + SLICE_R - 22} ${y - 30} Q ${x} ${y - 70} ${x - SLICE_R + 22} ${y - 30} Z`}
+        fill="url(#bw-gloss)"
+        pointerEvents="none"
+      />
+      {locked && (
+        <g>
+          <circle cx={x} cy={y} r={RIM_R - 5} fill="#020617" fillOpacity="0.62" />
+          <rect x={x - 66} y={y + 62} width="132" height="36" rx="18" fill="#020617" stroke="#f59e0b" strokeOpacity="0.6" strokeWidth="2" />
+          <path d={`M ${x - 50} ${y + 78} v -4 a 7 7 0 0 1 14 0 v 4`} fill="none" stroke="#fbbf24" strokeWidth="2.5" />
+          <rect x={x - 53} y={y + 77} width="20" height="14" rx="3" fill="#fbbf24" />
+          <text x={x + 16} y={y + 86} textAnchor="middle" fill="#fbbf24" fontSize="16" fontWeight="800" letterSpacing="2">
+            LOCKED
+          </text>
+        </g>
+      )}
+    </g>
   );
 }
 
-function BicycleFrame() {
+function Pointer({ hub, active }) {
+  const { x, y } = hub;
+  const top = y - TYRE_R - 26;
+  return (
+    <g style={{ filter: 'drop-shadow(0 3px 4px rgba(0,0,0,0.9))' }}>
+      <path
+        d={`M ${x} ${y - RIM_R + 20} L ${x - 17} ${top + 22} A 19 19 0 1 1 ${x + 17} ${top + 22} Z`}
+        fill={active ? 'url(#bw-pointer-on)' : 'url(#bw-pointer-off)'}
+        stroke="#020617"
+        strokeWidth="3"
+        strokeLinejoin="round"
+      />
+      <circle cx={x} cy={top + 12} r="6" fill="#020617" />
+    </g>
+  );
+}
+
+function FrameBehind() {
   const { rear, front } = HUBS;
-  const tubes = [
-    [rear, BB],
-    [rear, SEAT],
-    [BB, SEAT],
-    [SEAT, HEAD_TOP],
-    [BB, HEAD_BOTTOM],
-    [HEAD_TOP, HEAD_BOTTOM],
-    [HEAD_BOTTOM, front],
-  ];
   return (
-    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="pointer-events-none absolute inset-0 h-full w-full">
-      <line x1={BB.x} y1={BB.y - 34} x2={rear.x} y2={rear.y - 14} stroke="#94a3b8" strokeWidth="4" strokeDasharray="6 4" />
-      <line x1={BB.x} y1={BB.y + 34} x2={rear.x} y2={rear.y + 14} stroke="#94a3b8" strokeWidth="4" strokeDasharray="6 4" />
-      {tubes.map(([a, b], i) => (
-        <line key={`o-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#020617" strokeWidth="20" strokeLinecap="round" />
-      ))}
-      {tubes.map(([a, b], i) => (
-        <line key={`t-${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#10b981" strokeWidth="11" strokeLinecap="round" />
-      ))}
-      <line x1={SEAT.x} y1={SEAT.y} x2={SEAT.x - 8} y2={SEAT.y - 36} stroke="#020617" strokeWidth="10" strokeLinecap="round" />
-      <path d={`M ${SEAT.x - 58} ${SEAT.y - 42} Q ${SEAT.x - 10} ${SEAT.y - 58} ${SEAT.x + 34} ${SEAT.y - 40} L ${SEAT.x - 50} ${SEAT.y - 30} Z`} fill="#0f172a" stroke="#334155" strokeWidth="3" />
-      <line x1={HEAD_TOP.x} y1={HEAD_TOP.y} x2={HEAD_TOP.x - 10} y2={HEAD_TOP.y - 30} stroke="#020617" strokeWidth="10" strokeLinecap="round" />
-      <path d={`M ${HEAD_TOP.x - 40} ${HEAD_TOP.y - 34} L ${HEAD_TOP.x + 10} ${HEAD_TOP.y - 32} Q ${HEAD_TOP.x + 44} ${HEAD_TOP.y - 30} ${HEAD_TOP.x + 40} ${HEAD_TOP.y}`} fill="none" stroke="#0f172a" strokeWidth="10" strokeLinecap="round" />
-      <circle cx={BB.x} cy={BB.y} r="34" fill="#0f172a" stroke="#94a3b8" strokeWidth="5" />
-      <line x1={BB.x} y1={BB.y} x2={BB.x + 30} y2={BB.y + 52} stroke="#cbd5e1" strokeWidth="8" strokeLinecap="round" />
-      <rect x={BB.x + 14} y={BB.y + 50} width="34" height="10" rx="3" fill="#475569" />
-    </svg>
+    <g>
+      <Tube d={line(rear, BB)} width={11} />
+      <Tube d={line(rear, SEAT_JOINT)} width={9} />
+      <Tube d={`M ${HEAD_BOTTOM.x} ${HEAD_BOTTOM.y} L ${HEAD_BOTTOM.x + 22} ${HEAD_BOTTOM.y + 110} Q ${front.x + 4} ${front.y - 40} ${front.x} ${front.y}`} width={11} />
+    </g>
   );
 }
 
-function WheelHubs() {
+function FrameFront() {
+  const { rear, front } = HUBS;
+  const crank = { x: BB.x + 34, y: BB.y + 58 };
   return (
-    <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="pointer-events-none absolute inset-0 z-10 h-full w-full">
-      {[HUBS.rear, HUBS.front].map((hub, i) => (
+    <g>
+      <line x1={SEAT.x} y1={SEAT.y} x2={SEAT_JOINT.x + 3} y2={SEAT_JOINT.y + 18} stroke="#94a3b8" strokeWidth="9" strokeLinecap="round" />
+      <path
+        d={`M ${SEAT.x - 70} ${SEAT.y - 8} C ${SEAT.x - 60} ${SEAT.y - 28}, ${SEAT.x + 10} ${SEAT.y - 30}, ${SEAT.x + 48} ${SEAT.y - 14} C ${SEAT.x + 40} ${SEAT.y - 4}, ${SEAT.x - 10} ${SEAT.y}, ${SEAT.x - 70} ${SEAT.y - 8} Z`}
+        fill="#0f172a"
+        stroke="#334155"
+        strokeWidth="3"
+      />
+      <path d={`M ${SEAT.x - 60} ${SEAT.y - 16} C ${SEAT.x - 30} ${SEAT.y - 26}, ${SEAT.x + 10} ${SEAT.y - 26}, ${SEAT.x + 36} ${SEAT.y - 16}`} fill="none" stroke="#10b981" strokeWidth="2.5" strokeOpacity="0.8" />
+
+      <path d={`M ${BB.x} ${BB.y - 46} L ${rear.x} ${rear.y - 17}`} stroke="#94a3b8" strokeWidth="5" strokeDasharray="7 3" />
+      <path d={`M ${BB.x} ${BB.y + 46} L ${rear.x} ${rear.y + 17}`} stroke="#94a3b8" strokeWidth="5" strokeDasharray="7 3" />
+      <circle cx={rear.x} cy={rear.y} r="20" fill="#1e293b" stroke="#94a3b8" strokeWidth="4" strokeDasharray="4 2" />
+
+      <Tube d={line(BB, SEAT_JOINT)} width={14} />
+      <Tube d={line(SEAT_JOINT, { x: HEAD_TOP.x, y: HEAD_TOP.y + 10 })} width={13} />
+      <Tube d={line(BB, { x: HEAD_BOTTOM.x - 2, y: HEAD_BOTTOM.y - 6 })} width={17} />
+      <Tube d={line(HEAD_TOP, HEAD_BOTTOM)} width={20} />
+
+      <path d={`M ${HEAD_TOP.x - 3} ${HEAD_TOP.y + 4} L ${HEAD_TOP.x + 2} ${HEAD_TOP.y - 16} L ${HEAD_TOP.x + 44} ${HEAD_TOP.y - 26}`} fill="none" stroke="#1e293b" strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d={`M ${HEAD_TOP.x + 44} ${HEAD_TOP.y - 26} Q ${HEAD_TOP.x + 86} ${HEAD_TOP.y - 30} ${HEAD_TOP.x + 84} ${HEAD_TOP.y + 4} Q ${HEAD_TOP.x + 82} ${HEAD_TOP.y + 34} ${HEAD_TOP.x + 54} ${HEAD_TOP.y + 30}`}
+        fill="none"
+        stroke="#020617"
+        strokeWidth="14"
+        strokeLinecap="round"
+      />
+      <path
+        d={`M ${HEAD_TOP.x + 44} ${HEAD_TOP.y - 26} Q ${HEAD_TOP.x + 86} ${HEAD_TOP.y - 30} ${HEAD_TOP.x + 84} ${HEAD_TOP.y + 4} Q ${HEAD_TOP.x + 82} ${HEAD_TOP.y + 34} ${HEAD_TOP.x + 54} ${HEAD_TOP.y + 30}`}
+        fill="none"
+        stroke="#10b981"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeDasharray="6 2"
+      />
+      <path d={`M ${HEAD_TOP.x + 70} ${HEAD_TOP.y - 26} q 14 4 10 30 l -6 2`} fill="#334155" stroke="#020617" strokeWidth="2" strokeLinejoin="round" />
+      <circle cx={HEAD_TOP.x + 2} cy={HEAD_TOP.y - 16} r="5" fill="#94a3b8" />
+
+      <circle cx={BB.x} cy={BB.y} r="46" fill="none" stroke="#cbd5e1" strokeWidth="7" strokeDasharray="5 3" />
+      <circle cx={BB.x} cy={BB.y} r="40" fill="#0f172a" stroke="#64748b" strokeWidth="3" />
+      {Array.from({ length: 5 }).map((_, i) => {
+        const [sx, sy] = polar(BB.x, BB.y, i * 72, 38);
+        return <line key={i} x1={BB.x} y1={BB.y} x2={sx} y2={sy} stroke="#94a3b8" strokeWidth="6" strokeLinecap="round" />;
+      })}
+      <line x1={BB.x} y1={BB.y} x2={crank.x} y2={crank.y} stroke="#e2e8f0" strokeWidth="11" strokeLinecap="round" />
+      <rect x={crank.x - 22} y={crank.y - 6} width="44" height="12" rx="4" fill="#334155" stroke="#020617" strokeWidth="2" />
+      <circle cx={BB.x} cy={BB.y} r="11" fill="url(#bw-hub)" stroke="#020617" strokeWidth="2" />
+
+      {[rear, front].map((hub, i) => (
         <g key={i}>
-          <circle cx={hub.x} cy={hub.y} r="24" fill="#0f172a" stroke="#10b981" strokeWidth="5" />
-          <circle cx={hub.x} cy={hub.y} r="7" fill="#10b981" />
+          <circle cx={hub.x} cy={hub.y} r="24" fill="url(#bw-hub)" stroke="#020617" strokeWidth="3" />
+          <circle cx={hub.x} cy={hub.y} r="9" fill="#10b981" stroke="#020617" strokeWidth="2" />
         </g>
       ))}
-    </svg>
+    </g>
   );
 }
 
@@ -283,6 +412,7 @@ export default function BicycleWheelModal({ isOpen, onClose, user, onRewardsUpda
         setSpinning(false);
         return;
       }
+      confetti({ particleCount: 140, spread: 80, origin: { y: 0.45 }, colors: ['#10b981', '#34d399', won.color, '#f8fafc'] });
       await saveReward(won, spinStage);
       setSpinning(false);
     }, SPIN_MS);
@@ -294,7 +424,7 @@ export default function BicycleWheelModal({ isOpen, onClose, user, onRewardsUpda
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
-      <div className="relative my-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-slate-950 p-4 text-white shadow-2xl sm:p-6">
+      <div className="relative my-auto w-full max-w-4xl rounded-3xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950 p-3 text-white shadow-[0_0_20px_rgba(16,185,129,0.25)] sm:p-6">
         <button
           type="button"
           onClick={onClose}
@@ -319,8 +449,14 @@ export default function BicycleWheelModal({ isOpen, onClose, user, onRewardsUpda
           <h3 className="mt-2 text-2xl font-black">Bicycle Prize Wheel</h3>
         </div>
 
-        <div className="relative mx-auto w-full" style={{ aspectRatio: `${VIEW_W} / ${VIEW_H}` }}>
-          <BicycleFrame />
+        <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} className="block h-auto w-full select-none" role="img" aria-label="Bicycle with front and rear prize wheels">
+          <SvgDefs />
+          <rect width={VIEW_W} height={VIEW_H} fill="url(#bw-stage)" />
+          <line x1="20" y1={GROUND_Y} x2={VIEW_W - 20} y2={GROUND_Y} stroke="#1e293b" strokeWidth="2" strokeDasharray="2 10" strokeLinecap="round" />
+          {[HUBS.rear, HUBS.front].map((hub, i) => (
+            <ellipse key={i} cx={hub.x} cy={GROUND_Y} rx={TYRE_R * 0.9} ry="14" fill="url(#bw-ground)" />
+          ))}
+          <FrameBehind />
           <PrizeWheel
             slices={config.rear}
             rotation={rotations.rear}
@@ -337,8 +473,10 @@ export default function BicycleWheelModal({ isOpen, onClose, user, onRewardsUpda
             locked={false}
             hub={HUBS.front}
           />
-          <WheelHubs />
-        </div>
+          <FrameFront />
+          <Pointer hub={HUBS.rear} active={stage === 'rear'} />
+          <Pointer hub={HUBS.front} active={stage === 'front'} />
+        </svg>
 
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
@@ -353,7 +491,8 @@ export default function BicycleWheelModal({ isOpen, onClose, user, onRewardsUpda
                     {config[key].map((s, i) => (
                       <li key={i} className="flex items-center gap-2 text-xs font-semibold text-white sm:text-sm">
                         <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-slate-950" style={{ backgroundColor: s.color }} />
-                        {s.label}
+                        <span className="flex-1">{s.label}</span>
+                        <span className="text-[10px] font-bold tabular-nums text-slate-400">{oddsPct(s, config[key])}%</span>
                       </li>
                     ))}
                   </ul>
