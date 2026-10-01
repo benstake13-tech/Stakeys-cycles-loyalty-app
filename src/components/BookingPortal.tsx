@@ -16,6 +16,7 @@ import {
   Award,
   MessageSquare,
   ShieldCheck,
+  Activity,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory } from '../types/bikeShop';

@@ -16,12 +16,14 @@ import {
   CheckCircle2,
   Clock,
   Flame,
+  Activity,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 
 export type NavTabId =
   | 'customer'
   | 'booking'
+  | 'tracker'
   | 'promotions'
   | 'bikes_we_trust'
   | 'hangers'
@@ -112,6 +114,24 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
         'Automated email notification sent immediately when approved or declined.',
       ],
       microFootnote: 'Drop-off slots 09:00 - 17:30 Monday to Saturday.',
+    },
+    {
+      id: 'tracker',
+      title: 'Customer Repair Tracker',
+      badge: 'Live Workshop Bench',
+      badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      subtitle: 'Real-time 5-stage workshop lifecycle, parts fitted, quality sign-off & invoice.',
+      icon: <Activity className="w-5 h-5 text-emerald-400" />,
+      accentColor: '#05C147',
+      bgGlow: 'from-emerald-500/10 via-transparent to-transparent',
+      actionLabel: 'Track Repair',
+      microTitle: 'Live Telemetry Features',
+      microPoints: [
+        '5-Stage bench tracking: Booked, Diagnostics, Bench, Quality Control, Ready.',
+        'View real-time itemized parts fitted, labour hours & auto-calculated invoice.',
+        'Look up by Booking ID (#bk-...), customer phone number, or email address.',
+      ],
+      microFootnote: 'Updated live by Cytech mechanics as work progresses.',
     },
     {
       id: 'promotions',

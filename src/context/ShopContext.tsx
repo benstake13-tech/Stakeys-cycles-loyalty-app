@@ -19,17 +19,7 @@ import {
   ShopPromotion,
   RepairInvoice,
 } from '../types/bikeShop';
-import {
-  INITIAL_PRIZE_WHEELS,
-  INITIAL_DRAWS,
-  INITIAL_STAMP_LOGS,
-} from '../data/initialData';
-import {
-  INITIAL_BOOKINGS,
-  INITIAL_OWNER_CONFIG,
-} from '../data/bookingServices';
-import { INITIAL_STAFF_ROSTER } from '../data/staffRosterData';
-import { INITIAL_PROMOTIONS, evaluatePromotionsExpiry } from '../data/promotionsData';
+import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
   dispatchBookingNotifications,
   dispatch24hReminderNotification,
@@ -191,6 +181,7 @@ interface ShopContextType {
     reason?: string
   ) => Promise<{ success: boolean; message?: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => void;
+  updateBookingQuote: (bookingId: string, quote: { quotedPrice: number, quoteNote?: string }) => Promise<{ success: boolean; message?: string }>;
   saveRepairInvoice: (
     bookingId: string,
     invoice: RepairInvoice
@@ -201,6 +192,7 @@ interface ShopContextType {
   ) => Promise<void>;
   updateOwnerConfig: (config: Partial<OwnerNotificationConfig>) => void;
   resetAllDemoData: () => void;
+  hardResetApp: () => void;
   // Staff loud booking alert & push notifications
   isStaffBookingSoundEnabled: boolean;
   toggleStaffBookingSound: () => boolean;
@@ -217,25 +209,9 @@ const STORAGE_KEY = 'stakeys_cycles_pb_state_v2';
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
 
-  const [prizeWheels, setPrizeWheels] = useState<PrizeWheel[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_wheels`);
-      return saved ? JSON.parse(saved) : INITIAL_PRIZE_WHEELS;
-    } catch {
-      return INITIAL_PRIZE_WHEELS;
-    }
-  });
-
-  const [draws, setDraws] = useState<PrizeDraw[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_draws`);
-      return saved ? JSON.parse(saved) : INITIAL_DRAWS;
-    } catch {
-      return INITIAL_DRAWS;
-    }
-  });
-
-  const [stampLogs, setStampLogs] = useState<StampLog[]>(INITIAL_STAMP_LOGS);
+  const [prizeWheels, setPrizeWheels] = useState<PrizeWheel[]>([]);
+  const [draws, setDraws] = useState<PrizeDraw[]>([]);
+  const [stampLogs, setStampLogs] = useState<StampLog[]>([]);
 
   // Login is strictly the first screen: currentUser is always NULL initially on app load
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -322,14 +298,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [theme]);
 
   // 2. Staff Roster State & CRUD
-  const [staffMembers, setStaffMembers] = useState<StaffMember[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_staff_roster`);
-      return saved ? JSON.parse(saved) : INITIAL_STAFF_ROSTER;
-    } catch {
-      return INITIAL_STAFF_ROSTER;
-    }
-  });
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
 
   useEffect(() => {
     try {
@@ -367,15 +336,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // 3. Promotions State & Expiry Monitor
-  const [promotions, setPromotions] = useState<ShopPromotion[]>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_promotions`);
-      const base = saved ? JSON.parse(saved) : INITIAL_PROMOTIONS;
-      return evaluatePromotionsExpiry(base);
-    } catch {
-      return evaluatePromotionsExpiry(INITIAL_PROMOTIONS);
-    }
-  });
+  const [promotions, setPromotions] = useState<ShopPromotion[]>([]);
 
   useEffect(() => {
     try {
@@ -525,8 +486,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Service Bookings State (loaded dynamically from backend database)
-  const [bookings, setBookings] = useState<ServiceBooking[]>(INITIAL_BOOKINGS);
-  const knownBookingIdsRef = React.useRef<Set<string>>(new Set(INITIAL_BOOKINGS.map((b) => b.id)));
+  const [bookings, setBookings] = useState<ServiceBooking[]>([]);
+  const knownBookingIdsRef = React.useRef<Set<string>>(new Set());
   const isInitialBookingsLoadRef = React.useRef<boolean>(true);
   const currentUserRef = React.useRef<UserProfile | null>(currentUser);
   currentUserRef.current = currentUser;
@@ -715,12 +676,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Mount effect: Seed initial data & subscribe to Real-time postgres changes
   useEffect(() => {
-    seedInitialDatabaseIfEmpty().then(() => {
-      fetchAllProfilesFromDb().then((profiles) => {
-        if (profiles && profiles.length > 0) {
-          setUsers(profiles);
-        }
-      });
+    fetchAllProfilesFromDb().then((profiles) => {
+      if (profiles && profiles.length > 0) {
+        setUsers(profiles);
+      }
     }).catch(() => {});
 
     fetchServiceBookingsFromDb(undefined, true).then((b) => {
@@ -754,13 +713,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Owner Notification Configuration (Recipient workshop@stakeyscycles.com + SMS)
-  const [ownerConfig, setOwnerConfig] = useState<OwnerNotificationConfig>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_owner_config`);
-      return saved ? JSON.parse(saved) : INITIAL_OWNER_CONFIG;
-    } catch {
-      return INITIAL_OWNER_CONFIG;
-    }
+  const [ownerConfig, setOwnerConfig] = useState<OwnerNotificationConfig>({
+    ownerEmail: '',
+    ownerPhone: '',
+    emailAlertsEnabled: false,
+    businessName: 'Stakey\'s Cycles',
   });
 
   // Track the most recently placed booking for live modal notification preview
@@ -2091,6 +2048,31 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
+  const updateBookingQuote = async (bookingId: string, quote: { quotedPrice: number, quoteNote?: string }): Promise<{ success: boolean; message?: string }> => {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    const updated: ServiceBooking = {
+      ...target,
+      quotedPrice: quote.quotedPrice,
+      quoteNote: quote.quoteNote,
+      quoteSentAt: new Date().toISOString(),
+    };
+
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+
+    updateServiceBookingInDb(bookingId, {
+      quotedPrice: quote.quotedPrice,
+      quoteNote: quote.quoteNote,
+      quoteSentAt: updated.quoteSentAt,
+    }).catch((e) => console.warn('[DB SYNC] Error updating booking quote in DB:', e));
+
+    return {
+      success: true,
+      message: `Quote of £${quote.quotedPrice.toFixed(2)} updated for booking #${bookingId}.`,
+    };
+  };
+
   const saveRepairInvoice = async (
     bookingId: string,
     invoice: RepairInvoice
@@ -2182,23 +2164,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetAllDemoData = () => {
-    localStorage.removeItem(`${STORAGE_KEY}_users`);
-    localStorage.removeItem(`${STORAGE_KEY}_wheels`);
-    localStorage.removeItem(`${STORAGE_KEY}_draws`);
-    localStorage.removeItem(`${STORAGE_KEY}_logs`);
-    localStorage.removeItem(`${STORAGE_KEY}_bookings`);
-    localStorage.removeItem(`${STORAGE_KEY}_owner_config`);
-    localStorage.removeItem(`${STORAGE_KEY}_active_user`);
-    localStorage.removeItem(`${STORAGE_KEY}_latest_announcement`);
-    setUsers([]); // Clear users instead of resetting to INITIAL_USERS
-    setPrizeWheels(INITIAL_PRIZE_WHEELS);
-    setDraws(INITIAL_DRAWS);
-    setStampLogs(INITIAL_STAMP_LOGS);
-    setBookings(INITIAL_BOOKINGS);
-    setOwnerConfig(INITIAL_OWNER_CONFIG);
-    setLatestAnnouncement(null);
-    setLatestDispatchedBooking(null);
-    setCurrentUser(null); // return to login screen
+    localStorage.clear();
+    window.location.reload();
+  };
+  
+  const hardResetApp = () => {
+    localStorage.clear();
+    window.location.reload();
   };
 
   const dispatch24hReminderForBooking = async (bookingId: string): Promise<boolean> => {
@@ -2324,10 +2296,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         approveBooking,
         declineBooking,
         updateBookingStatus,
+        updateBookingQuote,
         saveRepairInvoice,
         updateInvoicePaymentStatus,
         updateOwnerConfig,
         resetAllDemoData,
+        hardResetApp,
         isStaffBookingSoundEnabled,
         toggleStaffBookingSound,
         playStaffBookingAlertPing,

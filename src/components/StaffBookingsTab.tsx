@@ -37,6 +37,7 @@ export const StaffBookingsTab: React.FC = () => {
     approveBooking,
     declineBooking,
     updateBookingStatus,
+    updateBookingQuote,
     saveRepairInvoice,
     updateInvoicePaymentStatus,
     currentUser,
@@ -67,6 +68,11 @@ export const StaffBookingsTab: React.FC = () => {
   const [declineReason, setDeclineReason] = useState('Workshop capacity limit on requested date');
   const [customDeclineReason, setCustomDeclineReason] = useState('');
   const [isDeclining, setIsDeclining] = useState(false);
+
+  const [quotingBooking, setQuotingBooking] = useState<ServiceBooking | null>(null);
+  const [quotedPrice, setQuotedPrice] = useState('');
+  const [quoteNote, setQuoteNote] = useState('');
+  const [isQuoting, setIsQuoting] = useState(false);
 
   // Action toast / feedback
   const [actionFeedback, setActionFeedback] = useState<{
@@ -153,6 +159,36 @@ export const StaffBookingsTab: React.FC = () => {
       });
     } finally {
       setIsDeclining(false);
+    }
+  };
+
+  const handleOpenQuote = (b: ServiceBooking) => {
+    setQuotingBooking(b);
+    setQuotedPrice(b.quotedPrice ? b.quotedPrice.toString() : '');
+    setQuoteNote(b.quoteNote || `Hello ${b.customerName}, here is your estimated quote for your repair. Please contact us via WhatsApp if you have questions or wish to share photos of your bike's condition.`);
+  };
+
+  const handleConfirmQuote = async () => {
+    if (!quotingBooking) return;
+    setIsQuoting(true);
+    try {
+      await updateBookingQuote(quotingBooking.id, {
+        quotedPrice: parseFloat(quotedPrice),
+        quoteNote,
+      });
+      setActionFeedback({
+        type: 'success',
+        message: `Quote for booking #${quotingBooking.id} updated!`,
+      });
+      setQuotingBooking(null);
+      setTimeout(() => setActionFeedback(null), 5000);
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'danger',
+        message: err.message || 'Failed to update quote.',
+      });
+    } finally {
+      setIsQuoting(false);
     }
   };
 
@@ -714,6 +750,15 @@ export const StaffBookingsTab: React.FC = () => {
 
                     <button
                       type="button"
+                      onClick={() => handleOpenQuote(b)}
+                      className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all border border-neutral-600"
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>Send Quote / Info Request</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => handleOpenDecline(b)}
                       className="px-4 py-2.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 border border-rose-700/60 text-rose-300 hover:text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
                     >
@@ -1034,6 +1079,74 @@ export const StaffBookingsTab: React.FC = () => {
               >
                 <AlertCircle className="w-4 h-4" />
                 <span>{isDeclining ? 'Sending Decline Email...' : 'Confirm & Dispatch Decline Email'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* QUOTING MODAL */}
+      {quotingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+          <div className="bg-neutral-900 border border-emerald-800/60 rounded-3xl max-w-lg w-full p-6 text-white shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-white">Send Estimate Quote</h3>
+                  <p className="text-xs text-neutral-400">
+                    Booking #{quotingBooking.id} • {quotingBooking.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuotingBooking(null)}
+                className="text-neutral-400 hover:text-white p-1 rounded-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">Estimated Price (£)</label>
+                <input
+                  type="number"
+                  value={quotedPrice}
+                  onChange={(e) => setQuotedPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">Quote Note</label>
+                <textarea
+                  rows={4}
+                  value={quoteNote}
+                  onChange={(e) => setQuoteNote(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setQuotingBooking(null)}
+                className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isQuoting}
+                onClick={handleConfirmQuote}
+                className="px-5 py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
+              >
+                <span>{isQuoting ? 'Saving...' : 'Save Estimate'}</span>
               </button>
             </div>
           </div>

@@ -11,8 +11,6 @@ import {
   VehicleCategory,
   BikeScrapeResult,
 } from '../types/bikeShop';
-import { INITIAL_USERS, INITIAL_STAMP_LOGS } from '../data/initialData';
-import { INITIAL_BOOKINGS } from '../data/bookingServices';
 
 export interface DatabaseSyncStatus {
   lastSyncAt: string;
@@ -249,7 +247,7 @@ export async function fetchServiceBookingsFromDb(
     console.error('[SUPABASE NET EXCEPTION] fetchServiceBookingsFromDb:', err);
   }
 
-  return INITIAL_BOOKINGS;
+  return [];
 }
 
 /**
@@ -377,7 +375,7 @@ export async function fetchStampLogsFromDb(
     console.error('[SUPABASE NET EXCEPTION] fetchStampLogsFromDb:', err);
   }
 
-  return INITIAL_STAMP_LOGS;
+  return [];
 }
 
 /**
@@ -596,56 +594,5 @@ export function subscribeToDatabaseChanges(onChanged: (table: string) => void): 
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] subscribeToDatabaseChanges:', err);
     return () => {};
-  }
-}
-
-/**
- * 14. SEED INITIAL DATA
- */
-export async function seedInitialDatabaseIfEmpty(): Promise<void> {
-  const supabase = getSupabaseClient();
-  console.log('[SUPABASE NET] Checking if database needs initial seeding...');
-
-  try {
-    const { count: profileCount, error: profileErr } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
-
-    if (!profileErr && (profileCount === null || profileCount === 0)) {
-      console.log('[SUPABASE NET] Profiles table empty. Seeding initial profiles...');
-      for (const user of INITIAL_USERS) {
-        await supabase.from('profiles').upsert({
-          id: user.uid,
-          membership_number: user.membershipNumber,
-          email: user.email,
-          display_name: user.displayName,
-          phone: user.phoneNumber || null,
-          role: user.role,
-          stamps: user.stamps || 0,
-          completed_cards: user.tickets || 0,
-          merit_points: user.merits || 0,
-          last_spin_date: user.lastSpunAt ? user.lastSpunAt.toISOString() : null,
-        }, { onConflict: 'id' });
-      }
-      console.log('[SUPABASE NET SUCCESS] Initial profiles seeded successfully');
-    }
-
-    const { count, error } = await supabase
-      .from('customer_bikes')
-      .select('*', { count: 'exact', head: true });
-
-    if (!error && (count === null || count === 0)) {
-      console.log('[SUPABASE NET] customer_bikes table empty. Seeding initial bikes...');
-      for (const user of INITIAL_USERS) {
-        if (user.bikes && user.bikes.length > 0) {
-          for (const bike of user.bikes) {
-            await insertCustomerBikeToDb(bike, user.uid);
-          }
-        }
-      }
-      console.log('[SUPABASE NET SUCCESS] Initial garage bikes seeded successfully');
-    }
-  } catch (err) {
-    console.error('[SUPABASE NET EXCEPTION] seedInitialDatabaseIfEmpty:', err);
   }
 }

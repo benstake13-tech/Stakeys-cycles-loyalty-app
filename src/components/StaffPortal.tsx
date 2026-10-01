@@ -35,6 +35,7 @@ import {
   Volume2,
   VolumeX,
   Bell,
+  RefreshCcw,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -50,6 +51,7 @@ import { BikeScraperTab } from './BikeScraperTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
 import { AdminDashboard } from './AdminDashboard';
 import { StaffBarcodeScannerTab } from './StaffBarcodeScannerTab';
+import { FinancialReportingTab } from './FinancialReportingTab';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 
 export const StaffPortal: React.FC = () => {
@@ -74,6 +76,7 @@ export const StaffPortal: React.FC = () => {
     playStaffBookingAlertPing,
     workshopAudioVolume,
     cycleWorkshopAudioVolume,
+    hardResetApp,
   } = useShop();
 
   const [staffTab, setStaffTab] = useState<
@@ -87,6 +90,7 @@ export const StaffPortal: React.FC = () => {
     | 'scraper'
     | 'scanner'
     | 'logs'
+    | 'financials'
   >('dashboard');
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
@@ -628,6 +632,32 @@ export const StaffPortal: React.FC = () => {
           <History className="w-4 h-4 text-emerald-400" />
           <span>Audit Logs</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setStaffTab('financials')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'financials'
+              ? 'bg-emerald-950 text-emerald-300 shadow-md border border-emerald-700/60'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4 text-emerald-400" />
+          <span>Financial Reports</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Are you absolutely sure you want to clean the slate? This will clear all local app data and reload the page.')) {
+              hardResetApp();
+            }
+          }}
+          className="px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer text-rose-400 hover:text-white hover:bg-rose-950/60 border border-rose-900"
+        >
+          <RefreshCcw className="w-4 h-4" />
+          <span>Clean Slate</span>
+        </button>
       </div>
 
       {/* 4. WORKSTATION VIEWS */}
@@ -649,6 +679,9 @@ export const StaffPortal: React.FC = () => {
 
       {/* VIEW 2: Bike OEM Stock Parts Scraper & Upgrade Inspector */}
       {staffTab === 'scraper' && <BikeScraperTab initialCustomer={selectedCustomer} />}
+
+      {/* VIEW 3: Financial Reporting Tab */}
+      {staffTab === 'financials' && <FinancialReportingTab />}
 
       {/* VIEW 3: Customer Database Roster */}
       {staffTab === 'customers' && (

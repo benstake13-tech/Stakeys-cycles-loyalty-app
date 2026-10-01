@@ -318,6 +318,9 @@ export interface ServiceBooking {
   serviceTitle: string;
   servicePrice: number;
   quotedPrice?: number;
+  quoteRequestedAt?: any;
+  quoteSentAt?: any;
+  quoteNote?: string;
   preferredDate: string; // YYYY-MM-DD
   preferredTimeSlot: string;
   notes?: string;

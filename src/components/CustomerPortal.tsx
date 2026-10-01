@@ -552,6 +552,19 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                         <span className="ml-2 font-mono text-[#05C147] font-bold">
                           £{b.invoice.grandTotal.toFixed(2)}
                         </span>
+                      ) : b.quotedPrice ? (
+                        <div className="mt-2 p-3 bg-emerald-950/30 border border-emerald-500/30 rounded-lg text-xs space-y-1">
+                          <span className="text-emerald-400 font-bold block">Estimated Quote: £{b.quotedPrice.toFixed(2)}</span>
+                          <p className="text-neutral-300 italic">"{b.quoteNote}"</p>
+                          <a
+                            href={`https://wa.me/447911882910?text=${encodeURIComponent(`Hi Stakey's Cycles, regarding my booking #${b.id}. I have questions about the quote of £${b.quotedPrice.toFixed(2)} and would like to share more info/photos.`)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-block mt-2 px-3 py-1 bg-[#25D366] text-white rounded-lg font-bold text-[10px]"
+                          >
+                            Reply via WhatsApp
+                          </a>
+                        </div>
                       ) : (
                         <span className="ml-2 font-mono text-amber-400 text-xs">
                           (Quote on inspection)

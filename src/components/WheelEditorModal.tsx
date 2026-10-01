@@ -12,7 +12,6 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { PrizeWheel, PrizeWheelSegment } from '../types/bikeShop';
-import { INITIAL_PRIZE_WHEELS } from '../data/initialData';
 
 interface WheelEditorModalProps {
   wheel: PrizeWheel;
@@ -90,11 +89,8 @@ export const WheelEditorModal: React.FC<WheelEditorModalProps> = ({
   };
 
   const handleResetToDefaults = () => {
-    const defaultWheel = INITIAL_PRIZE_WHEELS[0];
-    setTitle(defaultWheel.title);
-    setTicketCost(defaultWheel.ticketCost ?? 1);
-    setSegments(JSON.parse(JSON.stringify(defaultWheel.segments)));
-    setError(null);
+    // Reset functionality removed as mock data was removed.
+    setError('No default wheel configuration available.');
   };
 
   const handleSave = () => {
