@@ -53,6 +53,9 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
   const startCamera = async () => {
     setCameraError(null);
     try {
+      // Pre-emptive permission check
+      await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      
       const html5QrCode = new Html5Qrcode('reader');
       html5QrCodeRef.current = html5QrCode;
       
@@ -69,7 +72,8 @@ export const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({
       
       setIsCameraActive(true);
     } catch (err: any) {
-      setCameraError('Camera access was denied or is restricted.');
+      console.error('Camera access error:', err);
+      setCameraError(`Camera error: ${err.message || 'Access denied. Please check device settings.'}`);
       setIsCameraActive(false);
     }
   };

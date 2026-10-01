@@ -36,6 +36,7 @@ import {
   VolumeX,
   Bell,
   RefreshCcw,
+  TrendingUp,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -52,12 +53,13 @@ import { ServiceStatusBadge } from './ServiceStatusBadge';
 import { AdminDashboard } from './AdminDashboard';
 import { StaffBarcodeScannerTab } from './StaffBarcodeScannerTab';
 import { FinancialReportingTab } from './FinancialReportingTab';
+import { StaffThemeSelector } from './StaffThemeSelector';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 
 export const StaffPortal: React.FC = () => {
   const {
     currentUser,
-    users,
+    users = [], // Default to empty array
     prizeWheels,
     draws,
     stampLogs,
@@ -95,9 +97,10 @@ export const StaffPortal: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
-    return users.find((u) => u.membershipNumber === 'STK-839201') || null;
+    return users?.find((u) => u.membershipNumber === 'STK-839201') || null;
   });
 
+  const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
   const [bypassRateLimit, setBypassRateLimit] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{
     success?: boolean;
@@ -394,6 +397,12 @@ export const StaffPortal: React.FC = () => {
                   {isStaffBookingSoundEnabled ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                 </button>
               </div>
+
+              {isStaff && (
+                <div className="mt-4">
+                  <StaffThemeSelector />
+                </div>
+              )}
             </div>
           </div>
 

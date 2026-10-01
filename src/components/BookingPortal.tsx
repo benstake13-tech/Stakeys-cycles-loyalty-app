@@ -483,7 +483,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         <div className="absolute inset-0 z-0">
           <img
             src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
-            alt="Stakey's workshop atelier tools and repair bench"
+            alt="Stakey's workshop tools and repair bench"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover object-center opacity-25 filter saturate-75"
           />

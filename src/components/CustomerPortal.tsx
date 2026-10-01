@@ -23,6 +23,7 @@ import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
+import { BikeIdentificationEngine } from './BikeIdentificationEngine';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
 import {
   POPULAR_BIKE_BRANDS,
@@ -327,6 +328,12 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               <Plus className="w-3.5 h-3.5" />
               <span>Add Bike to Garage</span>
             </button>
+            <BikeIdentificationEngine 
+              onAnalysisComplete={(analysis) => {
+                console.log('Bike Identified:', analysis);
+                // Future: pre-fill bike registration modal here
+              }} 
+            />
           </div>
 
           {/* List of Bikes */}

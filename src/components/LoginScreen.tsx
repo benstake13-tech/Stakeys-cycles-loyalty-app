@@ -194,7 +194,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <img
           src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
-          alt="Stakey's cycle and scooter workshop atelier"
+          alt="Stakey's cycle and scooter workshop"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center opacity-35 filter saturate-100 scale-105"
         />

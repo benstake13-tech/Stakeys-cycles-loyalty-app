@@ -517,8 +517,7 @@ export async function fetchAllProfilesFromDb(): Promise<UserProfile[]> {
     const { data, error } = await supabase.from('profiles').select('*');
     if (error) {
       console.error('[SUPABASE NET ERROR] SELECT ALL profiles failed:', error.message);
-    } else {
-      console.log(`[SUPABASE NET SUCCESS] SELECT ALL profiles returned ${data?.length || 0} rows`);
+      return []; // Return empty list instead of crashing
     }
 
     if (data && data.length > 0) {

@@ -132,25 +132,18 @@ export const ServiceStatusBadge: React.FC<ServiceStatusBadgeProps> = ({ variant 
         <button
           type="button"
           onClick={() => setIsModalOpen(true)}
-          className={`flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-mono transition-all border cursor-pointer ${
-            isSupaOnline || isPbOnline
-              ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30 hover:bg-emerald-900/40'
-              : 'bg-neutral-900/90 text-neutral-300 border-neutral-700/60 hover:bg-neutral-800'
-          }`}
+          className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/60 border border-slate-800 rounded-md text-[10px] text-slate-400 font-mono transition-all hover:bg-slate-800/60 cursor-pointer"
           title="Click to view Supabase & Backend Diagnostics"
         >
           <span
-            className={`w-2 h-2 rounded-full shrink-0 ${
-              isSupaOnline || isPbOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+              isSupaOnline || isPbOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
             }`}
           />
-          <span className="font-semibold">
-            {isSupaOnline
-              ? `Supabase: Online (${supabaseStatus.latencyMs || 0}ms)`
-              : isPbOnline
-              ? `PocketBase: Online`
-              : `Backend Setup`}
-          </span>
+          <span>{isSupaOnline ? 'Supabase: Online' : isPbOnline ? 'PocketBase: Online' : 'Backend Setup'}</span>
+          {isSupaOnline && supabaseStatus.latencyMs !== undefined && (
+            <span className="text-slate-600">({supabaseStatus.latencyMs}ms)</span>
+          )}
         </button>
 
         {isModalOpen && renderModal()}

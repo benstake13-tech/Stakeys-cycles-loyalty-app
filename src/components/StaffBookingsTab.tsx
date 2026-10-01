@@ -271,10 +271,8 @@ export const StaffBookingsTab: React.FC = () => {
                 <h3 className="text-lg font-black text-white">
                   Workshop Booking &amp; Notification Manager
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400">
-                  LIVE DISPATCH ACTIVE
-                </span>
-              </div>
+                <div className="w-2 h-2 rounded-full bg-[#05C147] animate-pulse" title="Live Dispatch Active" />
+                </div>
               <p className="text-xs text-neutral-400 mt-0.5">
                 Every online booking automatically delivers an email alert to <strong className="text-neutral-200">{ownerConfig.ownerEmail}</strong>.
               </p>
@@ -660,6 +658,14 @@ export const StaffBookingsTab: React.FC = () => {
                         {b.customerPhone}
                       </a>
                     </div>
+                    <a
+                      href={`https://wa.me/${b.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${b.customerName}, regarding your booking #${b.id} at Stakey's Cycles. Could you please provide more details about the issue and send a picture? Thank you!`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded-lg bg-[#05C147]/20 text-[#05C147] hover:bg-[#05C147] hover:text-neutral-950 text-[10px] font-bold transition-colors"
+                    >
+                      WhatsApp
+                    </a>
                   </div>
                 </div>
 
@@ -772,6 +778,15 @@ export const StaffBookingsTab: React.FC = () => {
                     >
                       <Phone className="w-3.5 h-3.5 text-emerald-400" />
                       <span>Call Customer</span>
+                    </a>
+                    <a
+                      href={`https://wa.me/${b.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Hi ${b.customerName}, regarding your booking #${b.id} at Stakey's Cycles. Could you please provide more details about the issue and send a picture? Thank you!`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-2 rounded-xl bg-[#05C147]/20 hover:bg-[#05C147] text-[#05C147] hover:text-neutral-950 border border-[#05C147]/30 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>WhatsApp Request</span>
                     </a>
                   </div>
                 </div>
