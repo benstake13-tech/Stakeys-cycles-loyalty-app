@@ -37,21 +37,21 @@ import {
   Bell,
   RefreshCcw,
   TrendingUp,
+  Building2,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
-import { BarcodeVisual } from './BarcodeVisual';
+
 import { PrizeWheelModal } from './PrizeWheelModal';
 import { WheelEditorModal } from './WheelEditorModal';
 import { StaffBookingsTab } from './StaffBookingsTab';
 import { CustomerDatabaseTab } from './CustomerDatabaseTab';
 import { StaffManagementTab } from './StaffManagementTab';
 import { PromotionsManagerTab } from './PromotionsManagerTab';
-import { DerailleurHangerIdentifier } from './DerailleurHangerIdentifier';
-import { BikeScraperTab } from './BikeScraperTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
 import { AdminDashboard } from './AdminDashboard';
-import { StaffBarcodeScannerTab } from './StaffBarcodeScannerTab';
+
+import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
@@ -88,11 +88,9 @@ export const StaffPortal: React.FC = () => {
     | 'promotions'
     | 'customers'
     | 'draws'
-    | 'hangers'
-    | 'scraper'
-    | 'scanner'
     | 'logs'
     | 'financials'
+    | 'google_business'
   >('dashboard');
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
@@ -592,32 +590,6 @@ export const StaffPortal: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setStaffTab('hangers')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'hangers'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Search className="w-4 h-4 text-violet-400" />
-          <span>Hanger Identifier</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('scraper')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'scraper'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Bike className="w-4 h-4 text-emerald-400" />
-          <span>OEM Parts Scraper</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setStaffTab('scanner')}
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
             staffTab === 'scanner'
@@ -655,6 +627,21 @@ export const StaffPortal: React.FC = () => {
           <span>Financial Reports</span>
         </button>
 
+        <div className="w-px h-6 bg-neutral-800 mx-2" />
+
+        <button
+          type="button"
+          onClick={() => setStaffTab('google_business')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            staffTab === 'google_business'
+              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
+          }`}
+        >
+          <Building2 className="w-4 h-4 text-emerald-400" />
+          <span>Business Profile</span>
+        </button>
+
         <button
           type="button"
           onClick={() => {
@@ -684,13 +671,16 @@ export const StaffPortal: React.FC = () => {
       {staffTab === 'promotions' && <PromotionsManagerTab />}
 
       {/* VIEW 1D: Derailleur Hanger Identifier Module */}
-      {staffTab === 'hangers' && <DerailleurHangerIdentifier />}
+      {/* Removed */}
 
       {/* VIEW 2: Bike OEM Stock Parts Scraper & Upgrade Inspector */}
-      {staffTab === 'scraper' && <BikeScraperTab initialCustomer={selectedCustomer} />}
+      {/* Removed */}
 
       {/* VIEW 3: Financial Reporting Tab */}
       {staffTab === 'financials' && <FinancialReportingTab />}
+
+      {/* VIEW 7: Google Business Profile Tab */}
+      {staffTab === 'google_business' && <GoogleBusinessTab />}
 
       {/* VIEW 3: Customer Database Roster */}
       {staffTab === 'customers' && (
@@ -702,10 +692,6 @@ export const StaffPortal: React.FC = () => {
         />
       )}
 
-      {/* VIEW 4: Dedicated Staff Barcode Scanner Interface */}
-      {staffTab === 'scanner' && (
-        <StaffBarcodeScannerTab users={users} onSelectCustomer={handleSelectCustomer} />
-      )}
 
       {/* VIEW 5: Prize Draws & Wheel Hub */}
       {staffTab === 'draws' && (

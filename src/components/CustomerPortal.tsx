@@ -18,7 +18,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { BarcodeVisual } from './BarcodeVisual';
+
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
@@ -133,21 +133,24 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     <div className="space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
       {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
       <section aria-label="Digital Membership Pass & Barcode" className="w-full">
-        <BarcodeVisual
-          value={barcodeValue}
-          membershipNumber={currentUser.membershipNumber}
-          customerName={currentUser.displayName}
-          stamps={currentUser.stamps || 0}
-          maxStamps={10}
-          tickets={currentUser.tickets || 0}
-          showScanLine={true}
-          variant="hero"
-          onStaffScanTest={(barcodeVal) => {
-            if (onStaffScanCustomer) {
-              onStaffScanCustomer(barcodeVal);
-            }
-          }}
-        />
+        <iframe 
+          width="600" 
+          height="450" 
+          src="https://datastudio.google.com/embed/reporting/4b9da3c1-e567-4ddd-b813-99579d4bc15d/page/YnNAG" 
+          frameBorder="0" 
+          style={{ border: 0 }} 
+          allowFullScreen 
+          sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        ></iframe>
+        <iframe 
+          width="600" 
+          height="450" 
+          src="https://datastudio.google.com/embed/reporting/2155bc27-a629-41f4-82bd-dcfab6721bb3/page/p_frj0kb3y7d" 
+          frameBorder="0" 
+          style={{ border: 0 }} 
+          allowFullScreen 
+          sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        ></iframe>
       </section>
 
       {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
@@ -640,11 +643,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             <div className="lg:col-span-5 space-y-4">
-              <BarcodeVisual
-                value={barcodeValue}
-                customerName={currentUser.displayName}
-                showScanLine={true}
-              />
+
               <div className="rounded-xl border border-neutral-800 bg-[#0d1015] p-4 text-center text-xs text-neutral-400">
                 Present this digital pass at the till when visiting Stakey's Cycles to earn your daily visit stamp.
               </div>

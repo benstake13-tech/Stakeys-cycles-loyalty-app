@@ -1461,28 +1461,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'You have already spun the wheel this week. Please come back in 7 days!' };
     }
 
-    const updatedUser: UserProfile = {
-      ...target,
-      stamps: updatedStamps,
-      tickets: Math.max(0, (target.tickets || 0) + extraTickets),
-      merits: Math.max(0, (target.merits || 0) + extraMerits),
-      lastSpunAt: now,
-      serviceVouchers: newVoucher
-        ? [...(target.serviceVouchers || []), newVoucher]
-        : target.serviceVouchers,
-    };
+    // New: Use RPC for safe, atomic wheel spin
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('spin_loyalty_wheel', { 
+      user_id: userId,
+      segment_id: segment.id 
+    });
 
+    if (rpcError) {
+      console.error('Spin RPC error:', rpcError);
+      return { success: false, message: 'Wheel spin failed. Please try again.' };
+    }
+
+    // Adapt to RPC return shape (assuming it returns the updated user profile or success data)
+    if (!rpcResult || !rpcResult.success) {
+      return { success: false, message: rpcResult?.message || 'Spin failed.' };
+    }
+
+    // Update local state based on rpcResult
+    const updatedUser = rpcResult.user || target;
     setUsers((prev) => prev.map((u) => (u.uid === userId ? updatedUser : u)));
     if (currentUser?.uid === userId) {
       setCurrentUser(updatedUser);
     }
-
-    await updateUserProfileInDb(userId, target.membershipNumber, {
-      stamps: updatedStamps,
-      tickets: updatedUser.tickets,
-      merits: updatedUser.merits,
-      lastSpinDate: now.toISOString(),
-    });
 
     const logNote =
       stampsAwarded > 0
