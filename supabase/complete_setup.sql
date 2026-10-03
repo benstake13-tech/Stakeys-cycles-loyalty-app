@@ -218,15 +218,24 @@ ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS reward_id TEXT;
 ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS note TEXT;
 ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS user_id UUID;
 ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ DEFAULT NOW();
-ALTER TABLE public.stamp_logs ALTER COLUMN staff_id DROP NOT NULL;
-ALTER TABLE public.stamp_logs ALTER COLUMN action DROP NOT NULL;
-ALTER TABLE public.stamp_logs ALTER COLUMN user_id DROP NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE public.stamp_logs ALTER COLUMN staff_id DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN RAISE NOTICE 'stamp_logs.staff_id does not exist'; END $$;
+DO $$ BEGIN
+  ALTER TABLE public.stamp_logs ALTER COLUMN action DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE public.stamp_logs ALTER COLUMN user_id DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
 -- The app writes readable text ids ("log-…", "system-wheel"); uuid columns
 -- would reject them with 22P02. Convert in place, preserving existing rows.
-ALTER TABLE public.stamp_logs ALTER COLUMN id TYPE TEXT USING id::text;
+DO $$ BEGIN
+  ALTER TABLE public.stamp_logs ALTER COLUMN id TYPE TEXT USING id::text;
+EXCEPTION WHEN others THEN RAISE NOTICE 'stamp_logs.id left unchanged: %', SQLERRM; END $$;
 DO $$ BEGIN
   ALTER TABLE public.stamp_logs ALTER COLUMN staff_id TYPE TEXT USING staff_id::text;
-EXCEPTION WHEN others THEN RAISE NOTICE 'stamp_logs.staff_id left unchanged: %', SQLERRM; END $$;
+EXCEPTION WHEN undefined_column THEN NULL;
+         WHEN others THEN RAISE NOTICE 'stamp_logs.staff_id left unchanged: %', SQLERRM; END $$;
 
 -- 2c. customer_bikes
 ALTER TABLE public.customer_bikes ADD COLUMN IF NOT EXISTS customer_id TEXT;
@@ -378,50 +387,64 @@ END $$;
 --    (so a fresh signup can log in immediately), plus backfill for existing
 --    auth users that have no profile row.
 -- ============================================================================
-CREATE OR REPLACE FUNCTION public.handle_new_loyalty_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER SET search_path = public
-AS $$
+DO $outer$
 BEGIN
-  INSERT INTO public.profiles (id, email, display_name, role, stamps, completed_cards, merit_points)
-  VALUES (
-    new.id::text,
-    new.email,
-    COALESCE(
-      new.raw_user_meta_data->>'full_name',
-      new.raw_user_meta_data->>'display_name',
-      split_part(new.email, '@', 1),
-      'Stakey Rider'
-    ),
-    'customer', 0, 0, 0
-  )
-  ON CONFLICT (id) DO NOTHING;
-  RETURN new;
-END;
-$$;
+  IF to_regclass('auth.users') IS NULL THEN
+    RAISE NOTICE 'auth.users not found; skipping signup trigger + backfill';
+    RETURN;
+  END IF;
 
-DROP TRIGGER IF EXISTS on_auth_user_created_loyalty ON auth.users;
-CREATE TRIGGER on_auth_user_created_loyalty
-AFTER INSERT ON auth.users
-FOR EACH ROW EXECUTE FUNCTION public.handle_new_loyalty_user();
+  EXECUTE $fn$
+    CREATE OR REPLACE FUNCTION public.handle_new_loyalty_user()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+    SECURITY DEFINER SET search_path = public
+    AS $body$
+    BEGIN
+      INSERT INTO public.profiles (id, email, display_name, role, stamps, completed_cards, merit_points)
+      VALUES (
+        new.id::text,
+        new.email,
+        COALESCE(
+          new.raw_user_meta_data->>'full_name',
+          new.raw_user_meta_data->>'display_name',
+          split_part(new.email, '@', 1),
+          'Stakey Rider'
+        ),
+        'customer', 0, 0, 0
+      )
+      ON CONFLICT (id) DO NOTHING;
+      RETURN new;
+    END;
+    $body$;
+  $fn$;
 
--- Backfill any existing auth user without a profile.
-INSERT INTO public.profiles (id, email, display_name, role, stamps, completed_cards, merit_points)
-SELECT
-  u.id::text,
-  u.email,
-  COALESCE(
-    u.raw_user_meta_data->>'full_name',
-    u.raw_user_meta_data->>'display_name',
-    split_part(u.email, '@', 1),
-    'Stakey Rider'
-  ),
-  'customer', 0, 0, 0
-FROM auth.users u
-LEFT JOIN public.profiles p ON p.id = u.id::text
-WHERE p.id IS NULL
-ON CONFLICT (id) DO NOTHING;
+  EXECUTE 'DROP TRIGGER IF EXISTS on_auth_user_created_loyalty ON auth.users';
+  EXECUTE 'CREATE TRIGGER on_auth_user_created_loyalty
+           AFTER INSERT ON auth.users
+           FOR EACH ROW EXECUTE FUNCTION public.handle_new_loyalty_user()';
+
+  -- Backfill any existing auth user without a profile.
+  EXECUTE $bf$
+    INSERT INTO public.profiles (id, email, display_name, role, stamps, completed_cards, merit_points)
+    SELECT
+      u.id::text,
+      u.email,
+      COALESCE(
+        u.raw_user_meta_data->>'full_name',
+        u.raw_user_meta_data->>'display_name',
+        split_part(u.email, '@', 1),
+        'Stakey Rider'
+      ),
+      'customer', 0, 0, 0
+    FROM auth.users u
+    LEFT JOIN public.profiles p ON p.id = u.id::text
+    WHERE p.id IS NULL
+    ON CONFLICT (id) DO NOTHING;
+  $bf$;
+EXCEPTION WHEN others THEN
+  RAISE NOTICE 'signup trigger/backfill skipped: %', SQLERRM;
+END $outer$;
 
 -- ============================================================================
 -- 6. SEED THE DEFAULT PRIZE WHEEL (only when the table is empty)
