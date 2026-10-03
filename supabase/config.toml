@@ -1,0 +1,5 @@
+[functions.send-email]
+# The browser client calls this with the anon key; Supabase's default JWT
+# verification is fine (the anon key is a valid JWT). Set to false only if you
+# want to allow completely unauthenticated calls.
+verify_jwt = true

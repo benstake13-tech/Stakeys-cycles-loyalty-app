@@ -501,29 +501,37 @@ export async function dispatchBookingNotifications(
   // Live Email Gateway: Forward to Supabase Edge Function
   try {
     const supabase = getSupabaseClient();
-    await supabase.functions.invoke('send-email', {
+    const ownerSend = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscyles.co.uk',
+        from: 'noreply@stakeyscycles.co.uk',
         to: config.ownerEmail,
         subject: `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`,
         html: generateBookingEmailHtml(booking, config),
       },
     });
-    
-    await supabase.functions.invoke('send-email', {
+
+    const customerSend = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscyles.co.uk',
+        from: 'noreply@stakeyscycles.co.uk',
         to: booking.customerEmail,
         subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
         html: generateCustomerBookingEmailHtml(booking, config),
       },
     });
+
+    if (ownerSend.error) {
+      console.error(`[STAKEYS EMAIL ENGINE] ❌ Workshop alert email failed: ${ownerSend.error.message}`);
+    } else {
+      console.log(`[STAKEYS EMAIL ENGINE] ✅ Booking alert email sent to workshop (${config.ownerEmail})`);
+    }
+    if (customerSend.error) {
+      console.error(`[STAKEYS EMAIL ENGINE] ❌ Customer confirmation email failed: ${customerSend.error.message}`);
+    } else {
+      console.log(`[STAKEYS EMAIL ENGINE] ✅ Confirmation email sent to customer (${booking.customerEmail})`);
+    }
   } catch (err) {
     console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
   }
-
-  console.log(`[STAKEYS EMAIL ENGINE] ✅ Delivered Confirmation Email to Customer (${booking.customerEmail})`);
-  console.log(`[STAKEYS EMAIL ENGINE] ✅ Delivered Booking Alert Email to Workshop (${config.ownerEmail})`);
 
   return {
     emailLog,
@@ -546,7 +554,7 @@ export async function dispatchTestEmail(
     const supabase = getSupabaseClient();
     const { error } = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscyles.co.uk',
+        from: 'noreply@stakeyscycles.co.uk',
         to: config.ownerEmail,
         subject: "⚡ [STAKEY'S WORKSHOP] Test Notification",
         html: `<div style="font-family:sans-serif;padding:24px;background:#0c0d0e;color:#fff">
@@ -845,16 +853,21 @@ export async function dispatchBookingApprovalNotification(
 
   try {
     const supabase = getSupabaseClient();
-    await supabase.functions.invoke('send-email', {
+    const { error } = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscyles.co.uk',
+        from: 'noreply@stakeyscycles.co.uk',
         to: booking.customerEmail,
         subject: emailLog.subject,
         html: emailLog.content,
       },
     });
+    if (error) {
+      console.error(`[APPROVAL NOTIFICATION] ❌ Approval email failed: ${error.message}`);
+      return { emailLog };
+    }
   } catch (err) {
     console.error('[APPROVAL NOTIFICATION] Failed to send via Edge Function:', err);
+    return { emailLog };
   }
 
   console.log(`[APPROVAL NOTIFICATION] ✅ Sent Approval Email to ${booking.customerEmail}`);
@@ -886,19 +899,24 @@ export async function dispatchBookingDeclinedNotification(
 
   try {
     const supabase = getSupabaseClient();
-    await supabase.functions.invoke('send-email', {
+    const { error } = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscyles.co.uk',
+        from: 'noreply@stakeyscycles.co.uk',
         to: booking.customerEmail,
         subject: emailLog.subject,
         html: emailLog.content,
       },
     });
+    if (error) {
+      console.error(`[DECLINE NOTIFICATION] ❌ Declined email failed: ${error.message}`);
+      return { emailLog };
+    }
   } catch (err) {
     console.error('[DECLINE NOTIFICATION] Failed to send via Edge Function:', err);
+    return { emailLog };
   }
 
-  console.log(`[DECLINE NOTIFICATION] ⚠️ Sent Declined Email to ${booking.customerEmail}`);
+  console.log(`[DECLINE NOTIFICATION] ✅ Sent Declined Email to ${booking.customerEmail}`);
 
   return { emailLog };
 }
