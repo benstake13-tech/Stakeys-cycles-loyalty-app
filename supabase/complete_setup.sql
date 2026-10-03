@@ -390,6 +390,19 @@ INSERT INTO public.app_theme_config (id, theme)
 SELECT 1, 'none'
 WHERE NOT EXISTS (SELECT 1 FROM public.app_theme_config WHERE id = 1);
 
+-- Some earlier revisions of this table used `active_theme` instead of `theme`.
+-- Copy any such value across so an applied seasonal theme is not lost. Guarded
+-- because the column will not exist on a project created by this script.
+DO $$ BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'app_theme_config' AND column_name = 'active_theme'
+  ) THEN
+    EXECUTE 'UPDATE public.app_theme_config SET theme = active_theme
+             WHERE (theme IS NULL OR theme = ''none'') AND active_theme IS NOT NULL AND active_theme <> ''none''';
+  END IF;
+END $$;
+
 -- 2k. staff_members — the workshop roster (staff-editable). Rows the app writes
 --     survive reloads instead of living only in component state.
 CREATE TABLE IF NOT EXISTS public.staff_members (
