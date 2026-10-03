@@ -433,6 +433,7 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] INSERT stamp_logs id=${log.id}`);
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const uid = (log as any).user_id || log.customerId;
   const payload: any = {
     id: log.id,
     customer_id: log.customerId,
@@ -449,48 +450,52 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
   };
   // Legacy schemas have a NOT NULL `user_id`; supply it when the customer id is
   // a real UUID so the row can land before the schema sync migration is run.
-  if (uuid.test(log.customerId)) payload.user_id = log.customerId;
-  try {
-    const { error } = await supabase.from('stamp_logs').insert(payload);
+  if (uid && uuid.test(uid)) payload.user_id = uid;
+
+  // These errors all mean "the live table does not match the app schema", which
+  // the schema sync SQL fixes. Legacy columns are typed UUID on some projects.
+  const isSchemaMismatch = (e: any): boolean =>
+    e?.code === 'PGRST204' ||
+    e?.code === '22P02' ||
+    e?.code === '23502' ||
+    e?.code === '42703' ||
+    e?.code === '42501' ||
+    e?.message?.includes('schema cache') ||
+    e?.message?.includes('column') ||
+    e?.message?.includes('schema');
+
+  // Attempts are ordered most-complete -> most-minimal so that whichever
+  // schema (current, legacy-uuid, or legacy-text) the project has, one lands.
+  const attempts: any[] = [payload];
+  const legacy: any = { reason: log.note || log.action || 'stamp_event' };
+  if (log.staffId) legacy.staff_id = log.staffId;
+  if (uid && uuid.test(uid)) legacy.user_id = uid;
+  attempts.push(legacy);
+
+  let lastError: any = null;
+  for (let i = 0; i < attempts.length; i++) {
+    const { error } = await supabase.from('stamp_logs').insert(attempts[i]);
     if (!error) {
+      if (i > 0) {
+        console.warn('[SUPABASE NET] INSERT stamp_logs used legacy fallback payload.');
+      }
       console.log(`[SUPABASE NET SUCCESS] INSERT stamp_logs succeeded for id=${log.id}`);
       return true;
     }
-
-    // Some projects created stamp_logs via an older schema (e.g. a NOT NULL
-    // `user_id` and no `action`/`customer_*` columns). Retry with a minimal,
-    // UUID-identified payload so the audit trail still lands.
-    const isSchemaMismatch =
-      error.code === 'PGRST204' ||
-      error.code === '22P02' ||
-      error.code === '23502' ||
-      error.message?.includes('schema cache');
-    if (isSchemaMismatch) {
-      const retryPayload: any = { reason: log.note || log.action || 'stamp_event' };
-      if (log.staffId) retryPayload.staff_id = log.staffId;
-      const uid = (log as any).user_id || log.customerId;
-      if (uid && uuid.test(uid)) {
-        retryPayload.user_id = uid;
-      }
-      const retry = await supabase.from('stamp_logs').insert(retryPayload);
-      if (!retry.error) {
-        console.log(`[SUPABASE NET SUCCESS] INSERT stamp_logs (legacy schema) succeeded for id=${log.id}`);
-        return true;
-      }
-      if (!stampLogSchemaWarned) {
-        stampLogSchemaWarned = true;
-        console.error(
-          '[SUPABASE NET ERROR] INSERT stamp_logs failed on both schemas:',
-          retry.error.message,
-          '— run the schema sync SQL (Service Status → Copy SQL setup).'
-        );
-      }
+    lastError = error;
+    if (!isSchemaMismatch(error)) {
+      console.error('[SUPABASE NET ERROR] INSERT stamp_logs failed:', error.message);
       return false;
     }
+  }
 
-    console.error('[SUPABASE NET ERROR] INSERT stamp_logs failed:', error.message);
-  } catch (err) {
-    console.error('[SUPABASE NET EXCEPTION] insertStampLogToDb:', err);
+  if (!stampLogSchemaWarned) {
+    stampLogSchemaWarned = true;
+    console.error(
+      '[SUPABASE NET ERROR] INSERT stamp_logs failed on all schemas:',
+      lastError?.message,
+      '— the loyalty tables are not reachable with the anon key. Open Service Status → “Copy SQL setup”, run it in the Supabase SQL Editor, then reload.'
+    );
   }
   return false;
 }

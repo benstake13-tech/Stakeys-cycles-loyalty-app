@@ -88,10 +88,21 @@ describe('insertStampLogToDb', () => {
   });
 
   it('does not retry for a non-schema error', async () => {
-    hoisted.insertResults = [{ error: { code: '42501', message: 'permission denied' } }];
+    hoisted.insertResults = [{ error: { code: '23514', message: 'check constraint violated' } }];
     const ok = await insertStampLogToDb(log as any);
     expect(ok).toBe(false);
     expect(hoisted.inserts).toHaveLength(1);
+  });
+
+  it('retries when the anon role has no table privileges yet (42501)', async () => {
+    hoisted.insertResults = [
+      { error: { code: '42501', message: 'permission denied for table stamp_logs' } },
+      { error: null },
+    ];
+    const ok = await insertStampLogToDb(log as any);
+    expect(ok).toBe(true);
+    expect(hoisted.inserts).toHaveLength(2);
+    expect(hoisted.inserts[1].payload.reason).toBe(log.note);
   });
 });
 

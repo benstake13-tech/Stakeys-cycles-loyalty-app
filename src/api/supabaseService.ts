@@ -320,35 +320,22 @@ GRANT SELECT, INSERT, UPDATE ON public.service_vouchers TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.discount_codes TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.counter_sales TO anon, authenticated;
 
--- 6. Enable Row Level Security (RLS)
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.customer_bikes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.service_bookings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.stamp_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.prize_wheels ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.prize_draws ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.service_vouchers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.discount_codes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.counter_sales ENABLE ROW LEVEL SECURITY;
-
--- 7. Public Read & Write Policies for Shop Staff & Registered Customers
-CREATE POLICY "Allow public read on profiles" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Allow public insert on profiles" ON public.profiles FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update on profiles" ON public.profiles FOR UPDATE USING (true);
-
-CREATE POLICY "Allow read on bikes" ON public.customer_bikes FOR SELECT USING (true);
-CREATE POLICY "Allow insert on bikes" ON public.customer_bikes FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update on bikes" ON public.customer_bikes FOR UPDATE USING (true);
-CREATE POLICY "Allow delete on bikes" ON public.customer_bikes FOR DELETE USING (true);
-
-CREATE POLICY "Allow read on bookings" ON public.service_bookings FOR SELECT USING (true);
-CREATE POLICY "Allow insert on bookings" ON public.service_bookings FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow update on bookings" ON public.service_bookings FOR UPDATE USING (true);
-
-CREATE POLICY "Allow all on stamp_logs" ON public.stamp_logs FOR ALL USING (true);
-CREATE POLICY "Allow all on prize_wheels" ON public.prize_wheels FOR ALL USING (true);
-CREATE POLICY "Allow all on prize_draws" ON public.prize_draws FOR ALL USING (true);
-CREATE POLICY "Allow all on service_vouchers" ON public.service_vouchers FOR ALL USING (true);
-CREATE POLICY "Allow all on discount_codes" ON public.discount_codes FOR ALL USING (true);
-CREATE POLICY "Allow all on counter_sales" ON public.counter_sales FOR ALL USING (true);
+-- 6. Enable Row Level Security (RLS) and (re)create permissive policies.
+--    Guarded so the script can be re-run safely after a partial attempt.
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+DO $$
+DECLARE
+  t text;
+  tbls text[] := ARRAY[
+    'profiles', 'customer_bikes', 'service_bookings', 'stamp_logs',
+    'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tbls LOOP
+    IF to_regclass('public.' || t) IS NULL THEN CONTINUE; END IF;
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Allow all on ' || t, t);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL USING (true) WITH CHECK (true)', 'Allow all on ' || t, t);
+  END LOOP;
+END $$;
 `;
