@@ -28,6 +28,7 @@ import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '.
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import { dispatchTestEmail } from '../utils/notificationService';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
@@ -90,6 +91,7 @@ export const StaffBookingsTab: React.FC = () => {
   const [emailAlerts, setEmailAlerts] = useState(ownerConfig.emailAlertsEnabled);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [testAlertSent, setTestAlertSent] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   // Filter Bookings
   const filteredBookings = bookings.filter((b) => {
@@ -208,9 +210,15 @@ export const StaffBookingsTab: React.FC = () => {
     setIsEditingSettings(false);
   };
 
-  const handleSendTestAlert = () => {
+  const handleSendTestAlert = async () => {
+    setIsSendingTest(true);
+    const result = await dispatchTestEmail(ownerConfig);
+    setIsSendingTest(false);
     setTestAlertSent(true);
-    setTimeout(() => setTestAlertSent(false), 3500);
+    setTimeout(() => setTestAlertSent(false), 4000);
+    if (!result.success && result.message) {
+      alert(result.message);
+    }
   };
 
   const getStatusBadge = (status: BookingStatus) => {
@@ -293,10 +301,11 @@ export const StaffBookingsTab: React.FC = () => {
 
             <button
               onClick={handleSendTestAlert}
-              className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
+              disabled={isSendingTest}
+              className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait text-neutral-950 text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
             >
               <Send className="w-4 h-4" />
-              <span>Send Test Email</span>
+              <span>{isSendingTest ? 'Sending…' : 'Send Test Email'}</span>
             </button>
           </div>
         </div>

@@ -390,6 +390,91 @@ INSERT INTO public.app_theme_config (id, theme)
 SELECT 1, 'none'
 WHERE NOT EXISTS (SELECT 1 FROM public.app_theme_config WHERE id = 1);
 
+-- 2k. staff_members — the workshop roster (staff-editable). Rows the app writes
+--     survive reloads instead of living only in component state.
+CREATE TABLE IF NOT EXISTS public.staff_members (
+  id TEXT PRIMARY KEY,
+  name TEXT,
+  email TEXT,
+  phone TEXT,
+  role TEXT DEFAULT 'Cytech Mechanic',
+  status TEXT DEFAULT 'Active',
+  joined_date TEXT,
+  cytech_level TEXT,
+  avatar_color TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Cytech Mechanic';
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Active';
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS joined_date TEXT;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS cytech_level TEXT;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS avatar_color TEXT;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- 2l. promotions — shop promotions managed by staff.
+CREATE TABLE IF NOT EXISTS public.promotions (
+  id TEXT PRIMARY KEY,
+  title TEXT,
+  subtitle TEXT,
+  code TEXT,
+  discount_percentage NUMERIC,
+  discount_amount NUMERIC,
+  badge_text TEXT,
+  status TEXT DEFAULT 'active',
+  start_date TEXT,
+  end_date TEXT,
+  terms_and_conditions JSONB DEFAULT '[]'::jsonb,
+  eligible_categories JSONB DEFAULT '[]'::jsonb,
+  bg_gradient TEXT,
+  featured BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS subtitle TEXT;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS code TEXT;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS discount_percentage NUMERIC;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS discount_amount NUMERIC;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS badge_text TEXT;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS start_date TEXT;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS end_date TEXT;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS terms_and_conditions JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS eligible_categories JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS bg_gradient TEXT;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- 2m. app_settings — one shared row (id = 1) holding workshop-wide settings
+--     such as notification recipients and automated reminder state.
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  owner_email TEXT,
+  owner_phone TEXT,
+  email_alerts_enabled BOOLEAN DEFAULT FALSE,
+  sms_alerts_enabled BOOLEAN DEFAULT FALSE,
+  business_name TEXT,
+  automated_reminders_enabled BOOLEAN DEFAULT TRUE,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS owner_email TEXT;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS owner_phone TEXT;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS email_alerts_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS sms_alerts_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS business_name TEXT;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS automated_reminders_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+INSERT INTO public.app_settings (id)
+SELECT 1
+WHERE NOT EXISTS (SELECT 1 FROM public.app_settings WHERE id = 1);
+
 -- ============================================================================
 -- 3. GRANTS — without these every read/write fails with 42501.
 --    Guarded so a missing optional table can never abort the script.
@@ -400,7 +485,7 @@ DECLARE
   tbls text[] := ARRAY[
     'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
     'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
-    'app_theme_config'
+    'app_theme_config', 'staff_members', 'promotions', 'app_settings'
   ];
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')
@@ -419,7 +504,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
       EXECUTE format('GRANT SELECT, INSERT, UPDATE ON public.%I TO authenticated', t);
     END IF;
-    IF t = 'discount_codes' AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    IF t IN ('discount_codes', 'staff_members', 'promotions') AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE format('GRANT DELETE ON public.%I TO anon, authenticated', t);
     END IF;
   END LOOP;
@@ -435,7 +520,7 @@ DECLARE
   tbls text[] := ARRAY[
     'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
     'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
-    'app_theme_config'
+    'app_theme_config', 'staff_members', 'promotions', 'app_settings'
   ];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
@@ -542,7 +627,7 @@ WHERE NOT EXISTS (SELECT 1 FROM public.prize_wheels);
 DO $$
 DECLARE
   t text;
-  tbls text[] := ARRAY['profiles', 'stamp_logs', 'prize_wheels', 'prize_draws', 'app_theme_config'];
+  tbls text[] := ARRAY['profiles', 'stamp_logs', 'prize_wheels', 'prize_draws', 'app_theme_config', 'staff_members', 'promotions', 'app_settings'];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
     BEGIN

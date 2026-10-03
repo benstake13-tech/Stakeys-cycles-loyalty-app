@@ -17,6 +17,8 @@ import {
   SaleTransaction,
   RepairStageId,
   RepairProgressEvent,
+  StaffMember,
+  ShopPromotion,
 } from '../types/bikeShop';
 
 export interface DatabaseSyncStatus {
@@ -748,6 +750,30 @@ export function subscribeToDatabaseChanges(onChanged: (table: string) => void): 
           onChanged('counter_sales');
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'staff_members' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on staff_members');
+          onChanged('staff_members');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'promotions' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on promotions');
+          onChanged('promotions');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_settings' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on app_settings');
+          onChanged('app_settings');
+        }
+      )
       .subscribe((status) => {
         console.log(`[SUPABASE REALTIME STATUS] Subscription status: ${status}`);
       });
@@ -759,6 +785,237 @@ export function subscribeToDatabaseChanges(onChanged: (table: string) => void): 
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] subscribeToDatabaseChanges:', err);
     return () => {};
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * 8. STAFF ROSTER, PROMOTIONS & APP SETTINGS (staff-editable)
+ * ------------------------------------------------------------------ */
+
+export async function fetchStaffMembersFromDb(): Promise<StaffMember[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('staff_members')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] fetch staff_members failed:', error.message);
+      return [];
+    }
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      name: row.name || '',
+      email: row.email || '',
+      phone: row.phone || '',
+      role: (row.role || 'Cytech Mechanic') as StaffMember['role'],
+      status: (row.status || 'Active') as StaffMember['status'],
+      joinedDate: row.joined_date || '',
+      cytechLevel: row.cytech_level || undefined,
+      avatarColor: row.avatar_color || undefined,
+      notes: row.notes || undefined,
+    }));
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchStaffMembersFromDb:', err);
+    return [];
+  }
+}
+
+export async function upsertStaffMemberToDb(staff: StaffMember): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: staff.id,
+      name: staff.name,
+      email: staff.email,
+      phone: staff.phone,
+      role: staff.role,
+      status: staff.status,
+      joined_date: staff.joinedDate || null,
+      cytech_level: staff.cytechLevel || null,
+      avatar_color: staff.avatarColor || null,
+      notes: staff.notes || null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('staff_members').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] upsert staff_members failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertStaffMemberToDb:', err);
+    return false;
+  }
+}
+
+export async function deleteStaffMemberFromDb(id: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('staff_members').delete().eq('id', id);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] delete staff_members failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteStaffMemberFromDb:', err);
+    return false;
+  }
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((v) => typeof v === 'string');
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export async function fetchPromotionsFromDb(): Promise<ShopPromotion[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('promotions')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] fetch promotions failed:', error.message);
+      return [];
+    }
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      title: row.title || '',
+      subtitle: row.subtitle || '',
+      code: row.code || '',
+      discountPercentage: row.discount_percentage != null ? Number(row.discount_percentage) : undefined,
+      discountAmount: row.discount_amount != null ? Number(row.discount_amount) : undefined,
+      badgeText: row.badge_text || '',
+      status: (row.status || 'active') as ShopPromotion['status'],
+      startDate: row.start_date || '',
+      endDate: row.end_date || '',
+      termsAndConditions: normalizeStringArray(row.terms_and_conditions),
+      eligibleCategories: normalizeStringArray(row.eligible_categories) as ShopPromotion['eligibleCategories'],
+      bgGradient: row.bg_gradient || '',
+      featured: row.featured === true,
+    }));
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchPromotionsFromDb:', err);
+    return [];
+  }
+}
+
+export async function upsertPromotionToDb(promo: ShopPromotion): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: promo.id,
+      title: promo.title,
+      subtitle: promo.subtitle || null,
+      code: promo.code || null,
+      discount_percentage: promo.discountPercentage != null ? promo.discountPercentage : null,
+      discount_amount: promo.discountAmount != null ? promo.discountAmount : null,
+      badge_text: promo.badgeText || null,
+      status: promo.status,
+      start_date: promo.startDate || null,
+      end_date: promo.endDate || null,
+      terms_and_conditions: promo.termsAndConditions || [],
+      eligible_categories: promo.eligibleCategories || [],
+      bg_gradient: promo.bgGradient || null,
+      featured: promo.featured === true,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('promotions').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] upsert promotions failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertPromotionToDb:', err);
+    return false;
+  }
+}
+
+export async function deletePromotionFromDb(id: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('promotions').delete().eq('id', id);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] delete promotions failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deletePromotionFromDb:', err);
+    return false;
+  }
+}
+
+export interface AppSettings {
+  ownerEmail: string;
+  ownerPhone: string;
+  emailAlertsEnabled: boolean;
+  smsAlertsEnabled: boolean;
+  businessName: string;
+  automatedRemindersEnabled: boolean;
+}
+
+export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | null> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('*')
+      .eq('id', 1)
+      .maybeSingle();
+    if (error) {
+      console.error('[SUPABASE NET ERROR] fetch app_settings failed:', error.message);
+      return null;
+    }
+    if (!data) return null;
+    const row = data as any;
+    return {
+      ownerEmail: row.owner_email || '',
+      ownerPhone: row.owner_phone || '',
+      emailAlertsEnabled: row.email_alerts_enabled === true,
+      smsAlertsEnabled: row.sms_alerts_enabled === true,
+      businessName: row.business_name || undefined,
+      automatedRemindersEnabled:
+        row.automated_reminders_enabled == null ? undefined : row.automated_reminders_enabled === true,
+    };
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchAppSettingsFromDb:', err);
+    return null;
+  }
+}
+
+export async function upsertAppSettingsToDb(settings: Partial<AppSettings>): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload: Record<string, unknown> = { id: 1, updated_at: new Date().toISOString() };
+    if (settings.ownerEmail !== undefined) payload.owner_email = settings.ownerEmail;
+    if (settings.ownerPhone !== undefined) payload.owner_phone = settings.ownerPhone;
+    if (settings.emailAlertsEnabled !== undefined) payload.email_alerts_enabled = settings.emailAlertsEnabled;
+    if (settings.smsAlertsEnabled !== undefined) payload.sms_alerts_enabled = settings.smsAlertsEnabled;
+    if (settings.businessName !== undefined) payload.business_name = settings.businessName;
+    if (settings.automatedRemindersEnabled !== undefined) {
+      payload.automated_reminders_enabled = settings.automatedRemindersEnabled;
+    }
+    const { error } = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] upsert app_settings failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertAppSettingsToDb:', err);
+    return false;
   }
 }
 

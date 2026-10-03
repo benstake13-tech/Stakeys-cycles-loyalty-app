@@ -533,6 +533,39 @@ export async function dispatchBookingNotifications(
 }
 
 /**
+ * Sends a one-off test email to the configured workshop recipient so staff can
+ * verify the live email gateway is wired up, without creating a booking.
+ */
+export async function dispatchTestEmail(
+  config: OwnerNotificationConfig
+): Promise<{ success: boolean; message?: string }> {
+  if (!config.ownerEmail) {
+    return { success: false, message: 'Set a notification recipient email first.' };
+  }
+  try {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.functions.invoke('send-email', {
+      body: {
+        from: 'noreply@stakeyscyles.co.uk',
+        to: config.ownerEmail,
+        subject: "⚡ [STAKEY'S WORKSHOP] Test Notification",
+        html: `<div style="font-family:sans-serif;padding:24px;background:#0c0d0e;color:#fff">
+          <h2 style="color:#05C147">Stakey's Cycles — Test Alert</h2>
+          <p>This is a test email confirming your workshop notification recipient is correctly configured.</p>
+          <p style="color:#a1a1aa">Recipient: <strong>${config.ownerEmail}</strong></p>
+          <p style="color:#a1a1aa">Sent: ${new Date().toLocaleString()}</p>
+        </div>`,
+      },
+    });
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[EMAIL ENGINE] Test email dispatch failed:', err?.message || err);
+    return { success: false, message: err?.message || 'Email gateway unavailable.' };
+  }
+}
+
+/**
  * Dispatches 24-Hour Automated Reminder Email exclusively to both Customer & Stakey's Workshop
  */
 export async function dispatch24hReminderNotification(

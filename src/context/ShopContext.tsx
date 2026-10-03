@@ -75,6 +75,14 @@ import {
   fetchCounterSalesFromDb,
   insertCounterSaleToDb,
   updateCounterSaleInDb,
+  fetchStaffMembersFromDb,
+  upsertStaffMemberToDb,
+  deleteStaffMemberFromDb,
+  fetchPromotionsFromDb,
+  upsertPromotionToDb,
+  deletePromotionFromDb,
+  fetchAppSettingsFromDb,
+  upsertAppSettingsToDb,
 } from '../api/backendDataService';
 
 interface ShopContextType {
@@ -429,26 +437,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: `staff-${Date.now().toString().slice(-4)}`,
     };
     setStaffMembers((prev) => [newMember, ...prev]);
+    try {
+      await upsertStaffMemberToDb(newMember);
+    } catch (e) {
+      console.warn('[DB SYNC] addStaffMember persist failed:', e);
+    }
     return newMember;
   };
 
   const updateStaffMember = async (id: string, updates: Partial<StaffMember>): Promise<StaffMember> => {
-    let updatedMember: StaffMember | null = null;
-    setStaffMembers((prev) =>
-      prev.map((m) => {
-        if (m.id === id) {
-          updatedMember = { ...m, ...updates };
-          return updatedMember;
-        }
-        return m;
-      })
-    );
-    if (!updatedMember) throw new Error('Staff member not found');
+    const target = staffMembers.find((m) => m.id === id);
+    if (!target) throw new Error('Staff member not found');
+    const updatedMember: StaffMember = { ...target, ...updates };
+    setStaffMembers((prev) => prev.map((m) => (m.id === id ? updatedMember : m)));
+    try {
+      await upsertStaffMemberToDb(updatedMember);
+    } catch (e) {
+      console.warn('[DB SYNC] updateStaffMember persist failed:', e);
+    }
     return updatedMember;
   };
 
   const deleteStaffMember = async (id: string): Promise<boolean> => {
     setStaffMembers((prev) => prev.filter((m) => m.id !== id));
+    try {
+      await deleteStaffMemberFromDb(id);
+    } catch (e) {
+      console.warn('[DB SYNC] deleteStaffMember persist failed:', e);
+    }
     return true;
   };
 
@@ -473,26 +489,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: `promo-${Date.now().toString().slice(-4)}`,
     };
     setPromotions((prev) => [newPromo, ...prev]);
+    try {
+      await upsertPromotionToDb(newPromo);
+    } catch (e) {
+      console.warn('[DB SYNC] addPromotion persist failed:', e);
+    }
     return newPromo;
   };
 
   const updatePromotion = async (id: string, updates: Partial<ShopPromotion>): Promise<ShopPromotion> => {
-    let updatedPromo: ShopPromotion | null = null;
-    setPromotions((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          updatedPromo = { ...p, ...updates };
-          return updatedPromo;
-        }
-        return p;
-      })
-    );
-    if (!updatedPromo) throw new Error('Promotion not found');
+    const target = promotions.find((p) => p.id === id);
+    if (!target) throw new Error('Promotion not found');
+    const updatedPromo: ShopPromotion = { ...target, ...updates };
+    setPromotions((prev) => prev.map((p) => (p.id === id ? updatedPromo : p)));
+    try {
+      await upsertPromotionToDb(updatedPromo);
+    } catch (e) {
+      console.warn('[DB SYNC] updatePromotion persist failed:', e);
+    }
     return updatedPromo;
   };
 
   const deletePromotion = async (id: string): Promise<boolean> => {
     setPromotions((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await deletePromotionFromDb(id);
+    } catch (e) {
+      console.warn('[DB SYNC] deletePromotion persist failed:', e);
+    }
     return true;
   };
 
@@ -1095,12 +1119,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshDatabaseState = async () => {
-    const [allProfiles, remoteWheels, remoteDraws, remoteCodes, remoteSales] = await Promise.all([
+    const [allProfiles, remoteWheels, remoteDraws, remoteCodes, remoteSales, remoteStaff, remotePromos, remoteSettings] = await Promise.all([
       fetchAllProfilesFromDb(),
       fetchPrizeWheelsFromDb(),
       fetchPrizeDrawsFromDb(),
       fetchDiscountCodesFromDb(),
       fetchCounterSalesFromDb(),
+      fetchStaffMembersFromDb(),
+      fetchPromotionsFromDb(),
+      fetchAppSettingsFromDb(),
     ]);
     if (allProfiles && allProfiles.length > 0) {
       setUsers(allProfiles);
@@ -1122,6 +1149,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     if (remoteSales && remoteSales.length > 0) {
       setSales(remoteSales);
+    }
+    if (remoteStaff && remoteStaff.length > 0) {
+      setStaffMembers(remoteStaff);
+    }
+    if (remotePromos && remotePromos.length > 0) {
+      setPromotions(remotePromos);
+    }
+    if (remoteSettings) {
+      setOwnerConfig((prev) => ({
+        ...prev,
+        ownerEmail: remoteSettings.ownerEmail ?? prev.ownerEmail,
+        ownerPhone: remoteSettings.ownerPhone ?? prev.ownerPhone,
+        emailAlertsEnabled: remoteSettings.emailAlertsEnabled ?? prev.emailAlertsEnabled,
+        smsAlertsEnabled: remoteSettings.smsAlertsEnabled ?? prev.smsAlertsEnabled,
+        businessName: remoteSettings.businessName ?? prev.businessName,
+      }));
     }
 
     if (currentUser) {
@@ -1165,6 +1208,32 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     fetchCounterSalesFromDb().then((remoteSales) => {
       if (remoteSales && remoteSales.length > 0) setSales(remoteSales);
+    }).catch(() => {});
+
+    // Staff roster, promotions and workshop settings are Supabase-backed so
+    // staff edits survive a reload.
+    fetchStaffMembersFromDb().then((members) => {
+      if (members && members.length > 0) setStaffMembers(members);
+    }).catch(() => {});
+
+    fetchPromotionsFromDb().then((remotePromos) => {
+      if (remotePromos && remotePromos.length > 0) setPromotions(remotePromos);
+    }).catch(() => {});
+
+    fetchAppSettingsFromDb().then((settings) => {
+      if (settings) {
+        setOwnerConfig((prev) => ({
+          ...prev,
+          ownerEmail: settings.ownerEmail ?? prev.ownerEmail,
+          ownerPhone: settings.ownerPhone ?? prev.ownerPhone,
+          emailAlertsEnabled: settings.emailAlertsEnabled ?? prev.emailAlertsEnabled,
+          smsAlertsEnabled: settings.smsAlertsEnabled ?? prev.smsAlertsEnabled,
+          businessName: settings.businessName ?? prev.businessName,
+        }));
+        if (typeof settings.automatedRemindersEnabled === 'boolean') {
+          setAutomatedRemindersEnabled(settings.automatedRemindersEnabled);
+        }
+      }
     }).catch(() => {});
 
     fetchServiceBookingsFromDb(undefined, true).then((b) => {
@@ -1241,6 +1310,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.warn('Storage failed', e);
     }
+    upsertAppSettingsToDb({ automatedRemindersEnabled }).catch(() => {});
   }, [automatedRemindersEnabled]);
 
   // Loyalty data (profiles/stamps, wheel + draws, logs, bookings, config) is
@@ -2807,7 +2877,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateOwnerConfig = (config: Partial<OwnerNotificationConfig>) => {
-    setOwnerConfig((prev) => ({ ...prev, ...config }));
+    setOwnerConfig((prev) => {
+      const next = { ...prev, ...config };
+      upsertAppSettingsToDb({
+        ownerEmail: next.ownerEmail,
+        ownerPhone: next.ownerPhone,
+        emailAlertsEnabled: next.emailAlertsEnabled,
+        smsAlertsEnabled: next.smsAlertsEnabled === true,
+        businessName: next.businessName,
+      }).catch((e) => console.warn('[DB SYNC] updateOwnerConfig persist failed:', e));
+      return next;
+    });
   };
 
   const resetAllDemoData = () => {
