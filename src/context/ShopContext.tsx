@@ -310,12 +310,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 2. Staff Roster State & CRUD
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_staff_roster`, JSON.stringify(staffMembers));
-    } catch {}
-  }, [staffMembers]);
-
   const addStaffMember = async (staffData: Omit<StaffMember, 'id'>): Promise<StaffMember> => {
     const newMember: StaffMember = {
       ...staffData,
@@ -347,12 +341,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 3. Promotions State & Expiry Monitor
   const [promotions, setPromotions] = useState<ShopPromotion[]>([]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_promotions`, JSON.stringify(promotions));
-    } catch {}
-  }, [promotions]);
 
   // Automatic background expiration monitor every 60s
   useEffect(() => {
@@ -925,54 +913,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [automatedRemindersEnabled]);
 
-  // Local storage persistence
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_users`, JSON.stringify(users));
-    } catch (e) {
-      console.warn('Storage failed', e);
-    }
-  }, [users]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_wheels`, JSON.stringify(prizeWheels));
-    } catch (e) {
-      console.warn('Storage failed', e);
-    }
-  }, [prizeWheels]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_draws`, JSON.stringify(draws));
-    } catch (e) {
-      console.warn('Storage failed', e);
-    }
-  }, [draws]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_logs`, JSON.stringify(stampLogs));
-    } catch (e) {
-      console.warn('Storage failed', e);
-    }
-  }, [stampLogs]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_bookings`, JSON.stringify(bookings));
-    } catch (e) {
-      console.warn('Storage failed for bookings', e);
-    }
-  }, [bookings]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_owner_config`, JSON.stringify(ownerConfig));
-    } catch (e) {
-      console.warn('Storage failed for owner config', e);
-    }
-  }, [ownerConfig]);
+  // Loyalty data (profiles/stamps, wheel + draws, logs, bookings, config) is
+  // Supabase-backed only — intentionally not cached in localStorage, so the app
+  // never shows stale local data that the database would overwrite anyway.
 
   // Do not persist active user to localStorage so every app load fresh-starts at the login screen
   useEffect(() => {
@@ -1525,11 +1468,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     setLatestAnnouncement(announcement);
-    try {
-      localStorage.setItem(`${STORAGE_KEY}_latest_announcement`, JSON.stringify(announcement));
-    } catch (e) {
-      console.warn('Failed to store announcement', e);
-    }
 
     // Public announcement stamp log
     const drawLog: StampLog = {
