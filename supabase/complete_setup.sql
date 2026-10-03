@@ -627,7 +627,11 @@ WHERE NOT EXISTS (SELECT 1 FROM public.prize_wheels);
 DO $$
 DECLARE
   t text;
-  tbls text[] := ARRAY['profiles', 'stamp_logs', 'prize_wheels', 'prize_draws', 'app_theme_config', 'staff_members', 'promotions', 'app_settings'];
+  tbls text[] := ARRAY[
+    'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
+    'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
+    'app_theme_config', 'staff_members', 'promotions', 'app_settings'
+  ];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
     BEGIN
