@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Info,
   FileText,
+  Activity,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
@@ -24,6 +25,7 @@ import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
+import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
@@ -47,7 +49,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     saveBikeScrapedSpecs,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps'>('garage');
+  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps'>('garage');
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
@@ -77,10 +79,11 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps'>[] = [
+  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps'>[] = [
     { id: 'garage', label: `My Garage (${customerBikes.length})`, icon: Bike, tone: 'emerald', hint: 'Your registered bikes' },
     { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
     { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
+    { id: 'repairs', label: `Repairs (${customerBookings.length})`, icon: Activity, tone: 'emerald', hint: 'Live repair progress tracker' },
     { id: 'bookings', label: `Bookings (${customerBookings.length})`, icon: Calendar, tone: 'emerald', hint: 'Your service bookings' },
     { id: 'stamps', label: `Loyalty Pass ${currentUser.stamps || 0}/10`, icon: Award, tone: 'emerald', hint: 'Your stamp card' },
   ];
@@ -536,6 +539,18 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB: LIVE REPAIR PROGRESS TRACKER */}
+      {activeTab === 'repairs' && (
+        <CustomerRepairTracker
+          initialBookingId={
+            customerBookings.find(
+              (b) => b.status !== 'completed' && b.status !== 'cancelled' && b.status !== 'declined'
+            )?.id
+          }
+          onGoToBooking={() => setActiveTab('booking')}
+        />
       )}
 
       {/* TAB: WEEKLY PRIZE WHEEL */}

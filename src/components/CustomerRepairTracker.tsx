@@ -19,30 +19,30 @@ import {
   Activity,
   RefreshCw,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus } from '../types/bikeShop';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
+import {
+  REPAIR_STAGES,
+  deriveRepairStage,
+  matchesRepairQuery,
+  repairProgressPercent,
+  repairStageIndex,
+} from '../utils/repairProgress';
 
 interface CustomerRepairTrackerProps {
   initialBookingId?: string;
   onGoToBooking?: () => void;
 }
 
-interface StageDefinition {
-  key: string;
-  title: string;
-  subtitle: string;
-  icon: React.ReactNode;
-  estimatedTime: string;
-}
-
 export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
   initialBookingId,
   onGoToBooking,
 }) => {
-  const { bookings, currentUser, updateBookingStatus } = useShop();
+  const { bookings, currentUser } = useShop();
 
   const [searchQuery, setSearchQuery] = useState(initialBookingId || '');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(
@@ -64,96 +64,48 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
   // Current active or selected booking
   const activeBooking = useMemo(() => {
     if (selectedBookingId) {
-      const found = bookings.find(
-        (b) =>
-          b.id.toLowerCase() === selectedBookingId.toLowerCase() ||
-          b.id.toLowerCase().replace(/[^0-9]/g, '') === selectedBookingId.replace(/[^0-9]/g, '')
-      );
+      const found = bookings.find((b) => matchesRepairQuery(b, selectedBookingId));
       if (found) return found;
     }
 
     if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      const found = bookings.find(
-        (b) =>
-          b.id.toLowerCase() === q ||
-          b.id.toLowerCase().replace(/[^0-9]/g, '') === q ||
-          b.customerEmail.toLowerCase().includes(q) ||
-          b.customerPhone.replace(/[^0-9]/g, '').includes(q.replace(/[^0-9]/g, '')) ||
-          (b.membershipNumber && b.membershipNumber.toLowerCase() === q)
-      );
+      const found = bookings.find((b) => matchesRepairQuery(b, searchQuery));
       if (found) return found;
     }
 
-    // Default to latest user booking or most recent workshop booking
+    // Default to the logged-in customer's latest repair only. Never fall back to
+    // a global booking, so a guest without a matching lookup sees nothing.
     if (userBookings.length > 0) {
       return userBookings[0];
     }
 
-    return bookings[0] || null;
+    return null;
   }, [selectedBookingId, searchQuery, bookings, userBookings]);
 
-  // 5-Stage Workshop Bench Lifecycle
-  const STAGES: StageDefinition[] = [
-    {
-      key: 'booked',
-      title: 'Booking Confirmed & Scheduled',
-      subtitle: 'Workshop slot allocated at 14 High Street atelier bench',
-      icon: <Calendar className="w-4 h-4" />,
-      estimatedTime: 'Drop-off Window',
-    },
-    {
-      key: 'diagnostics',
-      title: 'Intake Diagnostics & Cytech M-Check',
-      subtitle: 'Full frame inspection, symptom verification & component assessment',
-      icon: <Activity className="w-4 h-4" />,
-      estimatedTime: 'Approx. 20-30 mins',
-    },
-    {
-      key: 'bench',
-      title: 'Active On Workshop Bench',
-      subtitle: 'Components disassembled, parts fitted, wheels trued, cables tensioned',
-      icon: <Wrench className="w-4 h-4" />,
-      estimatedTime: 'Approx. 45-90 mins',
-    },
-    {
-      key: 'testing',
-      title: 'Quality Control & Road Test',
-      subtitle: 'Braking under torque load, bolt torque specs verified (Nm), valet wipe down',
-      icon: <ShieldCheck className="w-4 h-4" />,
-      estimatedTime: 'Final Sign-Off',
-    },
-    {
-      key: 'ready',
-      title: 'Ready for Collection',
-      subtitle: 'Official itemized invoice generated. Ready at collection counter.',
-      icon: <CheckCircle2 className="w-4 h-4" />,
-      estimatedTime: 'Pickup Today',
-    },
-  ];
-
-  // Determine current stage index (0 to 4)
-  const currentStageIndex = useMemo(() => {
-    if (!activeBooking) return 0;
-    if (activeBooking.status === 'completed') return 4;
-    if (activeBooking.status === 'ready_for_pickup') return 4;
-    if (activeBooking.status === 'in_progress') return 2;
-    if (activeBooking.status === 'confirmed') return 1;
-    if (activeBooking.status === 'declined') return 0;
-    return 0; // pending
-  }, [activeBooking]);
+  // Live workshop position (staff-driven stages, fall back to coarse status).
+  const currentStage = useMemo(
+    () => (activeBooking ? deriveRepairStage(activeBooking) : 'received'),
+    [activeBooking]
+  );
+  const currentStageIndex = repairStageIndex(currentStage);
+  const progressPercent = repairProgressPercent(currentStage);
+  const isPaused = currentStage === 'awaiting_approval' || currentStage === 'parts_ordered';
 
   // Calculate ETA based on current stage
   const etaMessage = useMemo(() => {
-    if (!activeBooking || currentStageIndex >= 4) return 'Repair complete.';
-    
-    // Simple estimation logic
-    const remainingStages = STAGES.slice(currentStageIndex + 1, 4);
-    const totalMinutes = remainingStages.reduce((sum, stage) => {
-      const match = stage.estimatedTime.match(/\d+/g);
-      if (match) {
-        return sum + match.reduce((a, b) => a + parseInt(b), 0);
+    if (!activeBooking || currentStageIndex >= REPAIR_STAGES.length - 1) return 'Repair complete.';
+
+    if (activeBooking.estimateReadyAt) {
+      const d = new Date(activeBooking.estimateReadyAt);
+      if (!Number.isNaN(d.getTime())) {
+        return `Estimated ready: ${d.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}`;
       }
+    }
+
+    const remaining = REPAIR_STAGES.slice(currentStageIndex + 1);
+    const totalMinutes = remaining.reduce((sum, stage) => {
+      const match = stage.estimate.match(/[0-9]+/g);
+      if (match) return sum + match.reduce((a, b) => a + parseInt(b), 0);
       return sum;
     }, 0);
 
@@ -164,14 +116,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    const q = searchQuery.trim().toLowerCase();
-    const found = bookings.find(
-      (b) =>
-        b.id.toLowerCase() === q ||
-        b.id.toLowerCase().replace(/[^0-9]/g, '') === q ||
-        b.customerEmail.toLowerCase().includes(q) ||
-        b.customerPhone.replace(/[^0-9]/g, '').includes(q.replace(/[^0-9]/g, ''))
-    );
+    const found = bookings.find((b) => matchesRepairQuery(b, searchQuery));
     if (found) {
       setSelectedBookingId(found.id);
     }
@@ -304,10 +249,13 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
               </div>
             </div>
 
-            {/* 5-STAGE INTERACTIVE WORKSHOP BENCH TIMELINE */}
+            {/* LIVE WORKSHOP PROGRESS TIMELINE */}
             <div className="space-y-4 pt-2">
               <div className="flex items-center justify-between text-xs text-neutral-400 font-mono">
-                <span>Workshop Bench Progress: Stage {currentStageIndex + 1} of 5</span>
+                <span>
+                  Workshop Progress: Stage {currentStageIndex + 1} of {REPAIR_STAGES.length} ·{' '}
+                  <span className="text-white font-bold">{REPAIR_STAGES[currentStageIndex].title}</span>
+                </span>
                 <span className="text-emerald-400 font-bold">{etaMessage}</span>
               </div>
 
@@ -315,20 +263,19 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
               <div className="w-full h-2.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 p-0.5">
                 <div
                   className="h-full bg-gradient-to-r from-emerald-500 to-[#05C147] rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(5,193,71,0.5)]"
-                  style={{ width: `${((currentStageIndex + 1) / 5) * 100}%` }}
+                  style={{ width: `${progressPercent}%` }}
                 />
               </div>
 
               {/* Timeline Step Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-3">
-                {STAGES.map((stg, idx) => {
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3">
+                {REPAIR_STAGES.map((stg, idx) => {
                   const isDone = idx < currentStageIndex;
                   const isCurrent = idx === currentStageIndex;
-                  const isUpcoming = idx > currentStageIndex;
 
                   return (
                     <div
-                      key={stg.key}
+                      key={stg.id}
                       className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2 relative ${
                         isCurrent
                           ? 'bg-emerald-950/30 border-emerald-500/60 shadow-lg shadow-emerald-500/10'
@@ -360,12 +307,12 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                           {stg.title}
                         </div>
                         <p className="text-[10px] text-neutral-400 mt-1 leading-snug line-clamp-2">
-                          {stg.subtitle}
+                          {stg.description}
                         </p>
                       </div>
 
                       <div className="pt-1.5 border-t border-neutral-800/80 font-mono text-[9px] text-neutral-500 flex items-center justify-between">
-                        <span>{stg.estimatedTime}</span>
+                        <span>{stg.estimate}</span>
                         {isCurrent && <span className="text-emerald-400 font-bold">ACTIVE</span>}
                         {isDone && <span className="text-emerald-500">DONE</span>}
                       </div>
@@ -375,31 +322,81 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
               </div>
             </div>
 
+            {/* WORKSHOP TIMELINE — notes & updates from the bench */}
+            {activeBooking.progressEvents && activeBooking.progressEvents.length > 0 && (
+              <div className="space-y-2 pt-2">
+                <div className="font-mono text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                  Workshop Updates ({activeBooking.progressEvents.length})
+                </div>
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {activeBooking.progressEvents.slice(0, 20).map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="flex items-start gap-3 p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800 text-xs"
+                    >
+                      <div className={`p-1.5 rounded-lg bg-neutral-900 shrink-0 ${
+                        ev.kind === 'note' ? 'text-sky-400' : 'text-[#05C147]'
+                      }`}>
+                        {ev.kind === 'note' ? <MessageSquare className="w-3.5 h-3.5" /> : <Wrench className="w-3.5 h-3.5" />}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-neutral-100">{ev.label}</span>
+                          <span className="font-mono text-[9px] text-neutral-500 shrink-0">
+                            {ev.createdAt
+                              ? new Date(ev.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
+                              : ''}
+                          </span>
+                        </div>
+                        {ev.note && <p className="text-neutral-300 mt-0.5 whitespace-pre-line">{ev.note}</p>}
+                        {ev.createdBy && <span className="text-[9px] text-neutral-600">by {ev.createdBy}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Stage Callout Box */}
             <div className={`p-4 rounded-2xl border flex items-start gap-3.5 text-xs ${
-              activeBooking.status === 'ready_for_pickup' || activeBooking.status === 'completed'
+              currentStage === 'ready_for_pickup' || currentStage === 'collected'
                 ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
-                : activeBooking.status === 'in_progress'
-                ? 'bg-purple-950/30 border-purple-500/40 text-purple-200'
-                : 'bg-neutral-950 border-neutral-800 text-neutral-300'
+                : isPaused
+                ? 'bg-amber-950/30 border-amber-500/40 text-amber-200'
+                : 'bg-purple-950/30 border-purple-500/40 text-purple-200'
             }`}>
               <div className="p-2 rounded-xl bg-neutral-900/90 shrink-0 text-emerald-400 mt-0.5">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="space-y-1">
                 <div className="font-bold text-white text-sm">
-                  {activeBooking.status === 'ready_for_pickup'
+                  {currentStage === 'collected'
+                    ? '🎉 Bike Collected — Thanks for Choosing Stakey’s!'
+                    : currentStage === 'ready_for_pickup'
                     ? '🎉 Your Bike is Fully Serviced & Ready for Collection!'
-                    : activeBooking.status === 'in_progress'
+                    : currentStage === 'awaiting_approval'
+                    ? '📝 Quote Ready — We Need Your Approval'
+                    : currentStage === 'parts_ordered'
+                    ? '📦 Parts Ordered — Your Repair is Booked In'
+                    : currentStage === 'on_the_bench'
                     ? '🛠️ Your Bike is Currently on the Cytech Workshop Stand'
-                    : '📅 Service Scheduled & Drop-Off Window Confirmed'}
+                    : '📅 Your Repair is Logged In at the Workshop'}
                 </div>
                 <p className="text-neutral-300 text-xs leading-relaxed">
-                  {activeBooking.status === 'ready_for_pickup'
-                    ? `Our Cytech mechanic has completed the repair and 25-point safety sign-off. Please collect your bike at Stakey's Cycles atelier counter (14 High Street). You can view your itemized receipt below.`
-                    : activeBooking.status === 'in_progress'
+                  {currentStage === 'collected'
+                    ? `This repair is complete and your bike is back with you. A copy of your itemized invoice remains available below.`
+                    : currentStage === 'ready_for_pickup'
+                    ? `Our Cytech mechanic has completed the repair and safety sign-off. Please collect your bike at Stakey's Cycles counter (14 High Street). You can view your itemized receipt below.`
+                    : currentStage === 'awaiting_approval'
+                    ? `We've inspected your bike and sent a quote. Please review and approve it so we can begin the work.`
+                    : currentStage === 'parts_ordered'
+                    ? `We've ordered the replacement components. We'll move your bike onto the bench as soon as they arrive.`
+                    : currentStage === 'on_the_bench'
                     ? `Mechanics are currently replacing components, tensioning cables, and calibrating tolerances. Final road safety tests will follow.`
-                    : `Please bring your cycle to Stakey's Cycles at ${activeBooking.preferredDate} during your selected window (${activeBooking.preferredTimeSlot}).`}
+                    : currentStage === 'quality_check'
+                    ? `Work is done and we're carrying out the final quality control and road test before handover.`
+                    : `Your bike is booked in at Stakey's Cycles. ${activeBooking.preferredDate ? `Drop-off: ${activeBooking.preferredDate} (${activeBooking.preferredTimeSlot}).` : ''}`}
                 </p>
               </div>
             </div>

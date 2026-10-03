@@ -105,6 +105,9 @@ CREATE TABLE IF NOT EXISTS public.service_bookings (
   notes TEXT,
   status TEXT DEFAULT 'pending',
   reminder_24h_sent BOOLEAN DEFAULT FALSE,
+  repair_stage TEXT DEFAULT 'received',
+  progress_events JSONB DEFAULT '[]'::jsonb,
+  estimate_ready_at TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -287,6 +290,9 @@ ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS preferred_time_slot
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS reminder_24h_sent BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS repair_stage TEXT DEFAULT 'received';
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS progress_events JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS estimate_ready_at TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2e. prize_wheels

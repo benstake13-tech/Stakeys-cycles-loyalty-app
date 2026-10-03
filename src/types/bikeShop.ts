@@ -239,6 +239,33 @@ export type BookingStatus =
   | 'cancelled'
   | 'declined';
 
+/**
+ * Fine-grained workshop progress, richer than `BookingStatus`. Customers watch
+ * these stages advance live; staff move a booking through them from the bench.
+ */
+export type RepairStageId =
+  | 'received'
+  | 'diagnosing'
+  | 'awaiting_approval'
+  | 'parts_ordered'
+  | 'on_the_bench'
+  | 'quality_check'
+  | 'ready_for_pickup'
+  | 'collected';
+
+export type RepairEventKind = 'stage' | 'note' | 'photo';
+
+export interface RepairProgressEvent {
+  id: string;
+  kind: RepairEventKind;
+  stage?: RepairStageId;
+  label: string;
+  note?: string;
+  photoUrl?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
 export interface BookingNotificationLog {
   id: string;
   type: 'email' | 'sms';
@@ -437,6 +464,10 @@ export interface ServiceBooking {
   reminder24hSentAt?: any;
   reminder24hDeliveryStatus?: 'scheduled' | 'sent' | 'delivered';
   invoice?: RepairInvoice;
+  // Live workshop progress for the customer-facing repair tracker.
+  repairStage?: RepairStageId;
+  progressEvents?: RepairProgressEvent[];
+  estimateReadyAt?: string | null;
 }
 
 export interface OwnerNotificationConfig {

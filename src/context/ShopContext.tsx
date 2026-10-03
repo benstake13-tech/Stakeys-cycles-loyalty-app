@@ -21,8 +21,17 @@ import {
   DiscountCode,
   SaleTransaction,
   SalePaymentMethod,
+  RepairStageId,
+  RepairProgressEvent,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
+import {
+  makeRepairEvent,
+  repairStageIndex,
+  repairStageLabel,
+  stageForStatus,
+  statusForStage,
+} from '../utils/repairProgress';
 import { DEFAULT_PRIZE_WHEEL } from '../utils/prizeWheelHelper';
 import { roundMoney } from '../utils/discountService';
 import {
@@ -232,6 +241,16 @@ interface ShopContextType {
   ) => Promise<{ success: boolean; message?: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => void;
   updateBookingQuote: (bookingId: string, quote: { quotedPrice: number, quoteNote?: string }) => Promise<{ success: boolean; message?: string }>;
+  setRepairStage: (
+    bookingId: string,
+    stage: RepairStageId,
+    options?: { note?: string; estimateReadyAt?: string | null }
+  ) => Promise<{ success: boolean; message?: string }>;
+  addRepairProgressNote: (
+    bookingId: string,
+    note: string,
+    options?: { photoUrl?: string }
+  ) => Promise<{ success: boolean; message?: string }>;
   saveRepairInvoice: (
     bookingId: string,
     invoice: RepairInvoice
@@ -2225,6 +2244,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isGuest: !data.customerId,
       createdAt: now,
       notifications: [],
+      repairStage: 'received',
+      progressEvents: [
+        makeRepairEvent({
+          stage: 'received',
+          kind: 'stage',
+          label: repairStageLabel('received'),
+          note: 'Booking received — your repair is in the workshop queue.',
+          createdBy: 'Online Booking System',
+        }),
+      ],
     };
 
     // Immediately dispatch email alerts to BOTH customer and owner confirming receipt and pending approval
@@ -2558,12 +2587,112 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateBookingStatus = (bookingId: string, status: BookingStatus) => {
+    const derivedStage = stageForStatus(status);
+    const event = makeRepairEvent({
+      stage: derivedStage,
+      kind: 'stage',
+      label: repairStageLabel(derivedStage),
+      note: 'Status updated on the workshop bench',
+      createdBy: currentUser?.displayName || 'Workshop',
+    });
+    let nextProgressEvents: RepairProgressEvent[] | undefined;
+
     setBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, status } : b))
+      prev.map((b) => {
+        if (b.id !== bookingId) return b;
+        // Always keep the fixed stage + timeline in step with the coarse status.
+        const progressEvents = [event, ...(b.progressEvents || [])];
+        nextProgressEvents = progressEvents;
+        return {
+          ...b,
+          status,
+          repairStage: derivedStage,
+          progressEvents,
+        };
+      })
     );
-    updateServiceBookingInDb(bookingId, { status }).catch((e) =>
+    updateServiceBookingInDb(bookingId, {
+      status,
+      repairStage: derivedStage,
+      progressEvents: nextProgressEvents,
+    }).catch((e) =>
       console.warn('[DB SYNC] Error updating booking status in DB:', e)
     );
+  };
+
+  const setRepairStage = async (
+    bookingId: string,
+    stage: RepairStageId,
+    options?: { note?: string; estimateReadyAt?: string | null }
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    const status = statusForStage(stage);
+    const event = makeRepairEvent({
+      stage,
+      kind: 'stage',
+      label: repairStageLabel(stage),
+      note: options?.note,
+      createdBy: currentUser?.displayName || 'Workshop',
+    });
+
+    const nextStageIndex = repairStageIndex(stage);
+    const currentIndex = repairStageIndex(target.repairStage || stageForStatus(target.status));
+    // Only ever append to the timeline when moving forward, so the customer's
+    // history reads as a clean, chronological workshop log.
+    const nextProgressEvents =
+      nextStageIndex >= currentIndex
+        ? [event, ...(target.progressEvents || [])]
+        : target.progressEvents || [];
+
+    const estimateReadyAt =
+      options?.estimateReadyAt !== undefined ? options.estimateReadyAt : target.estimateReadyAt ?? null;
+
+    const updated: ServiceBooking = {
+      ...target,
+      status,
+      repairStage: stage,
+      progressEvents: nextProgressEvents,
+      estimateReadyAt,
+    };
+
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+
+    await updateServiceBookingInDb(bookingId, {
+      status,
+      repairStage: stage,
+      progressEvents: nextProgressEvents,
+      estimateReadyAt,
+    });
+
+    return { success: true, message: `Repair moved to “${repairStageLabel(stage)}”.` };
+  };
+
+  const addRepairProgressNote = async (
+    bookingId: string,
+    note: string,
+    options?: { photoUrl?: string }
+  ): Promise<{ success: boolean; message?: string }> => {
+    if (!note.trim()) return { success: false, message: 'Note cannot be empty' };
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    const event = makeRepairEvent({
+      kind: 'note',
+      label: 'Workshop update',
+      note,
+      photoUrl: options?.photoUrl,
+      createdBy: currentUser?.displayName || 'Workshop',
+    });
+    const nextProgressEvents = [event, ...(target.progressEvents || [])];
+
+    setBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, progressEvents: nextProgressEvents } : b))
+    );
+    await updateServiceBookingInDb(bookingId, { progressEvents: nextProgressEvents });
+
+    return { success: true, message: 'Progress note added.' };
   };
 
   const updateBookingQuote = async (bookingId: string, quote: { quotedPrice: number, quoteNote?: string }): Promise<{ success: boolean; message?: string }> => {
@@ -2831,6 +2960,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         approveBooking,
         declineBooking,
         updateBookingStatus,
+        setRepairStage,
+        addRepairProgressNote,
         updateBookingQuote,
         saveRepairInvoice,
         updateInvoicePaymentStatus,

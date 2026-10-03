@@ -30,6 +30,7 @@ import { StakeysLogo } from './StakeysLogo';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
+import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
 
 export const StaffBookingsTab: React.FC = () => {
   const {
@@ -37,6 +38,8 @@ export const StaffBookingsTab: React.FC = () => {
     approveBooking,
     declineBooking,
     updateBookingStatus,
+    setRepairStage,
+    addRepairProgressNote,
     updateBookingQuote,
     saveRepairInvoice,
     updateInvoicePaymentStatus,
@@ -866,6 +869,15 @@ export const StaffBookingsTab: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* LIVE CUSTOMER REPAIR PROGRESS TRACKER */}
+              {b.status !== 'declined' && b.status !== 'cancelled' && (
+                <StaffRepairProgressPanel
+                  booking={b}
+                  onSetStage={(stage, options) => setRepairStage(b.id, stage, options)}
+                  onAddNote={(note) => addRepairProgressNote(b.id, note)}
+                />
+              )}
 
               {/* Action Toolbar */}
               <div className="pt-2 border-t border-neutral-800 flex flex-wrap items-center justify-between gap-3 text-xs">

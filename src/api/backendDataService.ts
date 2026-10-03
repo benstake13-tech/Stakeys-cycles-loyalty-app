@@ -15,6 +15,8 @@ import {
   CollectedVoucher,
   DiscountCode,
   SaleTransaction,
+  RepairStageId,
+  RepairProgressEvent,
 } from '../types/bikeShop';
 
 export interface DatabaseSyncStatus {
@@ -31,6 +33,19 @@ function normalizeCategory(cat?: string): VehicleCategory {
   if (lower.includes('cargo')) return 'cargo';
   if (lower.includes('ebike') || lower.includes('electric')) return 'ebike';
   return 'cycle';
+}
+
+function normalizeProgressEvents(value: unknown): RepairProgressEvent[] {
+  if (Array.isArray(value)) return value as RepairProgressEvent[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as RepairProgressEvent[]) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 /**
@@ -243,6 +258,9 @@ export async function fetchServiceBookingsFromDb(
         createdAt: row.created_at || new Date().toISOString(),
         notifications: Array.isArray(row.notifications) ? row.notifications : [],
         reminder24hSent: Boolean(row.reminder_24h_sent),
+        repairStage: (row.repair_stage as RepairStageId) || undefined,
+        progressEvents: normalizeProgressEvents(row.progress_events),
+        estimateReadyAt: row.estimate_ready_at || null,
       }));
     }
   } catch (err) {
@@ -278,6 +296,9 @@ export async function insertServiceBookingToDb(
       notes: booking.notes || null,
       status: booking.status,
       reminder_24h_sent: Boolean(booking.reminder24hSent),
+      repair_stage: booking.repairStage || null,
+      progress_events: booking.progressEvents || [],
+      estimate_ready_at: booking.estimateReadyAt || null,
     };
 
     const { error } = await supabase.from('service_bookings').insert(payload);
@@ -311,6 +332,9 @@ export async function updateServiceBookingInDb(
     if (updates.declineReason) payload.decline_reason = updates.declineReason;
     if (updates.staffNotes) payload.staff_notes = updates.staffNotes;
     if (updates.reminder24hSent !== undefined) payload.reminder_24h_sent = updates.reminder24hSent;
+    if (updates.repairStage !== undefined) payload.repair_stage = updates.repairStage;
+    if (updates.progressEvents !== undefined) payload.progress_events = updates.progressEvents;
+    if (updates.estimateReadyAt !== undefined) payload.estimate_ready_at = updates.estimateReadyAt;
 
     const { error } = await supabase
       .from('service_bookings')
