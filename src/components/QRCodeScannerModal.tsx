@@ -38,7 +38,7 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   onCustomerScanned,
   onDiscountCodeScanned,
 }) => {
-  const { users, discountCodes } = useShop();
+  const { users, discountCodes, resolveScannedMember } = useShop();
   const [manualQuery, setManualQuery] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -69,15 +69,17 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
 
   // Resolve a decoded string into a customer and act on it.
   const processCode = useCallback(
-    (rawCode: string) => {
+    async (rawCode: string) => {
       if (handlingRef.current) return;
-      const match = resolveCustomer(rawCode, users);
+      // Server-backed member resolution so a scan always binds to the correct
+      // account, even on a till that has not cached the full roster.
+      const customer = await resolveScannedMember(rawCode);
 
-      if (match.status === 'match') {
+      if (customer) {
         handlingRef.current = true;
         wheelAudio.playScannerBeep();
         void stopScanner().finally(() => {
-          onCustomerScanned(match.customer);
+          onCustomerScanned(customer);
           onClose();
           handlingRef.current = false;
         });
@@ -97,16 +99,17 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         return;
       }
 
+      const local = resolveCustomer(rawCode, users);
       wheelAudio.playScannerError();
-      if (match.status === 'multiple') {
+      if (local.status === 'multiple') {
         setErrorMessage(
-          `"${normalizeScannedCode(rawCode)}" matches ${match.customers.length} customers — refine the code.`
+          `"${normalizeScannedCode(rawCode)}" matches ${local.customers.length} customers — refine the code.`
         );
       } else {
         setErrorMessage(`No registered customer found matching "${normalizeScannedCode(rawCode)}".`);
       }
     },
-    [users, discountCodes, onClose, onCustomerScanned, onDiscountCodeScanned, stopScanner]
+    [users, discountCodes, onClose, onCustomerScanned, onDiscountCodeScanned, stopScanner, resolveScannedMember]
   );
 
   const startScanner = useCallback(

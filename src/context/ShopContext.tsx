@@ -34,6 +34,7 @@ import {
 } from '../utils/repairProgress';
 import { DEFAULT_PRIZE_WHEEL } from '../utils/prizeWheelHelper';
 import { roundMoney } from '../utils/discountService';
+import { resolveCustomer } from '../utils/membershipCode';
 import {
   dispatchBookingNotifications,
   dispatch24hReminderNotification,
@@ -254,6 +255,7 @@ interface ShopContextType {
     stage: RepairStageId,
     options?: { note?: string; estimateReadyAt?: string | null }
   ) => Promise<{ success: boolean; message?: string }>;
+  resolveScannedMember: (rawCode: string) => Promise<UserProfile | null>;
   addRepairProgressNote: (
     bookingId: string,
     note: string,
@@ -2739,6 +2741,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: `Repair moved to “${repairStageLabel(stage)}”.` };
   };
 
+  /**
+   * Server-backed lookup for a scanned member code / QR. Staff tills may not
+   * have the full customer roster loaded locally, so this re-fetches profiles
+   * from Supabase before resolving, and backfills the local cache with any
+   * customer found remotely. Keeps every branch of the till pointing at the
+   * same account for stamps, discounts and history.
+   */
+  const resolveScannedMember = async (rawCode: string): Promise<UserProfile | null> => {
+    let pool = users;
+    const local = resolveCustomer(rawCode, pool);
+    if (local.status !== 'match' && local.status !== 'multiple') {
+      const remote = await fetchAllProfilesFromDb();
+      if (remote && remote.length > 0) {
+        pool = remote;
+        setUsers(remote);
+      }
+    }
+    const res = resolveCustomer(rawCode, pool);
+    return res.status === 'match' ? res.customer : null;
+  };
+
   const addRepairProgressNote = async (
     bookingId: string,
     note: string,
@@ -3041,6 +3064,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         declineBooking,
         updateBookingStatus,
         setRepairStage,
+        resolveScannedMember,
         addRepairProgressNote,
         updateBookingQuote,
         saveRepairInvoice,

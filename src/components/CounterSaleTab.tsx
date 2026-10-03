@@ -65,6 +65,7 @@ export const CounterSaleTab: React.FC = () => {
     declineSale,
     processSale,
     redeemServiceVoucher,
+    resolveScannedMember,
   } = useShop();
 
   const [lines, setLines] = useState<SaleLineItem[]>([]);
@@ -220,11 +221,13 @@ export const CounterSaleTab: React.FC = () => {
   };
 
   /** The heart of the feature: a scanned code is resolved and used automatically. */
-  const handleScannedCode = (raw: string) => {
+  const handleScannedCode = async (raw: string) => {
     const clean = normalizeScannedCode(raw);
-    const member = resolveCustomer(raw, users);
-    if (member.status === 'match') {
-      handleCustomer(member.customer);
+    // Prefer a server-backed member lookup so a barcode always attaches the sale
+    // to the right account even if this till hasn't cached the customer yet.
+    const member = await resolveScannedMember(raw);
+    if (member) {
+      handleCustomer(member);
       return;
     }
     const code = findDiscountCode(clean, discountCodes);
@@ -238,7 +241,7 @@ export const CounterSaleTab: React.FC = () => {
   const handleManualCode = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualCode.trim()) return;
-    handleScannedCode(manualCode.trim());
+    void handleScannedCode(manualCode.trim());
     setManualCode('');
   };
 
