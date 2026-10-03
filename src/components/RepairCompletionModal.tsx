@@ -21,6 +21,7 @@ import {
   InvoiceLineItem,
   RepairChecklistItem,
   RepairInvoice,
+  SaleDiscountState,
 } from '../types/bikeShop';
 import {
   DEFAULT_REPAIR_CHECKLIST_ITEMS,
@@ -29,6 +30,13 @@ import {
 } from '../data/repairChecklistCatalog';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { calculateInvoiceTotals } from '../utils/invoiceService';
+import {
+  validateDiscountCode,
+  findDiscountCode,
+  describeDiscountValue,
+  roundMoney,
+} from '../utils/discountService';
+import { useShop } from '../context/ShopContext';
 import toast from 'react-hot-toast';
 
 interface RepairCompletionModalProps {
@@ -95,10 +103,45 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Dynamic calculations in real-time
+  // Discount code applied at invoice time (scan or type)
+  const { discountCodes, recordDiscountUsage } = useShop();
+  const [discountInput, setDiscountInput] = useState('');
+  const [appliedDiscount, setAppliedDiscount] = useState<SaleDiscountState | null>(null);
+
+  // Dynamic calculations in real-time. Voucher credit + discount code are combined.
+  const combinedDiscount = roundMoney((voucherDiscount || 0) + (appliedDiscount?.amountOff || 0));
   const totals = useMemo(() => {
-    return calculateInvoiceTotals(lineItems, vatRate, voucherDiscount);
-  }, [lineItems, vatRate, voucherDiscount]);
+    return calculateInvoiceTotals(lineItems, vatRate, combinedDiscount);
+  }, [lineItems, vatRate, combinedDiscount]);
+
+  const applyInvoiceDiscount = (raw: string) => {
+    const code = findDiscountCode(raw, discountCodes || []);
+    if (!code) {
+      toast.error(`No discount code matches "${raw}".`);
+      return;
+    }
+    const subtotal = lineItems.reduce((s, l) => s + (l.quantity || 1) * (l.unitPrice || 0), 0);
+    const res = validateDiscountCode(code, {
+      subtotal,
+      customerUid: booking.customerId,
+      customerMembership: booking.membershipNumber,
+      categories: [booking.vehicleCategory],
+    });
+    if (!res.ok) {
+      toast.error(`${code.code}: ${res.reason}`);
+      return;
+    }
+    setAppliedDiscount({
+      code: code.code,
+      label: code.title,
+      type: code.type,
+      value: code.value,
+      amountOff: res.amountOff!,
+      discountCodeId: code.id,
+      source: 'discount_code',
+    });
+    toast.success(`Applied ${code.code} — ${describeDiscountValue(code.type, code.value)}.`);
+  };
 
   if (!isOpen) return null;
 
@@ -218,6 +261,8 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
         vatAmount: totals.vatAmount,
         voucherDiscount: totals.voucherDiscount,
         voucherCode: voucherDiscount > 0 ? 'LOYALTY-VOUCHER-£40' : undefined,
+        discountCode: appliedDiscount?.code,
+        discountLabel: appliedDiscount?.label,
         grandTotal: totals.grandTotal,
         paymentStatus,
         paymentDate: paymentStatus !== 'unpaid' ? new Date().toISOString() : undefined,
@@ -226,6 +271,9 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
       };
 
       await onSaveInvoice(completedInvoice);
+      if (appliedDiscount?.discountCodeId) {
+        await recordDiscountUsage(appliedDiscount.discountCodeId);
+      }
       toast.success(`Invoice ${invoiceNumber} generated! Total: £${totals.grandTotal.toFixed(2)}`);
       onClose();
     } catch (err: any) {
@@ -614,6 +662,46 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
                     <span className="font-mono">-£{totals.voucherDiscount.toFixed(2)}</span>
                   </div>
                 )}
+
+                {/* Discount code — scan or type a code to auto-apply */}
+                <div className="pt-2 border-t border-neutral-800 space-y-1.5">
+                  <div className="flex gap-1.5">
+                    <input
+                      value={discountInput}
+                      onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (discountInput.trim()) applyInvoiceDiscount(discountInput.trim());
+                        }
+                      }}
+                      placeholder="Discount code (scan or type)"
+                      className="flex-1 rounded-lg border border-neutral-700 bg-black px-2 py-1.5 font-mono text-[11px] text-white outline-none focus:border-[#05C147]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => discountInput.trim() && applyInvoiceDiscount(discountInput.trim())}
+                      className="rounded-lg bg-neutral-800 px-2.5 text-[11px] font-bold text-white hover:bg-neutral-700"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                  {appliedDiscount && (
+                    <div className="flex items-center justify-between text-emerald-400">
+                      <span>
+                        Code {appliedDiscount.code}
+                        <button
+                          type="button"
+                          onClick={() => setAppliedDiscount(null)}
+                          className="ml-2 text-rose-400 underline"
+                        >
+                          remove
+                        </button>
+                      </span>
+                      <span className="font-mono">-£{appliedDiscount.amountOff.toFixed(2)}</span>
+                    </div>
+                  )}
+                </div>
 
                 <div className="pt-2 border-t-2 border-neutral-800 flex justify-between items-baseline">
                   <span className="font-bold text-sm text-white uppercase tracking-wide">

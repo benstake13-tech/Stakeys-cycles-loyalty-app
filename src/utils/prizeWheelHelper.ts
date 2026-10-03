@@ -2,6 +2,92 @@ import { UserProfile, PrizeWheel, PrizeWheelSegment } from '../types/bikeShop';
 
 export const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
+/**
+ * Authoritative default wheel used to seed the database and as a fallback when
+ * no wheel has been configured in the backend yet.
+ */
+export const DEFAULT_PRIZE_WHEEL: PrizeWheel = {
+  id: 'wheel-main-01',
+  title: "Stakey's Weekly Prize Wheel",
+  active: true,
+  ticketCost: 0,
+  segments: [
+    {
+      id: 'seg-stamp-1',
+      label: '+1 Loyalty Stamp',
+      color: '#05C147',
+      probability: 0.28,
+      prizeId: 'prize-stamp-1',
+      rewardType: 'stamp',
+      stampsAmount: 1,
+    },
+    {
+      id: 'seg-gear-10',
+      label: '£10 Off Gear',
+      color: '#0284c7',
+      probability: 0.18,
+      prizeId: 'prize-gear-10',
+      rewardType: 'discount',
+      rewardValue: '£10 Off In-Store Accessories',
+    },
+    {
+      id: 'seg-stamp-2',
+      label: '+2 Stamps',
+      color: '#10b981',
+      probability: 0.16,
+      prizeId: 'prize-stamp-2',
+      rewardType: 'stamp',
+      stampsAmount: 2,
+    },
+    {
+      id: 'seg-cleaner',
+      label: 'Muc-Off Cleaner',
+      color: '#7c3aed',
+      probability: 0.12,
+      prizeId: 'prize-cleaner',
+      rewardType: 'merch',
+      rewardValue: 'Complimentary Muc-Off Bike Cleaner',
+    },
+    {
+      id: 'seg-stamp-3',
+      label: '+3 Stamps Jackpot!',
+      color: '#d97706',
+      probability: 0.08,
+      prizeId: 'prize-stamp-3',
+      rewardType: 'stamp',
+      stampsAmount: 3,
+    },
+    {
+      id: 'seg-tube',
+      label: 'Free Inner Tube',
+      color: '#0891b2',
+      probability: 0.08,
+      prizeId: 'prize-tube',
+      rewardType: 'merch',
+      rewardValue: 'Free Presta/Schrader Inner Tube at Till',
+    },
+    {
+      id: 'seg-merits-50',
+      label: '+50 Store Merits',
+      color: '#db2777',
+      probability: 0.05,
+      prizeId: 'prize-merits-50',
+      rewardType: 'merit',
+      rewardValue: '50 Bonus Loyalty Merits',
+    },
+    {
+      id: 'seg-espresso',
+      label: 'Free Workshop Coffee',
+      color: '#ea580c',
+      probability: 0.05,
+      prizeId: 'prize-coffee',
+      rewardType: 'service',
+      rewardValue: 'Free Barista Coffee while bike is serviced',
+    },
+  ],
+};
+
+
 export interface SpinEligibility {
   canSpin: boolean;
   hasEnoughTickets: boolean;

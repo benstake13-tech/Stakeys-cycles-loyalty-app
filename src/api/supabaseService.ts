@@ -182,8 +182,90 @@ CREATE TABLE IF NOT EXISTS public.prize_wheels (
   description TEXT,
   segments JSONB NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
+  ticket_cost INTEGER DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5a. Create Prize Draws Table (weekly winner draws)
+CREATE TABLE IF NOT EXISTS public.prize_draws (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  prize_description TEXT,
+  draw_date TEXT,
+  status TEXT DEFAULT 'upcoming',
+  winner_uid TEXT,
+  winner_name TEXT,
+  completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 5b. Create Service Vouchers / rewards table
+CREATE TABLE IF NOT EXISTS public.service_vouchers (
+  id TEXT PRIMARY KEY,
+  customer_id TEXT NOT NULL,
+  code TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  value NUMERIC DEFAULT 0,
+  type TEXT DEFAULT 'merch',
+  terms TEXT,
+  status TEXT DEFAULT 'available',
+  claimed_at TIMESTAMPTZ DEFAULT NOW(),
+  redeemed_at TIMESTAMPTZ
+);
+
+-- 5c. Create Discount Codes table (staff-managed till discounts)
+CREATE TABLE IF NOT EXISTS public.discount_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  type TEXT DEFAULT 'percent',
+  value NUMERIC DEFAULT 0,
+  status TEXT DEFAULT 'active',
+  expires_at TIMESTAMPTZ,
+  usage_limit INTEGER,
+  times_used INTEGER DEFAULT 0,
+  assigned_to_uid TEXT,
+  assigned_to_membership TEXT,
+  assigned_to_name TEXT,
+  eligible_categories JSONB DEFAULT '[]'::jsonb,
+  minimum_spend NUMERIC,
+  created_by TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5d. Create Counter Sales table (completed over-the-counter till sales)
+CREATE TABLE IF NOT EXISTS public.counter_sales (
+  id TEXT PRIMARY KEY,
+  sale_number TEXT,
+  customer_id TEXT,
+  membership_number TEXT,
+  customer_name TEXT,
+  items JSONB NOT NULL,
+  subtotal NUMERIC DEFAULT 0,
+  vat_rate NUMERIC DEFAULT 0,
+  vat_amount NUMERIC DEFAULT 0,
+  discount NUMERIC DEFAULT 0,
+  discount_code TEXT,
+  discount_label TEXT,
+  grand_total NUMERIC DEFAULT 0,
+  payment_method TEXT DEFAULT 'unpaid',
+  staff_uid TEXT,
+  staff_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 5e. Give existing profiles the columns newer builds expect (safe on re-run)
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spun_at TIMESTAMPTZ;
+GRANT SELECT, INSERT, UPDATE ON public.profiles TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.prize_wheels TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.prize_draws TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.service_vouchers TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.discount_codes TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.counter_sales TO anon, authenticated;
 
 -- 6. Enable Row Level Security (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -191,6 +273,10 @@ ALTER TABLE public.customer_bikes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.service_bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stamp_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prize_wheels ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.prize_draws ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.service_vouchers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.discount_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.counter_sales ENABLE ROW LEVEL SECURITY;
 
 -- 7. Public Read & Write Policies for Shop Staff & Registered Customers
 CREATE POLICY "Allow public read on profiles" ON public.profiles FOR SELECT USING (true);
@@ -208,4 +294,8 @@ CREATE POLICY "Allow update on bookings" ON public.service_bookings FOR UPDATE U
 
 CREATE POLICY "Allow all on stamp_logs" ON public.stamp_logs FOR ALL USING (true);
 CREATE POLICY "Allow all on prize_wheels" ON public.prize_wheels FOR ALL USING (true);
+CREATE POLICY "Allow all on prize_draws" ON public.prize_draws FOR ALL USING (true);
+CREATE POLICY "Allow all on service_vouchers" ON public.service_vouchers FOR ALL USING (true);
+CREATE POLICY "Allow all on discount_codes" ON public.discount_codes FOR ALL USING (true);
+CREATE POLICY "Allow all on counter_sales" ON public.counter_sales FOR ALL USING (true);
 `;

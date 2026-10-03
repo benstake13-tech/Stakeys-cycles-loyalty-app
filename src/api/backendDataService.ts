@@ -10,6 +10,11 @@ import {
   StampLog,
   VehicleCategory,
   BikeScrapeResult,
+  PrizeWheel,
+  PrizeDraw,
+  CollectedVoucher,
+  DiscountCode,
+  SaleTransaction,
 } from '../types/bikeShop';
 
 export interface DatabaseSyncStatus {
@@ -427,6 +432,7 @@ export async function updateUserProfileInDb(
     phoneNumber?: string;
     lastStampedAt?: Date | null;
     lastSpinDate?: string | null;
+    lastSpunAt?: Date | string | null;
   }
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
@@ -443,6 +449,12 @@ export async function updateUserProfileInDb(
     if (updates.displayName !== undefined) payload.display_name = updates.displayName;
     if (updates.phoneNumber !== undefined) payload.phone = updates.phoneNumber;
     if (updates.lastSpinDate !== undefined) payload.last_spin_date = updates.lastSpinDate;
+    if (updates.lastSpunAt !== undefined) {
+      payload.last_spun_at =
+        updates.lastSpunAt instanceof Date
+          ? updates.lastSpunAt.toISOString()
+          : updates.lastSpunAt;
+    }
 
     const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
     if (!error) {
@@ -497,7 +509,11 @@ export async function fetchUserProfileFromDb(
         stamps: row.stamps !== undefined ? row.stamps : 0,
         tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
         merits: row.merit_points !== undefined ? row.merit_points : 0,
-        lastSpunAt: row.last_spin_date ? new Date(row.last_spin_date) : undefined,
+        lastSpunAt: row.last_spun_at
+          ? new Date(row.last_spun_at)
+          : row.last_spin_date
+          ? new Date(row.last_spin_date)
+          : undefined,
       };
     }
   } catch (err) {
@@ -531,7 +547,11 @@ export async function fetchAllProfilesFromDb(): Promise<UserProfile[]> {
         tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
         merits: row.merit_points !== undefined ? row.merit_points : 0,
         phoneNumber: row.phone || undefined,
-        lastSpunAt: row.last_spin_date ? new Date(row.last_spin_date) : undefined,
+        lastSpunAt: row.last_spun_at
+          ? new Date(row.last_spun_at)
+          : row.last_spin_date
+          ? new Date(row.last_spin_date)
+          : undefined,
         createdAt: row.created_at ? new Date(row.created_at) : new Date(),
       }));
     }
@@ -582,6 +602,46 @@ export function subscribeToDatabaseChanges(onChanged: (table: string) => void): 
           onChanged('profiles');
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prize_wheels' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on prize_wheels');
+          onChanged('prize_wheels');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'prize_draws' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on prize_draws');
+          onChanged('prize_draws');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'service_vouchers' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on service_vouchers');
+          onChanged('service_vouchers');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'discount_codes' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on discount_codes');
+          onChanged('discount_codes');
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'counter_sales' },
+        () => {
+          console.log('[SUPABASE REALTIME] Change detected on counter_sales');
+          onChanged('counter_sales');
+        }
+      )
       .subscribe((status) => {
         console.log(`[SUPABASE REALTIME STATUS] Subscription status: ${status}`);
       });
@@ -595,3 +655,377 @@ export function subscribeToDatabaseChanges(onChanged: (table: string) => void): 
     return () => {};
   }
 }
+
+/* ------------------------------------------------------------------ *
+ * Prize Wheel / Draw / Voucher persistence
+ * ------------------------------------------------------------------ */
+
+function mapWheelRow(row: any): PrizeWheel {
+  return {
+    id: row.id,
+    title: row.title,
+    active: row.is_active !== undefined ? row.is_active : true,
+    ticketCost: row.ticket_cost !== undefined && row.ticket_cost !== null ? row.ticket_cost : 1,
+    segments: Array.isArray(row.segments) ? row.segments : [],
+    createdAt: row.created_at ? new Date(row.created_at) : undefined,
+    updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
+  };
+}
+
+export async function fetchPrizeWheelsFromDb(): Promise<PrizeWheel[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase.from('prize_wheels').select('*').order('created_at', { ascending: true });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] SELECT prize_wheels failed:', error.message);
+      return [];
+    }
+    return (data || []).map(mapWheelRow);
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchPrizeWheelsFromDb:', err);
+    return [];
+  }
+}
+
+export async function upsertPrizeWheelToDb(wheel: PrizeWheel): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: wheel.id,
+      title: wheel.title,
+      segments: wheel.segments,
+      is_active: wheel.active,
+      ticket_cost: wheel.ticketCost ?? 1,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('prize_wheels').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPSERT prize_wheels failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertPrizeWheelToDb:', err);
+    return false;
+  }
+}
+
+export async function fetchPrizeDrawsFromDb(): Promise<PrizeDraw[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase.from('prize_draws').select('*').order('created_at', { ascending: false });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] SELECT prize_draws failed:', error.message);
+      return [];
+    }
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      prizeDescription: row.prize_description || '',
+      drawDate: row.draw_date ? new Date(row.draw_date) : new Date(),
+      status: row.status || 'upcoming',
+      winnerUid: row.winner_uid || null,
+      winnerName: row.winner_name || null,
+      completedAt: row.completed_at ? new Date(row.completed_at) : undefined,
+    }));
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchPrizeDrawsFromDb:', err);
+    return [];
+  }
+}
+
+export async function upsertPrizeDrawToDb(draw: PrizeDraw): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: draw.id,
+      title: draw.title,
+      prize_description: draw.prizeDescription,
+      draw_date: draw.drawDate ? new Date(draw.drawDate).toISOString() : null,
+      status: draw.status,
+      winner_uid: draw.winnerUid,
+      winner_name: draw.winnerName || null,
+      completed_at: draw.completedAt ? new Date(draw.completedAt).toISOString() : null,
+    };
+    const { error } = await supabase.from('prize_draws').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPSERT prize_draws failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertPrizeDrawToDb:', err);
+    return false;
+  }
+}
+
+export async function fetchVouchersForCustomerFromDb(customerId: string): Promise<CollectedVoucher[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('service_vouchers')
+      .select('*')
+      .eq('customer_id', customerId)
+      .order('claimed_at', { ascending: false });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] SELECT service_vouchers failed:', error.message);
+      return [];
+    }
+    return (data || []).map(mapVoucherRow);
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchVouchersForCustomerFromDb:', err);
+    return [];
+  }
+}
+
+function mapVoucherRow(row: any): CollectedVoucher {
+  return {
+    id: row.id,
+    code: row.code,
+    title: row.title,
+    description: row.description || '',
+    value: Number(row.value) || 0,
+    type: row.type || 'merch',
+    terms: row.terms || '',
+    claimedAt: row.claimed_at ? new Date(row.claimed_at) : new Date(),
+    status: row.status || 'available',
+    redeemedAt: row.redeemed_at ? new Date(row.redeemed_at) : undefined,
+  };
+}
+
+export async function insertVoucherToDb(customerId: string, voucher: CollectedVoucher): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: voucher.id,
+      customer_id: customerId,
+      code: voucher.code,
+      title: voucher.title,
+      description: voucher.description,
+      value: voucher.value,
+      type: voucher.type,
+      terms: voucher.terms,
+      status: voucher.status,
+      claimed_at: voucher.claimedAt ? new Date(voucher.claimedAt).toISOString() : new Date().toISOString(),
+      redeemed_at: voucher.redeemedAt ? new Date(voucher.redeemedAt).toISOString() : null,
+    };
+    const { error } = await supabase.from('service_vouchers').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPSERT service_vouchers failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] insertVoucherToDb:', err);
+    return false;
+  }
+}
+
+export async function updateVoucherStatusInDb(
+  voucherId: string,
+  status: 'available' | 'redeemed',
+  redeemedAt?: Date
+): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase
+      .from('service_vouchers')
+      .update({ status, redeemed_at: redeemedAt ? redeemedAt.toISOString() : null })
+      .eq('id', voucherId);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPDATE service_vouchers failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] updateVoucherStatusInDb:', err);
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Discount codes & counter sales
+ * ------------------------------------------------------------------ */
+
+function mapDiscountCodeRow(row: any): DiscountCode {
+  return {
+    id: row.id,
+    code: row.code,
+    title: row.title,
+    description: row.description || undefined,
+    type: row.type === 'fixed' ? 'fixed' : 'percent',
+    value: Number(row.value) || 0,
+    status: row.status || 'active',
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+    expiresAt: row.expires_at ? new Date(row.expires_at) : undefined,
+    usageLimit: row.usage_limit || undefined,
+    timesUsed: Number(row.times_used) || 0,
+    assignedToUid: row.assigned_to_uid || undefined,
+    assignedToMembership: row.assigned_to_membership || undefined,
+    assignedToName: row.assigned_to_name || undefined,
+    eligibleCategories: Array.isArray(row.eligible_categories) ? row.eligible_categories : [],
+    minimumSpend: row.minimum_spend != null ? Number(row.minimum_spend) : undefined,
+    createdBy: row.created_by || undefined,
+  };
+}
+
+export async function fetchDiscountCodesFromDb(): Promise<DiscountCode[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('discount_codes')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] SELECT discount_codes failed:', error.message);
+      return [];
+    }
+    return (data || []).map(mapDiscountCodeRow);
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchDiscountCodesFromDb:', err);
+    return [];
+  }
+}
+
+export async function upsertDiscountCodeToDb(code: DiscountCode): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: code.id,
+      code: code.code,
+      title: code.title,
+      description: code.description || null,
+      type: code.type,
+      value: code.value,
+      status: code.status,
+      expires_at: code.expiresAt ? new Date(code.expiresAt).toISOString() : null,
+      usage_limit: code.usageLimit || null,
+      times_used: code.timesUsed || 0,
+      assigned_to_uid: code.assignedToUid || null,
+      assigned_to_membership: code.assignedToMembership || null,
+      assigned_to_name: code.assignedToName || null,
+      eligible_categories: code.eligibleCategories || [],
+      minimum_spend: code.minimumSpend != null ? code.minimumSpend : null,
+      created_by: code.createdBy || null,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('discount_codes').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPSERT discount_codes failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertDiscountCodeToDb:', err);
+    return false;
+  }
+}
+
+export async function deleteDiscountCodeFromDb(id: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('discount_codes').delete().eq('id', id);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE discount_codes failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteDiscountCodeFromDb:', err);
+    return false;
+  }
+}
+
+export async function incrementDiscountUsageInDb(id: string, timesUsed: number): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase
+      .from('discount_codes')
+      .update({ times_used: timesUsed, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPDATE discount_codes usage failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] incrementDiscountUsageInDb:', err);
+    return false;
+  }
+}
+
+export async function fetchCounterSalesFromDb(): Promise<SaleTransaction[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('counter_sales')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] SELECT counter_sales failed:', error.message);
+      return [];
+    }
+    return (data || []).map(mapSaleRow);
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchCounterSalesFromDb:', err);
+    return [];
+  }
+}
+
+function mapSaleRow(row: any): SaleTransaction {
+  return {
+    id: row.id,
+    saleNumber: row.sale_number,
+    customerId: row.customer_id || undefined,
+    membershipNumber: row.membership_number || undefined,
+    customerName: row.customer_name || 'Walk-in customer',
+    items: Array.isArray(row.items) ? row.items : [],
+    subtotal: Number(row.subtotal) || 0,
+    vatRate: Number(row.vat_rate) || 0,
+    vatAmount: Number(row.vat_amount) || 0,
+    discount: Number(row.discount) || 0,
+    discountCode: row.discount_code || undefined,
+    discountLabel: row.discount_label || undefined,
+    grandTotal: Number(row.grand_total) || 0,
+    paymentMethod: row.payment_method || 'unpaid',
+    staffUid: row.staff_uid || undefined,
+    staffName: row.staff_name || undefined,
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+  };
+}
+
+export async function insertCounterSaleToDb(sale: SaleTransaction): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: sale.id,
+      sale_number: sale.saleNumber,
+      customer_id: sale.customerId || null,
+      membership_number: sale.membershipNumber || null,
+      customer_name: sale.customerName,
+      items: sale.items,
+      subtotal: sale.subtotal,
+      vat_rate: sale.vatRate,
+      vat_amount: sale.vatAmount,
+      discount: sale.discount,
+      discount_code: sale.discountCode || null,
+      discount_label: sale.discountLabel || null,
+      grand_total: sale.grandTotal,
+      payment_method: sale.paymentMethod,
+      staff_uid: sale.staffUid || null,
+      staff_name: sale.staffName || null,
+      created_at: sale.createdAt ? new Date(sale.createdAt).toISOString() : new Date().toISOString(),
+    };
+    const { error } = await supabase.from('counter_sales').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPSERT counter_sales failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] insertCounterSaleToDb:', err);
+    return false;
+  }
+}
+

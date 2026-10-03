@@ -70,7 +70,7 @@ FINANCIAL BREAKDOWN:
 Labour Subtotal:             £${invoice.labourSubtotal.toFixed(2)}
 Parts & Consumables:         £${invoice.partsSubtotal.toFixed(2)}
 Subtotal:                    £${invoice.subtotal.toFixed(2)}
-${invoice.vatAmount > 0 ? `VAT (${(invoice.vatRate * 100).toFixed(0)}%):                   £${invoice.vatAmount.toFixed(2)}\n` : ''}${invoice.voucherDiscount > 0 ? `Loyalty Voucher Credit Applied: -£${invoice.voucherDiscount.toFixed(2)} (${invoice.voucherCode || '£40 Service Credit'})\n` : ''}-----------------------------------------------------
+${invoice.vatAmount > 0 ? `VAT (${(invoice.vatRate * 100).toFixed(0)}%):                   £${invoice.vatAmount.toFixed(2)}\n` : ''}${(invoice.voucherDiscount > 0 || invoice.discountCode) ? `Discounts Applied:           -£${invoice.voucherDiscount.toFixed(2)}${invoice.voucherCode ? ` (${invoice.voucherCode})` : ''}${invoice.discountCode ? ` (Code ${invoice.discountCode})` : ''}\n` : ''}-----------------------------------------------------
 TOTAL AMOUNT DUE:            £${invoice.grandTotal.toFixed(2)}
 PAYMENT STATUS:              ${invoice.paymentStatus.toUpperCase().replace('_', ' ')}
 -----------------------------------------------------

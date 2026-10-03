@@ -18,19 +18,20 @@ import {
   FileText,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
+import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
-import { BikeIdentificationEngine } from './BikeIdentificationEngine';
+import { AiBikeIdentifier } from './AiBikeIdentifier';
+import { MembershipPassCard } from './MembershipPassCard';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
 import {
   POPULAR_BIKE_BRANDS,
   BRAND_MODELS_MAP,
   BIKE_CATEGORY_OPTIONS,
 } from '../data/bikeCatalog';
-import { generateBarcodeValue } from '../api/firebaseService';
 import { scrapeBikeStockSpecs } from '../utils/bikeScraperService';
 
 interface CustomerPortalProps {
@@ -47,12 +48,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps'>('garage');
+
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
   const [viewingCustomerInvoice, setViewingCustomerInvoice] = useState<ServiceBooking | null>(null);
 
   // Modal for adding a new bike to profile
   const [isAddBikeModalOpen, setIsAddBikeModalOpen] = useState(false);
+  const [isAiIdentifierOpen, setIsAiIdentifierOpen] = useState(false);
   const [newBikeCategory, setNewBikeCategory] = useState<VehicleCategory>('cycle');
   const [newBikeBrand, setNewBikeBrand] = useState('Trek');
   const [newBikeModel, setNewBikeModel] = useState('FX 1 / 2 / 3 (Hybrid Commuter)');
@@ -73,7 +76,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       (b.membershipNumber && b.membershipNumber === currentUser.membershipNumber)
   );
 
-  const barcodeValue = generateBarcodeValue(currentUser.membershipNumber);
+
+  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps'>[] = [
+    { id: 'garage', label: `My Garage (${customerBikes.length})`, icon: Bike, tone: 'emerald', hint: 'Your registered bikes' },
+    { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
+    { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
+    { id: 'bookings', label: `Bookings (${customerBookings.length})`, icon: Calendar, tone: 'emerald', hint: 'Your service bookings' },
+    { id: 'stamps', label: `Loyalty Pass ${currentUser.stamps || 0}/10`, icon: Award, tone: 'emerald', hint: 'Your stamp card' },
+  ];
 
   const handleStartBookingForBike = (bikeId: string) => {
     setSelectedBikeForBooking(bikeId);
@@ -132,26 +142,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   return (
     <div className="space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
       {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
-      <section aria-label="Digital Membership Pass & Barcode" className="w-full">
-        <iframe 
-          width="600" 
-          height="450" 
-          src="https://datastudio.google.com/embed/reporting/4b9da3c1-e567-4ddd-b813-99579d4bc15d/page/YnNAG" 
-          frameBorder="0" 
-          style={{ border: 0 }} 
-          allowFullScreen 
-          sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        ></iframe>
-        <iframe 
-          width="600" 
-          height="450" 
-          src="https://datastudio.google.com/embed/reporting/2155bc27-a629-41f4-82bd-dcfab6721bb3/page/p_frj0kb3y7d" 
-          frameBorder="0" 
-          style={{ border: 0 }} 
-          allowFullScreen 
-          sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        ></iframe>
-      </section>
+      <MembershipPassCard user={currentUser} />
 
       {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
       <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
@@ -236,79 +227,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         </div>
       )}
 
-      {/* Interactive Segmented Filter Controls */}
-      <div className="flex items-center gap-1.5 p-1 bg-neutral-900/90 rounded-xl border border-neutral-800/80 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab('garage')}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'garage'
-              ? 'bg-neutral-800 text-white shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Bike className="w-3.5 h-3.5 text-emerald-400" />
-          <span>My Garage ({customerBikes.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('wheel')}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'wheel'
-              ? 'bg-neutral-800 text-white shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Weekly Prize Wheel</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-            FREE SPIN
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedBikeForBooking(undefined);
-            setActiveTab('booking');
-          }}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'booking'
-              ? 'bg-neutral-800 text-white shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Wrench className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Book Service</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('bookings')}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'bookings'
-              ? 'bg-neutral-800 text-white shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-          <span>My Service Bookings ({customerBookings.length})</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('stamps')}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 flex items-center gap-2 cursor-pointer ${
-            activeTab === 'stamps'
-              ? 'bg-neutral-800 text-white shadow-sm'
-              : 'text-neutral-400 hover:text-white'
-          }`}
-        >
-          <Award className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Loyalty Pass &amp; Stamps ({currentUser.stamps || 0}/10)</span>
-        </button>
-      </div>
+      {/* Primary section navigation */}
+      <SegmentedTabs
+        tabs={customerTabs}
+        active={activeTab}
+        onChange={setActiveTab}
+        ariaLabel="Customer sections"
+      />
 
       {/* TAB 1: MY REGISTERED BIKES (GARAGE) */}
       {activeTab === 'garage' && (
@@ -323,20 +248,24 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setIsAddBikeModalOpen(true)}
-              className="px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Bike to Garage</span>
-            </button>
-            <BikeIdentificationEngine 
-              onAnalysisComplete={(analysis) => {
-                console.log('Bike Identified:', analysis);
-                // Future: pre-fill bike registration modal here
-              }} 
-            />
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsAiIdentifierOpen(true)}
+                className="pressable px-4 py-2 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 font-bold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Identify Bike with AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddBikeModalOpen(true)}
+                className="pressable px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Manually</span>
+              </button>
+            </div>
           </div>
 
           {/* List of Bikes */}
@@ -915,6 +844,15 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           isStaff={false}
         />
       )}
+
+      {/* AI Bike Identifier — photo to garage */}
+      <AiBikeIdentifier
+        user={currentUser}
+        isOpen={isAiIdentifierOpen}
+        onClose={() => setIsAiIdentifierOpen(false)}
+        addBike={undefined}
+        onAdded={(bike: CustomerBike) => setViewingBikeSpecs(bike)}
+      />
     </div>
   );
 };

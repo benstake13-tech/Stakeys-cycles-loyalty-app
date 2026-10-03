@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   Check,
 } from 'lucide-react';
-import { useShop, STAFF_MASTER_PIN } from '../context/ShopContext';
+import { useShop } from '../context/ShopContext';
 import { StakeysLogo } from './StakeysLogo';
 import { ThemeToggle } from './ThemeToggle';
 import { VehicleCategory } from '../types/bikeShop';
@@ -302,7 +302,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                     <span>Workshop Staff Station</span>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-neutral-900 text-emerald-400 border border-neutral-700">
-                    PIN Protected
+                    Supabase Secured
                   </span>
                 </div>
                 <p className="text-[11px] text-neutral-400">

@@ -60,6 +60,72 @@
       0 8px 16px -4px rgba(15, 23, 42, 0.1),
       0 0 0 1px rgba(5, 193, 71, 0.5);
   }
+
+  /* ---- Motion primitives ---- */
+  .animate-fade-in {
+    animation: fade-in 0.35s ease-out both;
+  }
+
+  .animate-rise {
+    animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+
+  .animate-slide-down {
+    animation: slide-down 0.3s ease-out both;
+  }
+
+  .animate-pop {
+    animation: pop 0.25s ease-out both;
+  }
+
+  /* Staggered list entrances */
+  .stagger > * {
+    animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.06s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.1s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.14s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.18s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.22s; }
+
+  /* Hide scrollbars on horizontal tab strips while keeping scroll */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Pressable feedback shared by nav pills and cards */
+  .pressable {
+    transition: transform 0.18s ease, background-color 0.2s ease, color 0.2s ease,
+      border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .pressable:active {
+    transform: scale(0.97);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* Custom subtle scrollbar */
@@ -69,7 +135,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #090b0e;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -79,5 +145,32 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #2e3846;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Visible, consistent keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid #05c147;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

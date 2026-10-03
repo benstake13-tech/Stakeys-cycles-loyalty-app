@@ -1,93 +1,337 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Scan, Camera, X, AlertCircle, Keyboard } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Scan, X, AlertCircle, Keyboard, Camera, CheckCircle, Upload, SwitchCamera } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { UserProfile } from '../types/bikeShop';
+import { UserProfile, DiscountCode } from '../types/bikeShop';
 import { wheelAudio } from '../utils/wheelAudio';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { resolveCustomer, normalizeScannedCode } from '../utils/membershipCode';
+import { findDiscountCode } from '../utils/discountService';
+import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
 
 interface QRCodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onCustomerScanned: (customer: UserProfile) => void;
+  /** Optional: fires when the scanned code is not a member but matches a discount code. */
+  onDiscountCodeScanned?: (code: DiscountCode) => void;
 }
+
+const READER_ID = 'stakeys-scanner-reader';
+
+// Barcode + QR formats a workshop till realistically needs.
+const SCAN_FORMATS = [
+  Html5QrcodeSupportedFormats.QR_CODE,
+  Html5QrcodeSupportedFormats.CODE_128,
+  Html5QrcodeSupportedFormats.CODE_39,
+  Html5QrcodeSupportedFormats.CODE_93,
+  Html5QrcodeSupportedFormats.EAN_13,
+  Html5QrcodeSupportedFormats.EAN_8,
+  Html5QrcodeSupportedFormats.UPC_A,
+  Html5QrcodeSupportedFormats.UPC_E,
+  Html5QrcodeSupportedFormats.ITF,
+  Html5QrcodeSupportedFormats.CODABAR,
+  Html5QrcodeSupportedFormats.DATA_MATRIX,
+];
 
 export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   isOpen,
   onClose,
   onCustomerScanned,
+  onDiscountCodeScanned,
 }) => {
-  const { users } = useShop();
-  const [scanQuery, setScanQuery] = useState('');
+  const { users, discountCodes } = useShop();
+  const [manualQuery, setManualQuery] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameras, setCameras] = useState<{ id: string; label: string }[]>([]);
+  const [activeCameraIndex, setActiveCameraIndex] = useState(0);
 
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const handlingRef = useRef(false); // guards against duplicate frames firing callbacks
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const stopScanner = useCallback(async () => {
+    const scanner = scannerRef.current;
+    scannerRef.current = null;
+    setIsScanning(false);
+    if (!scanner) return;
+    try {
+      const state = scanner.getState();
+      if (state === Html5QrcodeScannerState.SCANNING || state === Html5QrcodeScannerState.PAUSED) {
+        await scanner.stop();
+      }
+      scanner.clear();
+    } catch {
+      // Already stopped / element detached — safe to ignore.
+    }
+  }, []);
+
+  // Resolve a decoded string into a customer and act on it.
+  const processCode = useCallback(
+    (rawCode: string) => {
+      if (handlingRef.current) return;
+      const match = resolveCustomer(rawCode, users);
+
+      if (match.status === 'match') {
+        handlingRef.current = true;
+        wheelAudio.playScannerBeep();
+        void stopScanner().finally(() => {
+          onCustomerScanned(match.customer);
+          onClose();
+          handlingRef.current = false;
+        });
+        return;
+      }
+
+      // Not a member — maybe it's a discount code on the till tablet.
+      const discount = findDiscountCode(normalizeScannedCode(rawCode), discountCodes || []);
+      if (discount && onDiscountCodeScanned) {
+        handlingRef.current = true;
+        wheelAudio.playScannerBeep();
+        void stopScanner().finally(() => {
+          onDiscountCodeScanned(discount);
+          onClose();
+          handlingRef.current = false;
+        });
+        return;
+      }
+
+      wheelAudio.playScannerError();
+      if (match.status === 'multiple') {
+        setErrorMessage(
+          `"${normalizeScannedCode(rawCode)}" matches ${match.customers.length} customers — refine the code.`
+        );
+      } else {
+        setErrorMessage(`No registered customer found matching "${normalizeScannedCode(rawCode)}".`);
+      }
+    },
+    [users, discountCodes, onClose, onCustomerScanned, onDiscountCodeScanned, stopScanner]
+  );
+
+  const startScanner = useCallback(
+    async (cameraIdOrConfig?: string | MediaTrackConstraints) => {
+      if (!isOpen) return;
+      if (!document.getElementById(READER_ID)) return;
+
+      setCameraError(null);
+      setErrorMessage(null);
+
+      const scanner = new Html5Qrcode(READER_ID, {
+        formatsToSupport: SCAN_FORMATS,
+        useBarCodeDetectorIfSupported: true,
+        verbose: false,
+      });
+      scannerRef.current = scanner;
+
+      try {
+        setIsScanning(true);
+        setStatusMessage('Point the camera at the member barcode or QR code.');
+        await scanner.start(
+          cameraIdOrConfig || { facingMode: 'environment' },
+          { fps: 15, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
+          (decodedText) => processCode(decodedText),
+          () => {
+            /* per-frame decode misses are expected; ignore */
+          }
+        );
+        setStatusMessage(null);
+
+        // Enumerate cameras once so staff can flip between front/rear or USB tills.
+        if (!cameraIdOrConfig) {
+          try {
+            const devices = await Html5Qrcode.getCameras();
+            setCameras(devices.map((d) => ({ id: d.id, label: d.label || 'Camera' })));
+            const rearIdx = devices.findIndex((d) => /back|rear|environment/i.test(d.label));
+            setActiveCameraIndex(rearIdx >= 0 ? rearIdx : 0);
+          } catch {
+            /* camera enumeration is best-effort */
+          }
+        }
+      } catch (err: any) {
+        setIsScanning(false);
+        const msg = String(err?.message || err || '');
+        setCameraError(
+          /permission|denied|notallowed/i.test(msg)
+            ? 'Camera permission denied. Allow camera access or use manual entry below.'
+            : 'No usable camera found. Use manual entry below.'
+        );
+      }
+    },
+    [isOpen, processCode]
+  );
+
+  const flipCamera = useCallback(async () => {
+    if (cameras.length < 2) return;
+    const nextIndex = (activeCameraIndex + 1) % cameras.length;
+    setActiveCameraIndex(nextIndex);
+    await stopScanner();
+    await startScanner(cameras[nextIndex].id);
+  }, [cameras, activeCameraIndex, stopScanner, startScanner]);
+
+  const handleFileUpload = useCallback(
+    async (file: File) => {
+      await stopScanner();
+      const scanner = new Html5Qrcode(READER_ID, {
+        formatsToSupport: SCAN_FORMATS,
+        useBarCodeDetectorIfSupported: true,
+        verbose: false,
+      });
+      scannerRef.current = scanner;
+      try {
+        const decoded = await scanner.scanFileV2(file, false);
+        scanner.clear();
+        scannerRef.current = null;
+        processCode(decoded.decodedText);
+      } catch {
+        scanner.clear();
+        scannerRef.current = null;
+        setErrorMessage('Could not read a barcode/QR from that image. Try a clearer photo.');
+        wheelAudio.playScannerError();
+      }
+    },
+    [processCode, stopScanner]
+  );
+
+  // Start the camera in lock-step with modal visibility.
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => {
-        const scanner = new Html5QrcodeScanner(
-          'qr-reader',
-          { fps: 10, qrbox: { width: 250, height: 250 } },
-          false
-        );
-        scanner.render(onScanSuccess, onScanError);
-        scannerRef.current = scanner;
-      }, 300);
-    } else {
-      stopScanner();
+      handlingRef.current = false;
+      setManualQuery('');
+      setErrorMessage(null);
+      const timer = setTimeout(() => void startScanner(), 250);
+      return () => clearTimeout(timer);
     }
-    return () => stopScanner();
-  }, [isOpen]);
+    void stopScanner();
+  }, [isOpen, startScanner, stopScanner]);
 
-  const stopScanner = () => {
-    if (scannerRef.current) {
-      scannerRef.current.clear().catch(console.error);
-      scannerRef.current = null;
-    }
-  };
-
-  const onScanSuccess = (decodedText: string) => {
-    processCode(decodedText);
-  };
-
-  const onScanError = (error: any) => {};
-
-  const processCode = (rawCode: string) => {
-    setErrorMessage(null);
-    const clean = rawCode.trim();
-
-    const found = users.find((u) => u.uid === clean || u.membershipNumber === clean);
-
-    if (found) {
-      wheelAudio.playScannerBeep();
-      stopScanner();
-      onCustomerScanned(found);
-      onClose();
-    } else {
-      wheelAudio.playScannerError();
-      setErrorMessage(`No registered customer found matching "${rawCode}".`);
-    }
-  };
+  // Full teardown on unmount.
+  useEffect(() => () => void stopScanner(), [stopScanner]);
 
   if (!isOpen) return null;
 
+  const submitManual = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualQuery.trim()) return;
+    processCode(manualQuery.trim());
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+    <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
         <div className="flex justify-between items-center pb-3 border-b border-neutral-800">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2"><Scan className="text-emerald-500"/> Scan QR Code</h3>
-          <button onClick={onClose} className="text-neutral-400">✕</button>
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Scan className="w-5 h-5 text-emerald-500" /> Scan Member Code
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-neutral-400 hover:text-white transition-colors"
+            aria-label="Close scanner"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
-        <div id="qr-reader" className="w-full"></div>
-        <form onSubmit={(e) => { e.preventDefault(); processCode(scanQuery); }} className="flex gap-2">
-          <input 
-            value={scanQuery} 
-            onChange={e => setScanQuery(e.target.value)} 
-            className="flex-1 bg-black p-3 rounded-xl border border-neutral-700 text-white" 
-            placeholder="Or type Member ID..."
+
+        <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-black min-h-[240px]">
+          <div id={READER_ID} className="w-full [&_video]:w-full [&_video]:rounded-2xl" />
+
+          {!isScanning && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center p-6 bg-[#0c0e12]">
+              <Camera className="w-8 h-8 text-neutral-600" />
+              <p className="text-xs text-neutral-400">
+                Camera is idle. Tap “Start camera” to scan a barcode or QR code.
+              </p>
+            </div>
+          )}
+
+          {isScanning && (
+            <div className="pointer-events-none absolute inset-10 rounded-xl border-2 border-emerald-400/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+          )}
+        </div>
+
+        {statusMessage && (
+          <p className="text-xs text-emerald-300 flex items-center gap-1.5">
+            <CheckCircle className="w-3.5 h-3.5" /> {statusMessage}
+          </p>
+        )}
+        {cameraError && (
+          <p className="text-xs text-amber-400 flex items-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5" /> {cameraError}
+          </p>
+        )}
+        {errorMessage && (
+          <p className="text-sm text-rose-400 flex items-center gap-1.5">
+            <AlertCircle className="w-4 h-4" /> {errorMessage}
+          </p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2">
+          {!isScanning ? (
+            <button
+              type="button"
+              onClick={() => void startScanner()}
+              className="pressable px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5"
+            >
+              <Camera className="w-4 h-4" /> Start camera
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void stopScanner()}
+              className="px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold"
+            >
+              Stop camera
+            </button>
+          )}
+
+          {cameras.length > 1 && (
+            <button
+              type="button"
+              onClick={() => void flipCamera()}
+              className="px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center gap-1.5"
+            >
+              <SwitchCamera className="w-4 h-4" /> Switch camera
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center gap-1.5"
+          >
+            <Upload className="w-4 h-4" /> Scan image
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFileUpload(file);
+              e.target.value = '';
+            }}
           />
-          <button type="submit" className="bg-emerald-600 px-4 rounded-xl text-white font-bold">Scan</button>
+        </div>
+
+        <form onSubmit={submitManual} className="flex gap-2 pt-1">
+          <div className="relative flex-1">
+            <Keyboard className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={manualQuery}
+              onChange={(e) => setManualQuery(e.target.value)}
+              className="w-full bg-black py-2.5 pl-9 pr-3 rounded-xl border border-neutral-700 text-white text-sm focus:border-emerald-500 outline-none"
+              placeholder="Member ID or discount code (e.g. STK-839201)"
+            />
+          </div>
+          <button
+            type="submit"
+            className="bg-emerald-600 hover:bg-emerald-500 px-4 rounded-xl text-white font-bold text-xs"
+          >
+            Look up
+          </button>
         </form>
-        {errorMessage && <p className="text-rose-400 text-sm">{errorMessage}</p>}
       </div>
     </div>
   );

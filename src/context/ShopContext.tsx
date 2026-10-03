@@ -18,8 +18,12 @@ import {
   StaffMember,
   ShopPromotion,
   RepairInvoice,
+  DiscountCode,
+  SaleTransaction,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
+import { DEFAULT_PRIZE_WHEEL } from '../utils/prizeWheelHelper';
+import { roundMoney } from '../utils/discountService';
 import {
   dispatchBookingNotifications,
   dispatch24hReminderNotification,
@@ -28,6 +32,7 @@ import {
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
+import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/onesignalPush';
 import { generateMembershipNumber } from '../api/firebaseService';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
 import { supabase } from '../lib/supabase';
@@ -46,9 +51,20 @@ import {
   fetchAllProfilesFromDb,
   subscribeToDatabaseChanges,
   seedInitialDatabaseIfEmpty,
+  fetchPrizeWheelsFromDb,
+  upsertPrizeWheelToDb,
+  fetchPrizeDrawsFromDb,
+  upsertPrizeDrawToDb,
+  fetchVouchersForCustomerFromDb,
+  insertVoucherToDb,
+  updateVoucherStatusInDb,
+  fetchDiscountCodesFromDb,
+  upsertDiscountCodeToDb,
+  deleteDiscountCodeFromDb,
+  incrementDiscountUsageInDb,
+  fetchCounterSalesFromDb,
+  insertCounterSaleToDb,
 } from '../api/backendDataService';
-
-export const STAFF_MASTER_PIN = '210803';
 
 interface ShopContextType {
   currentUser: UserProfile | null;
@@ -93,6 +109,10 @@ interface ShopContextType {
   logoutUser: () => void;
   // Bike actions
   addCustomerBike: (bike: Omit<CustomerBike, 'id' | 'addedAt'>) => Promise<CustomerBike>;
+  addCustomerBikeForUser: (
+    userId: string,
+    bike: Omit<CustomerBike, 'id' | 'addedAt'>
+  ) => Promise<CustomerBike>;
   removeCustomerBike: (bikeId: string) => Promise<void>;
   // Core actions
   addStamp: (customerId: string, staffId: string, bypassLimit?: boolean) => Promise<{ success: boolean; message: string }>;
@@ -162,6 +182,18 @@ interface ShopContextType {
   updatePromotion: (id: string, updates: Partial<ShopPromotion>) => Promise<ShopPromotion>;
   deletePromotion: (id: string) => Promise<boolean>;
   refreshPromotionsExpiry: () => void;
+
+  // Discount codes & till sales
+  discountCodes: DiscountCode[];
+  sales: SaleTransaction[];
+  addDiscountCode: (code: Omit<DiscountCode, 'id' | 'createdAt' | 'timesUsed'>) => Promise<DiscountCode>;
+  updateDiscountCode: (id: string, updates: Partial<DiscountCode>) => Promise<DiscountCode | null>;
+  deleteDiscountCode: (id: string) => Promise<boolean>;
+  refreshDiscountCodes: () => Promise<void>;
+  /** Persist a completed counter sale and record discount usage. */
+  completeSale: (sale: SaleTransaction) => Promise<{ success: boolean; message?: string; sale?: SaleTransaction }>;
+  /** Bump a discount code's usage counter in local state + DB. */
+  recordDiscountUsage: (discountCodeId: string) => Promise<void>;
   // Prize Draw CRUD
   updateDraw: (drawId: string, updates: Partial<PrizeDraw>) => Promise<void>;
   deleteDraw: (drawId: string) => Promise<void>;
@@ -199,7 +231,7 @@ interface ShopContextType {
   playStaffBookingAlertPing: () => void;
   workshopAudioVolume: WorkshopAudioVolume;
   cycleWorkshopAudioVolume: () => WorkshopAudioVolume;
-  requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported'>;
+  requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported' | 'not_configured'>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -385,6 +417,107 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
+  /* ------------------------------------------------------------------ *
+   * Discount codes (till) & counter sales
+   * ------------------------------------------------------------------ */
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [sales, setSales] = useState<SaleTransaction[]>([]);
+
+  const refreshDiscountCodes = async () => {
+    const remote = await fetchDiscountCodesFromDb();
+    if (remote && remote.length > 0) setDiscountCodes(remote);
+  };
+
+  const addDiscountCode = async (
+    codeData: Omit<DiscountCode, 'id' | 'createdAt' | 'timesUsed'>
+  ): Promise<DiscountCode> => {
+    const newCode: DiscountCode = {
+      ...codeData,
+      id: `disc-${Date.now().toString().slice(-6)}`,
+      createdAt: new Date(),
+      timesUsed: 0,
+    };
+    setDiscountCodes((prev) => [newCode, ...prev]);
+    void upsertDiscountCodeToDb(newCode);
+    return newCode;
+  };
+
+  const updateDiscountCode = async (
+    id: string,
+    updates: Partial<DiscountCode>
+  ): Promise<DiscountCode | null> => {
+    let updated: DiscountCode | null = null;
+    setDiscountCodes((prev) =>
+      prev.map((c) => {
+        if (c.id === id) {
+          updated = { ...c, ...updates };
+          return updated;
+        }
+        return c;
+      })
+    );
+    if (updated) void upsertDiscountCodeToDb(updated);
+    return updated;
+  };
+
+  const deleteDiscountCode = async (id: string): Promise<boolean> => {
+    setDiscountCodes((prev) => prev.filter((c) => c.id !== id));
+    void deleteDiscountCodeFromDb(id);
+    return true;
+  };
+
+  const recordDiscountUsage = async (discountCodeId: string): Promise<void> => {
+    let nextCount = 0;
+    setDiscountCodes((prev) =>
+      prev.map((c) => {
+        if (c.id === discountCodeId) {
+          nextCount = (c.timesUsed || 0) + 1;
+          return { ...c, timesUsed: nextCount };
+        }
+        return c;
+      })
+    );
+    void incrementDiscountUsageInDb(discountCodeId, nextCount);
+  };
+
+  const completeSale = async (
+    sale: SaleTransaction
+  ): Promise<{ success: boolean; message?: string; sale?: SaleTransaction }> => {
+    const persisted: SaleTransaction = {
+      ...sale,
+      subtotal: roundMoney(sale.subtotal),
+      vatAmount: roundMoney(sale.vatAmount),
+      discount: roundMoney(sale.discount),
+      grandTotal: roundMoney(sale.grandTotal),
+      createdAt: sale.createdAt || new Date(),
+    };
+    setSales((prev) => [persisted, ...prev]);
+    const ok = await insertCounterSaleToDb(persisted);
+
+    // Audit log so the sale appears in the workshop history feed
+    void insertStampLogToDb({
+      id: `log-sale-${persisted.id}`,
+      customerId: persisted.customerId || 'walk-in',
+      customerName: persisted.customerName,
+      membershipNumber: persisted.membershipNumber,
+      staffId: currentUser?.uid || 'system',
+      staffName: currentUser?.displayName,
+      action: 'sale_completed',
+      note: `Sale ${persisted.saleNumber} — £${persisted.grandTotal.toFixed(2)}${
+        persisted.discount > 0 ? ` (discount ${persisted.discountCode || ''} -£${persisted.discount.toFixed(2)})` : ''
+      }`,
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: ok,
+      message: ok
+        ? `Sale ${persisted.saleNumber} recorded — take £${persisted.grandTotal.toFixed(2)}.`
+        : 'Sale saved locally but could not reach Supabase. Run the SQL setup to enable sync.',
+      sale: persisted,
+    };
+  };
+
   // Supabase Service Health Monitor
   const [serviceStatus, setServiceStatus] = useState<any>({
     isOnline: true,
@@ -534,12 +667,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const requestPushNotificationPermission = async () => {
-    const perm = await staffBookingAudio.requestNotificationPermission();
+    const perm = await requestPushPermission();
     if (perm === 'granted') {
-      toast.success('✅ Desktop push notifications enabled for Workshop bookings!', { icon: '🔔' });
+      toast.success('✅ Push notifications enabled — booking alerts will reach this device!', { icon: '🔔' });
       staffBookingAudio.dispatchPushNotification('Stakey’s Cycles Workshop', 'Push notifications are now active!');
     } else if (perm === 'denied') {
       toast.error('Push notification permission was denied in your browser settings.');
+    } else if (perm === 'not_configured') {
+      toast.error('OneSignal is not configured yet. Add VITE_ONESIGNAL_APP_ID to enable push.');
     }
     return perm;
   };
@@ -569,6 +704,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `🚨 New Workshop Booking: #${latest.id}`,
         `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`
       );
+      // Server-to-server push so it reaches the phone even when the app is closed.
+      void sendPushToUser(
+        currentUserRef.current?.uid,
+        `🚨 New Workshop Booking #${latest.id}`,
+        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`,
+        undefined,
+        { key: 'role', value: 'staff' }
+      );
 
       toast(
         `🚨 NEW WORKSHOP BOOKING #${latest.id}!\n${latest.customerName} • ${latest.serviceTitle}`,
@@ -597,12 +740,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isStaff = user.role === 'staff' || user.role === 'admin';
       
       // Centralized Data Fetching: Dynamic database queries
-      const [remoteBikes, remoteBookings, remoteLogs, remoteProfile, allProfiles] = await Promise.all([
+      const [remoteBikes, remoteBookings, remoteLogs, remoteProfile, allProfiles, remoteVouchers] = await Promise.all([
         fetchCustomerBikesFromDb(user.uid, user.membershipNumber),
         fetchServiceBookingsFromDb(user.uid, isStaff, user.membershipNumber),
         fetchStampLogsFromDb(user.uid, isStaff, user.membershipNumber),
         fetchUserProfileFromDb(user.uid, user.membershipNumber, user.email),
         fetchAllProfilesFromDb(),
+        fetchVouchersForCustomerFromDb(user.uid),
       ]);
 
       const mergedBikes = remoteBikes && remoteBikes.length > 0 ? remoteBikes : (user.bikes || []);
@@ -627,6 +771,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastSpunAt: remoteProfile?.lastSpunAt !== undefined ? remoteProfile.lastSpunAt : user.lastSpunAt,
         displayName: remoteProfile?.displayName || user.displayName,
         phoneNumber: remoteProfile?.phoneNumber || user.phoneNumber,
+        serviceVouchers:
+          remoteVouchers && remoteVouchers.length > 0
+            ? remoteVouchers
+            : user.serviceVouchers,
       };
 
       setCurrentUser(updatedUser);
@@ -651,7 +799,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshDatabaseState = async () => {
-    const allProfiles = await fetchAllProfilesFromDb();
+    const [allProfiles, remoteWheels, remoteDraws, remoteCodes, remoteSales] = await Promise.all([
+      fetchAllProfilesFromDb(),
+      fetchPrizeWheelsFromDb(),
+      fetchPrizeDrawsFromDb(),
+      fetchDiscountCodesFromDb(),
+      fetchCounterSalesFromDb(),
+    ]);
     if (allProfiles && allProfiles.length > 0) {
       setUsers(allProfiles);
       if (currentUser) {
@@ -660,6 +814,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setCurrentUser((prev) => prev ? { ...prev, ...freshCurrent } : freshCurrent);
         }
       }
+    }
+    if (remoteWheels && remoteWheels.length > 0) {
+      setPrizeWheels(remoteWheels);
+    }
+    if (remoteDraws && remoteDraws.length > 0) {
+      setDraws(remoteDraws);
+    }
+    if (remoteCodes && remoteCodes.length > 0) {
+      setDiscountCodes(remoteCodes);
+    }
+    if (remoteSales && remoteSales.length > 0) {
+      setSales(remoteSales);
     }
 
     if (currentUser) {
@@ -680,6 +846,29 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (profiles && profiles.length > 0) {
         setUsers(profiles);
       }
+    }).catch(() => {});
+
+    // Load the authoritative prize wheel + draw configuration from the database
+    fetchPrizeWheelsFromDb().then((wheels) => {
+      if (wheels && wheels.length > 0) {
+        setPrizeWheels(wheels);
+      } else {
+        // First run: seed the default wheel so the staff editor has something to edit
+        setPrizeWheels([DEFAULT_PRIZE_WHEEL]);
+        upsertPrizeWheelToDb(DEFAULT_PRIZE_WHEEL).catch(() => {});
+      }
+    }).catch(() => {});
+
+    fetchPrizeDrawsFromDb().then((remoteDraws) => {
+      if (remoteDraws && remoteDraws.length > 0) setDraws(remoteDraws);
+    }).catch(() => {});
+
+    fetchDiscountCodesFromDb().then((codes) => {
+      if (codes && codes.length > 0) setDiscountCodes(codes);
+    }).catch(() => {});
+
+    fetchCounterSalesFromDb().then((remoteSales) => {
+      if (remoteSales && remoteSales.length > 0) setSales(remoteSales);
     }).catch(() => {});
 
     fetchServiceBookingsFromDb(undefined, true).then((b) => {
@@ -1265,8 +1454,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateWheel = async (wheelId: string, updatedData: Partial<PrizeWheel>) => {
-    setPrizeWheels((prev) =>
-      prev.map((w) => (w.id === wheelId ? { ...w, ...updatedData, updatedAt: new Date() } : w))
+    const existing = prizeWheels.find((w) => w.id === wheelId);
+    if (!existing) return;
+    const merged: PrizeWheel = { ...existing, ...updatedData, updatedAt: new Date() };
+    setPrizeWheels((prev) => prev.map((w) => (w.id === wheelId ? merged : w)));
+    upsertPrizeWheelToDb(merged).catch((e) =>
+      console.warn('[DB SYNC] Error saving wheel to DB:', e)
     );
   };
 
@@ -1298,18 +1491,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const winner = pool[Math.floor(Math.random() * pool.length)];
     const now = new Date();
 
-    setDraws((prev) =>
-      prev.map((d) =>
-        d.id === drawId
-          ? {
-              ...d,
-              status: 'completed',
-              winnerUid: winner.uid,
-              winnerName: winner.displayName,
-              completedAt: now,
-            }
-          : d
-      )
+    const completedDraw: PrizeDraw = {
+      ...draw,
+      status: 'completed',
+      winnerUid: winner.uid,
+      winnerName: winner.displayName,
+      completedAt: now,
+    };
+
+    setDraws((prev) => prev.map((d) => (d.id === drawId ? completedDraw : d)));
+
+    // Persist the completed draw so the winner survives a reload
+    upsertPrizeDrawToDb(completedDraw).catch((e) =>
+      console.warn('[DB SYNC] Error saving completed draw to DB:', e)
     );
 
     // Announce to everybody that there was a winner!
@@ -1363,6 +1557,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       winnerUid: null,
     };
     setDraws([newDraw, ...draws]);
+    upsertPrizeDrawToDb(newDraw).catch((e) =>
+      console.warn('[DB SYNC] Error saving draw to DB:', e)
+    );
   };
 
   const awardPrizeToUser = (userId: string, prizeTitle: string, extraTickets = 0) => {
@@ -1395,6 +1592,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         note: `Won on Prize Wheel: ${prizeTitle}${extraTickets > 0 ? ` (+${extraTickets} ticket)` : ''}`,
       };
       setStampLogs((prev) => [newLog, ...prev]);
+
+      // Persist tickets, spin timestamp (weekly cooldown) and audit log
+      const nextTickets = Math.max(0, (target.tickets || 0) + extraTickets);
+      updateUserProfileInDb(userId, target.membershipNumber, {
+        tickets: nextTickets,
+        lastSpunAt: now,
+      }).catch((e) => console.warn('[DB SYNC] Error saving wheel win in DB:', e));
+      insertStampLogToDb(newLog).catch((e) =>
+        console.warn('[DB SYNC] Error inserting wheel log in DB:', e)
+      );
     }
   };
 
@@ -1461,24 +1668,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'You have already spun the wheel this week. Please come back in 7 days!' };
     }
 
-    // New: Use RPC for safe, atomic wheel spin
-    const { data: rpcResult, error: rpcError } = await supabase.rpc('spin_loyalty_wheel', { 
-      user_id: userId,
-      segment_id: segment.id 
-    });
+    // Apply logistics locally, then persist to Supabase.
+    // Note: the previous implementation called a `spin_loyalty_wheel` RPC that
+    // does not exist in the database, so every spin failed and nothing was saved.
+    const updatedTickets = Math.max(0, (target.tickets || 0) + extraTickets);
+    const updatedMerits = (target.merits || 0) + extraMerits;
 
-    if (rpcError) {
-      console.error('Spin RPC error:', rpcError);
-      return { success: false, message: 'Wheel spin failed. Please try again.' };
-    }
+    const updatedUser: UserProfile = {
+      ...target,
+      stamps: updatedStamps,
+      tickets: updatedTickets,
+      merits: updatedMerits,
+      lastSpunAt: now,
+      serviceVouchers: newVoucher
+        ? [...(target.serviceVouchers || []), newVoucher]
+        : target.serviceVouchers,
+    };
 
-    // Adapt to RPC return shape (assuming it returns the updated user profile or success data)
-    if (!rpcResult || !rpcResult.success) {
-      return { success: false, message: rpcResult?.message || 'Spin failed.' };
-    }
-
-    // Update local state based on rpcResult
-    const updatedUser = rpcResult.user || target;
     setUsers((prev) => prev.map((u) => (u.uid === userId ? updatedUser : u)));
     if (currentUser?.uid === userId) {
       setCurrentUser(updatedUser);
@@ -1505,6 +1711,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       note: logNote,
     };
     setStampLogs((prev) => [newLog, ...prev]);
+
+    // Remote Database Mutation: profile progress, spin cooldown, audit log, prize voucher
+    updateUserProfileInDb(userId, target.membershipNumber, {
+      stamps: updatedStamps,
+      tickets: updatedTickets,
+      merits: updatedMerits,
+      lastSpunAt: now,
+    }).catch((e) => console.warn('[DB SYNC] Error saving weekly wheel spin in DB:', e));
+    insertStampLogToDb(newLog).catch((e) =>
+      console.warn('[DB SYNC] Error inserting weekly wheel log in DB:', e)
+    );
+    if (newVoucher) {
+      insertVoucherToDb(userId, newVoucher).catch((e) =>
+        console.warn('[DB SYNC] Error saving prize voucher in DB:', e)
+      );
+    }
 
     const toastMsg =
       stampsAwarded > 0
@@ -1578,6 +1800,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setStampLogs((prev) => [newLog, ...prev]);
 
+    // Remote Database Mutation: subtract stamps, record voucher + audit log
+    updateUserProfileInDb(userId, target.membershipNumber, {
+      stamps: updatedUser.stamps,
+    }).catch((e) => console.warn('[DB SYNC] Error saving full-card collection in DB:', e));
+    insertVoucherToDb(userId, serviceVoucher).catch((e) =>
+      console.warn('[DB SYNC] Error saving service voucher in DB:', e)
+    );
+    insertStampLogToDb(newLog).catch((e) =>
+      console.warn('[DB SYNC] Error inserting collection log in DB:', e)
+    );
+
     toast.success(
       '🎉 Congratulations! £40 Workshop Service Voucher claimed! Valid for 12 months.',
       { icon: '🎁', duration: 6000 }
@@ -1643,6 +1876,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     setStampLogs((prev) => [newLog, ...prev]);
 
+    // Remote Database Mutation: mark voucher redeemed + audit log
+    updateVoucherStatusInDb(updatedVouchers[voucherIdx].id, 'redeemed', now).catch((e) =>
+      console.warn('[DB SYNC] Error redeeming voucher in DB:', e)
+    );
+    insertStampLogToDb(newLog).catch((e) =>
+      console.warn('[DB SYNC] Error inserting voucher redemption log in DB:', e)
+    );
+
     return {
       success: true,
       message: `Successfully redeemed voucher "${voucherCode}"! £${updatedVouchers[voucherIdx].value} labour credit applied.`,
@@ -1650,6 +1891,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const resetUserSpinCooldown = (userId: string) => {
+    const target = users.find((u) => u.uid === userId);
     setUsers((prev) =>
       prev.map((u) => {
         if (u.uid === userId) {
@@ -1661,9 +1903,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return u;
       })
     );
+    updateUserProfileInDb(userId, target?.membershipNumber, { lastSpunAt: null }).catch((e) =>
+      console.warn('[DB SYNC] Error resetting spin cooldown in DB:', e)
+    );
   };
 
-  const addCustomerBike = async (bikeData: Omit<CustomerBike, 'id' | 'addedAt'>): Promise<CustomerBike> => {
+  const addCustomerBikeForUser = async (
+    userId: string,
+    bikeData: Omit<CustomerBike, 'id' | 'addedAt'>
+  ): Promise<CustomerBike> => {
     const newBike: CustomerBike = {
       ...bikeData,
       id: `bike-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -1671,21 +1919,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       healthStatus: bikeData.healthStatus || 'healthy',
     };
 
-    if (currentUser) {
-      const existingBikes = currentUser.bikes || [];
-      const updatedUser: UserProfile = {
-        ...currentUser,
-        bikes: [newBike, ...existingBikes],
-      };
-      setCurrentUser(updatedUser);
-      setUsers((prev) => prev.map((u) => (u.uid === currentUser.uid ? updatedUser : u)));
-
-      // Remote Database Mutation: INSERT directly into customer_bikes table
-      insertCustomerBikeToDb(newBike, currentUser.uid).catch((e) =>
-        console.warn('[DB SYNC] Error inserting bike in DB:', e)
+    // Single source of truth: optimistically update local state, then persist to Supabase.
+    setUsers((prev) =>
+      prev.map((u) => (u.uid === userId ? { ...u, bikes: [newBike, ...(u.bikes || [])] } : u))
+    );
+    if (currentUser && currentUser.uid === userId) {
+      setCurrentUser((prev) =>
+        prev ? { ...prev, bikes: [newBike, ...(prev.bikes || [])] } : prev
       );
     }
+
+    insertCustomerBikeToDb(newBike, userId).catch((e) =>
+      console.warn('[DB SYNC] Error inserting bike in DB:', e)
+    );
+
     return newBike;
+  };
+
+  const addCustomerBike = async (bikeData: Omit<CustomerBike, 'id' | 'addedAt'>): Promise<CustomerBike> => {
+    if (!currentUser) {
+      throw new Error('You must be signed in to add a bike.');
+    }
+    return addCustomerBikeForUser(currentUser.uid, bikeData);
   };
 
   const removeCustomerBike = async (bikeId: string) => {
@@ -1733,7 +1988,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Remote Database Mutation: INSERT directly into service_bookings table
     insertServiceBookingToDb(completedBooking).catch((e) => console.warn('[DB SYNC] Error inserting booking in DB:', e));
 
-    // Audio Alert & Push: ONLY staff hears this loud ping (customer will never hear it)
+    // Audio Alert & Push. The loud ping only plays on staff devices; the server
+    // push is sent by whoever creates the booking so staff phones are reached
+    // even when the terminal isn't open.
     const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
     if (isStaff) {
       staffBookingAudio.playLoudBookingPing();
@@ -1742,6 +1999,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`
       );
     }
+    void sendPushToUser(
+      isStaff ? currentUser?.uid : undefined,
+      `🚨 New Workshop Booking #${completedBooking.id}`,
+      `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`,
+      undefined,
+      { key: 'role', value: 'staff' }
+    );
 
     // Trigger instant email alert confirmation banner
     setLatestSmsAlert({
@@ -2262,6 +2526,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resetPassword,
         logoutUser,
         addCustomerBike,
+        addCustomerBikeForUser,
         removeCustomerBike,
         addStamp,
         redeemReward,
@@ -2288,6 +2553,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatePromotion,
         deletePromotion,
         refreshPromotionsExpiry,
+        discountCodes,
+        sales,
+        addDiscountCode,
+        updateDiscountCode,
+        deleteDiscountCode,
+        refreshDiscountCodes,
+        completeSale,
+        recordDiscountUsage,
         updateDraw,
         deleteDraw,
         deleteCustomerAccount,

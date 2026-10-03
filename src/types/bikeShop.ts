@@ -216,7 +216,7 @@ export interface StampLog {
   membershipNumber?: string;
   staffId: string;
   staffName?: string;
-  action: 'add_stamp' | 'redeem_reward' | 'manual_merit_adjustment' | 'edit_profile';
+  action: 'add_stamp' | 'redeem_reward' | 'manual_merit_adjustment' | 'edit_profile' | 'sale_completed';
   stampsBefore?: number;
   stampsAfter?: number;
   ticketsAwarded?: number;
@@ -274,6 +274,78 @@ export interface RepairChecklistItem {
   notes?: string;
 }
 
+export type DiscountCodeType = 'percent' | 'fixed';
+
+export type DiscountCodeStatus = 'active' | 'disabled' | 'expired';
+
+/**
+ * A staff-managed discount code. Codes can be tied to a specific member
+ * (`assignedToUid`) or open to anyone, and can restrict the vehicle categories
+ * they apply to. Codes are scanned at the till or typed in manually.
+ */
+export interface DiscountCode {
+  id: string;
+  code: string; // e.g. STK-10OFF
+  title: string;
+  description?: string;
+  type: DiscountCodeType;
+  value: number; // percent (0-100) when type='percent', else £ amount
+  status: DiscountCodeStatus;
+  createdAt: any;
+  expiresAt?: any;
+  usageLimit?: number; // undefined / 0 = unlimited
+  timesUsed: number;
+  assignedToUid?: string; // restrict to one member; undefined = open to all
+  assignedToMembership?: string;
+  assignedToName?: string;
+  eligibleCategories: VehicleCategory[]; // empty = all categories
+  minimumSpend?: number; // £ subtotal required before discount applies
+  createdBy?: string;
+}
+
+/** A billable line on a counter sale. */
+export interface SaleLineItem {
+  id: string;
+  description: string;
+  category: 'Labour' | 'Part' | 'Consumable' | 'Diagnostic';
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface SaleDiscountState {
+  code: string;
+  label: string;
+  type: DiscountCodeType;
+  value: number;
+  amountOff: number;
+  discountCodeId?: string;
+  source: 'discount_code' | 'voucher' | 'promotion';
+  voucherId?: string;
+}
+
+export type SalePaymentMethod = 'card' | 'cash' | 'online' | 'unpaid';
+
+/** A completed over-the-counter sale (parts, accessories, labour). */
+export interface SaleTransaction {
+  id: string;
+  saleNumber: string; // e.g. SALE-2026-0042
+  customerId?: string;
+  membershipNumber?: string;
+  customerName: string;
+  items: SaleLineItem[];
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  discount: number;
+  discountCode?: string;
+  discountLabel?: string;
+  grandTotal: number;
+  paymentMethod: SalePaymentMethod;
+  staffUid?: string;
+  staffName?: string;
+  createdAt: any;
+}
+
 export interface RepairInvoice {
   id: string;
   invoiceNumber: string; // e.g. INV-2026-0842
@@ -297,6 +369,8 @@ export interface RepairInvoice {
   vatAmount: number;
   voucherDiscount: number;
   voucherCode?: string;
+  discountCode?: string;
+  discountLabel?: string;
   grandTotal: number;
   paymentStatus: 'unpaid' | 'paid_card' | 'paid_cash' | 'paid_online';
   paymentDate?: any;

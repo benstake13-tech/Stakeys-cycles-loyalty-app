@@ -38,6 +38,8 @@ import {
   RefreshCcw,
   TrendingUp,
   Building2,
+  ShoppingCart,
+  BadgePercent,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -48,13 +50,18 @@ import { StaffBookingsTab } from './StaffBookingsTab';
 import { CustomerDatabaseTab } from './CustomerDatabaseTab';
 import { StaffManagementTab } from './StaffManagementTab';
 import { PromotionsManagerTab } from './PromotionsManagerTab';
+import { DiscountCodesTab } from './DiscountCodesTab';
+import { CounterSaleTab } from './CounterSaleTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
 import { AdminDashboard } from './AdminDashboard';
 
 import { GoogleBusinessTab } from './GoogleBusinessTab';
+import { BusinessPerformanceTab } from './BusinessPerformanceTab';
+import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
+import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
 export const StaffPortal: React.FC = () => {
   const {
@@ -66,6 +73,7 @@ export const StaffPortal: React.FC = () => {
     bookings,
     staffMembers,
     promotions,
+    discountCodes,
     addStamp,
     redeemReward,
     updateWheel,
@@ -78,20 +86,28 @@ export const StaffPortal: React.FC = () => {
     playStaffBookingAlertPing,
     workshopAudioVolume,
     cycleWorkshopAudioVolume,
+    requestPushNotificationPermission,
     hardResetApp,
   } = useShop();
+
+  const [pushState, setPushState] = useState<'idle' | 'working' | 'granted' | 'blocked'>('idle');
 
   const [staffTab, setStaffTab] = useState<
     | 'dashboard'
     | 'bookings'
     | 'staff_roster'
     | 'promotions'
+    | 'discount_codes'
+    | 'till'
     | 'customers'
     | 'draws'
     | 'logs'
     | 'financials'
     | 'google_business'
+    | 'business_performance'
   >('dashboard');
+
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -293,6 +309,37 @@ export const StaffPortal: React.FC = () => {
   );
   const latestFresh = freshBookings[0] || null;
 
+  type StaffTabId =
+    | 'dashboard'
+    | 'bookings'
+    | 'staff_roster'
+    | 'promotions'
+    | 'discount_codes'
+    | 'till'
+    | 'customers'
+    | 'draws'
+    | 'logs'
+    | 'financials'
+    | 'google_business'
+    | 'business_performance';
+
+  const operationsTabs: SegmentedTab<StaffTabId>[] = [
+    { id: 'dashboard', label: 'Dashboard', icon: Layers, tone: 'emerald', hint: 'Workshop metrics overview' },
+    { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
+    { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings' },
+    { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members' },
+    { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel' },
+    { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
+  ];
+
+  const adminTabs: SegmentedTab<StaffTabId>[] = [
+    { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
+    { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
+    { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
+    { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
+    { id: 'business_performance', label: 'Growth', icon: Building2, tone: 'emerald', hint: 'Google & Meta performance' },
+  ];
+
   return (
     <div className="space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
       {/* 1. TOP COMMAND BAR: Online Service Status & Diagnostics */}
@@ -359,6 +406,41 @@ export const StaffPortal: React.FC = () => {
             </p>
 
             <div className="flex flex-wrap items-center gap-2 mt-3.5">
+              <button
+                type="button"
+                onClick={() => setIsScannerOpen(true)}
+                className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
+                title="Scan a member barcode or QR code"
+              >
+                <Scan className="w-4 h-4" />
+                <span>Scan Member Code</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={pushState === 'working' || pushState === 'granted'}
+                onClick={async () => {
+                  setPushState('working');
+                  const perm = await requestPushNotificationPermission();
+                  setPushState(perm === 'granted' ? 'granted' : 'blocked');
+                }}
+                className={`pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
+                  pushState === 'granted'
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 cursor-default'
+                    : 'bg-neutral-950/80 border-neutral-800 text-white hover:border-emerald-500/40'
+                }`}
+                title="Enable OneSignal push notifications on this device"
+              >
+                <Bell className="w-4 h-4" />
+                <span>
+                  {pushState === 'granted'
+                    ? 'Push Enabled'
+                    : pushState === 'working'
+                    ? 'Enabling…'
+                    : 'Enable Push'}
+                </span>
+              </button>
+
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs shadow-inner">
                 <span className={`w-2 h-2 rounded-full ${isStaffBookingSoundEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
                 <span className="text-neutral-400 text-[11px] font-medium">Audio Alert:</span>
@@ -490,170 +572,44 @@ export const StaffPortal: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. WORKSTATION NAVIGATOR: Clean, High-Affordance Switcher */}
-      <div className="bg-[#0b0e13] border border-neutral-800/90 rounded-2xl p-1.5 flex items-center gap-1.5 overflow-x-auto shadow-md">
-        <button
-          type="button"
-          onClick={() => setStaffTab('dashboard')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'dashboard'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Layers className="w-4 h-4 text-emerald-400" />
-          <span>Dashboard</span>
-        </button>
+      {/* 3. WORKSTATION NAVIGATOR: grouped, labelled, keyboard-navigable */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Operations</span>
+          <div className="h-px flex-1 bg-neutral-800/70" />
+        </div>
+        <SegmentedTabs
+          tabs={operationsTabs}
+          active={staffTab}
+          onChange={setStaffTab}
+          ariaLabel="Workshop operations"
+        />
 
-        <button
-          type="button"
-          onClick={() => setStaffTab('bookings')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'bookings'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Wrench className="w-4 h-4 text-emerald-400" />
-          <span>Workshop Bookings</span>
-          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
-            {bookings.length}
-          </span>
-          {freshBookings.length > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
-              ⚡ {freshBookings.length} NEW
-            </span>
-          )}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('staff_roster')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'staff_roster'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <UserPlus className="w-4 h-4 text-emerald-400" />
-          <span>Staff Management</span>
-          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
-            {staffMembers.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('promotions')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'promotions'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Tag className="w-4 h-4 text-amber-400" />
-          <span>Promotions Manager</span>
-          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
-            {promotions.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('customers')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'customers'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Users className="w-4 h-4 text-emerald-400" />
-          <span>Loyalty Members</span>
-          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded bg-neutral-900 border border-neutral-800 text-neutral-300">
-            {customerList.length}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('draws')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'draws'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Trophy className="w-4 h-4 text-emerald-400" />
-          <span>Prize Draws &amp; Wheel Hub</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('scanner')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'scanner'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Scan className="w-4 h-4 text-emerald-400" />
-          <span>Barcode Scanner</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('logs')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'logs'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <History className="w-4 h-4 text-emerald-400" />
-          <span>Audit Logs</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('financials')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'financials'
-              ? 'bg-emerald-950 text-emerald-300 shadow-md border border-emerald-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <TrendingUp className="w-4 h-4 text-emerald-400" />
-          <span>Financial Reports</span>
-        </button>
-
-        <div className="w-px h-6 bg-neutral-800 mx-2" />
-
-        <button
-          type="button"
-          onClick={() => setStaffTab('google_business')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'google_business'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
-        >
-          <Building2 className="w-4 h-4 text-emerald-400" />
-          <span>Business Profile</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => {
-            if (window.confirm('Are you absolutely sure you want to clean the slate? This will clear all local app data and reload the page.')) {
-              hardResetApp();
-            }
-          }}
-          className="px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer text-rose-400 hover:text-white hover:bg-rose-950/60 border border-rose-900"
-        >
-          <RefreshCcw className="w-4 h-4" />
-          <span>Clean Slate</span>
-        </button>
+        <div className="flex items-center gap-2 pt-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Admin &amp; Reports</span>
+          <div className="h-px flex-1 bg-neutral-800/70" />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedTabs
+            tabs={adminTabs}
+            active={staffTab}
+            onChange={setStaffTab}
+            ariaLabel="Admin and reports"
+            size="sm"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Are you absolutely sure you want to clean the slate? This will clear all local app data and reload the page.')) {
+                hardResetApp();
+              }
+            }}
+            className="pressable ml-auto flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-rose-900 px-3 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-950/60 hover:text-white"
+          >
+            <RefreshCcw className="w-3.5 h-3.5" />
+            <span>Clean Slate</span>
+          </button>
+        </div>
       </div>
 
       {/* 4. WORKSTATION VIEWS */}
@@ -670,6 +626,12 @@ export const StaffPortal: React.FC = () => {
       {/* VIEW 1C: Promotions Manager (Full CRUD) */}
       {staffTab === 'promotions' && <PromotionsManagerTab />}
 
+      {/* VIEW 1C-B: Discount Codes Manager (Full CRUD) */}
+      {staffTab === 'discount_codes' && <DiscountCodesTab />}
+
+      {/* VIEW 1C-C: Counter Sale / Till — scanned discounts auto-apply */}
+      {staffTab === 'till' && <CounterSaleTab />}
+
       {/* VIEW 1D: Derailleur Hanger Identifier Module */}
       {/* Removed */}
 
@@ -682,12 +644,15 @@ export const StaffPortal: React.FC = () => {
       {/* VIEW 7: Google Business Profile Tab */}
       {staffTab === 'google_business' && <GoogleBusinessTab />}
 
+      {/* VIEW 7B: Google & Meta Business Performance (OAuth authorised) */}
+      {staffTab === 'business_performance' && <BusinessPerformanceTab />}
+
       {/* VIEW 3: Customer Database Roster */}
       {staffTab === 'customers' && (
         <CustomerDatabaseTab
           onSelectForScanner={(cust) => {
             handleSelectCustomer(cust);
-            setStaffTab('scanner');
+            setStaffTab('customers');
           }}
         />
       )}
@@ -1177,6 +1142,20 @@ export const StaffPortal: React.FC = () => {
           }}
         />
       )}
+
+      {/* Member barcode / QR scanner */}
+      <QRCodeScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onCustomerScanned={(customer) => {
+          handleSelectCustomer(customer);
+          setStaffTab('customers');
+          setActionFeedback({
+            success: true,
+            message: `Scanned ${customer.displayName} (${customer.membershipNumber}) — loaded into the till.`,
+          });
+        }}
+      />
     </div>
   );
 };
