@@ -2329,11 +2329,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Immediately dispatch email alerts to BOTH customer and owner confirming receipt and pending approval
-    const { emailLog, customerEmailLog } = await dispatchBookingNotifications(provisionalBooking, ownerConfig);
+    const { emailLog, customerEmailLog, failures } = await dispatchBookingNotifications(provisionalBooking, ownerConfig);
 
     const completedBooking: ServiceBooking = {
       ...provisionalBooking,
       notifications: [emailLog, customerEmailLog],
+      notificationFailures: failures,
     };
 
     setBookings((prev) => [completedBooking, ...prev]);
@@ -2363,9 +2364,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     // Trigger instant email alert confirmation banner
+    const failureWarning = failures && failures.length > 0 ? ` ⚠️ ${failures.join(' ')}` : '';
     setLatestSmsAlert({
-      title: '📋 Repair Request Pending Approval',
-      message: `Repair request submitted! Staff will evaluate bench capacity. Email confirmation sent to ${completedBooking.customerEmail} and workshop alert to ${ownerConfig.ownerEmail}.`,
+      title: failureWarning ? '📋 Repair Request Pending Approval — email warning' : '📋 Repair Request Pending Approval',
+      message: `Repair request submitted! Staff will evaluate bench capacity. Email confirmation sent to ${completedBooking.customerEmail} and workshop alert to ${ownerConfig.ownerEmail}.${failureWarning}`,
       recipient: `${completedBooking.customerEmail} & ${ownerConfig.ownerEmail}`,
       time: new Date().toLocaleTimeString(),
       recipientType: 'both',

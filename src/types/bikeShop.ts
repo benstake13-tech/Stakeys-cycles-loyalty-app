@@ -460,6 +460,8 @@ export interface ServiceBooking {
   staffNotes?: string;
   createdAt: any;
   notifications: BookingNotificationLog[];
+  /** Populated when a booking notification could not actually be delivered. */
+  notificationFailures?: string[];
   reminder24hSent?: boolean;
   reminder24hSentAt?: any;
   reminder24hDeliveryStatus?: 'scheduled' | 'sent' | 'delivered';

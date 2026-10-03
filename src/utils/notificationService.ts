@@ -5,6 +5,8 @@ export interface DispatchResult {
   emailLog: BookingNotificationLog;
   customerEmailLog: BookingNotificationLog;
   timestamp: string;
+  /** Human-readable reasons any notification failed to actually send. */
+  failures?: string[];
 }
 
 /**
@@ -499,44 +501,57 @@ export async function dispatchBookingNotifications(
   };
 
   // Live Email Gateway: Forward to Supabase Edge Function
-  try {
-    const supabase = getSupabaseClient();
-    const ownerSend = await supabase.functions.invoke('send-email', {
-      body: {
-        from: 'noreply@stakeyscycles.co.uk',
-        to: config.ownerEmail,
-        subject: `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`,
-        html: generateBookingEmailHtml(booking, config),
-      },
-    });
+  const failures: string[] = [];
+  if (!config.ownerEmail || !config.emailAlertsEnabled) {
+    const reason = !config.ownerEmail
+      ? 'no workshop notification recipient is set'
+      : 'email alerts are turned off in workshop settings';
+    failures.push(`Workshop booking alert not sent: ${reason}.`);
+    console.warn(`[STAKEYS EMAIL ENGINE] ⚠️ Skipped workshop alert — ${reason}.`);
+  } else {
+    try {
+      const supabase = getSupabaseClient();
+      const ownerSend = await supabase.functions.invoke('send-email', {
+        body: {
+          from: 'noreply@stakeyscycles.co.uk',
+          to: config.ownerEmail,
+          subject: `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`,
+          html: generateBookingEmailHtml(booking, config),
+        },
+      });
 
-    const customerSend = await supabase.functions.invoke('send-email', {
-      body: {
-        from: 'noreply@stakeyscycles.co.uk',
-        to: booking.customerEmail,
-        subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
-        html: generateCustomerBookingEmailHtml(booking, config),
-      },
-    });
+      const customerSend = await supabase.functions.invoke('send-email', {
+        body: {
+          from: 'noreply@stakeyscycles.co.uk',
+          to: booking.customerEmail,
+          subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
+          html: generateCustomerBookingEmailHtml(booking, config),
+        },
+      });
 
-    if (ownerSend.error) {
-      console.error(`[STAKEYS EMAIL ENGINE] ❌ Workshop alert email failed: ${ownerSend.error.message}`);
-    } else {
-      console.log(`[STAKEYS EMAIL ENGINE] ✅ Booking alert email sent to workshop (${config.ownerEmail})`);
+      if (ownerSend.error) {
+        failures.push(`Workshop booking alert failed: ${ownerSend.error.message}`);
+        console.error(`[STAKEYS EMAIL ENGINE] ❌ Workshop alert email failed: ${ownerSend.error.message}`);
+      } else {
+        console.log(`[STAKEYS EMAIL ENGINE] ✅ Booking alert email sent to workshop (${config.ownerEmail})`);
+      }
+      if (customerSend.error) {
+        failures.push(`Customer confirmation failed: ${customerSend.error.message}`);
+        console.error(`[STAKEYS EMAIL ENGINE] ❌ Customer confirmation email failed: ${customerSend.error.message}`);
+      } else {
+        console.log(`[STAKEYS EMAIL ENGINE] ✅ Confirmation email sent to customer (${booking.customerEmail})`);
+      }
+    } catch (err) {
+      failures.push(`Booking emails failed: ${(err as Error).message || String(err)}`);
+      console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
     }
-    if (customerSend.error) {
-      console.error(`[STAKEYS EMAIL ENGINE] ❌ Customer confirmation email failed: ${customerSend.error.message}`);
-    } else {
-      console.log(`[STAKEYS EMAIL ENGINE] ✅ Confirmation email sent to customer (${booking.customerEmail})`);
-    }
-  } catch (err) {
-    console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
   }
 
   return {
     emailLog,
     customerEmailLog,
     timestamp: now.toISOString(),
+    failures,
   };
 }
 
