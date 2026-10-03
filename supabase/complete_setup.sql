@@ -16,8 +16,20 @@
 -- ============================================================================
 
 -- 0. Schema usage. Without this the anon/authenticated roles cannot touch
---    anything in `public` even when the tables are granted.
-GRANT USAGE ON SCHEMA public TO anon, authenticated;
+--    anything in `public` even when the tables are granted. Wrapped so that
+--    running this on a plain PostgreSQL (no Supabase roles) does not abort.
+DO $$
+DECLARE
+  r text;
+BEGIN
+  FOREACH r IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+      EXECUTE format('GRANT USAGE ON SCHEMA public TO %I', r);
+    ELSE
+      RAISE NOTICE 'role % not found; skipping schema usage grant', r;
+    END IF;
+  END LOOP;
+END $$;
 
 -- ============================================================================
 -- 1. TABLES
@@ -172,11 +184,21 @@ CREATE TABLE IF NOT EXISTS public.counter_sales (
   discount NUMERIC DEFAULT 0,
   discount_code TEXT,
   discount_label TEXT,
+  discount_source TEXT,
   grand_total NUMERIC DEFAULT 0,
   payment_method TEXT DEFAULT 'unpaid',
   staff_uid TEXT,
   staff_name TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  status TEXT DEFAULT 'completed',
+  quoted_amount NUMERIC,
+  quote_note TEXT,
+  quote_sent_at TIMESTAMPTZ,
+  quote_sent_by TEXT,
+  approved_at TIMESTAMPTZ,
+  approved_by TEXT,
+  declined_at TIMESTAMPTZ,
+  decline_reason TEXT
 );
 
 -- ============================================================================
@@ -329,11 +351,38 @@ ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS vat_amount NUMERIC DEF
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS discount NUMERIC DEFAULT 0;
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS discount_code TEXT;
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS discount_label TEXT;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS discount_source TEXT;
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS grand_total NUMERIC DEFAULT 0;
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'unpaid';
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS staff_uid TEXT;
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS staff_name TEXT;
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- 2i-quote. counter_sales quote → approval → completion lifecycle (mirrors bookings)
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'completed';
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS quoted_amount NUMERIC;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS quote_note TEXT;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS quote_sent_at TIMESTAMPTZ;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS quote_sent_by TEXT;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS declined_at TIMESTAMPTZ;
+ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS decline_reason TEXT;
+
+-- 2j. app_theme_config — one shared row (id = 1) holding the season theme that
+--     every account reads, so a theme applied once applies everywhere.
+CREATE TABLE IF NOT EXISTS public.app_theme_config (
+  id INTEGER PRIMARY KEY DEFAULT 1,
+  theme TEXT DEFAULT 'none',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.app_theme_config ADD COLUMN IF NOT EXISTS theme TEXT DEFAULT 'none';
+ALTER TABLE public.app_theme_config ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- Guarantee the single shared row exists so reads/upserts never 404.
+INSERT INTO public.app_theme_config (id, theme)
+SELECT 1, 'none'
+WHERE NOT EXISTS (SELECT 1 FROM public.app_theme_config WHERE id = 1);
 
 -- ============================================================================
 -- 3. GRANTS — without these every read/write fails with 42501.
@@ -344,16 +393,27 @@ DECLARE
   t text;
   tbls text[] := ARRAY[
     'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
-    'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales'
+    'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
+    'app_theme_config'
   ];
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')
+     AND NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    RAISE NOTICE 'anon/authenticated roles not found; skipping table grants';
+    RETURN;
+  END IF;
   FOREACH t IN ARRAY tbls LOOP
     IF to_regclass('public.' || t) IS NULL THEN
       RAISE NOTICE 'grants: skipping missing public.%', t;
       CONTINUE;
     END IF;
-    EXECUTE format('GRANT SELECT, INSERT, UPDATE ON public.%I TO anon, authenticated', t);
-    IF t = 'discount_codes' THEN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE format('GRANT SELECT, INSERT, UPDATE ON public.%I TO anon', t);
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE format('GRANT SELECT, INSERT, UPDATE ON public.%I TO authenticated', t);
+    END IF;
+    IF t = 'discount_codes' AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
       EXECUTE format('GRANT DELETE ON public.%I TO anon, authenticated', t);
     END IF;
   END LOOP;
@@ -368,7 +428,8 @@ DECLARE
   t text;
   tbls text[] := ARRAY[
     'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
-    'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales'
+    'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
+    'app_theme_config'
   ];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
@@ -475,7 +536,7 @@ WHERE NOT EXISTS (SELECT 1 FROM public.prize_wheels);
 DO $$
 DECLARE
   t text;
-  tbls text[] := ARRAY['profiles', 'stamp_logs', 'prize_wheels', 'prize_draws'];
+  tbls text[] := ARRAY['profiles', 'stamp_logs', 'prize_wheels', 'prize_draws', 'app_theme_config'];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
     BEGIN

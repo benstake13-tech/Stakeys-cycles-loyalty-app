@@ -20,6 +20,7 @@ import {
   RepairInvoice,
   DiscountCode,
   SaleTransaction,
+  SalePaymentMethod,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import { DEFAULT_PRIZE_WHEEL } from '../utils/prizeWheelHelper';
@@ -64,6 +65,7 @@ import {
   incrementDiscountUsageInDb,
   fetchCounterSalesFromDb,
   insertCounterSaleToDb,
+  updateCounterSaleInDb,
 } from '../api/backendDataService';
 
 interface ShopContextType {
@@ -171,6 +173,12 @@ interface ShopContextType {
   theme: ThemeMode;
   toggleTheme: () => void;
   setTheme: (theme: ThemeMode) => void;
+  /** Seasonal holiday theme applied to every account (stored in Supabase). */
+  seasonalTheme: SeasonalThemeId;
+  /** Apply/refresh the seasonal theme from Supabase (used on mount + realtime). */
+  refreshSeasonalTheme: () => Promise<void>;
+  /** Persist a seasonal theme so all accounts pick it up seamlessly. */
+  setSeasonalTheme: (theme: SeasonalThemeId) => Promise<{ success: boolean; message?: string }>;
   // Staff Roster Management
   staffMembers: StaffMember[];
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>;
@@ -192,6 +200,16 @@ interface ShopContextType {
   refreshDiscountCodes: () => Promise<void>;
   /** Persist a completed counter sale and record discount usage. */
   completeSale: (sale: SaleTransaction) => Promise<{ success: boolean; message?: string; sale?: SaleTransaction }>;
+  /** Build a quote for a till basket (no payment taken yet). */
+  createSaleQuote: (sale: SaleTransaction) => Promise<{ success: boolean; message?: string; sale?: SaleTransaction }>;
+  /** Re-quote an existing till sale before it is processed. */
+  updateSaleQuote: (saleId: string, quote: { amount: number; note?: string }) => Promise<{ success: boolean; message?: string }>;
+  /** Mark a quoted till sale as approved by the customer (ready to process). */
+  approveSale: (saleId: string) => Promise<{ success: boolean; message?: string }>;
+  /** Decline a quoted till sale. */
+  declineSale: (saleId: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
+  /** Process an approved till sale: take payment and close it out. */
+  processSale: (saleId: string, paymentMethod: SalePaymentMethod) => Promise<{ success: boolean; message?: string }>;
   /** Bump a discount code's usage counter in local state + DB. */
   recordDiscountUsage: (discountCodeId: string) => Promise<void>;
   // Prize Draw CRUD
@@ -235,6 +253,18 @@ interface ShopContextType {
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
+
+export type SeasonalThemeId = 'none' | 'halloween' | 'christmas' | 'easter' | 'cny' | 'valentines';
+
+const SEASONAL_THEMES: SeasonalThemeId[] = ['none', 'halloween', 'christmas', 'easter', 'cny', 'valentines'];
+export const SEASONAL_THEME_LABELS: Record<SeasonalThemeId, string> = {
+  none: 'No seasonal theme',
+  halloween: 'Halloween',
+  christmas: 'Christmas',
+  easter: 'Easter',
+  cny: 'Chinese New Year',
+  valentines: "Valentine's Day",
+};
 
 const STORAGE_KEY = 'stakeys_cycles_pb_state_v2';
 
@@ -306,6 +336,70 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       root.classList.add('light');
     }
   }, [theme]);
+
+  // ---------------------------------------------------------------------------
+  // Seasonal theme — one shared setting in Supabase applied to every account.
+  // The row is created on demand so this works even before the SQL is run.
+  // ---------------------------------------------------------------------------
+  const [seasonalTheme, setSeasonalThemeState] = useState<SeasonalThemeId>('none');
+
+  const refreshSeasonalTheme = async () => {
+    try {
+      const { data } = await supabase
+        .from('app_theme_config')
+        .select('theme')
+        .eq('id', 1)
+        .maybeSingle();
+      const next = (data?.theme as SeasonalThemeId) || 'none';
+      setSeasonalThemeState(SEASONAL_THEMES.includes(next) ? next : 'none');
+    } catch {
+      // Table not created yet — keep the current theme rather than crashing.
+    }
+  };
+
+  const setSeasonalTheme = async (
+    next: SeasonalThemeId
+  ): Promise<{ success: boolean; message?: string }> => {
+    const safe = SEASONAL_THEMES.includes(next) ? next : 'none';
+    const prev = seasonalTheme;
+    setSeasonalThemeState(safe); // optimistic so this device updates instantly
+    try {
+      const { error } = await supabase
+        .from('app_theme_config')
+        .upsert({ id: 1, theme: safe, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+      if (error) throw error;
+      toast.success(`Theme applied to all accounts: ${SEASONAL_THEME_LABELS[safe]}`);
+      return { success: true };
+    } catch (err: any) {
+      setSeasonalThemeState(prev);
+      const message =
+        'Could not reach the shared theme store. Run the SQL setup (app_theme_config) to enable cross-account themes.';
+      toast.error(message);
+      return { success: false, message };
+    }
+  };
+
+  useEffect(() => {
+    refreshSeasonalTheme();
+
+    // Realtime: any device that applies a theme updates every other account.
+    const channel = supabase
+      .channel('theme_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'app_theme_config', filter: 'id=eq.1' },
+        (payload: any) => {
+          const next = payload?.new?.theme as SeasonalThemeId;
+          if (next && SEASONAL_THEMES.includes(next)) setSeasonalThemeState(next);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 2. Staff Roster State & CRUD
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
@@ -481,6 +575,223 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? `Sale ${persisted.saleNumber} recorded — take £${persisted.grandTotal.toFixed(2)}.`
         : 'Sale saved locally but could not reach Supabase. Run the SQL setup to enable sync.',
       sale: persisted,
+    };
+  };
+
+  // ---------------------------------------------------------------------------
+  // Till quote lifecycle — mirrors the workshop booking flow:
+  //   quote → customer happy → approved → processed (payment taken).
+  // ---------------------------------------------------------------------------
+  const nextSaleNumber = () =>
+    `SALE-${new Date().getFullYear()}-${String(sales.length + 1).padStart(4, '0')}`;
+
+  const persistSaleUpdate = (
+    saleId: string,
+    updates: Partial<SaleTransaction>
+  ): SaleTransaction | null => {
+    let updated: SaleTransaction | null = null;
+    setSales((prev) =>
+      prev.map((s) => {
+        if (s.id !== saleId) return s;
+        updated = { ...s, ...updates };
+        return updated;
+      })
+    );
+    updateCounterSaleInDb(saleId, updates).catch((e) =>
+      console.warn('[DB SYNC] Error updating counter sale in DB:', e)
+    );
+    return updated;
+  };
+
+  const createSaleQuote = async (
+    sale: SaleTransaction
+  ): Promise<{ success: boolean; message?: string; sale?: SaleTransaction }> => {
+    const quoted: SaleTransaction = {
+      ...sale,
+      saleNumber: sale.saleNumber || nextSaleNumber(),
+      subtotal: roundMoney(sale.subtotal),
+      vatAmount: roundMoney(sale.vatAmount),
+      discount: roundMoney(sale.discount),
+      grandTotal: roundMoney(sale.grandTotal),
+      createdAt: sale.createdAt || new Date(),
+      status: 'quote',
+      quote: {
+        amount: roundMoney(sale.grandTotal),
+        note: sale.quote?.note,
+        sentAt: new Date().toISOString(),
+        sentBy: currentUser?.displayName,
+      },
+    };
+    setSales((prev) => [quoted, ...prev]);
+    const ok = await insertCounterSaleToDb(quoted);
+
+    setLatestSmsAlert({
+      title: '🧾 Quote Sent to Customer',
+      message: `Quote ${quoted.saleNumber} for £${quoted.grandTotal.toFixed(2)} sent to ${quoted.customerName}. Awaiting their go-ahead.`,
+      recipient: quoted.customerName,
+      time: new Date().toLocaleTimeString(),
+      recipientType: 'customer',
+    });
+
+    void insertStampLogToDb({
+      id: `log-quote-${quoted.id}`,
+      customerId: quoted.customerId || 'walk-in',
+      customerName: quoted.customerName,
+      membershipNumber: quoted.membershipNumber,
+      staffId: currentUser?.uid || 'system',
+      staffName: currentUser?.displayName,
+      action: 'edit_profile',
+      note: `QUOTE SENT: ${quoted.saleNumber} — £${quoted.grandTotal.toFixed(2)} for ${quoted.customerName}.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: ok,
+      message: ok
+        ? `Quote ${quoted.saleNumber} sent — £${quoted.grandTotal.toFixed(2)}. Process once the customer is happy.`
+        : 'Quote saved locally but could not reach Supabase. Run the SQL setup to enable sync.',
+      sale: quoted,
+    };
+  };
+
+  const updateSaleQuote = async (
+    saleId: string,
+    quote: { amount: number; note?: string }
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = sales.find((s) => s.id === saleId);
+    if (!target) return { success: false, message: 'Quote not found' };
+
+    const nextQuote = {
+      amount: roundMoney(quote.amount),
+      note: quote.note,
+      sentAt: new Date().toISOString(),
+      sentBy: currentUser?.displayName,
+    };
+    persistSaleUpdate(saleId, { status: 'quote', quote: nextQuote, grandTotal: nextQuote.amount });
+    return {
+      success: true,
+      message: `Quote updated to £${nextQuote.amount.toFixed(2)}.`,
+    };
+  };
+
+  const approveSale = async (
+    saleId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = sales.find((s) => s.id === saleId);
+    if (!target) return { success: false, message: 'Quote not found' };
+
+    const updated = persistSaleUpdate(saleId, {
+      status: 'approved',
+      approvedAt: new Date().toISOString(),
+      approvedBy: currentUser?.displayName,
+    });
+
+    setLatestSmsAlert({
+      title: '✅ Customer Approved the Quote',
+      message: `${target.customerName} accepted the £${target.grandTotal.toFixed(2)} quote on ${target.saleNumber}. Ready to process.`,
+      recipient: target.customerName,
+      time: new Date().toLocaleTimeString(),
+      recipientType: 'customer',
+    });
+
+    void insertStampLogToDb({
+      id: `log-saleappr-${saleId}-${Date.now()}`,
+      customerId: target.customerId || 'walk-in',
+      customerName: target.customerName,
+      membershipNumber: target.membershipNumber,
+      staffId: currentUser?.uid || 'system',
+      staffName: currentUser?.displayName,
+      action: 'edit_profile',
+      note: `QUOTE ACCEPTED: ${target.saleNumber} — £${target.grandTotal.toFixed(2)}.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    return { success: !!updated, message: 'Customer happy — ready to process.' };
+  };
+
+  const declineSale = async (
+    saleId: string,
+    reason?: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = sales.find((s) => s.id === saleId);
+    if (!target) return { success: false, message: 'Quote not found' };
+
+    persistSaleUpdate(saleId, {
+      status: 'declined',
+      declinedAt: new Date().toISOString(),
+      declineReason: reason || 'Customer did not accept the quote.',
+    });
+
+    void insertStampLogToDb({
+      id: `log-saledecl-${saleId}-${Date.now()}`,
+      customerId: target.customerId || 'walk-in',
+      customerName: target.customerName,
+      membershipNumber: target.membershipNumber,
+      staffId: currentUser?.uid || 'system',
+      staffName: currentUser?.displayName,
+      action: 'edit_profile',
+      note: `QUOTE DECLINED: ${target.saleNumber} — ${reason || 'customer did not accept'}.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    return { success: true, message: 'Quote declined.' };
+  };
+
+  const processSale = async (
+    saleId: string,
+    paymentMethod: SalePaymentMethod
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = sales.find((s) => s.id === saleId);
+    if (!target) return { success: false, message: 'Quote not found' };
+    if (target.status === 'quote' && !target.approvedAt) {
+      return {
+        success: false,
+        message: 'Awaiting customer approval — mark the quote as accepted before processing.',
+      };
+    }
+
+    persistSaleUpdate(saleId, {
+      status: 'completed',
+      paymentMethod,
+      approvedAt: target.approvedAt || new Date().toISOString(),
+      approvedBy: target.approvedBy || currentUser?.displayName,
+    });
+
+    // Consume the right reward only once the sale is actually paid for.
+    if (target.discountSource === 'discount_code' && target.discountCode) {
+      const code = discountCodes.find(
+        (c) => c.code === target.discountCode || c.id === (target as any).discountCodeId
+      );
+      if (code) await recordDiscountUsage(code.id);
+    } else if (target.discountSource === 'voucher' && target.customerId && target.discountCode) {
+      await redeemServiceVoucher(target.customerId, target.discountCode, currentUser?.uid);
+    }
+
+    setLatestSmsAlert({
+      title: '💳 Sale Processed',
+      message: `${target.saleNumber} completed — £${target.grandTotal.toFixed(2)} taken by ${paymentMethod}.`,
+      recipient: target.customerName,
+      time: new Date().toLocaleTimeString(),
+      recipientType: 'customer',
+    });
+
+    void insertStampLogToDb({
+      id: `log-salepaid-${saleId}-${Date.now()}`,
+      customerId: target.customerId || 'walk-in',
+      customerName: target.customerName,
+      membershipNumber: target.membershipNumber,
+      staffId: currentUser?.uid || 'system',
+      staffName: currentUser?.displayName,
+      action: 'sale_completed',
+      note: `SALE PROCESSED: ${target.saleNumber} — £${target.grandTotal.toFixed(2)} (${paymentMethod})${
+        target.discount > 0 ? ` discount ${target.discountCode} -£${target.discount.toFixed(2)}` : ''
+      }.`,
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      message: `Sale ${target.saleNumber} processed — take £${target.grandTotal.toFixed(2)}.`,
     };
   };
 
@@ -2487,6 +2798,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         theme,
         toggleTheme,
         setTheme,
+        seasonalTheme,
+        refreshSeasonalTheme,
+        setSeasonalTheme,
         staffMembers,
         addStaffMember,
         updateStaffMember,
@@ -2503,6 +2817,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteDiscountCode,
         refreshDiscountCodes,
         completeSale,
+        createSaleQuote,
+        updateSaleQuote,
+        approveSale,
+        declineSale,
+        processSale,
         recordDiscountUsage,
         updateDraw,
         deleteDraw,

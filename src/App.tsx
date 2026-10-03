@@ -29,13 +29,14 @@ import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
+import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { Toaster } from 'react-hot-toast';
 import { initOneSignal, linkUser, unlinkUser } from './utils/onesignalPush';
 
 function AppContent() {
-  const { currentUser, logoutUser, loginStaff, theme, bookings } = useShop();
+  const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   const [activeTab, setActiveTab] = useState<NavTabId>('customer');
@@ -193,7 +194,13 @@ function AppContent() {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
+    <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+      {/* Seasonal characters ride across the background of every screen */}
+      <SeasonalThemeCanvas theme={seasonalTheme} />
+
+      {/* Page content sits above the seasonal canvas (z-0) so the characters
+          ride across the background of every screen, behind the UI. */}
+      <div className="relative z-10 min-h-screen flex flex-col">
       {/* Broadcast Winner Announcement to Everybody */}
       <WinnerAnnouncementBanner />
 
@@ -490,6 +497,7 @@ function AppContent() {
           </form>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -7,11 +7,16 @@ import {
   ShoppingCart,
   Tag,
   UserCheck,
-  X,
   BadgePercent,
   Ticket,
   Check,
   AlertCircle,
+  FileText,
+  Clock,
+  ThumbsUp,
+  ThumbsDown,
+  CreditCard,
+  Send,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import {
@@ -54,8 +59,11 @@ export const CounterSaleTab: React.FC = () => {
     users = [],
     discountCodes,
     sales,
-    completeSale,
-    recordDiscountUsage,
+    createSaleQuote,
+    updateSaleQuote,
+    approveSale,
+    declineSale,
+    processSale,
     redeemServiceVoucher,
   } = useShop();
 
@@ -68,6 +76,14 @@ export const CounterSaleTab: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>('card');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [lastSale, setLastSale] = useState<SaleTransaction | null>(null);
+
+  // Quote workflow state — a till basket becomes a quote, and staff can reopen
+  // that quote to edit/approve/process it. Mirrors the booking flow.
+  const [activeQuote, setActiveQuote] = useState<SaleTransaction | null>(null);
+  const [quoteNote, setQuoteNote] = useState('');
+  const [isSendingQuote, setIsSendingQuote] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showQuotePanel, setShowQuotePanel] = useState(false);
 
   const subtotal = useMemo(
     () => roundMoney(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0)),
@@ -237,47 +253,110 @@ export const CounterSaleTab: React.FC = () => {
     setDiscount(null);
     setDiscountMessage(null);
     setLastSale(null);
+    setActiveQuote(null);
+    setQuoteNote('');
+    setShowQuotePanel(false);
   };
 
-  const complete = async () => {
+  /** Open quotes awaiting the customer's go-ahead (newest first). */
+  const openQuotes = useMemo(
+    () => sales.filter((s) => s.status === 'quote' || s.status === 'approved'),
+    [sales]
+  );
+
+  /** Assemble the current basket into a sale record. */
+  const buildSale = (extra: Partial<SaleTransaction> = {}): SaleTransaction => ({
+    id: `sale-${Date.now()}`,
+    saleNumber: '',
+    customerId: selectedCustomer?.uid,
+    membershipNumber: selectedCustomer?.membershipNumber,
+    customerName: selectedCustomer?.displayName || 'Walk-in customer',
+    items: lines,
+    subtotal: totals.subtotal,
+    vatRate: totals.vatRate,
+    vatAmount: totals.vatAmount,
+    discount: totals.discount,
+    discountCode: effectiveDiscount?.code,
+    discountLabel: effectiveDiscount?.label,
+    discountSource: effectiveDiscount?.source,
+    discountVoucherId: effectiveDiscount?.voucherId,
+    grandTotal: totals.grandTotal,
+    paymentMethod,
+    staffUid: currentUser?.uid,
+    staffName: currentUser?.displayName,
+    createdAt: new Date(),
+    ...extra,
+  });
+
+  /** Step 1: give the customer a quote — no payment taken yet. */
+  const sendQuote = async () => {
     if (lines.length === 0) {
-      setDiscountMessage({ ok: false, text: 'Add at least one item before completing the sale.' });
+      setDiscountMessage({ ok: false, text: 'Add at least one item before quoting the customer.' });
       return;
     }
-    const year = new Date().getFullYear();
-    const saleNumber = `SALE-${year}-${String(sales.length + 1).padStart(4, '0')}`;
-    const sale: SaleTransaction = {
-      id: `sale-${Date.now()}`,
-      saleNumber,
-      customerId: selectedCustomer?.uid,
-      membershipNumber: selectedCustomer?.membershipNumber,
-      customerName: selectedCustomer?.displayName || 'Walk-in customer',
-      items: lines,
-      subtotal: totals.subtotal,
-      vatRate: totals.vatRate,
-      vatAmount: totals.vatAmount,
-      discount: totals.discount,
-      discountCode: effectiveDiscount?.code,
-      discountLabel: effectiveDiscount?.label,
-      grandTotal: totals.grandTotal,
-      paymentMethod,
-      staffUid: currentUser?.uid,
-      staffName: currentUser?.displayName,
-      createdAt: new Date(),
-    };
+    setIsSendingQuote(true);
+    try {
+      const res = await createSaleQuote(buildSale({ quote: { amount: totals.grandTotal, note: quoteNote, sentAt: new Date() } }));
+      if (res.sale) setActiveQuote(res.sale);
+      setLastSale(res.sale || null);
+      setDiscountMessage({ ok: res.success, text: res.message || '' });
+      setLines([]);
+      setSelectedCustomer(null);
+      setDiscount(null);
+      setQuoteNote('');
+    } finally {
+      setIsSendingQuote(false);
+    }
+  };
 
-    const res = await completeSale(sale);
-    if (res.success && effectiveDiscount?.source === 'discount_code' && effectiveDiscount.discountCodeId) {
-      await recordDiscountUsage(effectiveDiscount.discountCodeId);
-    }
-    if (res.success && effectiveDiscount?.source === 'voucher' && selectedCustomer && effectiveDiscount.code) {
-      await redeemServiceVoucher(selectedCustomer.uid, effectiveDiscount.code, currentUser?.uid);
-    }
-    setLastSale(res.sale || sale);
+  /** Step 2: the customer is happy with the price. */
+  const markApproved = async (sale: SaleTransaction) => {
+    const res = await approveSale(sale.id);
+    setActiveQuote((prev) => (prev && prev.id === sale.id ? { ...prev, status: 'approved' } : prev));
     setDiscountMessage({ ok: res.success, text: res.message || '' });
-    setLines([]);
+  };
+
+  /** Reopen an existing quote to adjust the basket or price. */
+  const loadQuoteIntoBasket = (sale: SaleTransaction) => {
+    setLines(sale.items);
+    setActiveQuote(sale);
     setSelectedCustomer(null);
     setDiscount(null);
+    setVatRate(sale.vatRate || 0);
+    setQuoteNote(sale.quote?.note || '');
+    setShowQuotePanel(true);
+    setDiscountMessage({ ok: true, text: `Editing quote ${sale.saleNumber} (£${sale.grandTotal.toFixed(2)}).` });
+  };
+
+  /** Adjust an existing quote's price to the current basket total. */
+  const requote = async () => {
+    if (!activeQuote) return;
+    const res = await updateSaleQuote(activeQuote.id, { amount: totals.grandTotal, note: quoteNote });
+    if (res.success) setActiveQuote({ ...activeQuote, grandTotal: totals.grandTotal, status: 'quote' });
+    setDiscountMessage({ ok: res.success, text: res.message || '' });
+  };
+
+  /** Step 3: process — take payment and close the sale. */
+  const process = async (sale: SaleTransaction) => {
+    setIsProcessing(true);
+    try {
+      const res = await processSale(sale.id, paymentMethod);
+      if (res.success && sale.discountCode) {
+        const voucherMatch = (selectedCustomer?.serviceVouchers || []).find(
+          (v) => v.code === sale.discountCode && v.status === 'available'
+        );
+        if (voucherMatch && sale.customerId) {
+          await redeemServiceVoucher(sale.customerId, sale.discountCode, currentUser?.uid);
+        }
+      }
+      setDiscountMessage({ ok: res.success, text: res.message || '' });
+      if (res.success) {
+        setActiveQuote(null);
+        setLastSale({ ...sale, status: 'completed', paymentMethod });
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -554,44 +633,191 @@ export const CounterSaleTab: React.FC = () => {
             <span className="font-mono text-emerald-400">£{totals.grandTotal.toFixed(2)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 pt-1">
-            {(['card', 'cash', 'online', 'unpaid'] as SalePaymentMethod[]).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => setPaymentMethod(m)}
-                className={`rounded-xl border px-3 py-2 text-xs font-semibold capitalize ${
-                  paymentMethod === m
-                    ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
-                    : 'border-neutral-700 bg-black text-neutral-400'
-                }`}
-              >
-                {m === 'unpaid' ? 'On account' : m}
-              </button>
-            ))}
-          </div>
+          {activeQuote ? (
+            /* -------- ACTIVE QUOTE: approve then process -------- */
+            <div className="rounded-xl border border-amber-800 bg-amber-950/30 p-3 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-amber-300">
+                  <FileText className="w-3.5 h-3.5" /> {activeQuote.saleNumber}
+                </span>
+                <span className="flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                  <Clock className="w-3 h-3" />
+                  {activeQuote.status === 'approved' ? 'CUSTOMER ACCEPTED' : 'QUOTE SENT'}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-amber-200/80">
+                <span>{activeQuote.customerName}</span>
+                <span className="font-mono font-black text-amber-300">£{activeQuote.grandTotal.toFixed(2)}</span>
+              </div>
 
-          <button
-            type="button"
-            onClick={complete}
-            disabled={lines.length === 0}
-            className="pressable mt-1 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-black text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            <Check className="w-4 h-4" /> Complete sale · £{totals.grandTotal.toFixed(2)}
-          </button>
-
-          {lastSale && (
-            <div className="rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-[11px] text-emerald-300">
-              <div className="font-bold">{lastSale.saleNumber} completed</div>
-              {lastSale.discount > 0 && (
-                <div>
-                  Discount {lastSale.discountCode} applied: -£{lastSale.discount.toFixed(2)}
+              {activeQuote.status !== 'approved' ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => markApproved(activeQuote)}
+                    className="pressable flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 py-2.5 text-xs font-bold text-neutral-950 hover:bg-emerald-400"
+                  >
+                    <ThumbsUp className="w-3.5 h-3.5" /> Customer happy
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => declineSale(activeQuote.id).then(() => setActiveQuote(null))}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-rose-800 bg-rose-950/40 py-2.5 text-xs font-bold text-rose-300 hover:bg-rose-950/70"
+                  >
+                    <ThumbsDown className="w-3.5 h-3.5" /> Declined
+                  </button>
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['card', 'cash', 'online', 'unpaid'] as SalePaymentMethod[]).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setPaymentMethod(m)}
+                        className={`rounded-xl border px-3 py-2 text-xs font-semibold capitalize ${
+                          paymentMethod === m
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
+                            : 'border-neutral-700 bg-black text-neutral-400'
+                        }`}
+                      >
+                        {m === 'unpaid' ? 'On account' : m}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => process(activeQuote)}
+                    disabled={isProcessing}
+                    className="pressable flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-black text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+                  >
+                    <CreditCard className="w-4 h-4" />
+                    {isProcessing ? 'Processing…' : `Process sale · £${activeQuote.grandTotal.toFixed(2)}`}
+                  </button>
+                </>
               )}
-              <div>Total taken: £{lastSale.grandTotal.toFixed(2)}</div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLines(activeQuote.items)}
+                  className="rounded-xl border border-neutral-700 py-2 text-[11px] font-semibold text-neutral-300 hover:bg-neutral-800"
+                >
+                  Edit basket
+                </button>
+                <button
+                  type="button"
+                  onClick={requote}
+                  disabled={lines.length === 0}
+                  className="rounded-xl border border-neutral-700 py-2 text-[11px] font-semibold text-neutral-300 hover:bg-neutral-800 disabled:opacity-40"
+                >
+                  Re-quote at £{totals.grandTotal.toFixed(2)}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveQuote(null)}
+                className="w-full text-[11px] text-neutral-500 hover:text-neutral-300"
+              >
+                Start a new basket
+              </button>
+            </div>
+          ) : (
+            /* -------- NEW BASKET: quote it -------- */
+            <>
+              <textarea
+                value={quoteNote}
+                onChange={(e) => setQuoteNote(e.target.value)}
+                rows={2}
+                placeholder="Note to customer (optional) — e.g. 'Includes new inner tube and labour.'"
+                className="w-full rounded-xl border border-neutral-700 bg-black px-3 py-2 text-xs text-white outline-none focus:border-emerald-500 resize-none"
+              />
+              <button
+                type="button"
+                onClick={sendQuote}
+                disabled={lines.length === 0 || isSendingQuote}
+                className="pressable flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-black text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Send className="w-4 h-4" />
+                {isSendingQuote ? 'Sending quote…' : `Give quote · £${totals.grandTotal.toFixed(2)}`}
+              </button>
+              <p className="text-center text-[10px] text-neutral-500">
+                Customer reviews the price first — no payment is taken until they accept.
+              </p>
+            </>
+          )}
+
+          {lastSale && !activeQuote && (
+            <div className="rounded-xl border border-emerald-800 bg-emerald-950/40 px-3 py-2 text-[11px] text-emerald-300">
+              <div className="font-bold">
+                {lastSale.saleNumber} · £{lastSale.grandTotal.toFixed(2)} ·{' '}
+                {lastSale.status === 'completed'
+                  ? 'processed'
+                  : lastSale.status === 'approved'
+                  ? 'accepted — ready to process'
+                  : 'quote sent'}
+              </div>
+              {lastSale.discount > 0 && (
+                <div>Discount {lastSale.discountCode} applied: -£{lastSale.discount.toFixed(2)}</div>
+              )}
             </div>
           )}
         </div>
+
+        {/* Open quotes awaiting the customer's go-ahead */}
+        {openQuotes.length > 0 && (
+          <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                Open quotes ({openQuotes.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowQuotePanel((v) => !v)}
+                className="text-[11px] text-sky-400 hover:text-sky-300"
+              >
+                {showQuotePanel ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {showQuotePanel &&
+              openQuotes.slice(0, 6).map((q) => (
+                <div
+                  key={q.id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-neutral-800 bg-black px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-semibold text-white">
+                      <span className="font-mono text-emerald-400">{q.saleNumber}</span> · {q.customerName}
+                    </div>
+                    <div className="text-[10px] text-neutral-500">
+                      {q.status === 'approved' ? 'Customer accepted' : 'Awaiting customer'} · £
+                      {q.grandTotal.toFixed(2)}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {q.status !== 'approved' && (
+                      <button
+                        type="button"
+                        onClick={() => markApproved(q)}
+                        title="Customer is happy with the price"
+                        className="rounded-lg bg-emerald-500/90 p-1.5 text-neutral-950 hover:bg-emerald-400"
+                      >
+                        <ThumbsUp className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => loadQuoteIntoBasket(q)}
+                      title="Reopen quote"
+                      className="rounded-lg border border-neutral-700 p-1.5 text-neutral-300 hover:bg-neutral-800"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* Scanner — both members and discount codes route through here */}

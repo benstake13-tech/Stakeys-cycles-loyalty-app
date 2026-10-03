@@ -1069,11 +1069,41 @@ function mapSaleRow(row: any): SaleTransaction {
     discount: Number(row.discount) || 0,
     discountCode: row.discount_code || undefined,
     discountLabel: row.discount_label || undefined,
+    discountSource: row.discount_source || undefined,
     grandTotal: Number(row.grand_total) || 0,
     paymentMethod: row.payment_method || 'unpaid',
     staffUid: row.staff_uid || undefined,
     staffName: row.staff_name || undefined,
     createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+    status: row.status || 'completed',
+    quote:
+      row.quoted_amount != null
+        ? {
+            amount: Number(row.quoted_amount),
+            note: row.quote_note || undefined,
+            sentAt: row.quote_sent_at || undefined,
+            sentBy: row.quote_sent_by || undefined,
+          }
+        : undefined,
+    approvedAt: row.approved_at || undefined,
+    approvedBy: row.approved_by || undefined,
+    declinedAt: row.declined_at || undefined,
+    declineReason: row.decline_reason || undefined,
+  };
+}
+
+/** Supabase columns for the quote/approval lifecycle, shared by insert + update. */
+function saleLifecycleColumns(sale: SaleTransaction) {
+  return {
+    status: sale.status || 'completed',
+    quoted_amount: sale.quote?.amount ?? null,
+    quote_note: sale.quote?.note ?? null,
+    quote_sent_at: sale.quote?.sentAt ? new Date(sale.quote.sentAt).toISOString() : null,
+    quote_sent_by: sale.quote?.sentBy ?? null,
+    approved_at: sale.approvedAt ? new Date(sale.approvedAt).toISOString() : null,
+    approved_by: sale.approvedBy ?? null,
+    declined_at: sale.declinedAt ? new Date(sale.declinedAt).toISOString() : null,
+    decline_reason: sale.declineReason ?? null,
   };
 }
 
@@ -1093,11 +1123,13 @@ export async function insertCounterSaleToDb(sale: SaleTransaction): Promise<bool
       discount: sale.discount,
       discount_code: sale.discountCode || null,
       discount_label: sale.discountLabel || null,
+      discount_source: sale.discountSource || null,
       grand_total: sale.grandTotal,
       payment_method: sale.paymentMethod,
       staff_uid: sale.staffUid || null,
       staff_name: sale.staffName || null,
       created_at: sale.createdAt ? new Date(sale.createdAt).toISOString() : new Date().toISOString(),
+      ...saleLifecycleColumns(sale),
     };
     const { error } = await supabase.from('counter_sales').upsert(payload, { onConflict: 'id' });
     if (error) {
@@ -1107,6 +1139,34 @@ export async function insertCounterSaleToDb(sale: SaleTransaction): Promise<bool
     return true;
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] insertCounterSaleToDb:', err);
+    return false;
+  }
+}
+
+/** Persist a change to an existing counter sale (quote sent, approved, paid…). */
+export async function updateCounterSaleInDb(
+  saleId: string,
+  updates: Partial<SaleTransaction>
+): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload: Record<string, any> = { id: saleId };
+    if (updates.status !== undefined || updates.quote !== undefined ||
+        updates.approvedAt !== undefined || updates.declinedAt !== undefined) {
+      Object.assign(payload, saleLifecycleColumns(updates as SaleTransaction));
+    }
+    if (updates.paymentMethod !== undefined) payload.payment_method = updates.paymentMethod;
+    if (updates.grandTotal !== undefined) payload.grand_total = updates.grandTotal;
+    if (updates.discount !== undefined) payload.discount = updates.discount;
+    if (updates.items !== undefined) payload.items = updates.items;
+    const { error } = await supabase.from('counter_sales').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPSERT counter_sales (update) failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] updateCounterSaleInDb:', err);
     return false;
   }
 }

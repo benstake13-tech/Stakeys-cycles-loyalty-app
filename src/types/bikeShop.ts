@@ -325,7 +325,21 @@ export interface SaleDiscountState {
 
 export type SalePaymentMethod = 'card' | 'cash' | 'online' | 'unpaid';
 
-/** A completed over-the-counter sale (parts, accessories, labour). */
+/**
+ * A counter sale moves through a quote step before it is processed, mirroring
+ * the workshop booking flow: staff build the basket, send the customer a quote,
+ * and only once the customer is happy is the sale taken to payment.
+ */
+export type SaleStatus = 'quote' | 'approved' | 'completed' | 'declined';
+
+export interface SaleQuote {
+  amount: number;
+  note?: string;
+  sentAt: any;
+  sentBy?: string;
+}
+
+/** A counter sale (parts, accessories, labour) — quoted, then processed. */
 export interface SaleTransaction {
   id: string;
   saleNumber: string; // e.g. SALE-2026-0042
@@ -339,11 +353,21 @@ export interface SaleTransaction {
   discount: number;
   discountCode?: string;
   discountLabel?: string;
+  /** Where the discount came from, so the right reward is consumed on payment. */
+  discountSource?: SaleDiscountState['source'];
+  discountVoucherId?: string;
   grandTotal: number;
   paymentMethod: SalePaymentMethod;
   staffUid?: string;
   staffName?: string;
   createdAt: any;
+  /** Quote → approval → completion lifecycle. Defaults to 'completed'. */
+  status?: SaleStatus;
+  quote?: SaleQuote;
+  approvedAt?: any;
+  approvedBy?: string;
+  declinedAt?: any;
+  declineReason?: string;
 }
 
 export interface RepairInvoice {
