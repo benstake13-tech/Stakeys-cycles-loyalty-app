@@ -46,7 +46,7 @@ import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio
 import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/onesignalPush';
 import { generateMembershipNumber } from '../api/firebaseService';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
-import { supabase } from '../lib/supabase';
+import { supabase, AUTH_LINK_ON_LOAD } from '../lib/supabase';
 import {
   fetchCustomerBikesFromDb,
   insertCustomerBikeToDb,
@@ -125,6 +125,7 @@ interface ShopContextType {
   loginWithCredentials: (email: string, password?: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
   loginStaff: (email: string, password: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
   registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string) => Promise<{ success: boolean; message?: string }>;
+  resendConfirmationEmail: (email: string) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
   logoutUser: () => void;
   // Bike actions
@@ -1268,6 +1269,70 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Complete registration when the customer returns from the email confirmation
+  // link. Supabase parses the link's token on load (detectSessionInUrl) and
+  // emits a signed-in session; we then build the profile, self-heal the row and
+  // log them straight in, so they never have to re-enter a password.
+  useEffect(() => {
+    const hasConfirmationParams = AUTH_LINK_ON_LOAD;
+
+    const completeSignupSession = async (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authUser.id)
+        .maybeSingle();
+
+      const authEmail = authUser.email || '';
+      const meta = (authUser.user_metadata || {}) as Record<string, string | undefined>;
+      const userProfile: UserProfile = {
+        uid: authUser.id,
+        email: profile?.email || authEmail,
+        displayName: profile?.display_name || meta.full_name || authEmail.split('@')[0] || 'Stakey Rider',
+        phoneNumber: profile?.phone || meta.phone || undefined,
+        role: profile?.role || 'customer',
+        membershipNumber:
+          profile?.membership_number || `STK-${authUser.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
+        stamps: profile?.stamps || 0,
+        tickets: profile?.completed_cards || 0,
+        merits: profile?.merit_points || 0,
+        bikes: [],
+        createdAt: profile?.created_at ? new Date(profile.created_at) : new Date(),
+        lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
+      };
+
+      await ensureProfileRowInDb(userProfile);
+      setCurrentUser(userProfile);
+      setUsers((prev) => (prev.some((u) => u.uid === userProfile.uid) ? prev : [userProfile, ...prev]));
+      await syncUserFromDatabase(userProfile);
+    };
+
+    // 1. Link already processed into a session before this effect ran.
+    supabase.auth.getSession().then(({ data }) => {
+      if (hasConfirmationParams && data.session?.user) {
+        void completeSignupSession(data.session.user);
+      }
+    });
+
+    // 2. Link processed after this effect subscribed.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user && hasConfirmationParams) {
+        void completeSignupSession(session.user);
+      }
+    });
+
+    // Clean the one-time tokens out of the URL so a refresh can't replay them.
+    if (hasConfirmationParams) {
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch {
+        // ignore
+      }
+    }
+
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
   // Owner Notification Configuration (Recipient workshop@stakeyscycles.com + SMS)
   const [ownerConfig, setOwnerConfig] = useState<OwnerNotificationConfig>({
     ownerEmail: '',
@@ -1346,10 +1411,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 1. Authenticate with Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
-        password: password.trim(),
+        password,
       });
 
       if (error || !data.user) {
+        // Distinguish "you haven't confirmed yet" from a genuine wrong password,
+        // otherwise a brand-new customer just sees the generic message.
+        const msg = (error?.message || '').toLowerCase();
+        if (msg.includes('not confirmed') || (error as any)?.code === 'email_not_confirmed') {
+          return {
+            success: false,
+            message: 'Your email is not confirmed yet. Click the link in your confirmation email, then sign in. (You can resend it from the Sign Up tab.)',
+          };
+        }
         return { success: false, message: 'Invalid email or password.' };
       }
 
@@ -1465,10 +1539,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ) => {
     try {
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim().toLowerCase(),
         password,
         options: {
           data: { full_name: name.trim(), phone: phoneNumber?.trim() },
+          // Send the confirmation link back to the app itself. Without this the
+          // link falls back to the project Site URL, which may be a different
+          // origin and leaves the customer unable to complete the flow here.
+          emailRedirectTo: window.location.origin,
         },
       });
 
@@ -1476,13 +1554,40 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: error.message };
       }
 
+      // When email confirmation is enabled Supabase deliberately does not reveal
+      // whether an address is already registered: a repeat signup returns a user
+      // with an empty identities array and no error. Surface that clearly so the
+      // customer logs in instead of waiting for an email that never arrives.
+      if (data.user && (data.user.identities?.length ?? 0) === 0) {
+        return {
+          success: false,
+          message: 'An account with this email already exists. Please sign in, or reset your password if you have forgotten it.',
+        };
+      }
+
       return {
         success: true,
-        message: 'Account created! Please check your email to confirm your registration before signing in.',
+        message: 'Account created! Please check your email and click the confirmation link, then sign in.',
       };
     } catch (err: any) {
       console.error('Registration error:', err);
       return { success: false, message: err.message || 'An unexpected error occurred during registration.' };
+    }
+  };
+
+  const resendConfirmationEmail = async (email: string) => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+        options: { emailRedirectTo: window.location.origin },
+      });
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      return { success: true, message: 'Confirmation email re-sent. Check your inbox and spam folder.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Could not resend the confirmation email.' };
     }
   };
 
@@ -2474,7 +2579,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return { success: false, message: 'Booking not found' };
 
-    const { emailLog } = await dispatchBookingApprovalNotification(
+    const { emailLog, sent: emailSent, error: emailError } = await dispatchBookingApprovalNotification(
       target,
       staffNote,
       ownerConfig
@@ -2493,21 +2598,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
 
     // Remote Database Mutation: UPDATE service_bookings table
-    updateServiceBookingInDb(bookingId, {
+    const persisted = await updateServiceBookingInDb(bookingId, {
       status: 'confirmed',
       approvalStatus: 'approved',
       approvedAt: updated.approvedAt,
       approvedBy: updated.approvedBy,
       staffNotes: staffNote || target.staffNotes,
-    }).catch((e) => console.warn('[DB SYNC] Error approving booking in DB:', e));
-
-    setLatestSmsAlert({
-      title: '✅ Booking Approved & Customer Notified',
-      message: `Official Approval Email delivered to ${target.customerEmail} for ${target.preferredDate}.`,
-      recipient: target.customerEmail,
-      time: new Date().toLocaleTimeString(),
-      recipientType: 'customer',
+    }).catch((e) => {
+      console.warn('[DB SYNC] Error approving booking in DB:', e);
+      return false;
     });
+
+    if (emailSent) {
+      setLatestSmsAlert({
+        title: '✅ Booking Approved & Customer Notified',
+        message: `Official Approval Email delivered to ${target.customerEmail} for ${target.preferredDate}.`,
+        recipient: target.customerEmail,
+        time: new Date().toLocaleTimeString(),
+        recipientType: 'customer',
+      });
+    } else {
+      setLatestSmsAlert({
+        title: '⚠️ Booking Approved — Email NOT Sent',
+        message: `Approved locally, but the confirmation email to ${target.customerEmail} failed${emailError ? ` (${emailError})` : ''}. Deploy the send-email function / set RESEND_API_KEY, then notify the customer manually.`,
+        recipient: target.customerEmail,
+        time: new Date().toLocaleTimeString(),
+        recipientType: 'customer',
+      });
+    }
 
     const auditLog: StampLog = {
       id: `log-appr-${Date.now()}`,
@@ -2518,9 +2636,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       staffName: currentUser?.displayName || 'Ben Stakey',
       action: 'edit_profile',
       timestamp: new Date(),
-      note: `✅ APPROVED: Booking #${target.id} (${target.serviceTitle}) for ${target.customerName}. Email dispatched to ${target.customerEmail}.`,
+      note: `✅ APPROVED: Booking #${target.id} (${target.serviceTitle}) for ${target.customerName}. ${emailSent ? `Email dispatched to ${target.customerEmail}.` : 'Email delivery FAILED.'}`,
     };
     setStampLogs((prev) => [auditLog, ...prev]);
+
+    if (!emailSent) {
+      return {
+        success: true,
+        message: `Booking #${bookingId} approved${persisted ? '' : ' (local only — database sync failed)'}. ⚠️ Confirmation email to ${target.customerEmail} was NOT sent${emailError ? `: ${emailError}` : ''}.`,
+      };
+    }
 
     return {
       success: true,
@@ -2803,15 +2928,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
 
-    updateServiceBookingInDb(bookingId, {
+    const persisted = await updateServiceBookingInDb(bookingId, {
       quotedPrice: quote.quotedPrice,
       quoteNote: quote.quoteNote,
       quoteSentAt: updated.quoteSentAt,
-    }).catch((e) => console.warn('[DB SYNC] Error updating booking quote in DB:', e));
+    }).catch((e) => {
+      console.warn('[DB SYNC] Error updating booking quote in DB:', e);
+      return false;
+    });
 
     return {
       success: true,
-      message: `Quote of £${quote.quotedPrice.toFixed(2)} updated for booking #${bookingId}.`,
+      message: persisted
+        ? `Quote of £${quote.quotedPrice.toFixed(2)} saved for booking #${bookingId}. It will be included as the estimate in the approval email.`
+        : `Quote of £${quote.quotedPrice.toFixed(2)} saved on this device only — the database sync failed. Run the repair SQL, then re-send the quote.`,
     };
   };
 
@@ -3011,6 +3141,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithCredentials,
         loginStaff,
         registerCustomerAccount,
+        resendConfirmationEmail,
         resetPassword,
         logoutUser,
         addCustomerBike,

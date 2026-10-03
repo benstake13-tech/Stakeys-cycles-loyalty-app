@@ -255,8 +255,12 @@ export async function fetchServiceBookingsFromDb(
         approvalStatus: row.approval_status || (row.status === 'confirmed' ? 'approved' : 'pending_approval'),
         approvedAt: row.approved_at || undefined,
         approvedBy: row.approved_by || undefined,
+        declinedAt: row.declined_at || undefined,
         declineReason: row.decline_reason || undefined,
         staffNotes: row.staff_notes || undefined,
+        quotedPrice: row.quoted_price !== null && row.quoted_price !== undefined ? Number(row.quoted_price) : undefined,
+        quoteNote: row.quote_note || undefined,
+        quoteSentAt: row.quote_sent_at || undefined,
         createdAt: row.created_at || new Date().toISOString(),
         notifications: Array.isArray(row.notifications) ? row.notifications : [],
         reminder24hSent: Boolean(row.reminder_24h_sent),
@@ -332,7 +336,11 @@ export async function updateServiceBookingInDb(
     if (updates.approvedAt) payload.approved_at = updates.approvedAt;
     if (updates.approvedBy) payload.approved_by = updates.approvedBy;
     if (updates.declineReason) payload.decline_reason = updates.declineReason;
+    if (updates.declinedAt) payload.declined_at = updates.declinedAt;
     if (updates.staffNotes) payload.staff_notes = updates.staffNotes;
+    if (updates.quotedPrice !== undefined) payload.quoted_price = updates.quotedPrice;
+    if (updates.quoteNote !== undefined) payload.quote_note = updates.quoteNote;
+    if (updates.quoteSentAt) payload.quote_sent_at = updates.quoteSentAt;
     if (updates.reminder24hSent !== undefined) payload.reminder_24h_sent = updates.reminder24hSent;
     if (updates.repairStage !== undefined) payload.repair_stage = updates.repairStage;
     if (updates.progressEvents !== undefined) payload.progress_events = updates.progressEvents;

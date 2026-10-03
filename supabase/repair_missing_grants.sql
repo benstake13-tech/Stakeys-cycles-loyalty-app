@@ -10,6 +10,22 @@
 -- that already existed (profiles, customer_bikes, service_bookings).
 -- ============================================================================
 
+-- ============================================================================
+
+-- 0. Repair service_bookings columns the app reads/writes but that were never
+--    created on pre-existing tables. Without these, approving a booking or
+--    saving a quote silently fails to persist (PostgREST rejects the column).
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_approval';
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS declined_at TIMESTAMPTZ;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS decline_reason TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS staff_notes TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quoted_price NUMERIC;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_note TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_at TIMESTAMPTZ;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_by TEXT;
+
 -- 1. Schema usage (prerequisite for any table privilege).
 DO $$
 DECLARE r text;

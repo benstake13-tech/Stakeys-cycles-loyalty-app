@@ -709,10 +709,18 @@ export function generateBookingApprovalEmailHtml(
             <td style="color: #ffffff; font-size: 14px; border-bottom: 1px solid #27272a;">${booking.vehicleModel}</td>
           </tr>
           <tr>
-            <td style="color: #a1a1aa; font-size: 13px;">Estimated Labour:</td>
-            <td style="color: #34d399; font-size: 15px; font-weight: 700;">£${booking.servicePrice.toFixed(2)}</td>
+            <td style="color: #a1a1aa; font-size: 13px;">${booking.quotedPrice != null ? 'Agreed Quote (Estimate):' : 'Estimated Labour:'}</td>
+            <td style="color: #34d399; font-size: 15px; font-weight: 700;">£${(booking.quotedPrice != null ? booking.quotedPrice : booking.servicePrice).toFixed(2)}</td>
           </tr>
         </table>
+
+        ${booking.quoteNote ? `
+        <div style="background-color: #0b3a2e; border: 1px solid #10b981; border-radius: 12px; padding: 14px; margin-bottom: 22px;">
+          <div style="color: #6ee7b7; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Your Estimate</div>
+          <div style="color: #ecfdf5; font-size: 13px; line-height: 1.6;">${booking.quoteNote}</div>
+          ${booking.quotedPrice != null ? `<div style="margin-top: 8px; color: #34d399; font-size: 16px; font-weight: 800;">Total Estimate: £${booking.quotedPrice.toFixed(2)}</div>` : ''}
+        </div>
+        ` : ''}
 
         ${staffNote ? `
         <div style="background-color: #022c22; border: 1px solid #059669; border-radius: 12px; padding: 14px; margin-bottom: 22px;">
@@ -851,7 +859,7 @@ export async function dispatchBookingApprovalNotification(
   booking: ServiceBooking,
   staffNote: string | undefined,
   config: OwnerNotificationConfig
-): Promise<{ emailLog: BookingNotificationLog }> {
+): Promise<{ emailLog: BookingNotificationLog; sent: boolean; error?: string }> {
   const now = new Date();
 
   const emailLog: BookingNotificationLog = {
@@ -878,16 +886,16 @@ export async function dispatchBookingApprovalNotification(
     });
     if (error) {
       console.error(`[APPROVAL NOTIFICATION] ❌ Approval email failed: ${error.message}`);
-      return { emailLog };
+      return { emailLog, sent: false, error: error.message };
     }
-  } catch (err) {
+  } catch (err: any) {
     console.error('[APPROVAL NOTIFICATION] Failed to send via Edge Function:', err);
-    return { emailLog };
+    return { emailLog, sent: false, error: err?.message || 'Email delivery failed' };
   }
 
   console.log(`[APPROVAL NOTIFICATION] ✅ Sent Approval Email to ${booking.customerEmail}`);
 
-  return { emailLog };
+  return { emailLog, sent: true };
 }
 
 /**

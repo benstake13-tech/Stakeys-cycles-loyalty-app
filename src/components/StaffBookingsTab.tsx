@@ -22,6 +22,7 @@ import {
   VolumeX,
   Bell,
   FileText,
+  AlertTriangle,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../types/bikeShop';
@@ -80,7 +81,7 @@ export const StaffBookingsTab: React.FC = () => {
 
   // Action toast / feedback
   const [actionFeedback, setActionFeedback] = useState<{
-    type: 'success' | 'danger';
+    type: 'success' | 'warning' | 'danger';
     message: string;
   } | null>(null);
 
@@ -116,8 +117,9 @@ export const StaffBookingsTab: React.FC = () => {
     setIsApproving(true);
     try {
       const res = await approveBooking(approvingBooking.id, approvalNote.trim());
+      const emailWarned = /NOT sent|not sent|failed/i.test(res.message || '');
       setActionFeedback({
-        type: 'success',
+        type: emailWarned ? 'warning' : 'success',
         message:
           res.message ||
           `Booking #${approvingBooking.id} approved! Confirmation email delivered to ${approvingBooking.customerEmail}.`,
@@ -175,15 +177,27 @@ export const StaffBookingsTab: React.FC = () => {
 
   const handleConfirmQuote = async () => {
     if (!quotingBooking) return;
+    const price = parseFloat(quotedPrice);
+    if (!Number.isFinite(price) || price < 0) {
+      setActionFeedback({ type: 'danger', message: 'Enter a valid quote amount before saving.' });
+      return;
+    }
     setIsQuoting(true);
     try {
-      await updateBookingQuote(quotingBooking.id, {
-        quotedPrice: parseFloat(quotedPrice),
+      const res = await updateBookingQuote(quotingBooking.id, {
+        quotedPrice: price,
         quoteNote,
       });
+      if (!res.success) {
+        setActionFeedback({
+          type: 'danger',
+          message: res.message || 'Failed to save the quote.',
+        });
+        return;
+      }
       setActionFeedback({
         type: 'success',
-        message: `Quote for booking #${quotingBooking.id} updated!`,
+        message: res.message || `Quote for booking #${quotingBooking.id} saved!`,
       });
       setQuotingBooking(null);
       setTimeout(() => setActionFeedback(null), 5000);
@@ -466,12 +480,16 @@ export const StaffBookingsTab: React.FC = () => {
           className={`p-4 rounded-2xl border text-xs flex items-center justify-between gap-3 animate-fade-in ${
             actionFeedback.type === 'success'
               ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+              : actionFeedback.type === 'warning'
+              ? 'bg-amber-950/80 border-amber-500/50 text-amber-200'
               : 'bg-rose-950/80 border-rose-500/50 text-rose-200'
           }`}
         >
           <div className="flex items-center gap-2">
             {actionFeedback.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : actionFeedback.type === 'warning' ? (
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
             ) : (
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             )}

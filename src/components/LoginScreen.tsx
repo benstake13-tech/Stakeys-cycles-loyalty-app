@@ -28,9 +28,11 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
-  const { loginWithCredentials, loginStaff, registerCustomerAccount, addCustomerBike } = useShop();
+  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, addCustomerBike } = useShop();
 
   const [mode, setMode] = useState<'signin' | 'register' | 'staff'>('signin');
+  const [notice, setNotice] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
 
   // Customer Sign In state
   const [signInIdentifier, setSignInIdentifier] = useState('');
@@ -165,10 +167,11 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
         return;
       }
 
-      // If customer specified an initial bike, register it to their new garage
-      // NOTE: Because registration is now email-only confirmation, 
-      // we cannot automatically add a bike without active session.
-      // This flow needs adjustment in a future update.
+      // Registration is email-confirmation only, so we cannot add the initial
+      // bike here without an active session. The customer is told to confirm
+      // and then sign in; the app can prompt for the bike on first login.
+
+      setNotice(res.message || 'Account created! Please check your email and click the confirmation link, then sign in.');
 
       // Celebrate new account
       try {
@@ -185,6 +188,26 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
       setError(err.message || 'An error occurred during account creation.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Resend the confirmation email for the address typed in the register form
+  const handleResendConfirmation = async () => {
+    const email = registerEmail.trim();
+    if (!email.includes('@')) {
+      setError('Enter the email address you registered with first.');
+      return;
+    }
+    setResending(true);
+    try {
+      const res = await resendConfirmationEmail(email);
+      if (res.success) {
+        setNotice(res.message || 'Confirmation email re-sent. Check your inbox and spam folder.');
+      } else {
+        setError(res.message || 'Could not resend the confirmation email.');
+      }
+    } finally {
+      setResending(false);
     }
   };
 
@@ -289,6 +312,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
             <div className="mb-4 p-3 rounded-lg bg-rose-950/80 border border-rose-700 text-rose-200 text-xs flex items-center gap-2.5 animate-fade-in">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
               <span className="leading-relaxed">{error}</span>
+            </div>
+          )}
+
+          {/* Success / informational notice (e.g. confirmation email sent) */}
+          {notice && (
+            <div className="mb-4 p-3 rounded-lg bg-emerald-950/80 border border-emerald-700 text-emerald-100 text-xs flex items-start gap-2.5 animate-fade-in">
+              <Mail className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
+              <span className="leading-relaxed">{notice}</span>
             </div>
           )}
 
@@ -640,6 +671,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                   className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline ml-1"
                 >
                   Sign In
+                </button>
+              </div>
+
+              <div className="text-center text-[11px] text-neutral-500">
+                Didn't get the confirmation email?{' '}
+                <button
+                  type="button"
+                  disabled={resending}
+                  onClick={handleResendConfirmation}
+                  className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline disabled:opacity-50"
+                >
+                  {resending ? 'Resending…' : 'Resend it'}
                 </button>
               </div>
             </form>

@@ -108,6 +108,16 @@ CREATE TABLE IF NOT EXISTS public.service_bookings (
   repair_stage TEXT DEFAULT 'received',
   progress_events JSONB DEFAULT '[]'::jsonb,
   estimate_ready_at TEXT,
+  approval_status TEXT DEFAULT 'pending_approval',
+  approved_at TIMESTAMPTZ,
+  approved_by TEXT,
+  declined_at TIMESTAMPTZ,
+  decline_reason TEXT,
+  staff_notes TEXT,
+  quoted_price NUMERIC,
+  quote_note TEXT,
+  quote_sent_at TIMESTAMPTZ,
+  quote_sent_by TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -293,6 +303,16 @@ ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS reminder_24h_sent B
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS repair_stage TEXT DEFAULT 'received';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS progress_events JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS estimate_ready_at TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_approval';
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approved_by TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS declined_at TIMESTAMPTZ;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS decline_reason TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS staff_notes TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quoted_price NUMERIC;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_note TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_at TIMESTAMPTZ;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_by TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2e. prize_wheels

@@ -14,6 +14,17 @@ const SUPABASE_ANON_KEY =
 
 let instance: SupabaseClient | null = null;
 
+// Captured at module load, before createClient() processes (and strips) the URL
+// hash, so callers can still tell that this page load came from a Supabase
+// auth-link redirect (email confirmation / password recovery). The tokens are
+// consumed and removed from the URL almost immediately by the auth client, so
+// reading window.location later is unreliable.
+export const AUTH_LINK_ON_LOAD: boolean = (() => {
+  if (typeof window === 'undefined') return false;
+  const url = window.location.href;
+  return /(access_token|refresh_token|error_description|error_code)=/.test(url) || /[?&]code=/.test(url);
+})();
+
 export function getSupabaseClient(): SupabaseClient {
   if (!instance) {
     console.log(`[SUPABASE SINGLETON] Initializing client with URL: ${SUPABASE_URL}`);
