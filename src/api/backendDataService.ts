@@ -84,10 +84,7 @@ export async function fetchCustomerBikesFromDb(
     console.error('[SUPABASE NET EXCEPTION] fetchCustomerBikesFromDb:', err);
   }
 
-  const defaultUser = INITIAL_USERS.find(
-    (u) => u.uid === userId || (membershipNumber && u.membershipNumber === membershipNumber)
-  );
-  return defaultUser?.bikes || [];
+  return [];
 }
 
 /**
@@ -384,34 +381,107 @@ export async function fetchStampLogsFromDb(
 }
 
 /**
- * 9. INSERT STAMP LOG
+ * Ensures a customer's `profiles` row exists. Some Supabase projects do not have
+ * an `on auth.users` trigger, so a freshly registered auth user has no profile
+ * row — every spin / stamp / voucher write then silently fails. This creates a
+ * minimal row on demand (safe to call often; it only inserts when missing).
  */
+export async function ensureProfileRowInDb(profile: {
+  uid: string;
+  displayName?: string;
+  email?: string;
+  role?: string;
+  membershipNumber?: string;
+  stamps?: number;
+  tickets?: number;
+  merits?: number;
+}): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: profile.uid,
+      email: profile.email || null,
+      display_name: profile.displayName || 'Stakey Rider',
+      role: profile.role || 'customer',
+      membership_number: profile.membershipNumber || null,
+      stamps: profile.stamps ?? 0,
+      completed_cards: profile.tickets ?? 0,
+      merit_points: profile.merits ?? 0,
+      updated_at: new Date().toISOString(),
+    };
+    // ignoreDuplicates: only INSERT when the row is missing. Existing profiles
+    // must never be overwritten here or a returning customer's stamp balance
+    // would be reset to zero on every login.
+    const { error } = await supabase
+      .from('profiles')
+      .upsert(payload, { onConflict: 'id', ignoreDuplicates: true });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] ensureProfileRowInDb failed:', error.message);
+      return false;
+    }
+    console.log(`[SUPABASE NET SUCCESS] ensureProfileRowInDb ensured profile for userId=${profile.uid}`);
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] ensureProfileRowInDb:', err);
+    return false;
+  }
+}
+
+let stampLogSchemaWarned = false;
+
 export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] INSERT stamp_logs id=${log.id}`);
+  const payload = {
+    id: log.id,
+    customer_id: log.customerId,
+    customer_name: log.customerName,
+    membership_number: log.membershipNumber || null,
+    staff_id: log.staffId,
+    staff_name: log.staffName,
+    action: log.action,
+    stamps_before: log.stampsBefore ?? null,
+    stamps_after: log.stampsAfter ?? null,
+    reward_id: (log as any).rewardId || null,
+    note: log.note || null,
+    timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : new Date().toISOString(),
+  };
   try {
-    const payload = {
-      id: log.id,
-      customer_id: log.customerId,
-      customer_name: log.customerName,
-      membership_number: log.membershipNumber || null,
-      staff_id: log.staffId,
-      staff_name: log.staffName,
-      action: log.action,
-      stamps_before: log.stampsBefore ?? null,
-      stamps_after: log.stampsAfter ?? null,
-      reward_id: (log as any).rewardId || null,
-      note: log.note || null,
-      timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : new Date().toISOString(),
-    };
-
     const { error } = await supabase.from('stamp_logs').insert(payload);
     if (!error) {
       console.log(`[SUPABASE NET SUCCESS] INSERT stamp_logs succeeded for id=${log.id}`);
       return true;
-    } else {
-      console.error('[SUPABASE NET ERROR] INSERT stamp_logs failed:', error.message);
     }
+
+    // Some projects created stamp_logs via an older schema (e.g. a NOT NULL
+    // `user_id` and no `action`/`customer_*` columns). Retry with a minimal,
+    // UUID-identified payload so the audit trail still lands.
+    const isSchemaMismatch =
+      error.code === 'PGRST204' || error.code === '22P02' || error.message?.includes('schema cache');
+    if (isSchemaMismatch) {
+      const retryPayload: any = { reason: log.note || log.action || 'stamp_event' };
+      if (log.staffId) retryPayload.staff_id = log.staffId;
+      const uid = (log as any).user_id || log.customerId;
+      if (uid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid)) {
+        retryPayload.user_id = uid;
+      }
+      const retry = await supabase.from('stamp_logs').insert(retryPayload);
+      if (!retry.error) {
+        console.log(`[SUPABASE NET SUCCESS] INSERT stamp_logs (legacy schema) succeeded for id=${log.id}`);
+        return true;
+      }
+      if (!stampLogSchemaWarned) {
+        stampLogSchemaWarned = true;
+        console.error(
+          '[SUPABASE NET ERROR] INSERT stamp_logs failed on both schemas:',
+          retry.error.message,
+          '— run the schema sync SQL (Service Status → Copy SQL setup).'
+        );
+      }
+      return false;
+    }
+
+    console.error('[SUPABASE NET ERROR] INSERT stamp_logs failed:', error.message);
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] insertStampLogToDb:', err);
   }

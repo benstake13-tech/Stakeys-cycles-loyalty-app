@@ -260,6 +260,57 @@ CREATE TABLE IF NOT EXISTS public.counter_sales (
 
 -- 5e. Give existing profiles the columns newer builds expect (safe on re-run)
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spun_at TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spin_date TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_stamped_at TIMESTAMPTZ;
+GRANT SELECT, INSERT, UPDATE ON public.profiles TO anon, authenticated;
+
+-- 5f. Add the columns the app writes to stamp_logs (older projects only had a
+-- subset, which silently broke the audit trail / stamp card history).
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS customer_id TEXT;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS customer_name TEXT;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS membership_number TEXT;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS staff_name TEXT;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS action TEXT DEFAULT 'add_stamp';
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS stamps_before INTEGER;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS stamps_after INTEGER;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS reward_id TEXT;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS user_id UUID;
+ALTER TABLE public.stamp_logs ALTER COLUMN staff_id DROP NOT NULL;
+ALTER TABLE public.stamp_logs ALTER COLUMN action DROP NOT NULL;
+GRANT SELECT, INSERT, UPDATE ON public.stamp_logs TO anon, authenticated;
+
+-- 5g. Keep profiles.membership_number nullable (the app creates a profile the
+-- moment a customer logs in, before a membership code has been minted).
+ALTER TABLE public.profiles ALTER COLUMN membership_number DROP NOT NULL;
+ALTER TABLE public.profiles ALTER COLUMN email DROP NOT NULL;
+
+-- 5h. Auto-create a profile whenever an auth user is created (idempotent).
+CREATE OR REPLACE FUNCTION public.handle_new_loyalty_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, email, display_name, role, stamps, completed_cards, merit_points)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1), 'Stakey Rider'),
+    'customer',
+    0, 0, 0
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN new;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_auth_user_created_loyalty ON auth.users;
+CREATE TRIGGER on_auth_user_created_loyalty
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_loyalty_user();
+
 GRANT SELECT, INSERT, UPDATE ON public.profiles TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.prize_wheels TO anon, authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.prize_draws TO anon, authenticated;

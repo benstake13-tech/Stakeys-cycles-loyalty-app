@@ -50,7 +50,7 @@ import {
   fetchUserProfileFromDb,
   fetchAllProfilesFromDb,
   subscribeToDatabaseChanges,
-  seedInitialDatabaseIfEmpty,
+  ensureProfileRowInDb,
   fetchPrizeWheelsFromDb,
   upsertPrizeWheelToDb,
   fetchPrizeDrawsFromDb,
@@ -258,29 +258,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   // Latest Winner Announcement for shop-wide broadcasts
-  const [latestAnnouncement, setLatestAnnouncement] = useState<WinnerAnnouncement | null>(() => {
-    try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_latest_announcement`);
-      if (saved) return JSON.parse(saved);
-      const completed = INITIAL_DRAWS.find((d) => d.status === 'completed' && d.winnerUid);
-      if (completed) {
-        return {
-          id: `announce-${completed.id}`,
-          drawId: completed.id,
-          drawTitle: completed.title,
-          prizeDescription: completed.prizeDescription,
-          winnerUid: completed.winnerUid!,
-          winnerName: completed.winnerName || 'Alex Henderson',
-          winnerMembershipNumber: 'STK-839201',
-          completedAt: completed.completedAt || new Date('2026-07-31T18:05:00Z'),
-          announcedAt: completed.completedAt || new Date('2026-07-31T18:05:00Z'),
-        };
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
+  const [latestAnnouncement, setLatestAnnouncement] = useState<WinnerAnnouncement | null>(null);
 
   const dismissAnnouncement = () => {
     setLatestAnnouncement(null);
@@ -1030,32 +1008,41 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'Invalid email or password.' };
       }
 
-      // 2. Fetch profile from database using the authenticated user ID
+      // 2. Fetch profile from database using the authenticated user ID.
+      //    If the row is missing or the fetch is blocked by RLS, fall back to a
+      //    minimal profile built from the auth user so the customer can still
+      //    reach their loyalty card and the app can self-heal the row.
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError || !profile) {
-        console.error('Profile fetch error:', profileError);
-        return { success: false, message: 'Login successful, but could not load profile. Please contact support.' };
+      if (profileError) {
+        console.warn('Profile fetch error (falling back to auth user):', profileError.message);
       }
 
-      // Map DB profile to UserProfile type
+      // Map DB profile to UserProfile type, filling gaps from Supabase Auth.
+      const authEmail = data.user.email || '';
+      const authName =
+        (data.user.user_metadata as any)?.full_name ||
+        (data.user.user_metadata as any)?.display_name ||
+        authEmail.split('@')[0] ||
+        'Stakey Rider';
       const userProfile: UserProfile = {
-        uid: profile.id,
-        email: profile.email,
-        displayName: profile.display_name,
-        phoneNumber: profile.phone || undefined,
-        role: profile.role || 'customer',
-        membershipNumber: profile.membership_number,
-        stamps: profile.stamps || 0,
-        tickets: profile.completed_cards || 0,
-        merits: profile.merit_points || 0,
+        uid: data.user.id,
+        email: profile?.email || authEmail,
+        displayName: profile?.display_name || authName,
+        phoneNumber: profile?.phone || undefined,
+        role: profile?.role || 'customer',
+        membershipNumber:
+          profile?.membership_number || `STK-${data.user.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
+        stamps: profile?.stamps || 0,
+        tickets: profile?.completed_cards || 0,
+        merits: profile?.merit_points || 0,
         bikes: [], // Will be populated by syncUserFromDatabase
-        createdAt: new Date(profile.created_at),
-        lastStampedAt: profile.last_stamped_at ? new Date(profile.last_stamped_at) : null,
+        createdAt: profile?.created_at ? new Date(profile.created_at) : new Date(),
+        lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
       };
 
       if (userProfile.role === 'staff' || userProfile.role === 'admin') {
@@ -1064,6 +1051,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setCurrentUser(userProfile);
+      // Some projects have no `on auth.users` trigger, so a freshly registered
+      // customer may not have a profiles row yet — create it, then sync.
+      await ensureProfileRowInDb(userProfile);
       await syncUserFromDatabase(userProfile);
       return { success: true, user: userProfile };
     } catch (err: any) {
@@ -1172,7 +1162,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Add Stamp logic enforcing rate limit and 10-stamp card completion
   const addStamp = async (customerId: string, staffId: string, bypassLimit = false) => {
-    const target = users.find((u) => u.uid === customerId);
+    let target = users.find((u) => u.uid === customerId);
+
+    // Staff may scan a member code for a customer who is registered in auth but
+    // whose profiles row is missing (no signup trigger). Backfill it on the fly.
+    if (!target) {
+      const remoteProfile = await fetchUserProfileFromDb(customerId);
+      if (remoteProfile && remoteProfile.uid) {
+        const filled: UserProfile = { ...(remoteProfile as UserProfile) };
+        const ensured = await ensureProfileRowInDb(filled);
+        if (ensured) {
+          setUsers((prev) => (prev.some((u) => u.uid === filled.uid) ? prev : [...prev, filled]));
+          target = filled;
+        }
+      }
+    }
+
     if (!target) {
       return { success: false, message: `Customer ID "${customerId}" not found.` };
     }
