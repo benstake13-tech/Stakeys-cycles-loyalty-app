@@ -40,6 +40,7 @@ import {
   Building2,
   ShoppingCart,
   BadgePercent,
+  FlaskConical,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -60,6 +61,7 @@ import { BusinessPerformanceTab } from './BusinessPerformanceTab';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
+import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
@@ -105,6 +107,7 @@ export const StaffPortal: React.FC = () => {
     | 'financials'
     | 'google_business'
     | 'business_performance'
+    | 'diagnostics'
   >('dashboard');
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -321,7 +324,8 @@ export const StaffPortal: React.FC = () => {
     | 'logs'
     | 'financials'
     | 'google_business'
-    | 'business_performance';
+    | 'business_performance'
+    | 'diagnostics';
 
   const operationsTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'dashboard', label: 'Dashboard', icon: Layers, tone: 'emerald', hint: 'Workshop metrics overview' },
@@ -338,6 +342,7 @@ export const StaffPortal: React.FC = () => {
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
     { id: 'business_performance', label: 'Growth', icon: Building2, tone: 'emerald', hint: 'Google & Meta performance' },
+    { id: 'diagnostics', label: 'Test Bench', icon: FlaskConical, tone: 'amber', hint: 'Test every feature' },
   ];
 
   return (
@@ -646,6 +651,9 @@ export const StaffPortal: React.FC = () => {
 
       {/* VIEW 7B: Google & Meta Business Performance (OAuth authorised) */}
       {staffTab === 'business_performance' && <BusinessPerformanceTab />}
+
+      {/* VIEW 8: Feature Test Bench — live self-test of every backend feature */}
+      {staffTab === 'diagnostics' && <StaffDiagnosticsTab />}
 
       {/* VIEW 3: Customer Database Roster */}
       {staffTab === 'customers' && (
