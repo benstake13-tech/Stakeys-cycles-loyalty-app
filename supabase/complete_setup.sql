@@ -511,14 +511,22 @@ BEGIN
       RAISE NOTICE 'grants: skipping missing public.%', t;
       CONTINUE;
     END IF;
+    -- Each grant is independently guarded: one failing table can never stop the
+    -- others (previously a single failure left profiles/customer_bikes/
+    -- service_bookings un-granted while newer tables succeeded).
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE ON public.%I TO anon', t);
+      BEGIN
+        EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO anon', t);
+      EXCEPTION WHEN others THEN
+        RAISE NOTICE 'grant anon on public.% failed: %', t, SQLERRM;
+      END;
     END IF;
     IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
-      EXECUTE format('GRANT SELECT, INSERT, UPDATE ON public.%I TO authenticated', t);
-    END IF;
-    IF t IN ('discount_codes', 'staff_members', 'promotions') AND EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
-      EXECUTE format('GRANT DELETE ON public.%I TO anon, authenticated', t);
+      BEGIN
+        EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO authenticated', t);
+      EXCEPTION WHEN others THEN
+        RAISE NOTICE 'grant authenticated on public.% failed: %', t, SQLERRM;
+      END;
     END IF;
   END LOOP;
 END $$;
