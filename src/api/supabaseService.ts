@@ -279,6 +279,8 @@ ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ DEF
 ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS user_id UUID;
 ALTER TABLE public.stamp_logs ALTER COLUMN staff_id DROP NOT NULL;
 ALTER TABLE public.stamp_logs ALTER COLUMN action DROP NOT NULL;
+ALTER TABLE public.stamp_logs ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE public.stamp_logs ALTER COLUMN id TYPE TEXT USING id::text;
 GRANT SELECT, INSERT, UPDATE ON public.stamp_logs TO anon, authenticated;
 
 -- 5g. Keep profiles.membership_number nullable (the app creates a profile the

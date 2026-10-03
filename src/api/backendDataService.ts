@@ -432,7 +432,8 @@ let stampLogSchemaWarned = false;
 export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] INSERT stamp_logs id=${log.id}`);
-  const payload = {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const payload: any = {
     id: log.id,
     customer_id: log.customerId,
     customer_name: log.customerName,
@@ -446,6 +447,9 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
     note: log.note || null,
     timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : new Date().toISOString(),
   };
+  // Legacy schemas have a NOT NULL `user_id`; supply it when the customer id is
+  // a real UUID so the row can land before the schema sync migration is run.
+  if (uuid.test(log.customerId)) payload.user_id = log.customerId;
   try {
     const { error } = await supabase.from('stamp_logs').insert(payload);
     if (!error) {
@@ -457,12 +461,15 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
     // `user_id` and no `action`/`customer_*` columns). Retry with a minimal,
     // UUID-identified payload so the audit trail still lands.
     const isSchemaMismatch =
-      error.code === 'PGRST204' || error.code === '22P02' || error.message?.includes('schema cache');
+      error.code === 'PGRST204' ||
+      error.code === '22P02' ||
+      error.code === '23502' ||
+      error.message?.includes('schema cache');
     if (isSchemaMismatch) {
       const retryPayload: any = { reason: log.note || log.action || 'stamp_event' };
       if (log.staffId) retryPayload.staff_id = log.staffId;
       const uid = (log as any).user_id || log.customerId;
-      if (uid && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uid)) {
+      if (uid && uuid.test(uid)) {
         retryPayload.user_id = uid;
       }
       const retry = await supabase.from('stamp_logs').insert(retryPayload);

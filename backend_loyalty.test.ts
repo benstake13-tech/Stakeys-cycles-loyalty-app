@@ -53,6 +53,24 @@ describe('insertStampLogToDb', () => {
     expect(hoisted.inserts).toHaveLength(1);
     expect(hoisted.inserts[0].payload.action).toBe('add_stamp');
     expect(hoisted.inserts[0].payload.customer_id).toBe(log.customerId);
+    // user_id must be supplied so a NOT NULL legacy column is satisfied.
+    expect(hoisted.inserts[0].payload.user_id).toBe(log.customerId);
+  });
+
+  it('does not set user_id when the customer id is not a UUID', async () => {
+    await insertStampLogToDb({ ...log, customerId: 'STK-839201' } as any);
+    expect(hoisted.inserts[0].payload.user_id).toBeUndefined();
+  });
+
+  it('retries on a not-null violation (23502) from a legacy user_id column', async () => {
+    hoisted.insertResults = [
+      { error: { code: '23502', message: 'null value in column "user_id"' } },
+      { error: null },
+    ];
+    const ok = await insertStampLogToDb(log as any);
+    expect(ok).toBe(true);
+    expect(hoisted.inserts).toHaveLength(2);
+    expect(hoisted.inserts[1].payload.user_id).toBe(log.customerId);
   });
 
   it('falls back to a minimal UUID payload on a legacy stamp_logs schema', async () => {

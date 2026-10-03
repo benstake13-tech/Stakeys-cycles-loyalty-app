@@ -36,23 +36,56 @@ ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS timestamp TIMESTAMPTZ DEF
 ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS user_id UUID;
 ALTER TABLE public.stamp_logs ALTER COLUMN staff_id DROP NOT NULL;
 ALTER TABLE public.stamp_logs ALTER COLUMN action DROP NOT NULL;
+ALTER TABLE public.stamp_logs ALTER COLUMN user_id DROP NOT NULL;
+-- The app generates readable text ids ("log-<ts>-<n>"); some projects declared
+-- stamp_logs.id as uuid, which rejected every history write with 22P02.
+ALTER TABLE public.stamp_logs ALTER COLUMN id TYPE TEXT USING id::text;
 
 -- 3. Table privileges (this is what produced the 401/42501 errors).
-GRANT SELECT, INSERT, UPDATE ON public.profiles TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.stamp_logs TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.prize_wheels TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.prize_draws TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.service_vouchers TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.discount_codes TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.counter_sales TO anon, authenticated;
+--    Guarded so a missing/optional table can never abort the whole migration.
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+DO $$
+DECLARE
+  t text;
+  tables_grants text[] := ARRAY[
+    'profiles', 'stamp_logs', 'prize_wheels', 'prize_draws',
+    'service_vouchers', 'discount_codes', 'counter_sales'
+  ];
+  tables_delete text[] := ARRAY['discount_codes'];
+BEGIN
+  FOREACH t IN ARRAY tables_grants LOOP
+    IF to_regclass('public.' || t) IS NULL THEN
+      RAISE NOTICE 'skipping grants: public.% does not exist', t;
+      CONTINUE;
+    END IF;
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE ON public.%I TO anon, authenticated', t);
+    IF t = ANY (tables_delete) THEN
+      EXECUTE format('GRANT DELETE ON public.%I TO anon, authenticated', t);
+    END IF;
+  END LOOP;
+END $$;
 
 -- 4. Row Level Security policies.
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.stamp_logs ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow all on profiles" ON public.profiles;
-CREATE POLICY "Allow all on profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
-DROP POLICY IF EXISTS "Allow all on stamp_logs" ON public.stamp_logs;
-CREATE POLICY "Allow all on stamp_logs" ON public.stamp_logs FOR ALL USING (true) WITH CHECK (true);
+DO $$
+DECLARE
+  t text;
+  tables_rls text[] := ARRAY[
+    'profiles', 'stamp_logs', 'prize_wheels', 'prize_draws',
+    'service_vouchers', 'discount_codes', 'counter_sales'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables_rls LOOP
+    IF to_regclass('public.' || t) IS NULL THEN
+      CONTINUE;
+    END IF;
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Allow all on ' || t, t);
+    EXECUTE format(
+      'CREATE POLICY %I ON public.%I FOR ALL USING (true) WITH CHECK (true)',
+      'Allow all on ' || t, t
+    );
+  END LOOP;
+END $$;
 
 -- 5. Auto-create a profile for every new auth user.
 CREATE OR REPLACE FUNCTION public.handle_new_loyalty_user()
@@ -86,6 +119,6 @@ SELECT u.id,
        COALESCE(u.raw_user_meta_data->>'full_name', u.raw_user_meta_data->>'display_name', split_part(u.email, '@', 1), 'Stakey Rider'),
        'customer', 0, 0, 0
 FROM auth.users u
-LEFT JOIN public.profiles p ON p.id = u.id
+LEFT JOIN public.profiles p ON p.id = u.id::text
 WHERE p.id IS NULL
 ON CONFLICT (id) DO NOTHING;
