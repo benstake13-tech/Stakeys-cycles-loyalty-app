@@ -18,6 +18,15 @@ import {
   upsertPromotionToDb,
   upsertPrizeDrawToDb,
   upsertDiscountCodeToDb,
+  upsertPrizeWheelToDb,
+  upsertAppSettingsToDb,
+  updateServiceBookingInDb,
+  updateCounterSaleInDb,
+  updateVoucherStatusInDb,
+  updateUserProfileInDb,
+  updateCustomerBikeSpecsInDb,
+  incrementDiscountUsageInDb,
+  subscribeToDatabaseChanges,
   deleteCustomerBikeFromDb,
   deleteStaffMemberFromDb,
   deletePromotionFromDb,
@@ -132,6 +141,62 @@ async function probeRead(table: string, orderBy?: string) {
   return { status: 'pass' as const, detail: `${table} reachable — ${data?.length ?? 0} row(s) readable.` };
 }
 
+/** Confirms a column on a just-written row holds the expected value. */
+async function verifyColumn(
+  table: string,
+  id: string | number,
+  column: string,
+  expected: unknown
+): Promise<{ ok: boolean; detail: string }> {
+  const client = getSupabaseClient();
+  const { data, error } = await client.from(table).select('*').eq('id', id).maybeSingle();
+  if (error) return { ok: false, detail: error.message };
+  if (!data) return { ok: false, detail: `row ${id} not found after update` };
+  const actual = (data as any)[column];
+  const norm = (v: unknown) => (v == null ? null : typeof v === 'object' ? JSON.stringify(v) : String(v));
+  const ok = norm(actual) === norm(expected);
+  return { ok, detail: ok ? `${column} persisted` : `${column} = ${norm(actual)} (expected ${norm(expected)})` };
+}
+
+/** Builds a booking payload shaped exactly like the customer booking form. */
+function makeDiagBooking(id: string): ServiceBooking {
+  return {
+    id,
+    customerName: 'Diagnostics Probe',
+    customerEmail: 'diagnostics@example.com',
+    customerPhone: '07000000000',
+    serviceId: 'diag-service',
+    serviceTitle: 'Diagnostics Service',
+    servicePrice: 0,
+    vehicleCategory: 'cycle',
+    vehicleModel: 'Diagnostics Model',
+    preferredDate: new Date().toISOString().slice(0, 10),
+    preferredTimeSlot: 'AM',
+    notes: 'diagnostics probe',
+    status: 'pending',
+    reminder24hSent: false,
+  } as ServiceBooking;
+}
+
+/** Builds a counter-sale payload shaped like the till. */
+function makeDiagSale(id: string): SaleTransaction {
+  return {
+    id,
+    saleNumber: 'DIAG-0001',
+    customerName: 'Diagnostics Probe',
+    items: [{ id: 'diag', name: 'Diagnostics item', quantity: 1, unitPrice: 10 }],
+    subtotal: 10,
+    vatRate: 0.2,
+    vatAmount: 2,
+    discount: 0,
+    grandTotal: 12,
+    paymentMethod: 'card',
+    staffName: 'Diagnostics',
+    createdAt: new Date(),
+    status: 'completed',
+  } as unknown as SaleTransaction;
+}
+
 // ---------------------------------------------------------------------------
 // Test catalogue
 // ---------------------------------------------------------------------------
@@ -182,6 +247,41 @@ export const FEATURE_TESTS: FeatureTest[] = [
         const message = err(e);
         return { status: 'fail', detail: message, hint: hintFor(message) };
       }
+    },
+  },
+
+  {
+    id: 'realtime-subscribe',
+    area: 'connectivity',
+    label: 'Realtime change subscription',
+    description: 'Opens the live postgres_changes channel and confirms it subscribes.',
+    run: async () => {
+      const client = getSupabaseClient();
+      return new Promise((resolve) => {
+        const unsubscribe = subscribeToDatabaseChanges(() => {});
+        const started = Date.now();
+        const poll = setInterval(() => {
+          const channels = ((client as any).getChannels?.() || []) as any[];
+          const ch =
+            channels.find((c) => String(c.topic || '').includes('stakeys-shop-realtime-sync')) ||
+            channels[channels.length - 1];
+          const state = ch?.state;
+          const done = (status: TestStatus, detail: string, hint?: string) => {
+            clearInterval(poll);
+            try {
+              unsubscribe();
+            } catch {}
+            resolve({ status, detail, hint });
+          };
+          if (state === 'joined') {
+            done('pass', 'Realtime channel subscribed (postgres_changes live).');
+          } else if (state === 'errored') {
+            done('fail', 'Realtime channel errored.', 'Enable Realtime for the tables in Supabase → Database → Replication.');
+          } else if (Date.now() - started > 6000) {
+            done('warn', `Realtime not confirmed within 6s (state: ${state || 'unknown'}).`);
+          }
+        }, 250);
+      });
     },
   },
 
@@ -265,11 +365,78 @@ export const FEATURE_TESTS: FeatureTest[] = [
     },
   },
   {
+    id: 'profile-balance-write',
+    area: 'loyalty',
+    label: 'Write stamp / ticket / merit balance',
+    description: 'Upserts a profile balance exactly as addStamp does (checks the last_spin_date column), then deletes it.',
+    writes: true,
+    run: async () => {
+      const uid = sentinel(`profile-${Date.now()}`);
+      const client = getSupabaseClient();
+      try {
+        const ok = await updateUserProfileInDb(uid, 'STK-DIAG', {
+          stamps: 3,
+          tickets: 1,
+          merits: 7,
+          lastSpinDate: new Date().toISOString(),
+        });
+        const stamps = await verifyColumn('profiles', uid, 'stamps', 3);
+        const merits = await verifyColumn('profiles', uid, 'merit_points', 7);
+        await client.from('profiles').delete().eq('id', uid);
+        if (ok && stamps.ok && merits.ok) {
+          return { status: 'pass', detail: 'Stamp / ticket / merit balance persisted.' };
+        }
+        return {
+          status: 'fail',
+          detail: `upsert=${ok}; ${stamps.detail}; ${merits.detail}`,
+          hint: 'profiles is missing last_spin_date on the live DB, which fails the whole upsert (PGRST204). Run the repair SQL.',
+        };
+      } catch (e) {
+        const message = err(e);
+        await client.from('profiles').delete().eq('id', uid);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
     id: 'prize-wheel-read',
     area: 'loyalty',
     label: 'Read prize wheel config',
     description: 'Selects prize_wheels rows.',
     run: () => probeRead('prize_wheels'),
+  },
+  {
+    id: 'prize-wheel-write',
+    area: 'loyalty',
+    label: 'Save prize wheel config',
+    description: 'Upserts a temporary wheel, then restores the original config.',
+    writes: true,
+    run: async () => {
+      const client = getSupabaseClient();
+      const id = sentinel(`wheel-${Date.now()}`);
+      try {
+        const { data: existing } = await client.from('prize_wheels').select('*').limit(1);
+        const previous = existing && existing.length ? (existing[0] as any) : null;
+        const ok = await upsertPrizeWheelToDb({
+          id,
+          title: 'Diagnostics Wheel',
+          active: true,
+          ticketCost: 1,
+          segments: [{ id: 's1', label: 'Diagnostics', prize: 'None', color: '#05C147', weight: 1 }],
+        } as any);
+        await client.from('prize_wheels').delete().eq('id', id);
+        if (previous) {
+          await client.from('prize_wheels').upsert(previous, { onConflict: 'id' });
+        }
+        return ok
+          ? { status: 'pass', detail: 'Wheel config written and cleaned up.' }
+          : { status: 'fail', detail: 'Wheel upsert rejected.', hint: 'Check prize_wheels grants/columns.' };
+      } catch (e) {
+        const message = err(e);
+        await client.from('prize_wheels').delete().eq('id', id);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
   },
 
   // ---- Bookings -----------------------------------------------------------
@@ -287,22 +454,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
     description: 'Writes a temporary booking exactly as the booking form does, then deletes it.',
     writes: true,
     run: async () => {
-      const booking: ServiceBooking = {
-        id: diagBookingId(),
-        customerName: 'Diagnostics Probe',
-        customerEmail: 'diagnostics@example.com',
-        customerPhone: '07000000000',
-        serviceId: 'diag-service',
-        serviceTitle: 'Diagnostics Service',
-        servicePrice: 0,
-        vehicleCategory: 'cycle',
-        vehicleModel: 'Diagnostics Model',
-        preferredDate: new Date().toISOString().slice(0, 10),
-        preferredTimeSlot: 'AM',
-        notes: 'diagnostics probe',
-        status: 'pending',
-        reminder24hSent: false,
-      } as ServiceBooking;
+      const booking = makeDiagBooking(diagBookingId());
       try {
         const ok = await insertServiceBookingToDb(booking);
         const client = getSupabaseClient();
@@ -316,6 +468,48 @@ export const FEATURE_TESTS: FeatureTest[] = [
             };
       } catch (e) {
         const message = err(e);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'booking-update-lifecycle',
+    area: 'bookings',
+    label: 'Approve / quote / repair-stage update',
+    description: 'Writes a booking, then approves it with a quote and moves the repair stage — then deletes it.',
+    writes: true,
+    run: async () => {
+      const booking = makeDiagBooking(diagBookingId());
+      const client = getSupabaseClient();
+      try {
+        if (!(await insertServiceBookingToDb(booking))) {
+          return { status: 'fail', detail: 'Could not create the probe booking.', hint: 'See the "Create a repair booking" test.' };
+        }
+        const ok = await updateServiceBookingInDb(booking.id, {
+          status: 'confirmed',
+          approvalStatus: 'approved',
+          approvedAt: new Date(),
+          approvedBy: 'Diagnostics',
+          quotedPrice: 45,
+          quoteNote: 'diagnostics quote',
+          quoteSentAt: new Date(),
+          repairStage: 'on_the_bench',
+          estimateReadyAt: new Date().toISOString(),
+        });
+        const check = await verifyColumn('service_bookings', booking.id, 'approval_status', 'approved');
+        const stage = await verifyColumn('service_bookings', booking.id, 'repair_stage', 'on_the_bench');
+        await client.from('service_bookings').delete().eq('id', booking.id);
+        if (ok && check.ok && stage.ok) {
+          return { status: 'pass', detail: 'Approval, quote and repair stage all persisted.' };
+        }
+        return {
+          status: 'fail',
+          detail: `update=${ok}; ${check.detail}; ${stage.detail}`,
+          hint: 'service_bookings is missing approval/quote/repair columns on the live DB. Run the repair SQL.',
+        };
+      } catch (e) {
+        const message = err(e);
+        await client.from('service_bookings').delete().eq('id', booking.id);
         return { status: 'fail', detail: message, hint: hintFor(message) };
       }
     },
@@ -336,21 +530,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
     description: 'Writes a temporary till sale (incl. quote lifecycle columns) then deletes it.',
     writes: true,
     run: async () => {
-      const sale: SaleTransaction = {
-        id: sentinel(`sale-${Date.now()}`),
-        saleNumber: 'DIAG-0001',
-        customerName: 'Diagnostics Probe',
-        items: [{ id: 'diag', name: 'Diagnostics item', quantity: 1, unitPrice: 10 }],
-        subtotal: 10,
-        vatRate: 0.2,
-        vatAmount: 2,
-        discount: 0,
-        grandTotal: 12,
-        paymentMethod: 'card',
-        staffName: 'Diagnostics',
-        createdAt: new Date(),
-        status: 'completed',
-      } as unknown as SaleTransaction;
+      const sale = makeDiagSale(sentinel(`sale-${Date.now()}`));
       try {
         const ok = await insertCounterSaleToDb(sale);
         const client = getSupabaseClient();
@@ -360,6 +540,45 @@ export const FEATURE_TESTS: FeatureTest[] = [
           : { status: 'fail', detail: 'Counter sale insert rejected.', hint: 'Check counter_sales grants/columns.' };
       } catch (e) {
         const message = err(e);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'sale-lifecycle',
+    area: 'till',
+    label: 'Quote → approve a counter sale',
+    description: 'Writes a sale, sends a quote then approves it, and checks the lifecycle columns persisted.',
+    writes: true,
+    run: async () => {
+      const sale = makeDiagSale(sentinel(`sale-${Date.now()}`));
+      const client = getSupabaseClient();
+      try {
+        if (!(await insertCounterSaleToDb(sale))) {
+          return { status: 'fail', detail: 'Could not create the probe sale.', hint: 'See the "Record a counter sale" test.' };
+        }
+        const quoted = await updateCounterSaleInDb(sale.id, {
+          status: 'quote',
+          quote: { amount: 12, note: 'diagnostics quote', sentAt: new Date(), sentBy: 'Diagnostics' },
+        } as Partial<SaleTransaction>);
+        const approved = await updateCounterSaleInDb(sale.id, {
+          status: 'approved',
+          approvedAt: new Date(),
+          approvedBy: 'Diagnostics',
+        } as Partial<SaleTransaction>);
+        const check = await verifyColumn('counter_sales', sale.id, 'status', 'approved');
+        await client.from('counter_sales').delete().eq('id', sale.id);
+        if (quoted && approved && check.ok) {
+          return { status: 'pass', detail: 'Quote then approval persisted.' };
+        }
+        return {
+          status: 'fail',
+          detail: `quote=${quoted}; approve=${approved}; ${check.detail}`,
+          hint: 'counter_sales is missing quote/approval lifecycle columns on the live DB.',
+        };
+      } catch (e) {
+        const message = err(e);
+        await client.from('counter_sales').delete().eq('id', sale.id);
         return { status: 'fail', detail: message, hint: hintFor(message) };
       }
     },
@@ -399,6 +618,43 @@ export const FEATURE_TESTS: FeatureTest[] = [
           : { status: 'fail', detail: 'Discount code insert rejected.', hint: 'Check the discount_codes type CHECK constraint.' };
       } catch (e) {
         const message = err(e);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'discount-usage-increment',
+    area: 'till',
+    label: 'Increment discount usage',
+    description: 'Creates a code, bumps times_used, verifies it, then deletes it.',
+    writes: true,
+    run: async () => {
+      const id = sentinel(`code-${Date.now()}`);
+      const client = getSupabaseClient();
+      const code: DiscountCode = {
+        id,
+        code: 'DIAGTEST',
+        title: 'Diagnostics code',
+        type: 'percent',
+        value: 10,
+        status: 'active',
+        createdAt: new Date(),
+        timesUsed: 0,
+        usageLimit: 0,
+        eligibleCategories: [],
+      } as DiscountCode;
+      try {
+        if (!(await upsertDiscountCodeToDb(code))) {
+          return { status: 'fail', detail: 'Could not create the probe code.', hint: 'See the "Create a discount code" test.' };
+        }
+        const ok = await incrementDiscountUsageInDb(id, 1);
+        const check = await verifyColumn('discount_codes', id, 'times_used', 1);
+        await deleteDiscountCodeFromDb(id);
+        if (ok && check.ok) return { status: 'pass', detail: 'Usage counter incremented and persisted.' };
+        return { status: 'fail', detail: `update=${ok}; ${check.detail}` };
+      } catch (e) {
+        const message = err(e);
+        await client.from('discount_codes').delete().eq('id', id);
         return { status: 'fail', detail: message, hint: hintFor(message) };
       }
     },
@@ -469,6 +725,74 @@ export const FEATURE_TESTS: FeatureTest[] = [
     },
   },
   {
+    id: 'bike-delete',
+    area: 'members',
+    label: 'Remove a bike from a garage',
+    description: 'Writes a temporary bike, removes it, and confirms the row is gone.',
+    writes: true,
+    run: async () => {
+      const id = sentinel(`bike-${Date.now()}`);
+      const customer = sentinel('customer');
+      const client = getSupabaseClient();
+      const bike = {
+        id,
+        category: 'cycle',
+        categoryLabel: 'Diagnostics',
+        brand: 'Diagnostics',
+        model: 'Probe',
+        addedAt: new Date().toISOString().slice(0, 10),
+      } as CustomerBike;
+      try {
+        if (!(await insertCustomerBikeToDb(bike, customer))) {
+          return { status: 'fail', detail: 'Could not create the probe bike.', hint: 'See the "Add a bike to a garage" test.' };
+        }
+        const deleted = await deleteCustomerBikeFromDb(id, customer);
+        const { data } = await client.from('customer_bikes').select('id').eq('id', id);
+        const gone = !data || data.length === 0;
+        if (deleted && gone) return { status: 'pass', detail: 'Bike removed and confirmed gone.' };
+        return { status: 'fail', detail: `delete=${deleted}; rowStillPresent=${!gone}` };
+      } catch (e) {
+        const message = err(e);
+        await client.from('customer_bikes').delete().eq('id', id);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'bike-specs-update',
+    area: 'members',
+    label: 'Save scraped bike specs',
+    description: 'Writes a bike, saves OEM specs onto it, verifies the flag, then deletes it.',
+    writes: true,
+    run: async () => {
+      const id = sentinel(`bike-${Date.now()}`);
+      const customer = sentinel('customer');
+      const client = getSupabaseClient();
+      const bike = {
+        id,
+        category: 'cycle',
+        categoryLabel: 'Diagnostics',
+        brand: 'Diagnostics',
+        model: 'Probe',
+        addedAt: new Date().toISOString().slice(0, 10),
+      } as CustomerBike;
+      try {
+        if (!(await insertCustomerBikeToDb(bike, customer))) {
+          return { status: 'fail', detail: 'Could not create the probe bike.', hint: 'See the "Add a bike to a garage" test.' };
+        }
+        const ok = await updateCustomerBikeSpecsInDb(id, customer, { source: 'diagnostics' } as any);
+        const check = await verifyColumn('customer_bikes', id, 'stock_specs_scraped', true);
+        await client.from('customer_bikes').delete().eq('id', id);
+        if (ok && check.ok) return { status: 'pass', detail: 'Scraped specs saved and persisted.' };
+        return { status: 'fail', detail: `update=${ok}; ${check.detail}`, hint: 'customer_bikes is missing stock_specs_scraped/scraped_data.' };
+      } catch (e) {
+        const message = err(e);
+        await client.from('customer_bikes').delete().eq('id', id);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
     id: 'membership-number',
     area: 'members',
     label: 'Membership number + barcode generation',
@@ -487,7 +811,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   {
     id: 'vouchers-read',
     area: 'prizes',
-    label: 'Read service vouchers',
+    label: 'Issue a service voucher',
     description: 'Writes a temp voucher then reads it back and deletes it.',
     writes: true,
     run: async () => {
@@ -512,6 +836,43 @@ export const FEATURE_TESTS: FeatureTest[] = [
           : { status: 'fail', detail: 'Voucher insert rejected.', hint: 'Check service_vouchers grants/columns.' };
       } catch (e) {
         const message = err(e);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'voucher-redeem',
+    area: 'prizes',
+    label: 'Redeem a service voucher',
+    description: 'Issues a voucher, marks it redeemed, verifies the status persisted, then deletes it.',
+    writes: true,
+    run: async () => {
+      const customerId = sentinel('customer');
+      const id = sentinel(`voucher-${Date.now()}`);
+      const client = getSupabaseClient();
+      const voucher: CollectedVoucher = {
+        id,
+        code: 'STK-SRV40-DIAG',
+        title: 'Diagnostics voucher',
+        description: 'diagnostics',
+        value: 40,
+        type: 'service_credit',
+        terms: 'diagnostics',
+        claimedAt: new Date(),
+        status: 'available',
+      };
+      try {
+        if (!(await insertVoucherToDb(customerId, voucher))) {
+          return { status: 'fail', detail: 'Could not issue the probe voucher.', hint: 'See the "Issue a service voucher" test.' };
+        }
+        const ok = await updateVoucherStatusInDb(id, 'redeemed', new Date());
+        const check = await verifyColumn('service_vouchers', id, 'status', 'redeemed');
+        await client.from('service_vouchers').delete().eq('id', id);
+        if (ok && check.ok) return { status: 'pass', detail: 'Voucher marked redeemed and persisted.' };
+        return { status: 'fail', detail: `update=${ok}; ${check.detail}`, hint: 'service_vouchers is missing status/redeemed_at on the live DB.' };
+      } catch (e) {
+        const message = err(e);
+        await client.from('service_vouchers').delete().eq('id', id);
         return { status: 'fail', detail: message, hint: hintFor(message) };
       }
     },
@@ -650,6 +1011,63 @@ export const FEATURE_TESTS: FeatureTest[] = [
           };
         }
         return { status: 'pass', detail: `Owner alerts enabled → ${owner}.` };
+      } catch (e) {
+        const message = err(e);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'settings-write',
+    area: 'settings',
+    label: 'Save workshop notification settings',
+    description: 'Upserts a temporary owner email + alerts flag, verifies it, then restores the previous settings.',
+    writes: true,
+    run: async () => {
+      const client = getSupabaseClient();
+      try {
+        const { data: before } = await client.from('app_settings').select('*').eq('id', 1).maybeSingle();
+        const prev = (before as any) || null;
+        const ok = await upsertAppSettingsToDb({
+          ownerEmail: 'diagnostics@example.com',
+          emailAlertsEnabled: true,
+        } as any);
+        const check = await verifyColumn('app_settings', 1, 'owner_email', 'diagnostics@example.com');
+        // restore (only touch fields that existed, so a NULL owner_email stays NULL)
+        const restore: Record<string, unknown> = {};
+        if (prev && 'owner_email' in prev) restore.ownerEmail = prev.owner_email ?? '';
+        if (prev && 'email_alerts_enabled' in prev) restore.emailAlertsEnabled = prev.email_alerts_enabled === true;
+        if (Object.keys(restore).length) await upsertAppSettingsToDb(restore as any);
+        if (ok && check.ok) return { status: 'pass', detail: 'Settings written, verified and restored.' };
+        return { status: 'fail', detail: `upsert=${ok}; ${check.detail}`, hint: 'app_settings is missing owner_email/email_alerts_enabled. Run the repair SQL.' };
+      } catch (e) {
+        const message = err(e);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'theme-write',
+    area: 'settings',
+    label: 'Apply a seasonal theme',
+    description: 'Writes a temporary theme value, verifies it, then restores the previous theme.',
+    writes: true,
+    run: async () => {
+      const client = getSupabaseClient();
+      try {
+        const { data: before } = await client.from('app_theme_config').select('*').eq('id', 1).maybeSingle();
+        const prevTheme = (before as any)?.theme || 'none';
+        const probe = prevTheme === 'halloween' ? 'christmas' : 'halloween';
+        const { error } = await client
+          .from('app_theme_config')
+          .upsert({ id: 1, theme: probe, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+        if (error) return { status: 'fail', detail: error.message, hint: hintFor(error.message) };
+        const check = await verifyColumn('app_theme_config', 1, 'theme', probe);
+        await client
+          .from('app_theme_config')
+          .upsert({ id: 1, theme: prevTheme, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+        if (check.ok) return { status: 'pass', detail: `Theme written (${probe}) and restored to ${prevTheme}.` };
+        return { status: 'fail', detail: check.detail, hint: 'app_theme_config theme column did not persist.' };
       } catch (e) {
         const message = err(e);
         return { status: 'fail', detail: message, hint: hintFor(message) };
