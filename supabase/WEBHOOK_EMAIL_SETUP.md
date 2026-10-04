@@ -34,7 +34,7 @@ would get two emails per booking).
 | `RESEND_API_KEY` secret | Supabase → Project Settings → Edge Functions → Secrets |
 | Workshop recipient | saved in the app's staff settings (`app_settings.owner_email`) |
 | `email_alerts_enabled = true` | app's staff settings (`app_settings.email_alerts_enabled`) |
-| Sending domain verified in Resend | `stakeyscycles.co.uk` (or override with `MAIL_FROM`) |
+| Sending domain verified in Resend | `stakeyswheels.co.uk` (or override with `MAIL_FROM`) |
 
 ---
 
@@ -46,7 +46,7 @@ supabase link --project-ref lhojocpygcnkxvkrcuxh
 supabase functions deploy notify-booking
 supabase secrets set RESEND_API_KEY=re_xxxxxxxx
 # optional sender override (must be a Resend-verified domain):
-supabase secrets set MAIL_FROM="Stakey's Cycles <noreply@stakeyscycles.co.uk>"
+supabase secrets set MAIL_FROM="Stakey's Cycles <noreply@stakeyswheels.co.uk>"
 ```
 
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided automatically to Edge

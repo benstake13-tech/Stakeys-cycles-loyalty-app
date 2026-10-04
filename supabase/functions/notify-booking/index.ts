@@ -14,7 +14,7 @@
 // Secrets, or `supabase secrets set`):
 //   RESEND_API_KEY   e.g. re_xxxxxxxx
 // Optional:
-//   MAIL_FROM        default sender, e.g. "Stakey's Cycles <noreply@stakeyscycles.co.uk>"
+//   MAIL_FROM        default sender, e.g. "Stakey's Cycles <noreply@stakeyswheels.co.uk>"
 //
 // `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are injected automatically by
 // the Edge Functions runtime and are used to read the workshop recipient from
@@ -25,7 +25,7 @@
 // -----------------------------------------------------------------------------
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
-const DEFAULT_FROM = "Stakey's Cycles <noreply@stakeyscycles.co.uk>";
+const DEFAULT_FROM = "Stakey's Cycles <noreply@stakeyswheels.co.uk>";
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',

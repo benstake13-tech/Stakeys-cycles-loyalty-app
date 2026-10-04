@@ -511,7 +511,7 @@ export async function dispatchBookingNotifications(
     const supabase = getSupabaseClient();
     const customerSend = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscycles.co.uk',
+        from: 'noreply@stakeyswheels.co.uk',
         to: booking.customerEmail,
         subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
         html: generateCustomerBookingEmailHtml(booking, config),
@@ -551,7 +551,7 @@ export async function dispatchTestEmail(
     const supabase = getSupabaseClient();
     const { error } = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscycles.co.uk',
+        from: 'noreply@stakeyswheels.co.uk',
         to: config.ownerEmail,
         subject: "⚡ [STAKEY'S WORKSHOP] Test Notification",
         html: `<div style="font-family:sans-serif;padding:24px;background:#0c0d0e;color:#fff">
@@ -861,7 +861,7 @@ export async function dispatchBookingApprovalNotification(
     const supabase = getSupabaseClient();
     const { error } = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscycles.co.uk',
+        from: 'noreply@stakeyswheels.co.uk',
         to: booking.customerEmail,
         subject: emailLog.subject,
         html: emailLog.content,
@@ -907,7 +907,7 @@ export async function dispatchBookingDeclinedNotification(
     const supabase = getSupabaseClient();
     const { error } = await supabase.functions.invoke('send-email', {
       body: {
-        from: 'noreply@stakeyscycles.co.uk',
+        from: 'noreply@stakeyswheels.co.uk',
         to: booking.customerEmail,
         subject: emailLog.subject,
         html: emailLog.content,

@@ -204,7 +204,7 @@ drop function if exists public.notify_booking_webhook();
 export function fixAllBookingAlertsSecrets(opts: FixAllOptions): string {
   const lines = [
     `BOOKING_WEBHOOK_SECRET=${opts.webhookSecret}`,
-    `BOOKING_FROM_EMAIL=Stakey's Cycles <noreply@stakeyscycles.co.uk>`,
+    `BOOKING_FROM_EMAIL=Stakey's Cycles <noreply@stakeyswheels.co.uk>`,
   ];
   if (opts.ownerEmail?.trim()) lines.push(`BOOKING_NOTIFY_EMAILS=${opts.ownerEmail.trim()}`);
   lines.push('RESEND_API_KEY=re_your_key');
