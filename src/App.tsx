@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   User,
   Shield,
@@ -33,7 +33,7 @@ import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { Toaster } from 'react-hot-toast';
-import { initPushEngage, linkUser, unlinkUser } from './utils/pushNotifications';
+import { initPushEngage, linkUser, relinkUser, unlinkUser } from './utils/pushNotifications';
 
 function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
@@ -70,17 +70,34 @@ function AppContent() {
   }, [activeTab]);
 
   // PushEngage: initialise once and target pushes at the signed-in user.
+  // Auth restore is async, so on a cold load `currentUser` is briefly null —
+  // we must NOT treat that as "signed out" and unlink the device, or every
+  // reload would detach this phone from the admin profile and silently break
+  // booking alerts. Only unlink after a user has actually been linked.
+  const pushLinkedRef = useRef(false);
   useEffect(() => {
     void initPushEngage();
   }, []);
 
   useEffect(() => {
     if (currentUser) {
+      pushLinkedRef.current = true;
       void linkUser(currentUser.uid, { role: currentUser.role || 'customer' });
-    } else {
+    } else if (pushLinkedRef.current) {
+      pushLinkedRef.current = false;
       void unlinkUser();
     }
   }, [currentUser?.uid, currentUser?.role]);
+
+  // Self-heal: whenever the app regains focus and a user is signed in, re-apply
+  // the profile id so a device that dropped its link reconnects automatically.
+  useEffect(() => {
+    const onFocus = () => {
+      if (currentUser) void relinkUser();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [currentUser?.uid]);
 
   const openStaffUnlock = () => {
     setStaffError(null);
