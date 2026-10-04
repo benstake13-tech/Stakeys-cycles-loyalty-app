@@ -724,3 +724,163 @@ export function generateSchemaSyncSql(): string {
 
   return lines.join('\n');
 }
+
+/**
+ * A focused repair script for the tables a failing feature test touches, so
+ * staff can fix one broken feature without running the whole schema sync.
+ * Idempotent and non-destructive, same guarantees as the full sync.
+ */
+export function generateRepairSqlForTables(tableNames: string[]): string {
+  const tables = EXPECTED_SCHEMA.filter((t) => tableNames.includes(t.name));
+  if (tables.length === 0) {
+    return '-- No known schema is associated with this feature, so there is nothing to repair here.\n';
+  }
+
+  const names = tables.map((t) => t.name);
+  const tableList = names.map((t) => `'${t}'`).join(', ');
+  const lines: string[] = [
+    '-- ==========================================================================',
+    `-- Stakey's Cycles — repair SQL for: ${names.join(', ')}`,
+    '-- Generated from Staff area → Feature Test Bench → Create fix SQL.',
+    '-- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run.',
+    '-- Idempotent: safe to re-run. Only adds columns, relaxes legacy NOT NULLs',
+    '-- and re-applies grants — it never drops tables or deletes rows.',
+    '-- ==========================================================================',
+    '',
+    '-- 1. Add any missing columns (CREATE TABLE IF NOT EXISTS keeps existing data).',
+  ];
+
+  for (const table of tables) {
+    const cols = table.columns
+      .map((c) => {
+        if (c.name === table.primaryKey) {
+          const type = c.type.toUpperCase();
+          const ref = c.references ? ` REFERENCES ${c.references}` : '';
+          return `  ${c.name} ${type} PRIMARY KEY${ref}`;
+        }
+        return `  ${columnDefinition(c)}`;
+      })
+      .join(',\n');
+    lines.push(`CREATE TABLE IF NOT EXISTS public.${table.name} (\n${cols}\n);`);
+    lines.push('');
+    for (const col of table.columns) {
+      if (col.name === table.primaryKey) continue;
+      const def = col.default ? ` DEFAULT ${col.default}` : '';
+      lines.push(
+        `ALTER TABLE public.${table.name} ADD COLUMN IF NOT EXISTS ${col.name} ${col.type.toUpperCase()}${def};`
+      );
+    }
+    lines.push('');
+  }
+
+  const relaxByTable = tables.filter((t) => t.columns.some((c) => c.relaxNotNull));
+  lines.push('-- 2. Relax legacy NOT NULL constraints the app sends nulls through.');
+  if (relaxByTable.length === 0) {
+    lines.push('-- (none)');
+  } else {
+    lines.push(`DO $$`);
+    lines.push(`DECLARE c text;`);
+    lines.push(`BEGIN`);
+    for (const table of relaxByTable) {
+      const cols = table.columns.filter((c) => c.relaxNotNull).map((c) => c.name);
+      lines.push(`  IF to_regclass('public.${table.name}') IS NULL THEN RETURN; END IF;`);
+      lines.push(`  FOREACH c IN ARRAY ARRAY[${cols.map((c) => `'${c}'`).join(',')}] LOOP`);
+      lines.push(`    BEGIN`);
+      lines.push(
+        `      EXECUTE format('ALTER TABLE public.${table.name} ALTER COLUMN %I DROP NOT NULL', c);`
+      );
+      lines.push(
+        `    EXCEPTION WHEN undefined_column THEN NULL; WHEN others THEN RAISE NOTICE '${table.name}.% : %', c, SQLERRM; END;`
+      );
+      lines.push(`  END LOOP;`);
+    }
+    lines.push(`END $$;`);
+    lines.push('');
+  }
+
+  const dropChecksTables = tables.filter((t) => t.dropChecks?.length);
+  if (dropChecksTables.length) {
+    lines.push('-- 2b. Drop legacy CHECK constraints the app values violate.');
+    lines.push(`DO $$`);
+    lines.push(`DECLARE c text;`);
+    lines.push(`BEGIN`);
+    for (const table of dropChecksTables) {
+      lines.push(`  IF to_regclass('public.${table.name}') IS NULL THEN`);
+      lines.push(`    RAISE NOTICE 'skipping checks: public.${table.name} does not exist';`);
+      lines.push(`  ELSE`);
+      lines.push(
+        `    FOREACH c IN ARRAY ARRAY[${table.dropChecks!.map((c) => `'${c}'`).join(',')}] LOOP`
+      );
+      lines.push(`      BEGIN`);
+      lines.push(
+        `        EXECUTE format('ALTER TABLE public.${table.name} DROP CONSTRAINT IF EXISTS %I', c);`
+      );
+      lines.push(
+        `      EXCEPTION WHEN others THEN RAISE NOTICE '${table.name}.% check drop skipped: %', c, SQLERRM; END;`
+      );
+      lines.push(`    END LOOP;`);
+      lines.push(`  END IF;`);
+    }
+    lines.push(`END $$;`);
+    lines.push('');
+  }
+
+  const textIdTables = tables.filter((t) => t.textId).map((t) => t.name);
+  if (textIdTables.length) {
+    lines.push('-- 3. Coerce legacy uuid id columns to text (the app writes text ids).');
+    lines.push(`DO $$`);
+    lines.push(`DECLARE t text;`);
+    lines.push(`BEGIN`);
+    lines.push(`  FOREACH t IN ARRAY ARRAY[${textIdTables.map((t) => `'${t}'`).join(',')}] LOOP`);
+    lines.push(`    BEGIN`);
+    lines.push(
+      `      IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name=t AND column_name='id' AND data_type='uuid') THEN`
+    );
+    lines.push(`        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN id DROP DEFAULT', t);`);
+    lines.push(`        EXECUTE format('ALTER TABLE public.%I ALTER COLUMN id TYPE text USING id::text', t);`);
+    lines.push(`        RAISE NOTICE '% .id converted to text', t;`);
+    lines.push(`      END IF;`);
+    lines.push(
+      `    EXCEPTION WHEN others THEN RAISE NOTICE '% id coercion skipped: %', t, SQLERRM; END;`
+    );
+    lines.push(`  END LOOP;`);
+    lines.push(`END $$;`);
+    lines.push('');
+  }
+
+  lines.push('-- 4. Grants + permissive RLS on the affected tables.');
+  lines.push(`DO $$`);
+  lines.push(`DECLARE t text; r text;`);
+  lines.push(`BEGIN`);
+  lines.push(`  FOREACH t IN ARRAY ARRAY[${tableList}] LOOP`);
+  lines.push(`    IF to_regclass('public.' || t) IS NULL THEN CONTINUE; END IF;`);
+  lines.push(`    FOREACH r IN ARRAY ARRAY['anon','authenticated'] LOOP`);
+  lines.push(`      IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN`);
+  lines.push(
+    `        BEGIN EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO %I', t, r);`
+  );
+  lines.push(
+    `        EXCEPTION WHEN others THEN RAISE NOTICE 'grant % on % failed: %', r, t, SQLERRM; END;`
+  );
+  lines.push(`      END IF;`);
+  lines.push(`    END LOOP;`);
+  lines.push(`    BEGIN EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);`);
+  lines.push(`      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'Allow all on ' || t, t);`);
+  lines.push(
+    `      EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL USING (true) WITH CHECK (true)', 'Allow all on ' || t, t);`
+  );
+  lines.push(`    EXCEPTION WHEN others THEN RAISE NOTICE 'rls on % failed: %', t, SQLERRM; END;`);
+  lines.push(`  END LOOP;`);
+  lines.push(`END $$;`);
+  lines.push('');
+
+  lines.push('-- 5. Verify — should list each repaired table.');
+  lines.push(`SELECT table_name, count(*) AS columns`);
+  lines.push(`  FROM information_schema.columns`);
+  lines.push(` WHERE table_schema = 'public'`);
+  lines.push(`   AND table_name IN (${tableList})`);
+  lines.push(` GROUP BY table_name ORDER BY table_name;`);
+  lines.push('');
+
+  return lines.join('\n');
+}

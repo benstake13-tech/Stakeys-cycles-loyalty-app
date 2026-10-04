@@ -18,10 +18,14 @@ import {
   Smartphone,
   Copy,
   Check,
+  Wrench,
+  ExternalLink,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { dispatchTestEmail } from '../utils/notificationService';
 import { sendPushToUser } from '../utils/pushNotifications';
+import { generateRepairSqlForTables } from '../utils/schemaSync';
+import { getStoredSupabaseUrl } from '../supabase';
 import {
   AREA_LABELS,
   FEATURE_TESTS,
@@ -96,6 +100,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [toast, setToast] = useState<Toast>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [fixSql, setFixSql] = useState<{ title: string; sql: string } | null>(null);
 
   const summary = useMemo(() => summarize(results), [results]);
 
@@ -229,6 +234,14 @@ export const StaffDiagnosticsTab: React.FC = () => {
     }
   };
 
+  const openFixSql = (result: FeatureTestResult) => {
+    const tables = result.tables?.length ? result.tables : [];
+    setFixSql({
+      title: result.label,
+      sql: generateRepairSqlForTables(tables),
+    });
+  };
+
   const renderRow = (result: FeatureTestResult) => {
     const meta = STATUS_META[result.status];
     return (
@@ -255,6 +268,16 @@ export const StaffDiagnosticsTab: React.FC = () => {
                 <span>{result.hint}</span>
               </p>
             )}
+            {(result.status === 'fail' || result.status === 'warn') && result.tables?.length ? (
+              <button
+                type="button"
+                onClick={() => openFixSql(result)}
+                className="mt-2.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-500/20"
+              >
+                <Wrench className="w-3.5 h-3.5" />
+                <span>Create fix SQL</span>
+              </button>
+            ) : null}
           </div>
         </div>
       </div>
@@ -428,6 +451,86 @@ export const StaffDiagnosticsTab: React.FC = () => {
           {toast.text}
         </div>
       )}
+
+      {fixSql && <FixSqlModal fix={fixSql} onClose={() => setFixSql(null)} />}
+    </div>
+  );
+};
+
+const FixSqlModal: React.FC<{
+  fix: { title: string; sql: string };
+  onClose: () => void;
+}> = ({ fix, onClose }) => {
+  const [copied, setCopied] = useState(false);
+
+  const sqlEditorUrl = (() => {
+    const host = getStoredSupabaseUrl().replace(/^https?:\/\//, '').split('.')[0];
+    return `https://supabase.com/dashboard/project/${host || 'your-project'}/sql`;
+  })();
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(fix.sql);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* clipboard blocked — the SQL is on screen to copy manually */
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+      <div className="w-full max-w-2xl bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 text-white shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-4 pb-3 border-b border-neutral-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+              <Wrench className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold">Fix SQL</h3>
+              <p className="text-xs text-neutral-400">{fix.title}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white text-xs cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+
+        <ol className="text-xs text-neutral-300 space-y-1.5 list-decimal list-inside leading-relaxed">
+          <li>Copy the SQL below.</li>
+          <li>Open the Supabase SQL Editor for this project.</li>
+          <li>Paste it into a new query and click <strong>Run</strong> (safe to re-run).</li>
+          <li>Come back and press <strong>Run All Tests</strong> again to confirm it is fixed.</li>
+        </ol>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={copy}
+            className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
+          >
+            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            <span>{copied ? 'Copied!' : 'Copy Fix SQL'}</span>
+          </button>
+          <a
+            href={sqlEditorUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5"
+          >
+            <ExternalLink className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Open Supabase SQL Editor</span>
+          </a>
+        </div>
+
+        <pre className="max-h-72 overflow-auto text-[10px] leading-relaxed font-mono bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-neutral-300">
+          {fix.sql}
+        </pre>
+      </div>
     </div>
   );
 };

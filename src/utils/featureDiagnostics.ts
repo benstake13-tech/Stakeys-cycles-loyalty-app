@@ -77,6 +77,8 @@ export interface FeatureTestResult {
   writes?: boolean;
   /** Extra info a staff member can act on when the test fails. */
   hint?: string;
+  /** App tables this test exercises, used to generate a focused fix SQL. */
+  tables?: string[];
 }
 
 export interface FeatureTest {
@@ -85,6 +87,8 @@ export interface FeatureTest {
   label: string;
   description: string;
   writes?: boolean;
+  /** App tables this test exercises, used to generate a focused fix SQL. */
+  tables?: string[];
   run: () => Promise<{ status: TestStatus; detail: string; hint?: string }>;
 }
 
@@ -289,6 +293,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Loyalty ------------------------------------------------------------
   {
     id: 'profiles-read',
+    tables: ['profiles'],
     area: 'loyalty',
     label: 'Read loyalty members (profiles)',
     description: 'Selects every profile row.',
@@ -296,6 +301,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'stamp-log-read',
+    tables: ['stamp_logs'],
     area: 'loyalty',
     label: 'Read stamp / reward history',
     description: 'Selects stamp_logs for staff view.',
@@ -303,6 +309,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'stamp-log-write',
+    tables: ['stamp_logs'],
     area: 'loyalty',
     label: 'Write stamp / reward history',
     description: 'Inserts a temporary stamp_logs row (stamp + point + audit trail) then deletes it.',
@@ -371,6 +378,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
     label: 'Write stamp / ticket / point balance',
     description: 'Upserts a profile balance exactly as addStamp does (checks the last_spin_date column), then deletes it.',
     writes: true,
+    tables: ['profiles'],
     run: async () => {
       const uid = sentinel(`profile-${Date.now()}`);
       const client = getSupabaseClient();
@@ -401,6 +409,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'prize-wheel-read',
+    tables: ['prize_wheels'],
     area: 'loyalty',
     label: 'Read prize wheel config',
     description: 'Selects prize_wheels rows.',
@@ -408,6 +417,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'prize-wheel-write',
+    tables: ['prize_wheels'],
     area: 'loyalty',
     label: 'Save prize wheel config',
     description: 'Upserts a temporary wheel, then restores the original config.',
@@ -443,6 +453,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Bookings -----------------------------------------------------------
   {
     id: 'booking-read',
+    tables: ['service_bookings'],
     area: 'bookings',
     label: 'Read repair bookings',
     description: 'Selects service_bookings for staff.',
@@ -450,6 +461,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'booking-write',
+    tables: ['service_bookings'],
     area: 'bookings',
     label: 'Create a repair booking',
     description: 'Writes a temporary booking exactly as the booking form does, then deletes it.',
@@ -475,6 +487,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'booking-delete',
+    tables: ['service_bookings'],
     area: 'bookings',
     label: 'Delete a booking (launch clear)',
     description: 'Writes a temporary booking then removes it via the Clear Bookings path and confirms it is gone.',
@@ -509,6 +522,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'booking-update-lifecycle',
+    tables: ['service_bookings'],
     area: 'bookings',
     label: 'Approve / quote / repair-stage update',
     description: 'Writes a booking, then approves it with a quote and moves the repair stage — then deletes it.',
@@ -553,6 +567,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Bike identity / e-bike conversion ----------------------------------
   {
     id: 'bike-details-write',
+    tables: ['service_bookings'],
     area: 'bookings',
     label: 'Save e-bike conversion details',
     description: 'Writes a booking with bike_details (factory/converted e-bike, motor, battery), verifies the jsonb, then deletes it.',
@@ -601,6 +616,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Till & discounts ---------------------------------------------------
   {
     id: 'sales-read',
+    tables: ['counter_sales'],
     area: 'till',
     label: 'Read counter sales',
     description: 'Selects counter_sales rows.',
@@ -608,6 +624,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'sale-write',
+    tables: ['counter_sales'],
     area: 'till',
     label: 'Record a counter sale',
     description: 'Writes a temporary till sale (incl. quote lifecycle columns) then deletes it.',
@@ -629,6 +646,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'sale-lifecycle',
+    tables: ['counter_sales'],
     area: 'till',
     label: 'Quote → approve a counter sale',
     description: 'Writes a sale, sends a quote then approves it, and checks the lifecycle columns persisted.',
@@ -668,6 +686,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'discount-codes-read',
+    tables: ['discount_codes'],
     area: 'till',
     label: 'Read discount codes',
     description: 'Selects discount_codes rows.',
@@ -675,6 +694,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'discount-code-write',
+    tables: ['discount_codes'],
     area: 'till',
     label: 'Create a discount code',
     description: 'Writes a temporary percent code then deletes it (checks the type CHECK constraint).',
@@ -707,6 +727,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'discount-usage-increment',
+    tables: ['discount_codes'],
     area: 'till',
     label: 'Increment discount usage',
     description: 'Creates a code, bumps times_used, verifies it, then deletes it.',
@@ -744,6 +765,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'voucher-conversion',
+    tables: ['service_vouchers'],
     area: 'till',
     label: 'Service-credit voucher → discount',
     description: 'Checks a £40 service_credit voucher converts to a fixed discount.',
@@ -770,6 +792,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Members & bikes ----------------------------------------------------
   {
     id: 'bikes-read',
+    tables: ['customer_bikes'],
     area: 'members',
     label: 'Read customer garage (bikes)',
     description: 'Selects customer_bikes rows.',
@@ -777,6 +800,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'bike-write',
+    tables: ['customer_bikes'],
     area: 'members',
     label: 'Add a bike to a garage',
     description: 'Writes a temporary customer_bikes row then deletes it.',
@@ -809,6 +833,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'bike-delete',
+    tables: ['customer_bikes'],
     area: 'members',
     label: 'Remove a bike from a garage',
     description: 'Writes a temporary bike, removes it, and confirms the row is gone.',
@@ -843,6 +868,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'bike-specs-update',
+    tables: ['customer_bikes'],
     area: 'members',
     label: 'Save scraped bike specs',
     description: 'Writes a bike, saves OEM specs onto it, verifies the flag, then deletes it.',
@@ -893,6 +919,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Prizes & vouchers --------------------------------------------------
   {
     id: 'vouchers-read',
+    tables: ['service_vouchers'],
     area: 'prizes',
     label: 'Issue a service voucher',
     description: 'Writes a temp voucher then reads it back and deletes it.',
@@ -925,6 +952,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'voucher-redeem',
+    tables: ['service_vouchers'],
     area: 'prizes',
     label: 'Redeem a service voucher',
     description: 'Issues a voucher, marks it redeemed, verifies the status persisted, then deletes it.',
@@ -962,6 +990,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'prize-draws-read',
+    tables: ['prize_draws'],
     area: 'prizes',
     label: 'Read prize draws',
     description: 'Selects prize_draws rows.',
@@ -969,6 +998,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'prize-draw-write',
+    tables: ['prize_draws'],
     area: 'prizes',
     label: 'Create a prize draw',
     description: 'Writes a temporary draw then deletes it.',
@@ -999,6 +1029,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Staff, promotions & draws -----------------------------------------
   {
     id: 'staff-read',
+    tables: ['staff_members'],
     area: 'content',
     label: 'Read team roster',
     description: 'Selects staff_members rows.',
@@ -1006,6 +1037,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'staff-write',
+    tables: ['staff_members'],
     area: 'content',
     label: 'Add a team member',
     description: 'Writes a temporary staff_members row then deletes it.',
@@ -1033,6 +1065,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'promotions-read',
+    tables: ['promotions'],
     area: 'content',
     label: 'Read promotions',
     description: 'Selects promotions rows.',
@@ -1040,6 +1073,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'promotion-write',
+    tables: ['promotions'],
     area: 'content',
     label: 'Create a promotion',
     description: 'Writes a temporary promotion then deletes it.',
@@ -1074,6 +1108,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   // ---- Settings -----------------------------------------------------------
   {
     id: 'settings-read',
+    tables: ['app_settings'],
     area: 'settings',
     label: 'Read workshop settings',
     description: 'Selects the app_settings row.',
@@ -1102,6 +1137,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'settings-write',
+    tables: ['app_settings'],
     area: 'settings',
     label: 'Save workshop notification settings',
     description: 'Upserts a temporary owner email + alerts flag, verifies it, then restores the previous settings.',
@@ -1131,6 +1167,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'theme-write',
+    tables: ['app_theme_config'],
     area: 'settings',
     label: 'Apply a seasonal theme',
     description: 'Writes a temporary theme value, verifies it, then restores the previous theme.',
@@ -1159,6 +1196,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   },
   {
     id: 'theme-read',
+    tables: ['app_theme_config'],
     area: 'settings',
     label: 'Read seasonal theme config',
     description: 'Selects app_theme_config.',
@@ -1254,6 +1292,7 @@ export async function runFeatureTests(
       detail,
       hint,
       writes: test.writes,
+      tables: test.tables,
       ms: Math.round(performance.now() - start),
     };
     results.push(result);
