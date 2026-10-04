@@ -41,6 +41,7 @@ import {
 } from '../utils/discountService';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { generateMembershipNumber, generateBarcodeValue } from '../api/firebaseService';
+import { isSyntheticProfileIdIssue } from '../utils/schemaSync';
 import type {
   CustomerBike,
   ServiceBooking,
@@ -79,6 +80,8 @@ export interface FeatureTestResult {
   hint?: string;
   /** App tables this test exercises, used to generate a focused fix SQL. */
   tables?: string[];
+  /** True when the failure is the self-test's own synthetic-id limitation. */
+  selfTestLimited?: boolean;
 }
 
 export interface FeatureTest {
@@ -89,7 +92,9 @@ export interface FeatureTest {
   writes?: boolean;
   /** App tables this test exercises, used to generate a focused fix SQL. */
   tables?: string[];
-  run: () => Promise<{ status: TestStatus; detail: string; hint?: string }>;
+  /** Marks a test that cannot fully self-test against the live schema. */
+  selfTestLimited?: boolean;
+  run: () => Promise<{ status: TestStatus; detail: string; hint?: string; selfTestLimited?: boolean }>;
 }
 
 export const AREA_LABELS: Record<FeatureArea, string> = {
@@ -379,6 +384,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
     description: 'Upserts a profile balance exactly as addStamp does (checks the last_spin_date column), then deletes it.',
     writes: true,
     tables: ['profiles'],
+    selfTestLimited: true,
     run: async () => {
       const uid = sentinel(`profile-${Date.now()}`);
       const client = getSupabaseClient();
@@ -395,9 +401,17 @@ export const FEATURE_TESTS: FeatureTest[] = [
         if (ok && stamps.ok && points.ok) {
           return { status: 'pass', detail: 'Stamp / ticket / point balance persisted.' };
         }
+        const raw = `${stamps.detail}; ${points.detail}`;
+        if (isSyntheticProfileIdIssue(raw)) {
+          return {
+            status: 'warn',
+            detail: `Self-test limitation, not a schema fault: ${raw}.`,
+            hint: 'profiles.id is uuid with a FK to auth.users, so a synthetic row cannot be created. Use “Create fix SQL” to run a UUID-safe balance probe against a real profile.',
+          };
+        }
         return {
           status: 'fail',
-          detail: `upsert=${ok}; ${stamps.detail}; ${points.detail}`,
+          detail: `upsert=${ok}; ${raw}`,
           hint: 'profiles is missing last_spin_date on the live DB, which fails the whole upsert (PGRST204). Run the repair SQL.',
         };
       } catch (e) {
@@ -1275,11 +1289,13 @@ export async function runFeatureTests(
     let status: TestStatus = 'fail';
     let detail = '';
     let hint: string | undefined;
+    let selfTestLimited = false;
     try {
       const r = await test.run();
       status = r.status;
       detail = r.detail;
       hint = r.hint;
+      selfTestLimited = r.selfTestLimited ?? false;
     } catch (e) {
       detail = err(e);
       hint = hintFor(detail);
@@ -1293,6 +1309,7 @@ export async function runFeatureTests(
       hint,
       writes: test.writes,
       tables: test.tables,
+      selfTestLimited: selfTestLimited || test.selfTestLimited,
       ms: Math.round(performance.now() - start),
     };
     results.push(result);

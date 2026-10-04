@@ -20,11 +20,12 @@ import {
   Check,
   Wrench,
   ExternalLink,
+  Award,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { dispatchTestEmail } from '../utils/notificationService';
 import { sendPushToUser } from '../utils/pushNotifications';
-import { generateRepairSqlForTables } from '../utils/schemaSync';
+import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
 import {
   AREA_LABELS,
@@ -208,6 +209,34 @@ export const StaffDiagnosticsTab: React.FC = () => {
     }
   };
 
+  /** Runs the stamp/ticket/point balance diagnostic on its own and, when it
+   *  hits the synthetic-id limitation, opens the UUID-safe probe SQL. */
+  const handleTestBalanceWrite = async () => {
+    setBusy('balance');
+    try {
+      let last: FeatureTestResult | undefined;
+      await runFeatureTests(
+        (result) => {
+          last = result;
+          setResults((prev) => [...prev.filter((r) => r.id !== result.id), result]);
+        },
+        ['profile-balance-write']
+      );
+      if (last?.status === 'pass') {
+        flash({ kind: 'ok', text: 'Balance write persisted — stamp/ticket/point upsert works.' });
+      } else if (last?.selfTestLimited) {
+        setFixSql({
+          title: `${last.label} — UUID-safe balance probe`,
+          sql: generateProfileBalanceProbeSql(),
+        });
+      } else {
+        flash({ kind: 'err', text: last?.detail || 'Balance write test failed.' });
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handleCopyReport = async () => {
     const lines = [
       `Stakey's Cycles — feature diagnostics (${new Date().toLocaleString()})`,
@@ -242,6 +271,15 @@ export const StaffDiagnosticsTab: React.FC = () => {
     });
   };
 
+  /** The balance diagnostic cannot create a synthetic profile (uuid + FK), so
+   *  offer the UUID-safe probe instead of a generic schema repair. */
+  const openBalanceProbeSql = (result: FeatureTestResult) => {
+    setFixSql({
+      title: `${result.label} — UUID-safe balance probe`,
+      sql: generateProfileBalanceProbeSql(),
+    });
+  };
+
   const renderRow = (result: FeatureTestResult) => {
     const meta = STATUS_META[result.status];
     return (
@@ -259,6 +297,14 @@ export const StaffDiagnosticsTab: React.FC = () => {
                   write test · self-cleaning
                 </span>
               )}
+              {result.selfTestLimited && (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
+                  title="This test writes a synthetic profile row, but profiles.id is uuid with a foreign key to auth.users, so it cannot fully self-test. Use the balance probe."
+                >
+                  synthetic id — see probe
+                </span>
+              )}
               <span className="text-[10px] font-mono text-neutral-500">{result.ms}ms</span>
             </div>
             <p className="text-xs text-neutral-300 mt-1 break-words">{result.detail}</p>
@@ -269,14 +315,26 @@ export const StaffDiagnosticsTab: React.FC = () => {
               </p>
             )}
             {(result.status === 'fail' || result.status === 'warn') && result.tables?.length ? (
-              <button
-                type="button"
-                onClick={() => openFixSql(result)}
-                className="mt-2.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-500/20"
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                <span>Create fix SQL</span>
-              </button>
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => openFixSql(result)}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-500/20"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>Create fix SQL</span>
+                </button>
+                {result.selfTestLimited && (
+                  <button
+                    type="button"
+                    onClick={() => openBalanceProbeSql(result)}
+                    className="px-3 py-1.5 rounded-xl bg-violet-500 hover:bg-violet-400 text-neutral-950 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm shadow-violet-500/20"
+                  >
+                    <Wrench className="w-3.5 h-3.5" />
+                    <span>Create balance probe SQL</span>
+                  </button>
+                )}
+              </div>
             ) : null}
           </div>
         </div>
@@ -381,6 +439,13 @@ export const StaffDiagnosticsTab: React.FC = () => {
             subtitle="ping auth gateway + tables"
             onClick={handleHealth}
             busy={busy === 'health'}
+          />
+          <TestButton
+            icon={<Award className="w-4 h-4" />}
+            title="Test Stamp / Ticket / Point Write"
+            subtitle="loyalty balance upsert (UUID-safe probe)"
+            onClick={handleTestBalanceWrite}
+            busy={busy === 'balance'}
           />
           <TestButton
             icon={<RefreshCw className="w-4 h-4" />}

@@ -339,7 +339,7 @@ export const StaffPortal: React.FC = () => {
     { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members' },
     { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel' },
     { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
-    { id: 'terminal', label: 'Workshop Terminal & Front Desk', icon: Layers, tone: 'emerald', hint: 'Workshop metrics overview' },
+    { id: 'terminal', label: 'Staff Station', icon: Layers, tone: 'emerald', hint: 'Station overview & workshop metrics' },
   ];
 
   const adminTabs: SegmentedTab<StaffTabId>[] = [
@@ -396,213 +396,6 @@ export const StaffPortal: React.FC = () => {
         </div>
       )}
 
-      {/* 2. STATION OVERVIEW & METRICS BAR */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div>
-            <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
-              <span className="text-emerald-400 font-semibold tracking-wider uppercase">
-                Staff Command Station
-              </span>
-              <span aria-hidden="true" className="text-neutral-600">·</span>
-              <span>Operator: {currentUser.displayName}</span>
-              <span aria-hidden="true" className="text-neutral-600">·</span>
-              <span className="text-neutral-500 font-mono text-[11px]">{currentUser.membershipNumber}</span>
-            </div>
-            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Staff Station
-            </h2>
-            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              Counter sales, workshop bookings, loyalty members and prize draws — everything you need at the front desk and bench.
-            </p>
-
-            <div className="flex flex-wrap items-center gap-2 mt-3.5">
-              <button
-                type="button"
-                onClick={() => setIsScannerOpen(true)}
-                className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
-                title="Scan a member barcode or QR code"
-              >
-                <Scan className="w-4 h-4" />
-                <span>Scan Member Code</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsSchemaSyncOpen(true)}
-                className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/20 cursor-pointer"
-                title="Audit the live Supabase schema and copy a sync SQL script"
-              >
-                <DatabaseZap className="w-4 h-4" />
-                <span>Fix Database Schema</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsStaffAccountsSetupOpen(true)}
-                className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
-                title="Install the staff-account functions from the migration SQL"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Set Up Staff Accounts</span>
-              </button>
-
-              <button
-                type="button"
-                disabled={pushState === 'working' || pushState === 'granted'}
-                onClick={async () => {
-                  setPushState('working');
-                  const perm = await requestPushNotificationPermission();
-                  setPushState(perm === 'granted' ? 'granted' : 'blocked');
-                }}
-                className={`pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
-                  pushState === 'granted'
-                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 cursor-default'
-                    : 'bg-neutral-950/80 border-neutral-800 text-white hover:border-emerald-500/40'
-                }`}
-                title="Enable PushEngage push notifications on this device"
-              >
-                <Bell className="w-4 h-4" />
-                <span>
-                  {pushState === 'granted'
-                    ? 'Push Enabled'
-                    : pushState === 'working'
-                    ? 'Enabling…'
-                    : 'Enable Push'}
-                </span>
-              </button>
-
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs shadow-inner">
-                <span className={`w-2 h-2 rounded-full ${isStaffBookingSoundEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
-                <span className="text-neutral-400 text-[11px] font-medium">Audio Alert:</span>
-                <span className={`font-mono text-[11px] font-bold ${isStaffBookingSoundEnabled ? 'text-emerald-400' : 'text-neutral-500'}`}>
-                  {isStaffBookingSoundEnabled ? 'LOUD PING ACTIVE' : 'MUTED'}
-                </span>
-
-                {isStaffBookingSoundEnabled && (
-                  <button
-                    type="button"
-                    onClick={cycleWorkshopAudioVolume}
-                    className="px-2 py-0.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-amber-400 font-mono text-[10px] font-bold border border-amber-500/30 transition-colors cursor-pointer"
-                    title="Toggle loudness boost"
-                  >
-                    🔊 {workshopAudioVolume === 'max_workshop' ? 'MAX (220%)' : workshopAudioVolume === 'loud' ? 'LOUD (160%)' : 'NORMAL (100%)'}
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={playStaffBookingAlertPing}
-                  className="ml-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-[10px] tracking-wide uppercase transition-colors cursor-pointer border border-emerald-500/30 flex items-center gap-1"
-                  title="Test loud workshop bell ping sound"
-                >
-                  <Bell className="w-3 h-3 text-emerald-400" />
-                  <span>Test Loud Ping</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={toggleStaffBookingSound}
-                  className="px-1.5 py-0.5 rounded-lg text-neutral-400 hover:text-white transition-colors cursor-pointer"
-                  title={isStaffBookingSoundEnabled ? 'Mute booking ping' : 'Unmute booking ping'}
-                >
-                  {isStaffBookingSoundEnabled ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-
-              {isStaff && (
-                <div className="mt-4">
-                  <StaffThemeSelector />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Quick Metrics Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setStaffTab('bookings')}
-              className={`p-3 rounded-xl bg-neutral-950 border text-left transition-all cursor-pointer relative overflow-hidden ${
-                freshBookings.length > 0
-                  ? 'border-amber-400/90 shadow-[0_0_18px_rgba(245,158,11,0.3)] hover:border-amber-300'
-                  : 'border-neutral-800 hover:border-emerald-500/40'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  Workshop Jobs
-                </div>
-                {freshBookings.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-sm flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-red-600 animate-ping" />
-                    {freshBookings.length} NEW
-                  </span>
-                )}
-              </div>
-              <div className="text-xl font-black text-emerald-400 mt-0.5">
-                {activeBookingsCount}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Active</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStaffTab('staff_roster')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Staff Roster
-              </div>
-              <div className="text-xl font-black text-emerald-400 mt-0.5">
-                {staffMembers.length}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Active</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStaffTab('promotions')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Promotions
-              </div>
-              <div className="text-xl font-black text-amber-400 mt-0.5">
-                {promotions.filter((p) => p.status === 'active').length}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Live</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStaffTab('customers')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Total Riders
-              </div>
-              <div className="text-xl font-black text-white mt-0.5">
-                {customerList.length}
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStaffTab('draws')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Draw Pool
-              </div>
-              <div className="text-xl font-black text-emerald-300 mt-0.5">
-                {eligibleTicketHolders.length}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Entries</span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-
       {/* 3. WORKSTATION NAVIGATOR: grouped, labelled, keyboard-navigable */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
@@ -645,8 +438,218 @@ export const StaffPortal: React.FC = () => {
 
       {/* 4. WORKSTATION VIEWS */}
 
-      {/* VIEW 0: Workshop Terminal & Front Desk (metrics + loyalty admin) */}
-      {staffTab === 'terminal' && <AdminDashboard />}
+      {/* VIEW 0: Staff Station — overview, alerts and workshop metrics */}
+      {staffTab === 'terminal' && (
+        <div className="space-y-6">
+          {/* 2. STATION OVERVIEW & METRICS BAR */}
+          <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
+                  <span className="text-emerald-400 font-semibold tracking-wider uppercase">
+                    Staff Command Station
+                  </span>
+                  <span aria-hidden="true" className="text-neutral-600">·</span>
+                  <span>Operator: {currentUser.displayName}</span>
+                  <span aria-hidden="true" className="text-neutral-600">·</span>
+                  <span className="text-neutral-500 font-mono text-[11px]">{currentUser.membershipNumber}</span>
+                </div>
+                <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  Staff Station
+                </h2>
+                <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+                  Counter sales, workshop bookings, loyalty members and prize draws — everything you need at the front desk and bench.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2 mt-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsScannerOpen(true)}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
+                    title="Scan a member barcode or QR code"
+                  >
+                    <Scan className="w-4 h-4" />
+                    <span>Scan Member Code</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsSchemaSyncOpen(true)}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/20 cursor-pointer"
+                    title="Audit the live Supabase schema and copy a sync SQL script"
+                  >
+                    <DatabaseZap className="w-4 h-4" />
+                    <span>Fix Database Schema</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsStaffAccountsSetupOpen(true)}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
+                    title="Install the staff-account functions from the migration SQL"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Set Up Staff Accounts</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={pushState === 'working' || pushState === 'granted'}
+                    onClick={async () => {
+                      setPushState('working');
+                      const perm = await requestPushNotificationPermission();
+                      setPushState(perm === 'granted' ? 'granted' : 'blocked');
+                    }}
+                    className={`pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
+                      pushState === 'granted'
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 cursor-default'
+                        : 'bg-neutral-950/80 border-neutral-800 text-white hover:border-emerald-500/40'
+                    }`}
+                    title="Enable PushEngage push notifications on this device"
+                  >
+                    <Bell className="w-4 h-4" />
+                    <span>
+                      {pushState === 'granted'
+                        ? 'Push Enabled'
+                        : pushState === 'working'
+                        ? 'Enabling…'
+                        : 'Enable Push'}
+                    </span>
+                  </button>
+
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs shadow-inner">
+                    <span className={`w-2 h-2 rounded-full ${isStaffBookingSoundEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
+                    <span className="text-neutral-400 text-[11px] font-medium">Audio Alert:</span>
+                    <span className={`font-mono text-[11px] font-bold ${isStaffBookingSoundEnabled ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                      {isStaffBookingSoundEnabled ? 'LOUD PING ACTIVE' : 'MUTED'}
+                    </span>
+
+                    {isStaffBookingSoundEnabled && (
+                      <button
+                        type="button"
+                        onClick={cycleWorkshopAudioVolume}
+                        className="px-2 py-0.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-amber-400 font-mono text-[10px] font-bold border border-amber-500/30 transition-colors cursor-pointer"
+                        title="Toggle loudness boost"
+                      >
+                        🔊 {workshopAudioVolume === 'max_workshop' ? 'MAX (220%)' : workshopAudioVolume === 'loud' ? 'LOUD (160%)' : 'NORMAL (100%)'}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={playStaffBookingAlertPing}
+                      className="ml-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-[10px] tracking-wide uppercase transition-colors cursor-pointer border border-emerald-500/30 flex items-center gap-1"
+                      title="Test loud workshop bell ping sound"
+                    >
+                      <Bell className="w-3 h-3 text-emerald-400" />
+                      <span>Test Loud Ping</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={toggleStaffBookingSound}
+                      className="px-1.5 py-0.5 rounded-lg text-neutral-400 hover:text-white transition-colors cursor-pointer"
+                      title={isStaffBookingSoundEnabled ? 'Mute booking ping' : 'Unmute booking ping'}
+                    >
+                      {isStaffBookingSoundEnabled ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+
+                  {isStaff && (
+                    <div className="mt-4">
+                      <StaffThemeSelector />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Metrics Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('bookings')}
+                  className={`p-3 rounded-xl bg-neutral-950 border text-left transition-all cursor-pointer relative overflow-hidden ${
+                    freshBookings.length > 0
+                      ? 'border-amber-400/90 shadow-[0_0_18px_rgba(245,158,11,0.3)] hover:border-amber-300'
+                      : 'border-neutral-800 hover:border-emerald-500/40'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                      Workshop Jobs
+                    </div>
+                    {freshBookings.length > 0 && (
+                      <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-sm flex items-center gap-1">
+                        <span className="w-1 h-1 rounded-full bg-red-600 animate-ping" />
+                        {freshBookings.length} NEW
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xl font-black text-emerald-400 mt-0.5">
+                    {activeBookingsCount}{' '}
+                    <span className="text-xs text-neutral-500 font-normal">Active</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('staff_roster')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Staff Roster
+                  </div>
+                  <div className="text-xl font-black text-emerald-400 mt-0.5">
+                    {staffMembers.length}{' '}
+                    <span className="text-xs text-neutral-500 font-normal">Active</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('promotions')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Promotions
+                  </div>
+                  <div className="text-xl font-black text-amber-400 mt-0.5">
+                    {promotions.filter((p) => p.status === 'active').length}{' '}
+                    <span className="text-xs text-neutral-500 font-normal">Live</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('customers')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Total Riders
+                  </div>
+                  <div className="text-xl font-black text-white mt-0.5">
+                    {customerList.length}
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('draws')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    Draw Pool
+                  </div>
+                  <div className="text-xl font-black text-emerald-300 mt-0.5">
+                    {eligibleTicketHolders.length}{' '}
+                    <span className="text-xs text-neutral-500 font-normal">Entries</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+          <AdminDashboard />
+        </div>
+      )}
 
       {/* VIEW 1: Service Bookings Management */}
       {staffTab === 'bookings' && <StaffBookingsTab />}

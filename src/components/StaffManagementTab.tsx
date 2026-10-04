@@ -143,6 +143,35 @@ export const StaffManagementTab: React.FC = () => {
 
   const setLogin = (patch: Partial<StaffFormValues>) => setValues((v) => ({ ...v, ...patch }));
 
+  /** Match a roster profile to its Staff Station login by email. */
+  const loginAccountFor = (staff: StaffMember) => {
+    const email = staff.email.trim().toLowerCase();
+    return staffAccounts.find((a) => a.email.trim().toLowerCase() === email);
+  };
+
+  /** Prefill the login form from a roster profile so granting access is one click. */
+  const handleGrantLogin = (staff: StaffMember) => {
+    const existing = loginAccountFor(staff);
+    setLoginSuccess(null);
+    setLoginError(null);
+    if (existing) {
+      setLoginError(
+        existing.role === 'admin'
+          ? `${staff.name} already has admin access (${existing.email}).`
+          : `${staff.name} already has a login (${existing.email}).`
+      );
+      return;
+    }
+    setValues({
+      email: staff.email,
+      displayName: staff.name,
+      password: '',
+      confirmPassword: '',
+      role: staff.role === 'Admin' ? 'admin' : 'staff',
+    });
+    document.getElementById('staff-email')?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+  };
+
   // Filter staff roster
   const filteredStaff = staffMembers.filter((staff) => {
     if (roleFilter !== 'All' && staff.role !== roleFilter) return false;
@@ -626,6 +655,8 @@ export const StaffManagementTab: React.FC = () => {
         {filteredStaff.map((staff) => {
           const isActive = staff.status === 'Active';
           const isOnLeave = staff.status === 'On Leave';
+          const login = loginAccountFor(staff);
+          const loginIsAdmin = login?.role === 'admin';
 
           return (
             <div
@@ -688,6 +719,43 @@ export const StaffManagementTab: React.FC = () => {
                     <p className="text-[11px] text-neutral-400 italic bg-neutral-950 p-2 rounded-lg border border-neutral-800/80 mt-1">
                       "{staff.notes}"
                     </p>
+                  )}
+                </div>
+
+                {/* Staff Station access status */}
+                <div className="mt-3 flex items-center gap-2">
+                  {login ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                        {loginIsAdmin ? <Crown className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                        {loginIsAdmin ? 'Admin access' : 'Has login'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleRoleChange(login.id, loginIsAdmin ? 'staff' : 'admin')}
+                        disabled={loginIsAdmin && admins.length <= 1}
+                        title={loginIsAdmin && admins.length <= 1 ? 'Cannot remove the last admin' : undefined}
+                        className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {loginIsAdmin ? 'Make staff' : 'Make admin'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-neutral-700 bg-neutral-800/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                        <Lock className="w-3 h-3" />
+                        No login
+                      </span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleGrantLogin(staff)}
+                          className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 hover:text-emerald-300 cursor-pointer"
+                        >
+                          Grant access
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

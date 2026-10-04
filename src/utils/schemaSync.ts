@@ -884,3 +884,91 @@ export function generateRepairSqlForTables(tableNames: string[]): string {
 
   return lines.join('\n');
 }
+
+/**
+ * True when the error is the diagnostic's own fault rather than a schema
+ * problem: a text sentinel id written to a uuid column (22P02), or a random
+ * uuid rejected by profiles.id -> auth.users (23503).
+ */
+export function isSyntheticProfileIdIssue(message: string): boolean {
+  return /22P02|invalid input syntax for type uuid/i.test(message) || /23503|violates foreign key constraint/i.test(message);
+}
+
+/**
+ * Repair SQL for the loyalty-balance diagnostic.
+ *
+ * The self-test writes a *synthetic* profile row so it never touches a real
+ * member, but profiles.id is uuid with a foreign key to auth.users, so no
+ * synthetic id can satisfy it. There is no schema change that can fix that.
+ * This script instead verifies the real problem (missing columns / grants) and
+ * provides a UUID-safe manual write probe that proves stamp/ticket/point writes
+ * work without inserting a row.
+ */
+export function generateProfileBalanceProbeSql(profileId?: string): string {
+  const target = profileId ? `'${profileId}'::uuid` : 'NULL';
+  const dollar = String.fromCharCode(36);
+  return [
+    '-- ==========================================================================',
+    "-- Stakey's Cycles — stamp / ticket / point balance probe",
+    '-- Generated from Staff area → Feature Test Bench → Create fix SQL.',
+    '-- Run in: Supabase Dashboard -> SQL Editor -> New query -> Run.',
+    '-- Non-destructive: adds missing columns/grants and runs a real balance',
+    '-- update inside a transaction that is rolled back, so no data is changed.',
+    '-- ==========================================================================',
+    '',
+    '-- 1. Ensure the loyalty balance columns exist (fixes PGRST204).',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spin_date TEXT;',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spun_at TIMESTAMPTZ;',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_stamped_at TIMESTAMPTZ;',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS stamps INTEGER DEFAULT 0;',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS completed_cards INTEGER DEFAULT 0;',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS merit_points INTEGER DEFAULT 0;',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS tickets INTEGER DEFAULT 0;',
+    'ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS membership_number TEXT;',
+    'ALTER TABLE public.profiles ALTER COLUMN membership_number DROP NOT NULL;',
+    '',
+    '-- 2. Re-apply grants + permissive RLS so the anon key can write.',
+    'GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO anon, authenticated;',
+    'ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;',
+    'DROP POLICY IF EXISTS "Allow all on profiles" ON public.profiles;',
+    'CREATE POLICY "Allow all on profiles" ON public.profiles FOR ALL USING (true) WITH CHECK (true);',
+    '',
+    '-- 3. The schema the app writes must be present:',
+    'SELECT column_name, data_type',
+    '  FROM information_schema.columns',
+    " WHERE table_schema = 'public' AND table_name = 'profiles'",
+    ' ORDER BY ordinal_position;',
+    '',
+    '-- 4. Real balance probe (rolls back — nothing is changed). This runs the',
+    '--    exact UPDATE the app performs, using a real profile id, so a failure',
+    '--    here is a genuine write problem and not the self-test’s synthetic id.',
+    `DO ${dollar}${dollar}`,
+    `DECLARE target uuid := ${target};`,
+    'BEGIN',
+    '  IF target IS NULL THEN',
+    '    SELECT id INTO target FROM public.profiles ORDER BY created_at LIMIT 1;',
+    '  END IF;',
+    '  IF target IS NULL THEN',
+    "    RAISE NOTICE 'No profiles rows exist, so there is nothing to probe.';",
+    '    RETURN;',
+    '  END IF;',
+    '  UPDATE public.profiles',
+    '     SET stamps = stamps + 0,',
+    '         completed_cards = completed_cards + 0,',
+    '         merit_points = merit_points + 0,',
+    '         last_spin_date = last_spin_date,',
+    '         updated_at = NOW()',
+    '   WHERE id = target;',
+    "  RAISE NOTICE 'Balance write probe OK for profile %', target;",
+    `  RAISE EXCEPTION USING ERRCODE = 'P0001', MESSAGE = 'rollback probe';`,
+    'EXCEPTION WHEN raise_exception THEN',
+    "  RAISE NOTICE 'Probe complete — changes rolled back.';",
+    `END ${dollar}${dollar};`,
+    '',
+    '-- 5. Back to the Feature Test Bench: the self-test still reports Broken by',
+    '--    design (profiles.id is uuid + FK to auth.users, so a synthetic row is',
+    '--    impossible). Use this probe as the source of truth for stamp writes.',
+    '',
+  ].join('\n');
+}
+

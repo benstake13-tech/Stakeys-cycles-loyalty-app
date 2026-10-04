@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { generateRepairSqlForTables } from './src/utils/schemaSync';
+import {
+  generateRepairSqlForTables,
+  generateProfileBalanceProbeSql,
+  isSyntheticProfileIdIssue,
+} from './src/utils/schemaSync';
 
 describe('generateRepairSqlForTables', () => {
   it('produces a focused, idempotent repair for the profiles table', () => {
@@ -28,5 +32,49 @@ describe('generateRepairSqlForTables', () => {
   it('explains when a feature has no known schema', () => {
     const sql = generateRepairSqlForTables(['not_a_real_table']);
     expect(sql).toMatch(/nothing to repair/i);
+  });
+});
+
+describe('generateProfileBalanceProbeSql', () => {
+  it('adds the balance columns and re-applies grants without being destructive', () => {
+    const sql = generateProfileBalanceProbeSql();
+    expect(sql).toContain('ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spin_date TEXT;');
+    expect(sql).toContain('GRANT SELECT, INSERT, UPDATE, DELETE ON public.profiles TO anon, authenticated;');
+    expect(sql).toContain('CREATE POLICY "Allow all on profiles"');
+    // Runs a real update but rolls it back so no data changes.
+    expect(sql).toContain('rollback probe');
+    expect(sql).toContain('EXCEPTION WHEN raise_exception');
+    // It must not silently change a member's balance.
+    expect(sql).not.toMatch(/DROP TABLE/i);
+    expect(sql).not.toMatch(/DELETE FROM/i);
+  });
+
+  it('targets a specific profile id when one is supplied', () => {
+    const sql = generateProfileBalanceProbeSql('3a9b7d17-7ca0-4fb9-97c2-0ec0afa0129c');
+    expect(sql).toContain("DECLARE target uuid := '3a9b7d17-7ca0-4fb9-97c2-0ec0afa0129c'::uuid;");
+  });
+
+  it('falls back to the first real profile when no id is supplied', () => {
+    const sql = generateProfileBalanceProbeSql();
+    expect(sql).toContain('DECLARE target uuid := NULL;');
+    expect(sql).toContain('SELECT id INTO target FROM public.profiles ORDER BY created_at LIMIT 1;');
+  });
+});
+
+describe('isSyntheticProfileIdIssue', () => {
+  it('recognises the text-id-on-uuid column error', () => {
+    expect(
+      isSyntheticProfileIdIssue('invalid input syntax for type uuid: "__stakeys_diag__profile-1"')
+    ).toBe(true);
+  });
+
+  it('recognises the profiles -> auth.users foreign-key error', () => {
+    expect(
+      isSyntheticProfileIdIssue('violates foreign key constraint "profiles_id_fkey"')
+    ).toBe(true);
+  });
+
+  it('does not swallow genuine schema drift', () => {
+    expect(isSyntheticProfileIdIssue("column 'last_spin_date' does not exist")).toBe(false);
   });
 });

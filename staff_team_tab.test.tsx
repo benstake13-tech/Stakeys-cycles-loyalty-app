@@ -29,6 +29,16 @@ vi.mock('./src/context/ShopContext', () => ({
         notes: 'Bench lead',
         avatarColor: '#05C147',
       },
+      {
+        id: 'st-2',
+        name: 'Sam Rider',
+        email: 'sam@stakeyscycles.com',
+        phone: '+44 7700 900222',
+        role: 'Cytech Mechanic',
+        status: 'Active',
+        joinedDate: '2024-02-01',
+        avatarColor: '#059669',
+      },
     ],
     addStaffMember: hoisted.addStaffMember,
     updateStaffMember: hoisted.updateStaffMember,
@@ -56,7 +66,7 @@ describe('StaffManagementTab (Team = roster + logins)', () => {
   it('shows both the roster and the Staff Station access section', () => {
     render(<StaffManagementTab />);
     expect(screen.getByText(/Staff Station access/i)).toBeTruthy();
-    expect(screen.getByText(/Roster \(1\)/i)).toBeTruthy();
+    expect(screen.getByText(/Roster \(2\)/i)).toBeTruthy();
     expect(screen.getByText('Alex Morgan')).toBeTruthy();
     expect(screen.getByText(/Existing logins \(2\)/i)).toBeTruthy();
   });
@@ -93,5 +103,23 @@ describe('StaffManagementTab (Team = roster + logins)', () => {
     render(<StaffManagementTab />);
     expect(screen.getByText(/Only admins can manage staff logins/i)).toBeTruthy();
     expect(screen.queryByText(/Create staff login/i)).toBeNull();
+  });
+
+  it('shows login status on roster cards and prefills the form via Grant access', () => {
+    render(<StaffManagementTab />);
+    expect(screen.getByText(/Has login/i)).toBeTruthy();
+    expect(screen.getByText(/No login/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByText(/Grant access/i));
+    expect((screen.getByLabelText('Email') as HTMLInputElement).value).toBe(
+      'alex@stakeyscycles.com'
+    );
+    expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('Alex Morgan');
+  });
+
+  it('offers to promote or demote an existing login from the roster card', async () => {
+    render(<StaffManagementTab />);
+    fireEvent.click(screen.getByText(/Make admin/i));
+    await waitFor(() => expect(hoisted.updateStaffAccountRole).toHaveBeenCalledWith('acct-2', 'admin'));
   });
 });
