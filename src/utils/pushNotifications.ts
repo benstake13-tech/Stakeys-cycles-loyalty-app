@@ -180,13 +180,12 @@ export async function linkUser(userId: string, tags?: Record<string, string | nu
   if (!api) return;
   try {
     // Attach the profile id to this device subscription so a server-side
-    // `profile_id[]` push reaches it. The PushEngage Web SDK exposes
-    // `setProfileId`; the legacy `identify` queue command is not handled by the
-    // current SDK, which is why targeted sends were reaching no device.
+    // `profile_id[]` push reaches it. Keep the legacy `identify` queue command
+    // (proven to work) and also call the documented Web SDK `setProfileId` when
+    // present, so linking works across SDK versions.
+    peq(['identify', { profile_id: userId }]);
     if (typeof api.setProfileId === 'function') {
       await api.setProfileId(userId);
-    } else {
-      peq(['identify', { profile_id: userId }]);
     }
 
     if (tags) {

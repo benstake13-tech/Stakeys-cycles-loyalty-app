@@ -14,11 +14,12 @@
 // Optional:
 //   ADMIN_PROFILE_IDS        comma-separated override of the recipient list
 //
-// Targeting: the alert goes to the booking's assigned staff member (if any) and
-// to every admin/staff profile, sent as ONE multi-`profile_id` push. We do NOT
-// use a PushEngage segment — this account's plan has hit its segment limit, so a
-// `staff` segment cannot exist and any segment-targeted push would be dropped
-// with a 200/"Segment not found" while still looking like success.
+// Targeting: the alert goes to the shop's admin device only, sent as ONE
+// multi-`profile_id` push. This is independent of who created the booking
+// (admin, staff, customer or guest) — the DB trigger fires for any insert. We
+// do NOT use a PushEngage segment — this account's plan has hit its segment
+// limit, so a `staff` segment cannot exist and any segment-targeted push would
+// be dropped with a 200/"Segment not found" while still looking like success.
 //
 // Deploy:  supabase functions deploy booking-push-notification --no-verify-jwt
 // -----------------------------------------------------------------------------
@@ -37,8 +38,8 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-/** Admin/staff profile ids to alert, from the env override or the profiles table. */
-async function resolveStaffRecipients(): Promise<string[]> {
+/** Admin profile ids to alert, from the env override or the profiles table. */
+async function resolveAdminRecipients(): Promise<string[]> {
   const override = text(Deno.env.get('ADMIN_PROFILE_IDS'));
   if (override) return override.split(',').map((s) => s.trim()).filter((s) => UUID_RE.test(s));
 
@@ -47,7 +48,7 @@ async function resolveStaffRecipients(): Promise<string[]> {
   if (!url || !key) return [];
 
   try {
-    const res = await fetch(`${url}/rest/v1/profiles?select=id&role=in.(admin,staff)`, {
+    const res = await fetch(`${url}/rest/v1/profiles?select=id&role=eq.admin`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
     if (!res.ok) return [];
@@ -120,12 +121,15 @@ Deno.serve(async (req: Request) => {
   const service = text(booking.service_type) || text(booking.service_title) || 'Repair';
   const content = `New booking: ${service} (Job #${bookingId})`;
 
-  const assigned = text(booking.staff_id) || text(booking.assigned_to);
-  const admins = await resolveStaffRecipients();
-  const recipients = [...new Set([...(UUID_RE.test(assigned) ? [assigned] : []), ...admins])];
+  // Alert the admin device only. Booking alerts must reach the shop's admin
+  // regardless of who booked (admin, staff, customer or guest), so we do not
+  // add the customer or any assigned staff — the admin profile is the single
+  // recipient.
+  const admins = await resolveAdminRecipients();
+  const recipients = [...new Set(admins)];
 
   if (recipients.length === 0) {
-    console.error('No push recipients resolved (no assigned staff and no admin profiles)');
+    console.error('No admin push recipient resolved');
     return json({ error: 'No push recipients available' }, 503);
   }
 

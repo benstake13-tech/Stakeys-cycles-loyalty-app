@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe('pushNotifications (PushEngage)', () => {
-  it('linkUser attaches the profile id and attributes via the SDK', async () => {
+  it('linkUser attaches the profile id via setProfileId and the identify queue', async () => {
     const api = fakeApi();
     (window as any).PushEngage = api;
     const { linkUser } = await load();
@@ -49,6 +49,8 @@ describe('pushNotifications (PushEngage)', () => {
 
     expect(api.setProfileId).toHaveBeenCalledWith('uid-123');
     expect(api.setAttributes).toHaveBeenCalledWith({ role: 'staff', membership: 'STK-1' });
+    const queued = (window as any)._peq.push.mock.calls.map((c: any[]) => c[0]);
+    expect(queued).toContainEqual(['identify', { profile_id: 'uid-123' }]);
   });
 
   it('unlinkUser logs the subscriber out', async () => {

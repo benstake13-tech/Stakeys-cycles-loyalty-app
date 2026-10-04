@@ -44,7 +44,7 @@ function appId(): string {
   return Deno.env.get('PUSHENGAGE_APP_ID') || DEFAULT_APP_ID;
 }
 
-/** Admin/staff profile ids, from the env override or the profiles table. */
+/** Admin profile ids, from the env override or the profiles table. */
 async function resolveAdminRecipients(): Promise<string[]> {
   const override = (Deno.env.get('ADMIN_PROFILE_IDS') || '').trim();
   if (override) return override.split(',').map((s) => s.trim()).filter((s) => UUID_RE.test(s));
@@ -54,7 +54,7 @@ async function resolveAdminRecipients(): Promise<string[]> {
   if (!url || !key) return [];
 
   try {
-    const res = await fetch(`${url}/rest/v1/profiles?select=id&role=in.(admin,staff)`, {
+    const res = await fetch(`${url}/rest/v1/profiles?select=id&role=eq.admin`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
     if (!res.ok) return [];
