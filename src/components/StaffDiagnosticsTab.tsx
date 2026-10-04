@@ -27,6 +27,7 @@ import { dispatchTestEmail } from '../utils/notificationService';
 import { sendPushToUser } from '../utils/pushNotifications';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
+import { AlertPipelineActions } from './AlertPipelineActions';
 import {
   AREA_LABELS,
   FEATURE_TESTS,
@@ -454,6 +455,9 @@ export const StaffDiagnosticsTab: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Booking alert pipeline — SQL / deploy / secret fix buttons */}
+      <AlertPipelineActions onFlash={(text, ok) => flash({ kind: ok ? 'ok' : 'err', text })} />
 
       {/* Results grouped by area */}
       {AREA_ORDER.map((area) => {
