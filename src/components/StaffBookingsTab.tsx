@@ -69,6 +69,9 @@ export const StaffBookingsTab: React.FC = () => {
   // Approval / Decline Modal States
   const [approvingBooking, setApprovingBooking] = useState<ServiceBooking | null>(null);
   const [approvalNote, setApprovalNote] = useState('');
+  const [estimatePrice, setEstimatePrice] = useState('');
+  const [estimateNote, setEstimateNote] = useState('');
+  const [approveError, setApproveError] = useState<string | null>(null);
   const [isApproving, setIsApproving] = useState(false);
 
   const [decliningBooking, setDecliningBooking] = useState<ServiceBooking | null>(null);
@@ -115,27 +118,48 @@ export const StaffBookingsTab: React.FC = () => {
     setApprovalNote(
       `Your service appointment on ${b.preferredDate} (${b.preferredTimeSlot}) is approved. Please bring your vehicle to our workshop intake bay.`
     );
+    setEstimatePrice(b.quotedPrice != null ? b.quotedPrice.toString() : '');
+    setEstimateNote(
+      b.quoteNote ||
+        `Estimated cost to complete the ${b.serviceTitle} on your ${b.vehicleModel}. This is an estimate only — the final price is confirmed once we inspect the bike.`
+    );
+    setApproveError(null);
   };
 
-  const handleConfirmApprove = async () => {
-    if (!approvingBooking) return;
+  const handleConfirmApprove = async (): Promise<boolean> => {
+    if (!approvingBooking) return false;
+
+    // The estimate is mandatory: it is what the customer sees in the
+    // confirmation email, so approval must not go out without it.
+    const price = parseFloat(estimatePrice);
+    if (!Number.isFinite(price) || price < 0) {
+      setApproveError('Enter an estimated quote before approving — it is included in the customer confirmation.');
+      return false;
+    }
+
+    setApproveError(null);
     setIsApproving(true);
     try {
-      const res = await approveBooking(approvingBooking.id, approvalNote.trim());
+      const res = await approveBooking(approvingBooking.id, approvalNote.trim(), {
+        quotedPrice: price,
+        quoteNote: estimateNote.trim(),
+      });
       const emailWarned = /NOT sent|not sent|failed/i.test(res.message || '');
       setActionFeedback({
         type: emailWarned ? 'warning' : 'success',
         message:
           res.message ||
-          `Booking #${approvingBooking.id} approved! Confirmation email delivered to ${approvingBooking.customerEmail}.`,
+          `Booking #${approvingBooking.id} approved! Confirmation with the £${price.toFixed(2)} estimate delivered to ${approvingBooking.customerEmail}.`,
       });
       setApprovingBooking(null);
       setTimeout(() => setActionFeedback(null), 5000);
+      return res.success;
     } catch (err: any) {
       setActionFeedback({
         type: 'danger',
         message: err.message || 'Failed to approve booking.',
       });
+      return false;
     } finally {
       setIsApproving(false);
     }
@@ -786,7 +810,7 @@ export const StaffBookingsTab: React.FC = () => {
                   </div>
 
                   <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                    Customer provided name (<strong>{b.customerName}</strong>) and phone (<strong>{b.customerPhone}</strong>). Granting approval will automatically deliver an official confirmation email to <strong>{b.customerEmail}</strong>. If declined, a respectful explanation will be emailed.
+                    Customer provided name (<strong>{b.customerName}</strong>) and phone (<strong>{b.customerPhone}</strong>). Approving asks you to confirm the estimated quote, which is included in the official confirmation email sent to <strong>{b.customerEmail}</strong>. If declined, a respectful explanation will be emailed.
                   </p>
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -1017,6 +1041,36 @@ export const StaffBookingsTab: React.FC = () => {
               </div>
             </div>
 
+            {/* Mandatory estimate — this is what the customer's confirmation shows */}
+            <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-700/50 space-y-3">
+              <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold">
+                <FileText className="w-4 h-4" />
+                <span>Estimated Quote (included in the customer confirmation)</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">Estimated Price (£)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={estimatePrice}
+                  onChange={(e) => setEstimatePrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">Estimate Note</label>
+                <textarea
+                  rows={3}
+                  value={estimateNote}
+                  onChange={(e) => setEstimateNote(e.target.value)}
+                  placeholder="Explain what the estimate covers..."
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
             {/* Workshop Mechanic Drop-Off Instructions / SMS Note */}
             <div>
               <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
@@ -1034,6 +1088,13 @@ export const StaffBookingsTab: React.FC = () => {
               </span>
             </div>
 
+            {approveError && (
+              <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-800 text-rose-200 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{approveError}</span>
+              </div>
+            )}
+
             <div className="pt-2 flex items-center justify-end gap-2.5">
               <button
                 type="button"
@@ -1047,9 +1108,11 @@ export const StaffBookingsTab: React.FC = () => {
                 type="button"
                 disabled={isApproving}
                 onClick={async () => {
-                  await handleConfirmApprove(); // Triggers existing approval/email logic
+                  const approved = await handleConfirmApprove(); // Dispatch email with the estimate
+                  if (!approved) return; // Estimate missing/invalid — do not open SMS
+                  const estimate = parseFloat(estimatePrice);
                   const smsLink = `sms:${approvingBooking.customerPhone.replace(/\s+/g, '')}?body=${encodeURIComponent(
-                    `Hi ${approvingBooking.customerName}! Your booking #${approvingBooking.id} is approved. ${approvalNote.trim() ? `Note: ${approvalNote.trim()}` : ''} See you at Stakey's!`
+                    `Hi ${approvingBooking.customerName}! Your booking #${approvingBooking.id} is approved. Estimated quote: £${estimate.toFixed(2)}. ${approvalNote.trim() ? `Note: ${approvalNote.trim()} ` : ''}See you at Stakey's!`
                   )}`;
                   window.location.href = smsLink; // Redirects to device SMS app
                 }}

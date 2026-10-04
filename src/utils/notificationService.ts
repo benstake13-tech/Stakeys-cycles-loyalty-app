@@ -709,16 +709,17 @@ export function generateBookingApprovalEmailHtml(
             <td style="color: #ffffff; font-size: 14px; border-bottom: 1px solid #27272a;">${booking.vehicleModel}</td>
           </tr>
           <tr>
-            <td style="color: #a1a1aa; font-size: 13px;">${booking.quotedPrice != null ? 'Agreed Quote (Estimate):' : 'Estimated Labour:'}</td>
-            <td style="color: #34d399; font-size: 15px; font-weight: 700;">£${(booking.quotedPrice != null ? booking.quotedPrice : booking.servicePrice).toFixed(2)}</td>
+            <td style="color: #a1a1aa; font-size: 13px;">${booking.quotedPrice != null ? 'Estimated Quote:' : 'Estimated Labour:'}</td>
+            <td style="color: #34d399; font-size: 15px; font-weight: 700;">${booking.quotedPrice != null ? `£${booking.quotedPrice.toFixed(2)}` : 'Confirmed on inspection'}</td>
           </tr>
         </table>
 
-        ${booking.quoteNote ? `
+        ${booking.quotedPrice != null ? `
         <div style="background-color: #0b3a2e; border: 1px solid #10b981; border-radius: 12px; padding: 14px; margin-bottom: 22px;">
-          <div style="color: #6ee7b7; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Your Estimate</div>
-          <div style="color: #ecfdf5; font-size: 13px; line-height: 1.6;">${booking.quoteNote}</div>
-          ${booking.quotedPrice != null ? `<div style="margin-top: 8px; color: #34d399; font-size: 16px; font-weight: 800;">Total Estimate: £${booking.quotedPrice.toFixed(2)}</div>` : ''}
+          <div style="color: #6ee7b7; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Your Estimated Quote</div>
+          ${booking.quoteNote ? `<div style="color: #ecfdf5; font-size: 13px; line-height: 1.6;">${booking.quoteNote}</div>` : ''}
+          <div style="margin-top: 8px; color: #34d399; font-size: 16px; font-weight: 800;">Estimated Total: £${booking.quotedPrice.toFixed(2)}</div>
+          <div style="margin-top: 4px; color: #a7f3d0; font-size: 11px;">This is an estimate. The final price is confirmed once we have inspected your vehicle.</div>
         </div>
         ` : ''}
 

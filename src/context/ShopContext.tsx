@@ -271,7 +271,8 @@ interface ShopContextType {
   ) => Promise<ServiceBooking>;
   approveBooking: (
     bookingId: string,
-    staffNote?: string
+    staffNote?: string,
+    quote?: { quotedPrice: number; quoteNote?: string }
   ) => Promise<{ success: boolean; message?: string }>;
   declineBooking: (
     bookingId: string,
@@ -2643,19 +2644,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const approveBooking = async (
     bookingId: string,
-    staffNote?: string
+    staffNote?: string,
+    quote?: { quotedPrice: number; quoteNote?: string }
   ): Promise<{ success: boolean; message?: string }> => {
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return { success: false, message: 'Booking not found' };
 
+    // The estimate the customer sees in their confirmation. Prefer the value
+    // captured in this approval step, falling back to a previously saved quote.
+    const quotedPrice =
+      quote && Number.isFinite(quote.quotedPrice) ? quote.quotedPrice : target.quotedPrice;
+    const quoteNote = quote ? quote.quoteNote : target.quoteNote;
+    const quoteSentAt = quote ? new Date().toISOString() : target.quoteSentAt;
+
+    const bookingWithQuote: ServiceBooking = {
+      ...target,
+      quotedPrice,
+      quoteNote,
+      quoteSentAt,
+    };
+
     const { emailLog, sent: emailSent, error: emailError } = await dispatchBookingApprovalNotification(
-      target,
+      bookingWithQuote,
       staffNote,
       ownerConfig
     );
 
     const updated: ServiceBooking = {
-      ...target,
+      ...bookingWithQuote,
       status: 'confirmed',
       approvalStatus: 'approved',
       approvedAt: new Date().toISOString(),
@@ -2673,6 +2689,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       approvedAt: updated.approvedAt,
       approvedBy: updated.approvedBy,
       staffNotes: staffNote || target.staffNotes,
+      quotedPrice,
+      quoteNote,
+      quoteSentAt,
     }).catch((e) => {
       console.warn('[DB SYNC] Error approving booking in DB:', e);
       return false;
