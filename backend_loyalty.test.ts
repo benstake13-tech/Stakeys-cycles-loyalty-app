@@ -23,7 +23,7 @@ vi.mock('./src/lib/supabase', () => ({
   }),
 }));
 
-import { insertStampLogToDb, ensureProfileRowInDb } from './src/api/backendDataService';
+import { insertStampLogToDb, ensureProfileRowInDb, updateUserProfileInDb } from './src/api/backendDataService';
 
 const log = {
   id: 'log-1',
@@ -124,5 +124,26 @@ describe('ensureProfileRowInDb', () => {
     expect(payload.completed_cards).toBe(0);
     expect(opts.onConflict).toBe('id');
     expect(opts.ignoreDuplicates).toBe(true);
+  });
+});
+
+describe('updateUserProfileInDb', () => {
+  it('persists last_stamped_at so the daily rate limit survives reloads', async () => {
+    const when = new Date('2026-10-03T09:30:00Z');
+    const ok = await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', {
+      stamps: 4,
+      lastStampedAt: when,
+    });
+    expect(ok).toBe(true);
+    expect(hoisted.upserts).toHaveLength(1);
+    const { table, payload } = hoisted.upserts[0];
+    expect(table).toBe('profiles');
+    expect(payload.stamps).toBe(4);
+    expect(payload.last_stamped_at).toBe(when.toISOString());
+  });
+
+  it('does not send last_stamped_at when the update omits it', async () => {
+    await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', { stamps: 5 });
+    expect(hoisted.upserts[0].payload.last_stamped_at).toBeUndefined();
   });
 });

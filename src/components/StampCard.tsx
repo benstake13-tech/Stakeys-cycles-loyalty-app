@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Bike, Award, Sparkles, Check, Clock, Lock, ArrowRight, CheckCircle2, Wrench, Flame } from 'lucide-react';
 import { UserProfile, CollectedVoucher } from '../types/bikeShop';
-import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { useShop } from '../context/ShopContext';
+import { STAMPS_PER_CARD, stampEligibility, canStampToday } from '../utils/loyaltyCard';
 import confetti from 'canvas-confetti';
 
 interface StampCardProps {
@@ -20,15 +20,18 @@ export const StampCard: React.FC<StampCardProps> = ({
 }) => {
   const { collectFullCardReward } = useShop();
   const currentStamps = user.stamps || 0;
-  const rateLimitStatus = canCustomerReceiveStampToday(user);
-  const slots = Array.from({ length: 10 }, (_, i) => i + 1);
+  const rateLimitStatus = stampEligibility(user.lastStampedAt);
+  const eligibleToday = canStampToday(user.lastStampedAt);
+  const slots = Array.from({ length: STAMPS_PER_CARD }, (_, i) => i + 1);
 
   const [isCollecting, setIsCollecting] = useState(false);
   const [justCollectedVoucher, setJustCollectedVoucher] = useState<CollectedVoucher | null>(null);
 
-  const isFull = currentStamps >= 10;
+  const isFull = currentStamps >= STAMPS_PER_CARD;
+  const progressPct = Math.min(100, Math.round((currentStamps / STAMPS_PER_CARD) * 100));
 
   const handleCollect = async () => {
+    if (isCollecting) return;
     setIsCollecting(true);
     try {
       const res = await collectFullCardReward(user.uid);
@@ -42,7 +45,7 @@ export const StampCard: React.FC<StampCardProps> = ({
             colors: ['#05C147', '#eab308', '#0284c7', '#ffffff'],
           });
         } catch {
-          // ignore
+          // confetti is decorative; never let it break the collection flow
         }
       }
     } finally {
@@ -77,7 +80,7 @@ export const StampCard: React.FC<StampCardProps> = ({
               10-Visit Stamp Journey
             </h2>
             <p className="text-xs text-neutral-300 mt-1 max-w-md">
-              Collect 10 stamps to unlock your <strong className="text-emerald-400 font-semibold">£40 service (labour only, parts not included)</strong> voucher!
+              Collect {STAMPS_PER_CARD} stamps to unlock your <strong className="text-emerald-400 font-semibold">£40 service (labour only, parts not included)</strong> voucher!
             </p>
           </div>
 
@@ -86,7 +89,7 @@ export const StampCard: React.FC<StampCardProps> = ({
             <div className="text-right">
               <div className="text-[11px] text-neutral-400 font-medium">Stamps Earned</div>
               <div className="font-mono text-xl font-bold text-[#05C147] tabular-nums">
-                {currentStamps} <span className="text-xs font-normal text-neutral-500">/ 10</span>
+                {currentStamps} <span className="text-xs font-normal text-neutral-500">/ {STAMPS_PER_CARD}</span>
               </div>
             </div>
             <div className="w-9 h-9 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
@@ -101,7 +104,7 @@ export const StampCard: React.FC<StampCardProps> = ({
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-bold uppercase tracking-wider">
                 <Flame className="w-4 h-4 fill-emerald-400" />
-                <span>10 Stamps Full · Ready to Collect!</span>
+                <span>{STAMPS_PER_CARD} Stamps Full · Ready to Collect!</span>
               </div>
               <h3 className="text-lg font-bold text-white">
                 Eligible for £40 service (labour only, parts not included)
@@ -127,8 +130,8 @@ export const StampCard: React.FC<StampCardProps> = ({
         {/* 10-Stamp Grid */}
         <div className="relative z-10 grid grid-cols-2 sm:grid-cols-5 gap-3 my-6">
           {slots.map((slotNum) => {
-            const isStamped = slotNum <= currentStamps;
-            const isTenth = slotNum === 10;
+            const isStamped = slotNum <= Math.min(currentStamps, STAMPS_PER_CARD);
+            const isTenth = slotNum === STAMPS_PER_CARD;
 
             return (
               <div
@@ -145,7 +148,7 @@ export const StampCard: React.FC<StampCardProps> = ({
               >
                 {/* Slot Index */}
                 <span className="absolute top-2 left-2.5 font-mono text-[10px] text-neutral-500">
-                  0{slotNum === 10 ? '10' : slotNum}
+                  {slotNum.toString().padStart(2, '0')}
                 </span>
 
                 {/* Icon */}
@@ -178,14 +181,12 @@ export const StampCard: React.FC<StampCardProps> = ({
         <div className="relative z-10 space-y-1.5">
           <div className="flex justify-between text-xs text-neutral-400">
             <span>Card Completion</span>
-            <span className="font-mono tabular-nums text-emerald-400">
-              {Math.round((currentStamps / 10) * 100)}%
-            </span>
+            <span className="font-mono tabular-nums text-emerald-400">{progressPct}%</span>
           </div>
           <div className="h-1.5 w-full bg-neutral-800 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-emerald-500 to-[#05C147] transition-all duration-500 rounded-full"
-              style={{ width: `${(currentStamps / 10) * 100}%` }}
+              style={{ width: `${progressPct}%` }}
             />
           </div>
         </div>
@@ -193,7 +194,7 @@ export const StampCard: React.FC<StampCardProps> = ({
         {/* Daily Rate Limit & Action Footer */}
         <div className="relative z-10 mt-6 pt-5 border-t border-neutral-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-xs text-neutral-400">
-            {rateLimitStatus.allowed ? (
+            {eligibleToday ? (
               <span className="text-emerald-400 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 Eligible for today's visit stamp. Present your barcode at counter.
@@ -312,4 +313,3 @@ export const StampCard: React.FC<StampCardProps> = ({
     </div>
   );
 };
-

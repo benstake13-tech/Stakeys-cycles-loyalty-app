@@ -28,6 +28,7 @@ import {
 } from 'firebase/auth';
 import { db, auth } from '../firebaseConfig';
 import { UserProfile, PrizeWheel, PrizeDraw, StampLog, UserRole } from '../types/bikeShop';
+import { stampEligibility } from '../utils/loyaltyCard';
 
 /**
  * Helper to generate a unique Stakey's Cycles membership number (e.g. STK-839201)
@@ -53,31 +54,8 @@ export function canCustomerReceiveStampToday(user: UserProfile | null | undefine
   reason?: string;
   nextAllowedAt?: Date;
 } {
-  if (!user || !user.lastStampedAt) return { allowed: true };
-
-  const lastStampedDate = user.lastStampedAt?.toDate
-    ? user.lastStampedAt.toDate()
-    : new Date(user.lastStampedAt);
-
-  const now = new Date();
-  const isSameDay =
-    lastStampedDate.getFullYear() === now.getFullYear() &&
-    lastStampedDate.getMonth() === now.getMonth() &&
-    lastStampedDate.getDate() === now.getDate();
-
-  if (isSameDay) {
-    const nextAllowed = new Date(lastStampedDate);
-    nextAllowed.setDate(nextAllowed.getDate() + 1);
-    nextAllowed.setHours(0, 0, 0, 0);
-
-    return {
-      allowed: false,
-      reason: `Customer already received a stamp today at ${lastStampedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. 1 visit stamp allowed per calendar day.`,
-      nextAllowedAt: nextAllowed,
-    };
-  }
-
-  return { allowed: true };
+  if (!user) return { allowed: true };
+  return stampEligibility(user.lastStampedAt);
 }
 
 /**

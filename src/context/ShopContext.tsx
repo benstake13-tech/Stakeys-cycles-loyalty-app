@@ -45,6 +45,14 @@ import {
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/onesignalPush';
 import { generateMembershipNumber } from '../api/firebaseService';
+import {
+  STAMPS_PER_CARD,
+  stampEligibility,
+  addVisitStamp,
+  adjustStamps,
+  collectFullCard,
+  buildServiceVoucher,
+} from '../utils/loyaltyCard';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
 import { supabase, AUTH_LINK_ON_LOAD } from '../lib/supabase';
 import {
@@ -949,6 +957,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [bookings, setBookings] = useState<ServiceBooking[]>([]);
   const knownBookingIdsRef = React.useRef<Set<string>>(new Set());
   const isInitialBookingsLoadRef = React.useRef<boolean>(true);
+  const collectingRef = React.useRef<Set<string>>(new Set());
   const currentUserRef = React.useRef<UserProfile | null>(currentUser);
   currentUserRef.current = currentUser;
 
@@ -1095,6 +1104,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         stamps: remoteStamps,
         tickets: remoteProfile?.tickets !== undefined ? remoteProfile.tickets : user.tickets,
         merits: remoteProfile?.merits !== undefined ? remoteProfile.merits : user.merits,
+        lastStampedAt:
+          remoteProfile?.lastStampedAt !== undefined ? remoteProfile.lastStampedAt : user.lastStampedAt,
         lastSpunAt: remoteProfile?.lastSpunAt !== undefined ? remoteProfile.lastSpunAt : user.lastSpunAt,
         displayName: remoteProfile?.displayName || user.displayName,
         phoneNumber: remoteProfile?.phoneNumber || user.phoneNumber,
@@ -1639,49 +1650,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const staff = users.find((u) => u.uid === staffId);
     const staffName = staff?.displayName || 'Stakey Staff';
 
-    // Daily rate limit verification
-    if (!bypassLimit && target.lastStampedAt) {
-      const lastStamped = new Date(target.lastStampedAt);
-      const now = new Date();
-      const isSameDay =
-        lastStamped.getFullYear() === now.getFullYear() &&
-        lastStamped.getMonth() === now.getMonth() &&
-        lastStamped.getDate() === now.getDate();
-
-      if (isSameDay) {
+    // Daily rate limit verification — one visit stamp per calendar day.
+    if (!bypassLimit) {
+      const eligibility = stampEligibility(target.lastStampedAt);
+      if (!eligibility.allowed) {
         return {
           success: false,
-          message: `Daily Rate Limit: ${target.displayName} already received a visit stamp today at ${lastStamped.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Only 1 stamp per day is permitted.`,
+          message: `Daily Rate Limit: ${target.displayName} ${eligibility.reason}`,
         };
       }
     }
 
-    const currentStamps = target.stamps || 0;
     const currentTickets = target.tickets || 0;
-    let nextStamps = currentStamps + 1;
-    let nextTickets = currentTickets;
-    let cardCompleted = false;
-
-    if (nextStamps >= 10) {
-      nextStamps = 0; // Reset for next cycle
-      nextTickets += 1; // 1 Ticket awarded for full card
-      cardCompleted = true;
-    }
-
+    const award = addVisitStamp(target.stamps || 0);
     const now = new Date();
-
-    // Update user
-    const updatedUsers = users.map((u) => {
-      if (u.uid === customerId) {
-        return {
-          ...u,
-          stamps: nextStamps,
-          tickets: nextTickets,
-          lastStampedAt: now,
-        };
-      }
-      return u;
-    });
 
     // New Audit Log
     const newLog: StampLog = {
@@ -1692,31 +1674,37 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       staffId,
       staffName,
       action: 'add_stamp',
-      stampsBefore: currentStamps,
-      stampsAfter: nextStamps,
-      ticketsAwarded: cardCompleted ? 1 : 0,
+      stampsBefore: award.stampsBefore,
+      stampsAfter: award.stampsAfter,
+      ticketsAwarded: 0,
       timestamp: now,
-      note: cardCompleted
-        ? 'Completed 10-stamp card! Reset to 0 and awarded +1 Prize Draw ticket.'
-        : `Added visit stamp (${nextStamps}/10)`,
+      note: award.cardReady
+        ? `Visit stamp ${award.stampsAfter}/${STAMPS_PER_CARD} — card full, ready to collect the £40 service reward.`
+        : `Added visit stamp (${award.stampsAfter}/${STAMPS_PER_CARD})`,
     };
 
-    setUsers(updatedUsers);
-    setStampLogs([newLog, ...stampLogs]);
+    // Functional update so concurrent stamps never clobber each other.
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.uid === customerId
+          ? { ...u, stamps: award.stampsAfter, tickets: currentTickets, lastStampedAt: now }
+          : u
+      )
+    );
+    setStampLogs((prev) => [newLog, ...prev]);
 
     // Remote Database Mutation: Update profiles table and insert into stamp_logs table
     updateUserProfileInDb(customerId, target.membershipNumber, {
-      stamps: nextStamps,
-      tickets: nextTickets,
+      stamps: award.stampsAfter,
       lastStampedAt: now,
     }).catch((e) => console.warn('[DB SYNC] Error updating profile stamps in DB:', e));
     insertStampLogToDb(newLog).catch((e) => console.warn('[DB SYNC] Error inserting stamp log in DB:', e));
 
-    const successMessage = cardCompleted
-      ? `🎉 10TH STAMP ACHIEVED! Card reset and 1 Prize Draw ticket credited to ${target.displayName}!`
-      : `Visit stamp added for ${target.displayName}! (${nextStamps}/10)`;
+    const successMessage = award.cardReady
+      ? `🎉 10TH STAMP! ${target.displayName}'s card is full — collect the £40 service reward in the customer portal.`
+      : `Visit stamp added for ${target.displayName}! (${award.stampsAfter}/${STAMPS_PER_CARD})`;
 
-    toast.success(successMessage, { icon: cardCompleted ? '🎉' : '🎟️' });
+    toast.success(successMessage, { icon: award.cardReady ? '🎉' : '🎟️' });
 
     return {
       success: true,
@@ -1781,7 +1769,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const ticketsBefore = target.tickets ?? 0;
     const meritsBefore = target.merits ?? 0;
 
-    const stampsAfter = updates.stamps !== undefined ? Math.max(0, Math.min(10, updates.stamps)) : stampsBefore;
+    const stampsAfter =
+      updates.stamps !== undefined
+        ? Math.max(0, Math.min(STAMPS_PER_CARD, updates.stamps))
+        : stampsBefore;
     const ticketsAfter = updates.tickets !== undefined ? Math.max(0, updates.tickets) : ticketsBefore;
     const meritsAfter = updates.merits !== undefined ? Math.max(0, updates.merits) : meritsBefore;
 
@@ -2105,8 +2096,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const currentStamps = target.stamps || 0;
-    const updatedStamps = Math.min(10, currentStamps + stampsAwarded);
-    const isFull = updatedStamps >= 10;
+    // Wheel stamps add on top of the card; a full card stays "ready to collect"
+    // rather than being capped, so banked stamps are never silently lost.
+    const updatedStamps = currentStamps + stampsAwarded;
+    const isFull = updatedStamps >= STAMPS_PER_CARD;
     
     // Add Cooldown check (7 days)
     const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
@@ -2203,79 +2196,79 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const collectFullCardReward = async (
     userId: string
   ): Promise<{ success: boolean; voucher?: CollectedVoucher; message: string }> => {
+    // Re-entrancy guard: a rapid double-tap must not mint two vouchers.
+    if (collectingRef.current.has(userId)) {
+      return { success: false, message: 'Your reward is already being claimed…' };
+    }
+
     const target = users.find((u) => u.uid === userId);
     if (!target) return { success: false, message: 'User profile not found.' };
 
-    if ((target.stamps || 0) < 10) {
+    const result = collectFullCard(target.stamps || 0);
+    if (result.cardsCollected < 1) {
       return {
         success: false,
-        message: `Your stamp card has ${target.stamps || 0}/10 stamps. Fill all 10 stamps to collect your £40 Service reward!`,
+        message: `Your stamp card has ${result.stampsBefore}/${STAMPS_PER_CARD} stamps. Fill all ${STAMPS_PER_CARD} stamps to collect your £40 Service reward!`,
       };
     }
 
-    const now = new Date();
-    const voucherCode = `STK-SRV40-${Math.floor(100000 + Math.random() * 900000)}`;
+    collectingRef.current.add(userId);
+    try {
+      const now = new Date();
+      const serviceVoucher = buildServiceVoucher(now);
 
-    const serviceVoucher: CollectedVoucher = {
-      id: `vouch-srv-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      code: voucherCode,
-      title: '£40 Workshop Service Credit',
-      description: 'Eligible for £40 service (labour only, parts not included)',
-      value: 40,
-      type: 'service_credit',
-      terms: 'Eligible for £40 service (labour only, parts not included). Valid for 12 months on any workshop booking.',
-      claimedAt: now,
-      status: 'available',
-    };
+      const updatedUser: UserProfile = {
+        ...target,
+        stamps: result.stampsAfter,
+        serviceVouchers: [...(target.serviceVouchers || []), serviceVoucher],
+      };
 
-    const updatedUser: UserProfile = {
-      ...target,
-      stamps: Math.max(0, (target.stamps || 0) - 10),
-      serviceVouchers: [...(target.serviceVouchers || []), serviceVoucher],
-    };
+      setUsers((prev) => prev.map((u) => (u.uid === userId ? updatedUser : u)));
+      if (currentUser?.uid === userId) {
+        setCurrentUser(updatedUser);
+      }
 
-    setUsers((prev) => prev.map((u) => (u.uid === userId ? updatedUser : u)));
-    if (currentUser?.uid === userId) {
-      setCurrentUser(updatedUser);
+      const newLog: StampLog = {
+        id: `log-reward-collect-${Date.now()}`,
+        customerId: userId,
+        customerName: target.displayName,
+        membershipNumber: target.membershipNumber,
+        staffId: 'customer-portal-collection',
+        staffName: 'Customer Collection',
+        action: 'redeem_reward',
+        stampsBefore: result.stampsBefore,
+        stampsAfter: result.stampsAfter,
+        ticketsAwarded: 0,
+        timestamp: now,
+        note: `Customer collected ${result.cardsCollected} full card(s) — ${serviceVoucher.title}. Voucher Code: ${serviceVoucher.code}`,
+      };
+      setStampLogs((prev) => [newLog, ...prev]);
+
+      // Remote Database Mutation: subtract stamps, record voucher + audit log
+      updateUserProfileInDb(userId, target.membershipNumber, {
+        stamps: result.stampsAfter,
+      }).catch((e) => console.warn('[DB SYNC] Error saving full-card collection in DB:', e));
+      insertVoucherToDb(userId, serviceVoucher).catch((e) =>
+        console.warn('[DB SYNC] Error saving service voucher in DB:', e)
+      );
+      insertStampLogToDb(newLog).catch((e) =>
+        console.warn('[DB SYNC] Error inserting collection log in DB:', e)
+      );
+
+      toast.success(
+        '🎉 Congratulations! £40 Workshop Service Voucher claimed! Valid for 12 months.',
+        { icon: '🎁', duration: 6000 }
+      );
+
+      return {
+        success: true,
+        voucher: serviceVoucher,
+        message:
+          'Congratulations! You have collected your £40 Service Voucher (labour only, parts not included)!',
+      };
+    } finally {
+      collectingRef.current.delete(userId);
     }
-
-    const newLog: StampLog = {
-      id: `log-reward-collect-${Date.now()}`,
-      customerId: userId,
-      customerName: target.displayName,
-      membershipNumber: target.membershipNumber,
-      staffId: 'customer-portal-collection',
-      staffName: 'Customer Collection',
-      action: 'redeem_reward',
-      stampsBefore: 10,
-      stampsAfter: updatedUser.stamps,
-      timestamp: now,
-      note: `Customer pressed collect: Eligible for £40 service (labour only parts not included) - Voucher Code: ${voucherCode}`,
-    };
-    setStampLogs((prev) => [newLog, ...prev]);
-
-    // Remote Database Mutation: subtract stamps, record voucher + audit log
-    updateUserProfileInDb(userId, target.membershipNumber, {
-      stamps: updatedUser.stamps,
-    }).catch((e) => console.warn('[DB SYNC] Error saving full-card collection in DB:', e));
-    insertVoucherToDb(userId, serviceVoucher).catch((e) =>
-      console.warn('[DB SYNC] Error saving service voucher in DB:', e)
-    );
-    insertStampLogToDb(newLog).catch((e) =>
-      console.warn('[DB SYNC] Error inserting collection log in DB:', e)
-    );
-
-    toast.success(
-      '🎉 Congratulations! £40 Workshop Service Voucher claimed! Valid for 12 months.',
-      { icon: '🎁', duration: 6000 }
-    );
-
-    return {
-      success: true,
-      voucher: serviceVoucher,
-      message:
-        'Congratulations! You have collected your £40 Service Voucher (labour only, parts not included)!',
-    };
   };
 
   const redeemServiceVoucher = async (
@@ -2741,46 +2734,39 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     delta: number,
     note?: string
   ): Promise<{ success: boolean; message: string; stamps: number }> => {
-    let finalStamps = 0;
-    let customerName = 'Customer';
+    const target = users.find((u) => u.uid === userId);
+    if (!target) {
+      return { success: false, message: 'Customer not found.', stamps: 0 };
+    }
+
+    const now = new Date();
+    const result = adjustStamps(target.stamps || 0, delta);
+
     setUsers((prev) =>
-      prev.map((u) => {
-        if (u.uid === userId) {
-          customerName = u.displayName;
-          const oldStamps = u.stamps || 0;
-          finalStamps = Math.max(0, Math.min(10, oldStamps + delta));
-          let tickets = u.tickets || 0;
-          if (finalStamps === 10 && oldStamps < 10) {
-            tickets += 1;
-          }
-          return {
-            ...u,
-            stamps: finalStamps,
-            tickets,
-            lastStampedAt: new Date().toISOString(),
-          };
-        }
-        return u;
-      })
+      prev.map((u) =>
+        u.uid === userId ? { ...u, stamps: result.stampsAfter, lastStampedAt: now } : u
+      )
     );
 
     const log: StampLog = {
       id: `log-adj-${Date.now()}`,
       customerId: userId,
-      customerName,
+      customerName: target.displayName,
+      membershipNumber: target.membershipNumber,
       staffId: currentUser?.uid || 'staff-admin',
       staffName: currentUser?.displayName || 'Workshop Staff',
       action: delta > 0 ? 'add_stamp' : 'manual_merit_adjustment',
-      stampsAfter: finalStamps,
-      timestamp: new Date(),
-      note: note || (delta > 0 ? `Issued +${delta} visit stamp` : `Adjusted stamps by ${delta}`),
+      stampsBefore: result.stampsBefore,
+      stampsAfter: result.stampsAfter,
+      timestamp: now,
+      note: note || (delta > 0 ? `Issued +${result.delta} visit stamp` : `Adjusted stamps by ${result.delta}`),
     };
     setStampLogs((prev) => [log, ...prev]);
 
     // Remote Database Mutation: Update profiles table and insert into stamp_logs table
     updateUserProfileInDb(userId, undefined, {
-      stamps: finalStamps,
-      lastStampedAt: new Date(),
+      stamps: result.stampsAfter,
+      lastStampedAt: now,
     }).catch((e) => console.warn('[DB SYNC] Error adjusting stamps in DB:', e));
     insertStampLogToDb(log).catch((e) =>
       console.warn('[DB SYNC] Error inserting stamp adjustment log in DB:', e)
@@ -2788,8 +2774,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return {
       success: true,
-      message: `Updated stamps for ${customerName} to ${finalStamps}/10.`,
-      stamps: finalStamps,
+      message: `Updated stamps for ${target.displayName} to ${result.stampsAfter}/${STAMPS_PER_CARD}.`,
+      stamps: result.stampsAfter,
     };
   };
 

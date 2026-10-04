@@ -633,6 +633,12 @@ export async function updateUserProfileInDb(
     if (updates.displayName !== undefined) payload.display_name = updates.displayName;
     if (updates.phoneNumber !== undefined) payload.phone = updates.phoneNumber;
     if (updates.lastSpinDate !== undefined) payload.last_spin_date = updates.lastSpinDate;
+    if (updates.lastStampedAt !== undefined) {
+      payload.last_stamped_at =
+        updates.lastStampedAt instanceof Date
+          ? updates.lastStampedAt.toISOString()
+          : updates.lastStampedAt;
+    }
     if (updates.lastSpunAt !== undefined) {
       payload.last_spun_at =
         updates.lastSpunAt instanceof Date
@@ -693,6 +699,7 @@ export async function fetchUserProfileFromDb(
         stamps: row.stamps !== undefined ? row.stamps : 0,
         tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
         merits: row.merit_points !== undefined ? row.merit_points : 0,
+        lastStampedAt: row.last_stamped_at ? new Date(row.last_stamped_at) : undefined,
         lastSpunAt: row.last_spun_at
           ? new Date(row.last_spun_at)
           : row.last_spin_date
@@ -731,6 +738,7 @@ export async function fetchAllProfilesFromDb(): Promise<UserProfile[]> {
         tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
         merits: row.merit_points !== undefined ? row.merit_points : 0,
         phoneNumber: row.phone || undefined,
+        lastStampedAt: row.last_stamped_at ? new Date(row.last_stamped_at) : undefined,
         lastSpunAt: row.last_spun_at
           ? new Date(row.last_spun_at)
           : row.last_spin_date
