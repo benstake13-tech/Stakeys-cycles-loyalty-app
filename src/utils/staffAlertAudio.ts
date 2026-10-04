@@ -13,6 +13,8 @@ class StaffBookingAlertAudio {
   private ctx: AudioContext | null = null;
   private isEnabled: boolean = true;
   private volumeLevel: WorkshopAudioVolume = 'max_workshop';
+  private stinger: HTMLAudioElement | null = null;
+  private stingerBroken = false;
 
   constructor() {
     try {
@@ -112,6 +114,41 @@ class StaffBookingAlertAudio {
     } catch (e) {
       console.warn('[STAFF ALERT] Could not dispatch native push notification:', e);
     }
+  }
+
+  /**
+   * Plays the workshop booking alert.
+   *
+   * Prefers the produced stinger at /booking-chime.wav (sax riff + bike bell +
+   * DT Swiss ratchet + voiceover). If that file is missing or cannot play, it
+   * falls back to the synthesised bell arpeggio so a booking is never silent.
+   */
+  public playBookingAlert(): void {
+    if (!this.isEnabled) return;
+
+    if (!this.stingerBroken && typeof Audio !== 'undefined') {
+      try {
+        if (!this.stinger) {
+          this.stinger = new Audio('/booking-chime.wav');
+          this.stinger.preload = 'auto';
+        }
+        this.stinger.currentTime = 0;
+        this.stinger.volume = this.volumeLevel === 'normal' ? 0.7 : 1.0;
+        const played = this.stinger.play();
+        if (played && typeof played.then === 'function') {
+          played.catch(() => this.fallbackToSynth());
+        }
+        return;
+      } catch {
+        this.stingerBroken = true;
+      }
+    }
+    this.playLoudBookingPing();
+  }
+
+  private fallbackToSynth(): void {
+    this.stingerBroken = true;
+    this.playLoudBookingPing();
   }
 
   /**

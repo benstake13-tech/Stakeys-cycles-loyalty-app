@@ -84,4 +84,48 @@ describe('staffAlertAudio booking chime', () => {
     staffBookingAudio.playLoudBookingPing();
     expect(oscillators).toHaveLength(0);
   });
+
+  it('prefers the produced stinger file and does not synthesise', async () => {
+    const oscillators = installAudioRecorder();
+    const played: string[] = [];
+    class FakeAudio {
+      preload = '';
+      volume = 1;
+      currentTime = 0;
+      constructor(public src: string) {
+        played.push(src);
+      }
+      play() {
+        return Promise.resolve();
+      }
+    }
+    vi.stubGlobal('Audio', FakeAudio as any);
+    const { staffBookingAudio } = await import('./src/utils/staffAlertAudio');
+
+    staffBookingAudio.playBookingAlert();
+    await Promise.resolve();
+
+    expect(played).toContain('/booking-chime.wav');
+    expect(oscillators).toHaveLength(0);
+  });
+
+  it('falls back to the synthesised arpeggio when the file cannot play', async () => {
+    const oscillators = installAudioRecorder();
+    class FakeAudio {
+      preload = '';
+      volume = 1;
+      currentTime = 0;
+      constructor(_src: string) {}
+      play() {
+        return Promise.reject(new Error('missing file'));
+      }
+    }
+    vi.stubGlobal('Audio', FakeAudio as any);
+    const { staffBookingAudio } = await import('./src/utils/staffAlertAudio');
+
+    staffBookingAudio.playBookingAlert();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(oscillators).toHaveLength(16);
+  });
 });

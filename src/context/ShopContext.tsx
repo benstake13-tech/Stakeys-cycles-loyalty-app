@@ -991,7 +991,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newState = staffBookingAudio.toggleSound();
     setIsStaffBookingSoundEnabled(newState);
     if (newState) {
-      staffBookingAudio.playLoudBookingPing();
+      staffBookingAudio.playBookingAlert();
       toast.success('🔊 Workshop booking chime activated', { icon: '🔔' });
     } else {
       toast('🔇 Workshop booking audio alert muted', { icon: '🔕' });
@@ -1002,7 +1002,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const cycleWorkshopAudioVolume = () => {
     const next = staffBookingAudio.cycleVolumeLevel();
     setWorkshopAudioVolume(next);
-    staffBookingAudio.playLoudBookingPing();
+    staffBookingAudio.playBookingAlert();
     const label =
       next === 'max_workshop'
         ? 'MAX WORKSHOP BOOST (220% LOUD)'
@@ -1014,7 +1014,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const playStaffBookingAlertPing = () => {
-    staffBookingAudio.playLoudBookingPing();
+    staffBookingAudio.playBookingAlert();
     staffBookingAudio.dispatchPushNotification(
       '🔔 Workshop Booking Chime Test',
       'Booking chime sounded! Workshop terminals are armed for real-time booking alerts.'
@@ -1054,7 +1054,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // server-side, by the `service_bookings` INSERT trigger — not here — so a
     // booking never produces duplicate notifications.
     if (isStaff && brandNewBookings.length > 0) {
-      staffBookingAudio.playLoudBookingPing();
+      staffBookingAudio.playBookingAlert();
 
       const latest = brandNewBookings[0];
 
@@ -2514,7 +2514,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // produce duplicate notifications.
     const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
     if (isStaff) {
-      staffBookingAudio.playLoudBookingPing();
+      staffBookingAudio.playBookingAlert();
     }
 
     // Trigger instant email alert confirmation banner
