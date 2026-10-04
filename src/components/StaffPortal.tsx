@@ -43,6 +43,7 @@ import {
   BadgePercent,
   FlaskConical,
   DatabaseZap,
+  Mail,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -64,6 +65,7 @@ import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
+import { EmailSetupModal } from './EmailSetupModal';
 import { SchemaSyncModal } from './SchemaSyncModal';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
@@ -116,6 +118,7 @@ export const StaffPortal: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
   const [isStaffAccountsSetupOpen, setIsStaffAccountsSetupOpen] = useState(false);
+  const [isEmailSetupOpen, setIsEmailSetupOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -489,6 +492,16 @@ export const StaffPortal: React.FC = () => {
                   >
                     <ShieldCheck className="w-4 h-4" />
                     <span>Set Up Staff Accounts</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsEmailSetupOpen(true)}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-400 text-neutral-950 text-xs font-bold shadow-md shadow-amber-500/20 cursor-pointer"
+                    title="Step-by-step setup and tests for booking notification emails"
+                  >
+                    <Mail className="w-4 h-4" />
+                    <span>Email Setup</span>
                   </button>
 
                   <button
@@ -1200,6 +1213,7 @@ export const StaffPortal: React.FC = () => {
       {isStaffAccountsSetupOpen && (
         <StaffAccountsSetupModal onClose={() => setIsStaffAccountsSetupOpen(false)} />
       )}
+      {isEmailSetupOpen && <EmailSetupModal onClose={() => setIsEmailSetupOpen(false)} />}
     </div>
   );
 };
