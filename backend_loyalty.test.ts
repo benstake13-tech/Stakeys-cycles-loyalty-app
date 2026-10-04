@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Capture every insert/upsert call so we can assert on the payloads.
+// Capture every insert/upsert/update call so we can assert on the payloads.
 const hoisted = vi.hoisted(() => ({
   inserts: [] as any[],
   upserts: [] as any[],
+  updates: [] as any[],
   insertResults: [] as any[],
   upsertResults: [] as any[],
+  updateResults: [] as any[],
 }));
 
 vi.mock('./src/lib/supabase', () => ({
@@ -18,6 +20,16 @@ vi.mock('./src/lib/supabase', () => ({
       upsert: (payload: any, opts: any) => {
         hoisted.upserts.push({ table, payload, opts });
         return Promise.resolve(hoisted.upsertResults.shift() ?? { error: null });
+      },
+      update: (payload: any) => {
+        hoisted.updates.push({ table, payload });
+        const result = hoisted.updateResults.shift() ?? { error: null, data: [{ id: 'x' }] };
+        const chain: any = {
+          eq: () => chain,
+          select: () => Promise.resolve(result),
+          then: (resolve: any, reject: any) => Promise.resolve(result).then(resolve, reject),
+        };
+        return chain;
       },
     }),
   }),
@@ -42,8 +54,10 @@ const log = {
 beforeEach(() => {
   hoisted.inserts = [];
   hoisted.upserts = [];
+  hoisted.updates = [];
   hoisted.insertResults = [];
   hoisted.upsertResults = [];
+  hoisted.updateResults = [];
 });
 
 describe('insertStampLogToDb', () => {
@@ -180,15 +194,16 @@ describe('ensureProfileRowInDb', () => {
 });
 
 describe('updateUserProfileInDb', () => {
-  it('persists last_stamped_at so the daily rate limit survives reloads', async () => {
+  it('patches (never upserts) the profile row so a NOT NULL display_name is not violated', async () => {
     const when = new Date('2026-10-03T09:30:00Z');
     const ok = await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', {
       stamps: 4,
       lastStampedAt: when,
     });
     expect(ok).toBe(true);
-    expect(hoisted.upserts).toHaveLength(1);
-    const { table, payload } = hoisted.upserts[0];
+    expect(hoisted.upserts).toHaveLength(0);
+    expect(hoisted.updates).toHaveLength(1);
+    const { table, payload } = hoisted.updates[0];
     expect(table).toBe('profiles');
     expect(payload.stamps).toBe(4);
     expect(payload.last_stamped_at).toBe(when.toISOString());
@@ -196,21 +211,31 @@ describe('updateUserProfileInDb', () => {
 
   it('does not send last_stamped_at when the update omits it', async () => {
     await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', { stamps: 5 });
-    expect(hoisted.upserts[0].payload.last_stamped_at).toBeUndefined();
+    expect(hoisted.updates[0].payload.last_stamped_at).toBeUndefined();
   });
 
   it('mirrors last_spun_at into last_spin_date so the weekly cooldown cannot drift', async () => {
     const when = new Date('2026-10-03T09:30:00Z');
     await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', { lastSpunAt: when });
-    const { payload } = hoisted.upserts[0];
+    const { payload } = hoisted.updates[0];
     expect(payload.last_spun_at).toBe(when.toISOString());
     expect(payload.last_spin_date).toBe(when.toISOString());
   });
 
   it('clears both spin columns when the cooldown is reset', async () => {
     await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', { lastSpunAt: null });
-    const { payload } = hoisted.upserts[0];
+    const { payload } = hoisted.updates[0];
     expect(payload.last_spun_at).toBeNull();
     expect(payload.last_spin_date).toBeNull();
+  });
+
+  it('creates the profile row when the update matches nothing', async () => {
+    hoisted.updateResults.push({ error: null, data: [] }, { error: null, data: [{ id: 'x' }] });
+    const ok = await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-9', { stamps: 1 });
+    expect(ok).toBe(true);
+    // First attempt found no row, ensureProfileRowInDb inserted, then the update ran again.
+    expect(hoisted.upserts).toHaveLength(1);
+    expect(hoisted.upserts[0].payload.id).toBe('11111111-1111-1111-1111-111111111111');
+    expect(hoisted.updates).toHaveLength(2);
   });
 });

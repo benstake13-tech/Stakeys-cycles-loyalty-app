@@ -679,13 +679,40 @@ export async function updateUserProfileInDb(
       payload.last_spin_date = spunIso;
     }
 
-    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
-    if (!error) {
-      console.log(`[SUPABASE NET SUCCESS] UPSERT profiles succeeded for userId=${userId}`);
-      return true;
-    } else {
-      console.error('[SUPABASE NET ERROR] UPSERT profiles failed:', error.message);
+    // PATCH the existing row rather than upsert: profiles.display_name is NOT
+    // NULL, and a partial upsert makes PostgREST build an INSERT candidate
+    // (display_name omitted -> null) that is rejected with 23502 before conflict
+    // resolution, so every balance/spin write failed. All callers target a row
+    // already created by ensureProfileRowInDb / auth signup.
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId)
+      .select('id');
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPDATE profiles failed:', error.message);
+      return false;
     }
+    if (!data || data.length === 0) {
+      // No row to update (e.g. a profile created outside the signup trigger).
+      // Create the minimal row, then apply the change.
+      const ensured = await ensureProfileRowInDb({
+        uid: userId,
+        displayName: payload.display_name,
+        membershipNumber,
+      });
+      if (!ensured) {
+        console.error('[SUPABASE NET ERROR] UPDATE profiles found no row and could not create one.');
+        return false;
+      }
+      const retry = await supabase.from('profiles').update(payload).eq('id', userId).select('id');
+      if (retry.error) {
+        console.error('[SUPABASE NET ERROR] UPDATE profiles retry failed:', retry.error.message);
+        return false;
+      }
+    }
+    console.log(`[SUPABASE NET SUCCESS] UPDATE profiles succeeded for userId=${userId}`);
+    return true;
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] updateUserProfileInDb:', err);
   }
