@@ -39,6 +39,13 @@ ALL_FUNCTIONS=(
   stamp-log
 )
 
+# Resolve the Supabase CLI (global install or via npx).
+if command -v supabase >/dev/null 2>&1; then
+  SUPABASE=(supabase)
+else
+  SUPABASE=(npx --yes supabase)
+fi
+
 # Deploy only the functions named on the command line, or all of them.
 if [[ $# -gt 0 ]]; then
   FUNCTIONS=("$@")
@@ -52,9 +59,9 @@ for fn in "${FUNCTIONS[@]}"; do
     if [[ "$fn" == "$no_jwt" ]]; then extra=(--no-verify-jwt); fi
   done
   echo "==> deploying ${fn} ${extra[*]:-}"
-  supabase functions deploy "$fn" --project-ref "$PROJECT_REF" "${extra[@]}"
+  "${SUPABASE[@]}" functions deploy "$fn" --project-ref "$PROJECT_REF" "${extra[@]}"
 done
 
 echo
 echo "Done. Listing functions for ${PROJECT_REF}:"
-supabase functions list --project-ref "$PROJECT_REF"
+"${SUPABASE[@]}" functions list --project-ref "$PROJECT_REF"
