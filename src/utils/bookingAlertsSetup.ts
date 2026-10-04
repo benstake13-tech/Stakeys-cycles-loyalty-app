@@ -62,10 +62,10 @@ export const ALL_FUNCTIONS = [
   'send-email',
   'notify-booking',
   'pushengage-send',
+  'pushengage-notification',
   'spin-wheel',
   'gbp-performance',
   'stamp-log',
-  'onesignal-notification',
 ] as const;
 
 /** CLI command that (re)deploys every edge function from the repo. */
@@ -197,6 +197,72 @@ create trigger service_bookings_booking_push_insert
 -- 3. Remove the legacy trigger that called a non-existent function.
 drop trigger if exists notify_booking_on_insert on public.service_bookings;
 drop function if exists public.notify_booking_webhook();
+
+-- 4. In-app notifications -> PushEngage (replaces the OneSignal webhook).
+${pushengageNotificationSql(base, secret).trim()}
+`;
+}
+
+/**
+ * SQL that routes `notifications` INSERTs to the `pushengage-notification` edge
+ * function (targeted per-user push). Replaces the old OneSignal webhook: the
+ * Vault secret `pushengage_notification_webhook_secret` is created/updated, the
+ * trigger is rebuilt, and the legacy OneSignal trigger + function are dropped.
+ */
+export function pushengageNotificationSql(supabaseUrl: string, webhookSecret: string): string {
+  const base = supabaseUrl.replace(/\/+$/, '');
+  return `-- 4. In-app notifications -> PushEngage (replaces OneSignal)
+do $$
+declare v_id uuid;
+begin
+  select id into v_id from vault.secrets where name = 'pushengage_notification_webhook_secret';
+  if v_id is null then
+    perform vault.create_secret('${webhookSecret}', 'pushengage_notification_webhook_secret', 'PushEngage notification webhook secret');
+  else
+    perform vault.update_secret(v_id, '${webhookSecret}');
+  end if;
+end $$;
+
+create or replace function private.dispatch_pushengage_notification()
+returns trigger language plpgsql security definer set search_path to 'pg_catalog', 'public', 'vault', 'net' as $$
+declare v_secret text;
+begin
+  select decrypted_secret into v_secret
+    from vault.decrypted_secrets where name = 'pushengage_notification_webhook_secret' limit 1;
+  if v_secret is null or v_secret = '' then
+    raise warning 'pushengage_notification_webhook_secret missing from Vault; skipping push for notification %', NEW.id;
+    return new;
+  end if;
+  begin
+    perform net.http_post(
+      url     := '${base}/functions/v1/pushengage-notification',
+      body    := jsonb_build_object(
+        'type', 'INSERT', 'schema', 'public', 'table', 'notifications',
+        'record', jsonb_build_object(
+          'id', NEW.id, 'user_id', NEW.user_id, 'title', NEW.title,
+          'message', NEW.message, 'type', NEW.type
+        ),
+        'old_record', null
+      ),
+      headers := jsonb_build_object(
+        'Content-Type', 'application/json',
+        'x-webhook-secret', v_secret
+      ),
+      timeout_milliseconds := 5000
+    );
+  exception when others then
+    raise warning 'Could not enqueue PushEngage push for notification %: %', NEW.id, SQLERRM;
+  end;
+  return new;
+end;
+$$;
+
+drop trigger if exists notifications_onesignal_push_after_insert on public.notifications;
+create trigger notifications_pushengage_push_after_insert
+  after insert on public.notifications
+  for each row execute function private.dispatch_pushengage_notification();
+
+drop function if exists private.dispatch_onesignal_notification();
 `;
 }
 

@@ -78,9 +78,13 @@ export function classifyFunctionProbe(
 
   // The booking webhook functions authenticate with a shared secret header, so a
   // 401 to our secret-less probe still proves they are deployed.
-  if (name === 'booking-email-notification' || name === 'booking-push-notification') {
+  if (
+    name === 'booking-email-notification' ||
+    name === 'booking-push-notification' ||
+    name === 'pushengage-notification'
+  ) {
     if (status === 401 || status === 403) {
-      return { status: 'pass', detail: 'Deployed and correctly locked to the booking webhook secret.' };
+      return { status: 'pass', detail: 'Deployed and correctly locked to the webhook secret.' };
     }
     if (status >= 500) {
       return { status: 'warn', detail: `Deployed, but returned HTTP ${status}.`, hint: 'Check the function logs.' };
@@ -250,6 +254,7 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
     { name: 'booking-email-notification', label: 'booking-email-notification (booking webhook email)' },
     { name: 'booking-push-notification', label: 'booking-push-notification (booking webhook push)' },
     { name: 'pushengage-send', label: 'pushengage-send (closed-app push, server REST key)' },
+    { name: 'pushengage-notification', label: 'pushengage-notification (in-app notification webhook)' },
   ];
   for (const { name, label } of probes) {
     const { status, body } = await probe(fetcher, deps.supabaseUrl, deps.anonKey, name);

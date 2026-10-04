@@ -18,7 +18,7 @@ verify_jwt = false
 
 [functions.booking-push-notification]
 # Fires from the `service_bookings` AFTER INSERT trigger, authenticated with the
-# same `x-booking-webhook-secret` header. Sends the staff push via OneSignal.
+# same `x-booking-webhook-secret` header. Sends the staff push via PushEngage.
 verify_jwt = false
 
 [functions.spin-wheel]
@@ -33,9 +33,9 @@ verify_jwt = true
 # Webhook on `stamp_transactions` INSERT that mirrors rows into `stamp_logs`.
 verify_jwt = true
 
-[functions.onesignal-notification]
-# Webhook on `notifications` INSERT that pushes to the target user via OneSignal.
-verify_jwt = true
+[functions.pushengage-notification]
+# Webhook on `notifications` INSERT that pushes to the target user via PushEngage.
+verify_jwt = false
 
 [functions.pushengage-send]
 # Server-to-server PushEngage send so booking alerts reach a phone with the app

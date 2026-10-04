@@ -87,6 +87,7 @@ describe('runNotificationSystemTests', () => {
       'booking-email-notification': { status: 401, body: 'Unauthorized' },
       'booking-push-notification': { status: 401, body: '{"error":"Unauthorized"}' },
       'pushengage-send': { status: 200, body: '{"appId":"a","serverPush":true}' },
+      'pushengage-notification': { status: 401, body: 'Unauthorized' },
     });
     const checks = await runNotificationSystemTests({
       supabaseUrl: URL,
@@ -104,6 +105,7 @@ describe('runNotificationSystemTests', () => {
     expect(byId['fn-booking-email-notification'].status).toBe('pass');
     expect(byId['fn-booking-push-notification'].status).toBe('pass');
     expect(byId['fn-pushengage-send'].status).toBe('pass');
+    expect(byId['fn-pushengage-notification'].status).toBe('pass');
     expect(byId['email-recipient'].status).toBe('pass');
     expect(byId['push-permission'].status).toBe('pass');
     expect(byId['push-worker'].status).toBe('pass');

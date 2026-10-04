@@ -95,6 +95,15 @@ describe('fixAllBookingAlertsSql', () => {
     expect(sql).toMatch(/drop function if exists public\.notify_booking_webhook\(\)/i);
   });
 
+  it('routes in-app notifications to PushEngage and removes the OneSignal webhook', () => {
+    expect(sql).toContain('/functions/v1/pushengage-notification');
+    expect(sql).toContain("'pushengage_notification_webhook_secret'");
+    expect(sql).toMatch(/create trigger notifications_pushengage_push_after_insert/i);
+    expect(sql).toMatch(/drop trigger if exists notifications_onesignal_push_after_insert/i);
+    expect(sql).toMatch(/drop function if exists private\.dispatch_onesignal_notification\(\)/i);
+    expect(sql).not.toMatch(/api\.onesignal\.com/);
+  });
+
   it('syncs the workshop owner email and escapes quotes', () => {
     expect(sql).toContain("owner_email = 'owner@stakeys.co.uk'");
     const quoted = fixAllBookingAlertsSql('https://x.supabase.co', {
