@@ -35,6 +35,7 @@ import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
 import { ClearBookingsModal } from './ClearBookingsModal';
+import { PhoneBookingPanel } from './PhoneBookingPanel';
 
 export const StaffBookingsTab: React.FC = () => {
   const {
@@ -60,6 +61,7 @@ export const StaffBookingsTab: React.FC = () => {
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('all');
+  const [bookingView, setBookingView] = useState<'queue' | 'phone'>('queue');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
 
   // Invoice & Repair Completion Modal States
@@ -313,6 +315,33 @@ export const StaffBookingsTab: React.FC = () => {
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* View switcher: online/workshop queue vs staff-logged phone bookings */}
+      <div className="inline-flex p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold">
+        <button
+          type="button"
+          onClick={() => setBookingView('queue')}
+          className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer ${
+            bookingView === 'queue' ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          Workshop Queue
+        </button>
+        <button
+          type="button"
+          onClick={() => setBookingView('phone')}
+          className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            bookingView === 'phone' ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Phone className="w-3.5 h-3.5" />
+          Phone Bookings
+        </button>
+      </div>
+
+      {bookingView === 'phone' && <PhoneBookingPanel />}
+
+      {bookingView === 'queue' && (
+      <>
       {/* Top Banner: Notifications Settings & Status */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -1330,6 +1359,8 @@ export const StaffBookingsTab: React.FC = () => {
       {/* Launch prep: clear every booking */}
       {isClearBookingsOpen && (
         <ClearBookingsModal onClose={() => setIsClearBookingsOpen(false)} />
+      )}
+      </>
       )}
     </div>
   );
