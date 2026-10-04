@@ -38,6 +38,17 @@ describe('classifyFunctionProbe', () => {
     expect(v.hint).toMatch(/RESEND_API_KEY/);
   });
 
+  it('treats a 405 (GET on a POST-only function) as deployed', () => {
+    expect(classifyFunctionProbe('send-email', 405, '').status).toBe('pass');
+    expect(classifyFunctionProbe('notify-booking', 405, '').status).toBe('pass');
+  });
+
+  it('reports an unreachable project (status 0) as a failure, not a pass', () => {
+    const v = classifyFunctionProbe('send-email', 0, '');
+    expect(v.status).toBe('fail');
+    expect(v.detail).toMatch(/could not reach/i);
+  });
+
   it('treats notify-booking 403 as the expected healthy answer', () => {
     const v = classifyFunctionProbe('notify-booking', 403, 'restricted');
     expect(v.status).toBe('pass');

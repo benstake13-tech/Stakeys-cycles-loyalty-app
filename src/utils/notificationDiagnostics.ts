@@ -55,12 +55,25 @@ export function classifyFunctionProbe(
   status: number,
   body: string
 ): { status: SystemStatus; detail: string; hint?: string } {
+  if (status === 0) {
+    return {
+      status: 'fail',
+      detail: 'Could not reach the project — the probe request failed (network or CORS).',
+      hint: 'Check the Supabase URL/anon key and that the project is online.',
+    };
+  }
   if (status === 404) {
     return {
       status: 'fail',
       detail: 'HTTP 404 — not deployed.',
       hint: `Run "supabase functions deploy ${name}" (source is in supabase/functions/${name}).`,
     };
+  }
+  // Our functions reject non-POST requests with 405, so a 405 proves the
+  // function exists. A plain GET also avoids a CORS preflight, which an
+  // undeployed function cannot answer from the browser.
+  if (status === 405) {
+    return { status: 'pass', detail: 'Deployed and reachable (function responded).' };
   }
 
   if (name === 'send-email') {
@@ -152,17 +165,23 @@ export interface SystemTestDeps {
   getPushConfig?: () => Promise<{ appId: string | null; serverPush: boolean }>;
 }
 
+/**
+ * Probes an edge function to see whether it is deployed.
+ *
+ * Uses a plain GET with no custom headers so the browser does not trigger a
+ * CORS preflight — an undeployed function cannot answer an OPTIONS preflight, so
+ * a POST-with-headers probe would surface as an opaque network failure instead
+ * of a readable 404. Our functions reply 405 to a GET (deployed) or 404 (missing).
+ */
 async function probe(
   fetcher: typeof fetch,
   supabaseUrl: string,
-  anonKey: string,
+  _anonKey: string,
   name: string
 ): Promise<{ status: number; body: string }> {
   try {
     const res = await fetcher(`${supabaseUrl.replace(/\/+$/, '')}/functions/v1/${name}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-      body: '{}',
+      method: 'GET',
     });
     return { status: res.status, body: await res.text().catch(() => '') };
   } catch (err) {
