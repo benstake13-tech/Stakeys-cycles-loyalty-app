@@ -1011,6 +1011,28 @@ export async function fetchStaffAccountsFromDb(): Promise<StaffAccount[]> {
   }
 }
 
+/**
+ * Reports whether the staff-account RPCs from
+ * `supabase/migrations/20261004_staff_accounts.sql` are installed on the live
+ * project. The RPCs are admin-gated, so an admin caller gets rows back and a
+ * missing function surfaces as a "does not exist" / schema-cache error.
+ */
+export async function staffAccountsInstalled(): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.rpc('list_staff_accounts');
+    if (!error) return true;
+    const m = (error.message || '').toLowerCase();
+    return !(
+      m.includes('does not exist') ||
+      m.includes('could not find the function') ||
+      m.includes('schema cache')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function createStaffAccountViaRpc(
   email: string,
   password: string,

@@ -181,7 +181,8 @@ export const StaffAccountsTab: React.FC = () => {
             Staff account functions are not installed yet
           </div>
           <p className={`text-xs mt-1.5 ${isDark ? 'text-amber-200/80' : 'text-amber-800'}`}>
-            Run <code className="font-mono">{SETUP_SQL_PATH}</code> in the Supabase SQL Editor, then hit Refresh.
+            Use the <strong>Set Up Staff Accounts</strong> button at the top of the staff area to copy
+            <code className="font-mono"> {SETUP_SQL_PATH}</code>, run it in the Supabase SQL Editor, then Refresh.
           </p>
         </div>
       )}

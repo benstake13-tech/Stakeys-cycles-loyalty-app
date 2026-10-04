@@ -19,6 +19,7 @@ import {
   fetchStaffAccountsFromDb,
   createStaffAccountViaRpc,
   setStaffRoleViaRpc,
+  staffAccountsInstalled,
 } from './src/api/backendDataService';
 
 beforeEach(() => {
@@ -89,5 +90,22 @@ describe('fetchStaffAccountsFromDb', () => {
   it('returns an empty list when the RPC is not installed yet', async () => {
     hoisted.rpcResults.push({ data: null, error: { message: 'function does not exist' } });
     expect(await fetchStaffAccountsFromDb()).toEqual([]);
+  });
+});
+
+describe('staffAccountsInstalled', () => {
+  it('is true when list_staff_accounts responds without error', async () => {
+    hoisted.rpcResults.push({ data: [], error: null });
+    expect(await staffAccountsInstalled()).toBe(true);
+  });
+
+  it('is false when the function is missing', async () => {
+    hoisted.rpcResults.push({ data: null, error: { message: 'Could not find the function public.list_staff_accounts in the schema cache' } });
+    expect(await staffAccountsInstalled()).toBe(false);
+  });
+
+  it('is true for a non-missing-function error (e.g. permission denied)', async () => {
+    hoisted.rpcResults.push({ data: null, error: { message: 'permission denied for function list_staff_accounts' } });
+    expect(await staffAccountsInstalled()).toBe(true);
   });
 });

@@ -16,6 +16,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ShieldAlert,
+  ShieldCheck,
   Dices,
   Bike,
   Edit3,
@@ -65,6 +66,7 @@ import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { StaffAccountsTab } from './StaffAccountsTab';
 import { SchemaSyncModal } from './SchemaSyncModal';
+import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
@@ -116,6 +118,7 @@ export const StaffPortal: React.FC = () => {
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
+  const [isStaffAccountsSetupOpen, setIsStaffAccountsSetupOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -436,6 +439,16 @@ export const StaffPortal: React.FC = () => {
               >
                 <DatabaseZap className="w-4 h-4" />
                 <span>Fix Database Schema</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsStaffAccountsSetupOpen(true)}
+                className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
+                title="Install the staff-account functions from the migration SQL"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Set Up Staff Accounts</span>
               </button>
 
               <button
@@ -1185,6 +1198,9 @@ export const StaffPortal: React.FC = () => {
 
       {/* Live schema audit + sync SQL (fixes app <-> Supabase drift) */}
       {isSchemaSyncOpen && <SchemaSyncModal onClose={() => setIsSchemaSyncOpen(false)} />}
+      {isStaffAccountsSetupOpen && (
+        <StaffAccountsSetupModal onClose={() => setIsStaffAccountsSetupOpen(false)} />
+      )}
     </div>
   );
 };
