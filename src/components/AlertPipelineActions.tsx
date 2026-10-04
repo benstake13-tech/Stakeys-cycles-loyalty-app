@@ -4,9 +4,10 @@ import { getStoredSupabaseUrl } from '../supabase';
 import { deriveProjectRef } from '../utils/emailSetup';
 import {
   webhookTriggerSql,
-  deployFunctionsCommand,
-  deployAllFunctionsCommand,
+  deployFunctionsPrompt,
+  deployAllFunctionsPrompt,
   envTemplate,
+  secretsPrompt,
   fixAllBookingAlertsSql,
   fixAllBookingAlertsSecrets,
   generateWebhookSecret,
@@ -23,8 +24,9 @@ interface PipelineRow {
   copyHint: string;
   /** Shown right after copying — where to paste it and what to do next. */
   pasteHint: string;
+  /** The deployable text: a ready-to-send prompt (or the SQL to paste). */
   text: string;
-  /** The exact page to paste the copied text into, with a "Paste here" button. */
+  /** The page to paste the copied text into, with a "Paste here" button. */
   paste: { label: string; href: string; hint: string };
 }
 
@@ -64,10 +66,10 @@ export const AlertPipelineActions: React.FC<{
       step: 'STEP 1',
       icon: <Rocket className="w-4 h-4" />,
       title: 'Deploy the edge functions',
-      copyHint: 'Copies the Supabase CLI command that deploys send-email + notify-booking.',
+      copyHint: 'Copies a ready-to-send prompt to deploy the booking-alert edge functions.',
       pasteHint:
-        'Paste it into a terminal where the Supabase CLI is logged in, then press Enter. This links the project and deploys both functions.',
-      text: deployFunctionsCommand(projectRef),
+        'Paste the prompt to an AI agent (or whoever holds the Supabase access token). It deploys the functions with SUPABASE_ACCESS_TOKEN — no supabase login needed.',
+      text: deployFunctionsPrompt(projectRef),
       paste: {
         label: 'Open Edge Functions',
         href: `${dash}/functions`,
@@ -79,14 +81,14 @@ export const AlertPipelineActions: React.FC<{
       step: 'STEP 2',
       icon: <KeyRound className="w-4 h-4" />,
       title: 'Set the server secrets',
-      copyHint: 'Copies the RESEND_API_KEY and PUSHENGAGE_API_KEY lines.',
+      copyHint: 'Copies a prompt (with the RESEND_API_KEY / PUSHENGAGE_API_KEY lines) to set the secrets.',
       pasteHint:
-        'Paste into Supabase → Edge Functions → Secrets, replacing the placeholder values with your real keys.',
-      text: envTemplate(),
+        'Paste the prompt to an AI agent to set them, or copy the KEY=value lines into Supabase → Edge Functions → Secrets.',
+      text: secretsPrompt(projectRef, envTemplate()),
       paste: {
         label: 'Open Secrets page',
         href: `${dash}/settings/functions`,
-        hint: 'Add each line as a secret here (or run "supabase secrets set …").',
+        hint: 'Add each KEY=value line as a secret here.',
       },
     },
     {
@@ -171,14 +173,14 @@ export const AlertPipelineActions: React.FC<{
 
           <button
             type="button"
-            onClick={() => copy('fix-secrets', fixAllBookingAlertsSecrets({ webhookSecret: fixSecret, ownerEmail: fixEmail }), 'Fix-all secrets')}
+            onClick={() => copy('fix-secrets', secretsPrompt(projectRef, fixAllBookingAlertsSecrets({ webhookSecret: fixSecret, ownerEmail: fixEmail })), 'Fix-all secrets prompt')}
             className="flex items-center gap-2 p-2.5 pr-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 transition-colors cursor-pointer"
           >
             <span className="w-8 h-8 rounded-xl bg-neutral-950/15 flex items-center justify-center shrink-0">
               {copiedKey === 'fix-secrets' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             </span>
             <span className="text-xs font-bold whitespace-nowrap">
-              {copiedKey === 'fix-secrets' ? 'Copied!' : 'Copy the fix-all secrets'}
+              {copiedKey === 'fix-secrets' ? 'Copied!' : 'Copy the fix-all secrets prompt'}
             </span>
           </button>
           <a
@@ -203,13 +205,13 @@ export const AlertPipelineActions: React.FC<{
           from the repo?{' '}
           <button
             type="button"
-            onClick={() => copy('fix-deploy', deployAllFunctionsCommand(projectRef), 'Deploy-all command')}
+            onClick={() => copy('fix-deploy', deployAllFunctionsPrompt(projectRef), 'Deploy-all prompt')}
             className="inline-flex items-center gap-1 text-emerald-400 hover:underline cursor-pointer"
           >
             {copiedKey === 'fix-deploy' ? <Check className="w-3 h-3" /> : <RefreshCw className="w-3 h-3" />}
-            <span>{copiedKey === 'fix-deploy' ? 'Copied deploy-all command' : 'copy the deploy-all command'}</span>
+            <span>{copiedKey === 'fix-deploy' ? 'Copied deploy-all prompt' : 'copy the deploy-all prompt'}</span>
           </button>{' '}
-          and run it in a logged-in Supabase CLI terminal.
+          and paste it to an AI agent to deploy every function with the Supabase access token.
         </p>
       </div>
 

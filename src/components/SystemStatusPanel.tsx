@@ -19,7 +19,7 @@ import { getStoredSupabaseUrl, getStoredSupabaseAnonKey, getSupabaseClient } fro
 import { deriveProjectRef } from '../utils/emailSetup';
 import { getPushPermission } from '../utils/pushNotifications';
 import { fetchPushConfig } from '../utils/pushSetup';
-import { deployAllFunctionsCommand, envTemplate, webhookTriggerSql } from '../utils/bookingAlertsSetup';
+import { deployAllFunctionsPrompt, envTemplate, secretsPrompt, webhookTriggerSql } from '../utils/bookingAlertsSetup';
 import {
   runNotificationSystemTests,
   summarizeSystem,
@@ -110,8 +110,8 @@ export const SystemStatusPanel: React.FC<{ onFlash?: (text: string, ok: boolean)
   };
 
   const fixTextFor = (copy: string) => {
-    if (copy === 'deploy') return deployAllFunctionsCommand(projectRef);
-    if (copy === 'env') return envTemplate();
+    if (copy === 'deploy') return deployAllFunctionsPrompt(projectRef);
+    if (copy === 'env') return secretsPrompt(projectRef, envTemplate());
     if (copy === 'sql') return webhookTriggerSql(getStoredSupabaseUrl());
     return copy;
   };

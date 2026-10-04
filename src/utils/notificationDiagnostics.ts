@@ -66,7 +66,7 @@ export function classifyFunctionProbe(
     return {
       status: 'fail',
       detail: 'HTTP 404 — not deployed.',
-      hint: `Run "supabase functions deploy ${name}" (source is in supabase/functions/${name}).`,
+      hint: `Use the "Deploy the edge functions" button (Feature Test Bench) to copy a deploy prompt for ${name} (source is in supabase/functions/${name}).`,
     };
   }
   // Our functions reject non-POST requests with 405, so a 405 proves the
@@ -270,11 +270,11 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
         verdict.status === 'pass'
           ? undefined
           : secretMissing
-            ? { label: 'Copy secrets line', copy: 'env', hint: 'Paste into Supabase → Edge Functions → Secrets.' }
+            ? { label: 'Copy secrets prompt', copy: 'env', hint: 'Paste into the Secrets page, or use the copied prompt with an AI agent.' }
             : {
-                label: 'Copy deploy command',
+                label: 'Copy deploy prompt',
                 copy: 'deploy',
-                hint: 'Paste into a logged-in Supabase CLI terminal, then press Enter.',
+                hint: 'Paste to an AI agent (uses the Supabase access token) — no CLI login needed.',
               },
     });
   }

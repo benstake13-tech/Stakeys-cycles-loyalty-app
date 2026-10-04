@@ -16,6 +16,7 @@ import {
 import { useShop } from '../context/ShopContext';
 import { getStoredSupabaseUrl } from '../supabase';
 import { deriveProjectRef } from '../utils/emailSetup';
+import { secretsPrompt } from '../utils/bookingAlertsSetup';
 import {
   getPushPermission,
   requestPushPermission,
@@ -73,7 +74,7 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
         title: 'Server push key is configured',
         why: 'Background pushes need the PushEngage REST API key on the server, so alerts arrive with the app closed.',
         howto:
-          'Press Fix to copy PUSHENGAGE_API_KEY=…, then open the Secrets page and paste it there, replacing the value with the REST API key from your PushEngage dashboard.',
+          'Press Fix to copy a prompt that sets PUSHENGAGE_API_KEY (paste it to an AI agent, or add the line in the Secrets page), replacing the value with the REST API key from your PushEngage dashboard.',
         action: { label: 'Open Secrets page', href: `${dash}/settings/functions` },
       },
     ],
@@ -197,8 +198,10 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
 
   const fixServerKey = async () => {
     try {
-      await navigator.clipboard.writeText('PUSHENGAGE_API_KEY=your-rest-api-key');
-      flash({ kind: 'ok', text: 'Env line copied — paste it into your server environment variables.' });
+      await navigator.clipboard.writeText(
+        secretsPrompt(projectRef, 'PUSHENGAGE_API_KEY=your-rest-api-key')
+      );
+      flash({ kind: 'ok', text: 'Secrets prompt copied — paste it to an AI agent (or the Secrets page) with your real PushEngage REST key.' });
     } catch {
       flash({ kind: 'err', text: 'Clipboard blocked — add PUSHENGAGE_API_KEY manually.' });
     }

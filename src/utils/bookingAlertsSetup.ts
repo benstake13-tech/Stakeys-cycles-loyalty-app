@@ -1,6 +1,7 @@
 /**
  * Shared, testable builders for the booking-alert pipeline setup: the database
- * SQL that wires the webhook, the deploy command, the secret templates and the
+ * SQL that wires the webhook, the deploy/secret PROMPTS (ready to paste to an AI
+ * agent, instead of the interactive Supabase CLI), the secret templates and the
  * dashboard links. Used by both the Email Setup and Push Setup modals so the
  * "get this working" buttons all point at the same source of truth.
  */
@@ -42,12 +43,87 @@ create trigger notify_booking_on_insert
   for each row execute function public.notify_booking_webhook();`;
 }
 
-/** CLI command that deploys both booking-alert edge functions. */
-export function deployFunctionsCommand(projectRef: string): string {
-  return (
-    `supabase login\nsupabase link --project-ref ${projectRef}\n` +
-    `supabase functions deploy send-email\nsupabase functions deploy notify-booking`
+/**
+ * Edge functions that must be deployed with JWT verification DISABLED. They are
+ * invoked by database triggers (via pg_net) with a shared-secret header instead
+ * of a Supabase JWT, so the gateway must not require one.
+ */
+export const NO_JWT_FUNCTIONS = [
+  'booking-email-notification',
+  'booking-push-notification',
+  'pushengage-notification',
+] as const;
+
+/**
+ * A ready-to-send PROMPT (instead of a CLI command) that asks an AI agent — or
+ * anyone holding the Supabase access token — to deploy the edge functions.
+ * `supabase login`/`link` are interactive and are frequently blocked ("generate
+ * a token for your first build"), so the prompt instructs the deployer to use
+ * `SUPABASE_ACCESS_TOKEN` + `--project-ref` and never the login flow.
+ */
+export function deployPrompt(projectRef: string, functions: readonly string[]): string {
+  const noJwt = functions.filter((f) => (NO_JWT_FUNCTIONS as readonly string[]).includes(f));
+  const jwtOn = functions.filter((f) => !(NO_JWT_FUNCTIONS as readonly string[]).includes(f));
+
+  const lines = [
+    `Please deploy these Supabase Edge Functions to project "${projectRef}" and confirm each is ACTIVE afterwards.`,
+    '',
+    'Functions to deploy:',
+    ...functions.map((f) => `- ${f}`),
+    '',
+    'The function source lives in supabase/functions/<name>/ in the repo. Deploy from the repo root.',
+  ];
+
+  if (noJwt.length) {
+    lines.push(
+      '',
+      'Deploy these with JWT verification DISABLED (add --no-verify-jwt):',
+      ...noJwt.map((f) => `- ${f}`),
+    );
+  }
+  if (jwtOn.length) {
+    lines.push(
+      '',
+      'Keep JWT verification ENABLED for the rest (the repo supabase/config.toml already records each function\u2019s setting).',
+    );
+  }
+
+  lines.push(
+    '',
+    'Use an access token instead of the interactive login \u2014 do NOT run `supabase login` or `supabase link`:',
+    `  SUPABASE_ACCESS_TOKEN=<token> supabase functions deploy <name> --project-ref ${projectRef}`,
+    '  (append --no-verify-jwt for the functions listed above)',
+    '',
+    'When finished, list the functions for this project and report each one\u2019s status.',
   );
+  return lines.join('\n');
+}
+
+/** Prompt to deploy the booking-alert edge functions. */
+export function deployFunctionsPrompt(projectRef: string): string {
+  return deployPrompt(projectRef, [
+    'booking-email-notification',
+    'booking-push-notification',
+    'send-email',
+    'notify-booking',
+  ]);
+}
+
+/**
+ * A ready-to-send PROMPT that sets the edge-function secrets, instead of the
+ * `supabase secrets set …` CLI command. The raw `KEY=value` lines are included
+ * so they can also be pasted straight into the Dashboard → Secrets page.
+ */
+export function secretsPrompt(projectRef: string, secretLines: string): string {
+  return [
+    `Please set the following Supabase Edge Function secrets for project "${projectRef}".`,
+    '',
+    secretLines,
+    '',
+    'Do not run the interactive `supabase login`; use the Supabase access token (SUPABASE_ACCESS_TOKEN)',
+    'with the Management API, or add them in Dashboard \u2192 Edge Functions \u2192 Secrets.',
+    'Replace any placeholder values (e.g. re_your_key) with the real keys.',
+  ].join('\n');
 }
 
 /**
@@ -68,10 +144,9 @@ export const ALL_FUNCTIONS = [
   'stamp-log',
 ] as const;
 
-/** CLI command that (re)deploys every edge function from the repo. */
-export function deployAllFunctionsCommand(projectRef: string): string {
-  const deploys = ALL_FUNCTIONS.map((f) => `supabase functions deploy ${f}`).join('\n');
-  return `supabase login\nsupabase link --project-ref ${projectRef}\n${deploys}`;
+/** Prompt that (re)deploys every edge function from the repo. */
+export function deployAllFunctionsPrompt(projectRef: string): string {
+  return deployPrompt(projectRef, ALL_FUNCTIONS);
 }
 
 /** A fresh URL-safe secret shared by the triggers (Vault) and the functions. */

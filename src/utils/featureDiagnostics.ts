@@ -136,7 +136,7 @@ function hintFor(message: string): string | undefined {
     return 'A CHECK constraint rejects a value the app writes. Widen the allowed values.';
   }
   if (/404|not found/i.test(message)) {
-    return 'Edge function not deployed. Deploy it with `supabase functions deploy`.';
+    return 'Edge function not deployed. Copy the deploy prompt from the Feature Test Bench and paste it to an AI agent.';
   }
   return undefined;
 }

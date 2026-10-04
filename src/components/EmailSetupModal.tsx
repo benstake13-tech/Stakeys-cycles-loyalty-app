@@ -18,6 +18,7 @@ import { useShop } from '../context/ShopContext';
 import { getStoredSupabaseUrl, getStoredSupabaseAnonKey } from '../supabase';
 import { getSupabaseClient } from '../lib/supabase';
 import { probeEdgeFunction, deriveProjectRef, testWorkshopEmail, EmailTestResult } from '../utils/emailSetup';
+import { deployFunctionsPrompt, secretsPrompt, envTemplate } from '../utils/bookingAlertsSetup';
 import { dispatchTestEmail } from '../utils/notificationService';
 
 type Toast = { kind: 'ok' | 'err'; text: string } | null;
@@ -87,9 +88,9 @@ create trigger notify_booking_on_insert
 
   const deployCmd = useMemo(
     () =>
-      `supabase login\nsupabase link --project-ref ${projectRef}\n` +
-      `supabase functions deploy send-email\nsupabase functions deploy notify-booking\n` +
-      `supabase secrets set RESEND_API_KEY=re_xxxxxxxx`,
+      deployFunctionsPrompt(projectRef) +
+      '\n\n---\n\n' +
+      secretsPrompt(projectRef, envTemplate()),
     [projectRef]
   );
 
@@ -146,7 +147,7 @@ create trigger notify_booking_on_insert
         state: sendEmail.deployed ? 'ok' : 'fail',
         detail: sendEmail.deployed
           ? `Deployed (${sendEmail.detail}).`
-          : `${sendEmail.detail} — deploy it with the command below.`,
+          : `${sendEmail.detail} — deploy it with the prompt below.`,
         action: { label: 'Open Edge Functions', href: `${dash}/functions` },
       },
       {
@@ -156,7 +157,7 @@ create trigger notify_booking_on_insert
         state: notifyBooking.deployed ? 'ok' : 'fail',
         detail: notifyBooking.deployed
           ? `Deployed (${notifyBooking.detail}).`
-          : `${notifyBooking.detail} — deploy it with the command below.`,
+          : `${notifyBooking.detail} — deploy it with the prompt below.`,
         action: { label: 'Open Edge Functions', href: `${dash}/functions` },
       },
       {
@@ -330,20 +331,20 @@ create trigger notify_booking_on_insert
                 )}
               </div>
 
-              {/* Step 1 & 2: deploy command */}
+              {/* Step 1 & 2: deploy prompt */}
               {(step.key === 'send-email' || step.key === 'notify-booking') && (
                 <div className="pl-8">
                   <button
                     type="button"
                     onClick={async () => {
-                      await copy(deployCmd, 'Deploy command');
+                      await copy(deployCmd, 'Deploy prompt');
                       setCopiedCmd(true);
                       setTimeout(() => setCopiedCmd(false), 2000);
                     }}
                     className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-[11px] uppercase tracking-wider cursor-pointer flex items-center gap-1.5"
                   >
                     {copiedCmd ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedCmd ? 'Copied!' : 'Copy deploy + secrets command'}</span>
+                    <span>{copiedCmd ? 'Copied!' : 'Copy deploy + secrets prompt'}</span>
                   </button>
                 </div>
               )}

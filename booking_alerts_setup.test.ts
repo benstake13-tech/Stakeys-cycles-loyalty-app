@@ -1,13 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   webhookTriggerSql,
-  deployFunctionsCommand,
-  deployAllFunctionsCommand,
+  deployFunctionsPrompt,
+  deployAllFunctionsPrompt,
+  secretsPrompt,
   envTemplate,
   fixAllBookingAlertsSql,
   fixAllBookingAlertsSecrets,
   generateWebhookSecret,
   ALL_FUNCTIONS,
+  NO_JWT_FUNCTIONS,
   RESEND_KEYS_URL,
   PUSHENGAGE_DASHBOARD_URL,
 } from './src/utils/bookingAlertsSetup';
@@ -30,12 +32,17 @@ describe('webhookTriggerSql', () => {
   });
 });
 
-describe('deployFunctionsCommand', () => {
-  it('links the project and deploys both booking-alert functions', () => {
-    const cmd = deployFunctionsCommand('lhojocpygcnkxvkrcuxh');
-    expect(cmd).toContain('supabase link --project-ref lhojocpygcnkxvkrcuxh');
-    expect(cmd).toContain('supabase functions deploy send-email');
-    expect(cmd).toContain('supabase functions deploy notify-booking');
+describe('deployFunctionsPrompt', () => {
+  it('asks to deploy the booking-alert functions without any CLI login', () => {
+    const prompt = deployFunctionsPrompt('lhojocpygcnkxvkrcuxh');
+    expect(prompt).toContain('lhojocpygcnkxvkrcuxh');
+    for (const fn of ['booking-email-notification', 'booking-push-notification', 'send-email', 'notify-booking']) {
+      expect(prompt).toContain(fn);
+    }
+    // It is a prompt, not a bare CLI script: no login/link, and it says to use a token.
+    expect(prompt).not.toMatch(/^supabase login/m);
+    expect(prompt).toContain('SUPABASE_ACCESS_TOKEN');
+    expect(prompt).toContain('--no-verify-jwt');
   });
 });
 
@@ -54,13 +61,27 @@ describe('dashboard links', () => {
   });
 });
 
-describe('deployAllFunctionsCommand', () => {
-  it('deploys every function the project uses', () => {
-    const cmd = deployAllFunctionsCommand('lhojocpygcnkxvkrcuxh');
-    expect(cmd).toContain('supabase link --project-ref lhojocpygcnkxvkrcuxh');
+describe('deployAllFunctionsPrompt', () => {
+  it('names every function the project uses and flags the no-JWT ones', () => {
+    const prompt = deployAllFunctionsPrompt('lhojocpygcnkxvkrcuxh');
+    expect(prompt).toContain('lhojocpygcnkxvkrcuxh');
     for (const fn of ALL_FUNCTIONS) {
-      expect(cmd).toContain(`supabase functions deploy ${fn}`);
+      expect(prompt).toContain(fn);
     }
+    expect(prompt).toContain('SUPABASE_ACCESS_TOKEN');
+    // The trigger-invoked functions are called out for --no-verify-jwt.
+    for (const fn of NO_JWT_FUNCTIONS) {
+      expect(prompt).toContain(fn);
+    }
+  });
+});
+
+describe('secretsPrompt', () => {
+  it('wraps the KEY=value lines in a pasteable prompt', () => {
+    const prompt = secretsPrompt('lhojocpygcnkxvkrcuxh', envTemplate());
+    expect(prompt).toContain('RESEND_API_KEY=');
+    expect(prompt).toContain('PUSHENGAGE_API_KEY=');
+    expect(prompt).toContain('SUPABASE_ACCESS_TOKEN');
   });
 });
 
