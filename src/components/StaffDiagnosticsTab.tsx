@@ -28,6 +28,7 @@ import { sendPushToUser } from '../utils/pushNotifications';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
 import { AlertPipelineActions } from './AlertPipelineActions';
+import { SystemStatusPanel } from './SystemStatusPanel';
 import {
   AREA_LABELS,
   FEATURE_TESTS,
@@ -455,6 +456,9 @@ export const StaffDiagnosticsTab: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* End-to-end booking notification system test */}
+      <SystemStatusPanel onFlash={(text, ok) => flash({ kind: ok ? 'ok' : 'err', text })} />
 
       {/* Booking alert pipeline — SQL / deploy / secret fix buttons */}
       <AlertPipelineActions onFlash={(text, ok) => flash({ kind: ok ? 'ok' : 'err', text })} />
