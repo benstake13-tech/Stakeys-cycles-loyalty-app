@@ -43,7 +43,7 @@ import {
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
-import { requestPushPermission } from '../utils/pushNotifications';
+import { requestPushPermission, getOneSignalInitError } from '../utils/pushNotifications';
 import { generateMembershipNumber } from '../api/firebaseService';
 import {
   STAMPS_PER_CARD,
@@ -1030,6 +1030,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       toast.error('Push notification permission was denied in your browser settings.');
     } else if (perm === 'not_configured') {
       toast.error('OneSignal is not configured yet. Add VITE_ONESIGNAL_APP_ID to enable push.');
+    } else {
+      const initError = getOneSignalInitError();
+      if (initError && /can only be used on/i.test(initError)) {
+        toast.error(
+          `Push is blocked: this site is served from ${window.location.origin}, but the OneSignal app is configured for ${initError.split(': ').pop()}. Set the site origin in OneSignal → Settings → Web Configuration to match.`,
+          { duration: 12000 }
+        );
+      } else if (initError) {
+        toast.error(`Push could not start: ${initError}`, { duration: 10000 });
+      }
     }
     return perm;
   };

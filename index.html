@@ -20,11 +20,19 @@
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.init({
-          appId: '7f67ab94-3c85-4702-9cd8-d158cf294593',
-          serviceWorkerPath: '/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/' },
-        });
+        try {
+          await OneSignal.init({
+            appId: '7f67ab94-3c85-4702-9cd8-d158cf294593',
+            serviceWorkerPath: '/OneSignalSDKWorker.js',
+            serviceWorkerParam: { scope: '/' },
+          });
+        } catch (err) {
+          // init() rejects when the app's configured origin does not match the
+          // page (e.g. OneSignal set to the apex but the app served from www).
+          // Store it so the UI can explain why push is unavailable.
+          window.__onesignalInitError = (err && (err.message || String(err))) || 'init failed';
+          console.error('[OneSignal] init failed:', err);
+        }
       });
     </script>
   </head>

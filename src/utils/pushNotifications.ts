@@ -154,6 +154,18 @@ export async function requestPushPermission(): Promise<PushPermission> {
   return perm;
 }
 
+/**
+ * Returns the error `OneSignal.init()` threw, if any. The most common cause is
+ * an origin mismatch: the OneSignal app is configured for one host but the app
+ * is served from another (e.g. app set to the apex, site served from `www`).
+ * In that case the SDK refuses to initialise and no device ever subscribes.
+ */
+export function getOneSignalInitError(): string | null {
+  if (!browserReady()) return null;
+  const msg = (window as any).__onesignalInitError;
+  return typeof msg === 'string' ? msg : null;
+}
+
 /** Identifies the signed-in user so targeted pushes (external_id) reach them. */
 let lastLinkedUserId: string | null = null;
 let lastLinkedTags: Record<string, string | number> | undefined;
