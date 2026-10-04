@@ -138,7 +138,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
               Customer Repair Progress Tracker
             </h1>
             <p className="text-xs sm:text-sm text-neutral-300 leading-relaxed">
-              Track your bicycle or e-scooter live on Stakey’s Cytech workshop stand. View inspection milestones, real-time parts fitted, and your itemized invoice.
+              Track your bicycle or e-scooter live on Stakey’s workshop stand. View inspection milestones, real-time parts fitted, and your itemized invoice.
             </p>
           </div>
 
@@ -380,14 +380,14 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                     : currentStage === 'parts_ordered'
                     ? '📦 Parts Ordered — Your Repair is Booked In'
                     : currentStage === 'on_the_bench'
-                    ? '🛠️ Your Bike is Currently on the Cytech Workshop Stand'
+                    ? '🛠️ Your Bike is Currently on the Workshop Stand'
                     : '📅 Your Repair is Logged In at the Workshop'}
                 </div>
                 <p className="text-neutral-300 text-xs leading-relaxed">
                   {currentStage === 'collected'
                     ? `This repair is complete and your bike is back with you. A copy of your itemized invoice remains available below.`
                     : currentStage === 'ready_for_pickup'
-                    ? `Our Cytech mechanic has completed the repair and safety sign-off. Please collect your bike at Stakey's Cycles counter (14 High Street). You can view your itemized receipt below.`
+                    ? `Our workshop mechanic has completed the repair and safety sign-off. Please collect your bike at Stakey's Cycles counter (14 High Street). You can view your itemized receipt below.`
                     : currentStage === 'awaiting_approval'
                     ? `We've inspected your bike and sent a quote. Please review and approve it so we can begin the work.`
                     : currentStage === 'parts_ordered'
@@ -531,7 +531,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                       <Clock className="w-8 h-8 text-neutral-600 mx-auto" />
                       <div className="text-sm font-bold text-white">Ask for a Quote / Pending Sign-Off</div>
                       <p className="text-xs text-neutral-400 max-w-xs mx-auto">
-                        Our Cytech mechanic is currently evaluating parts and labour. An itemized invoice will appear here as soon as repairs are priced and completed.
+                        Our workshop mechanic is currently evaluating parts and labour. An itemized invoice will appear here as soon as repairs are priced and completed.
                       </p>
                     </div>
                   )}

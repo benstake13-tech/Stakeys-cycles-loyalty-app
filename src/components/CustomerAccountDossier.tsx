@@ -129,7 +129,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     const res = await redeemReward(
       currentCustomer.uid,
       staffId,
-      '£40 Full Workshop Service Voucher (Cytech Labour Credit)'
+      '£40 Full Workshop Service Voucher (Labour Credit)'
     );
     setFeedback({ success: res.success, message: res.message });
 

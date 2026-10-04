@@ -166,7 +166,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         <div className="absolute inset-0 z-0">
           <img
             src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
-            alt="Stakey's cycle and scooter workshop atelier"
+            alt="Stakey's cycle and scooter workshop"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover object-center opacity-30 filter saturate-75"
           />
@@ -182,9 +182,9 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                 Member ID {currentUser.membershipNumber}
               </span>
               <span aria-hidden="true" className="text-neutral-600">·</span>
-              <span>Workshop Atelier</span>
+              <span>Workshop</span>
               <span aria-hidden="true" className="text-neutral-600">·</span>
-              <span>Cytech Certified</span>
+              <span>Workshop Certified</span>
             </div>
 
             <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
@@ -486,7 +486,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               <Wrench className="w-8 h-8 text-neutral-500 mx-auto" />
               <div className="font-display text-base font-bold text-white">No active workshop bookings</div>
               <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-                Need a tune-up, puncture repair, or brake check? Book online with our Cytech mechanics.
+                Need a tune-up, puncture repair, or brake check? Book online with our workshop mechanics.
               </p>
               <button
                 type="button"

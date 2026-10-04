@@ -66,11 +66,10 @@ const EMPTY_LOGIN_FORM: StaffFormValues = {
 };
 
 const ROLES_LIST: StaffRole[] = [
-  'Barista',
   'Shift Supervisor',
   'Store Manager',
   'Admin',
-  'Cytech Mechanic',
+  'Mechanic',
 ];
 const STATUSES_LIST: StaffWorkStatus[] = ['Active', 'On Leave', 'Inactive'];
 
@@ -107,16 +106,16 @@ export const StaffManagementTab: React.FC = () => {
     role: StaffRole;
     status: StaffWorkStatus;
     joinedDate: string;
-    cytechLevel: string;
+    certificationLevel: string;
     notes: string;
   }>({
     name: '',
     email: '',
     phone: '+44 7700 900',
-    role: 'Cytech Mechanic',
+    role: 'Mechanic',
     status: 'Active',
     joinedDate: new Date().toISOString().split('T')[0],
-    cytechLevel: 'Cytech Level 2',
+    certificationLevel: 'Workshop Level 2',
     notes: '',
   });
 
@@ -194,10 +193,10 @@ export const StaffManagementTab: React.FC = () => {
       name: '',
       email: '',
       phone: '+44 7700 900',
-      role: 'Cytech Mechanic',
+      role: 'Mechanic',
       status: 'Active',
       joinedDate: new Date().toISOString().split('T')[0],
-      cytechLevel: 'Cytech Level 2',
+      certificationLevel: 'Workshop Level 2',
       notes: '',
     });
     setFormError(null);
@@ -213,7 +212,7 @@ export const StaffManagementTab: React.FC = () => {
       role: staff.role,
       status: staff.status,
       joinedDate: staff.joinedDate,
-      cytechLevel: staff.cytechLevel || '',
+      certificationLevel: staff.certificationLevel || '',
       notes: staff.notes || '',
     });
     setFormError(null);
@@ -708,10 +707,10 @@ export const StaffManagementTab: React.FC = () => {
                     </a>
                   </div>
 
-                  {staff.cytechLevel && (
+                  {staff.certificationLevel && (
                     <div className="flex items-center gap-2 text-neutral-300">
                       <Award className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span className="text-[11px] font-mono">{staff.cytechLevel}</span>
+                      <span className="text-[11px] font-mono">{staff.certificationLevel}</span>
                     </div>
                   )}
 
@@ -893,13 +892,13 @@ export const StaffManagementTab: React.FC = () => {
 
               <div>
                 <label className="block text-neutral-300 font-medium mb-1">
-                  Cytech Certification (Optional)
+                  Workshop Certification (Optional)
                 </label>
                 <input
                   type="text"
-                  value={formData.cytechLevel}
-                  onChange={(e) => setFormData({ ...formData, cytechLevel: e.target.value })}
-                  placeholder="e.g. Cytech Technical Two, Wheel Building Master"
+                  value={formData.certificationLevel}
+                  onChange={(e) => setFormData({ ...formData, certificationLevel: e.target.value })}
+                  placeholder="e.g. Wheel Building Master"
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>

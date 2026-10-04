@@ -29,7 +29,7 @@ export const REPAIR_STAGES: RepairStageMeta[] = [
     id: 'diagnosing',
     title: 'Diagnostics & Safety Check',
     short: 'Diagnostics',
-    description: 'Cytech mechanic inspecting the frame, drivetrain and brakes.',
+    description: 'workshop mechanic inspecting the frame, drivetrain and brakes.',
     estimate: '20–30 mins',
   },
   {

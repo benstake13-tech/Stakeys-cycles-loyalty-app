@@ -337,7 +337,7 @@ function AppContent() {
                 <ShieldCheck className="w-12 h-12 text-amber-400 mx-auto" />
                 <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Staff Terminal Locked</h3>
                 <p className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                  The Cytech Workshop Terminal requires an authorized staff sign-in.
+                  The Workshop Terminal requires an authorized staff sign-in.
                 </p>
                 <button
                   type="button"

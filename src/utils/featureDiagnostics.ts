@@ -1063,7 +1063,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
         name: 'Diagnostics Probe',
         email: 'diagnostics@example.com',
         phone: '07000000000',
-        role: 'Cytech Mechanic',
+        role: 'Mechanic',
         status: 'Active',
         joinedDate: new Date().toISOString().slice(0, 10),
       } as StaffMember;

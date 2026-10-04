@@ -73,7 +73,7 @@ export const BikesWeTrustSection: React.FC = () => {
           <strong className="block font-bold mb-0.5 text-amber-300 dark:text-amber-300 light:text-amber-950">
             Independent Mechanic Review Disclaimer:
           </strong>
-          Stakey's Cycles &amp; Scooter is an independent maintenance atelier. We <strong>do not sell these complete bikes</strong> or receive sales commissions from Halfords, Evans Cycles, or Leisure Lakes. These models are chosen solely because their bearings, derailleur hangers, bottom brackets, and brake calipers hold up exceptionally well on our repair benches.
+          Stakey's Cycles &amp; Scooter is an independent maintenance workshop. We <strong>do not sell these complete bikes</strong> or receive sales commissions from Halfords, Evans Cycles, or Leisure Lakes. These models are chosen solely because their bearings, derailleur hangers, bottom brackets, and brake calipers hold up exceptionally well on our repair benches.
         </div>
       </div>
 

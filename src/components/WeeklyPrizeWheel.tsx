@@ -120,7 +120,7 @@ export const WeeklyPrizeWheel: React.FC<WeeklyPrizeWheelProps> = ({
         probability: 0.05,
         prizeId: 'prize-coffee',
         rewardType: 'service',
-        rewardValue: 'Free Barista Coffee while bike is serviced',
+        rewardValue: 'Free Coffee while bike is serviced',
       },
     ];
   }, [activeWheel]);
@@ -384,7 +384,7 @@ export const WeeklyPrizeWheel: React.FC<WeeklyPrizeWheelProps> = ({
               </p>
               <div className="text-xs text-neutral-400 flex items-center gap-2 pt-1">
                 <Info className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Valid on any bicycle tune-up or electric scooter service at our workshop atelier.</span>
+                <span>Valid on any bicycle tune-up or electric scooter service at our workshop.</span>
               </div>
             </div>
 
@@ -798,7 +798,7 @@ export const WeeklyPrizeWheel: React.FC<WeeklyPrizeWheelProps> = ({
                       </span>
                     </div>
                     <p className="text-[11px] text-neutral-400">
-                      Returns every 7 days. Need an urgent service? Book online with our Cytech mechanics below.
+                      Returns every 7 days. Need an urgent service? Book online with our workshop mechanics below.
                     </p>
 
                     {/* Developer/Shop Demo Reset Button */}

@@ -7,11 +7,10 @@ export type ThemeMode = 'dark' | 'light';
 export type UserRole = 'customer' | 'staff' | 'admin';
 
 export type StaffRole =
-  | 'Barista'
   | 'Shift Supervisor'
   | 'Store Manager'
   | 'Admin'
-  | 'Cytech Mechanic';
+  | 'Mechanic';
 
 export type StaffWorkStatus = 'Active' | 'On Leave' | 'Inactive';
 
@@ -23,7 +22,7 @@ export interface StaffMember {
   role: StaffRole;
   status: StaffWorkStatus;
   joinedDate: string;
-  cytechLevel?: string;
+  certificationLevel?: string;
   avatarColor?: string;
   notes?: string;
 }
@@ -429,7 +428,7 @@ export interface RepairInvoice {
   issuedAt: any;
   completedAt: any;
   leadMechanic: string;
-  cytechCertification?: string;
+  mechanicCertification?: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;

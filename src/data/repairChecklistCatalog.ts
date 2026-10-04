@@ -3,7 +3,7 @@ import { RepairChecklistItem, InvoiceLineItem } from '../types/bikeShop';
 export const DEFAULT_REPAIR_CHECKLIST_ITEMS: Omit<RepairChecklistItem, 'completed'>[] = [
   {
     id: 'chk-m-check',
-    label: 'Comprehensive Cytech M-Check (Frame, Fork, Bearings, Fasteners)',
+    label: 'Comprehensive M-Check (Frame, Fork, Bearings, Fasteners)',
     category: 'Safety',
     notes: 'Structural frame and fork integrity verified',
   },

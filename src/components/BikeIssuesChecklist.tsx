@@ -136,7 +136,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
             </span>
           </legend>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Check every symptom or issue you’re experiencing. Our Cytech certified mechanics will inspect each one during workshop intake.
+            Check every symptom or issue you’re experiencing. Our workshop certified mechanics will inspect each one during workshop intake.
           </p>
         </div>
 

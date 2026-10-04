@@ -447,10 +447,10 @@ CREATE TABLE IF NOT EXISTS public.staff_members (
   name TEXT,
   email TEXT,
   phone TEXT,
-  role TEXT DEFAULT 'Cytech Mechanic',
+  role TEXT DEFAULT 'Mechanic',
   status TEXT DEFAULT 'Active',
   joined_date TEXT,
-  cytech_level TEXT,
+  certification_level TEXT,
   avatar_color TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -459,10 +459,20 @@ CREATE TABLE IF NOT EXISTS public.staff_members (
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS name TEXT;
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS phone TEXT;
-ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Cytech Mechanic';
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'Mechanic';
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Active';
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS joined_date TEXT;
-ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS cytech_level TEXT;
+-- Rename the legacy certification column, preserving any existing values.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='staff_members' AND column_name='cytech_level')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='staff_members' AND column_name='certification_level') THEN
+    ALTER TABLE public.staff_members RENAME COLUMN cytech_level TO certification_level;
+  END IF;
+END $$;
+ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS certification_level TEXT;
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS avatar_color TEXT;
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.staff_members ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
@@ -672,7 +682,7 @@ SELECT
     {"id":"seg-stamp-3","label":"+3 Stamps Jackpot!","color":"#d97706","probability":0.08,"prizeId":"prize-stamp-3","rewardType":"stamp","stampsAmount":3},
     {"id":"seg-tube","label":"Free Inner Tube","color":"#0891b2","probability":0.08,"prizeId":"prize-tube","rewardType":"merch","rewardValue":"Free Presta/Schrader Inner Tube at Till"},
     {"id":"seg-points-50","label":"+50 Store Points","color":"#db2777","probability":0.05,"prizeId":"prize-points-50","rewardType":"points","rewardValue":"50 Bonus Loyalty Points"},
-    {"id":"seg-espresso","label":"Free Workshop Coffee","color":"#ea580c","probability":0.05,"prizeId":"prize-coffee","rewardType":"service","rewardValue":"Free Barista Coffee while bike is serviced"}
+    {"id":"seg-espresso","label":"Free Workshop Coffee","color":"#ea580c","probability":0.05,"prizeId":"prize-coffee","rewardType":"service","rewardValue":"Free Coffee while bike is serviced"}
   ]'::jsonb,
   TRUE,
   0

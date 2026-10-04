@@ -559,7 +559,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           {/* What to do next */}
           <div className="py-5 text-xs text-neutral-400 space-y-2">
             <div className="text-neutral-200 font-medium mb-1">Drop-off instructions:</div>
-            <div>Bring your bike to Stakey's Cycles during your selected time window. Our Cytech mechanic will perform a safety check with you before beginning repairs.</div>
+            <div>Bring your bike to Stakey's Cycles during your selected time window. Our workshop mechanic will perform a safety check with you before beginning repairs.</div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -587,7 +587,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Atelier Hero Banner with High-Resolution Photography */}
+      {/* Workshop Hero Banner with High-Resolution Photography */}
       <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
         <div className="absolute inset-0 z-0">
           <img
@@ -602,10 +602,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         <div className="relative z-10 p-6 sm:p-8 md:p-10">
           <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
             <span className="text-emerald-400 font-semibold tracking-wider uppercase">
-              Workshop Atelier
+              Workshop
             </span>
             <span aria-hidden="true" className="text-neutral-600">·</span>
-            <span>Cytech Certified Mechanics</span>
+            <span>Workshop Mechanics</span>
             <span aria-hidden="true" className="text-neutral-600">·</span>
             <span>Genuine Parts Guarantee</span>
           </div>
@@ -1156,7 +1156,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             )}
           </button>
           <div className="text-center text-xs text-neutral-400 mt-2">
-            No upfront payment required. Our Cytech mechanic will evaluate your bike upon drop-off, complete repairs, and provide an itemized quote/invoice.
+            No upfront payment required. Our workshop mechanic will evaluate your bike upon drop-off, complete repairs, and provide an itemized quote/invoice.
           </div>
         </div>
       </form>

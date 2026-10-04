@@ -52,7 +52,7 @@ export function formatInvoiceEmailBody(invoice: RepairInvoice, ownerConfig?: Own
 Invoice Reference: ${invoice.invoiceNumber}
 Booking Reference: #${invoice.bookingId}
 Date Completed:    ${new Date(invoice.completedAt).toLocaleDateString('en-GB')}
-Lead Cytech Mech:  ${invoice.leadMechanic} (${invoice.cytechCertification || 'Cytech Certified'})
+Lead Workshop Mech:  ${invoice.leadMechanic} (${invoice.mechanicCertification || 'Workshop Certified'})
 -----------------------------------------------------
 BILLED TO:
 Customer:          ${invoice.customerName}
@@ -60,8 +60,8 @@ Phone:             ${invoice.customerPhone}
 Email:             ${invoice.customerEmail}
 Vehicle / Asset:   ${invoice.vehicleModel} (${invoice.vehicleCategory.toUpperCase()})
 -----------------------------------------------------
-CYTECH SAFETY SIGN-OFF & QUALITY AUDIT:
-${checklistText || '  ✓ Standard Cytech M-Check & Safety Inspection Passed'}
+SAFETY SIGN-OFF & QUALITY AUDIT:
+${checklistText || '  ✓ Standard M-Check & Safety Inspection Passed'}
 
 ITEMIZED REPAIR BILL OF MATERIALS & LABOUR:
 ${lineItemsText || '  1. Workshop Diagnostic & Safety Tune: £' + invoice.subtotal.toFixed(2)}
@@ -78,7 +78,7 @@ WARRANTY & ASSURANCE:
 ${invoice.warrantyPeriod} on all fitted genuine components and adjustments.
 
 COLLECTION INSTRUCTIONS:
-Your cycle is fully serviced, safety tested, and ready for pickup at Stakey's Cycles atelier bench (14 High Street).
+Your cycle is fully serviced, safety tested, and ready for pickup at Stakey's Cycles workshop bench (14 High Street).
 Please present your invoice number or membership card upon collection.
 =====================================================
 `;

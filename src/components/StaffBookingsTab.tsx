@@ -795,7 +795,7 @@ export const StaffBookingsTab: React.FC = () => {
                       <Wrench className="w-3.5 h-3.5 text-[#05C147]" />
                       Reported Bike Issues Checklist ({b.selectedIssues.length})
                     </span>
-                    <span className="text-[10px] text-neutral-400 font-normal normal-case">Cytech intake inspection</span>
+                    <span className="text-[10px] text-neutral-400 font-normal normal-case">workshop intake inspection</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {b.selectedIssues.map((id) => {
@@ -1335,7 +1335,7 @@ export const StaffBookingsTab: React.FC = () => {
             setViewingInvoice({ invoice, booking: completingBooking });
             setCompletingBooking(null);
           }}
-          currentStaffName={currentUser?.displayName || 'Ben Stake - Cytech Master'}
+          currentStaffName={currentUser?.displayName || 'Ben Stake - Lead Mechanic'}
         />
       )}
 

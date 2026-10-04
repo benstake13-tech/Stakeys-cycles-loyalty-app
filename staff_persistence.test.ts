@@ -87,17 +87,17 @@ describe('staff roster persistence', () => {
       name: 'Ben',
       email: 'ben@stakeys.co.uk',
       phone: '07700 900123',
-      role: 'Cytech Mechanic',
+      role: 'Mechanic',
       status: 'Active',
       joinedDate: '2024-01-01',
-      cytechLevel: 'Cytech Level 2',
+      certificationLevel: 'Workshop Level 2',
       notes: 'Lead mechanic',
     });
     expect(ok).toBe(true);
     expect(hoisted.upserts).toHaveLength(1);
     expect(hoisted.upserts[0].table).toBe('staff_members');
     expect(hoisted.upserts[0].payload.joined_date).toBe('2024-01-01');
-    expect(hoisted.upserts[0].payload.cytech_level).toBe('Cytech Level 2');
+    expect(hoisted.upserts[0].payload.certification_level).toBe('Workshop Level 2');
   });
 
   it('reads staff back out of the database', async () => {
@@ -122,7 +122,7 @@ describe('staff roster persistence', () => {
       name: 'Temp',
       email: 't@x.co',
       phone: '1',
-      role: 'Barista',
+      role: 'Mechanic',
       status: 'Active',
       joinedDate: '2024-01-01',
     });

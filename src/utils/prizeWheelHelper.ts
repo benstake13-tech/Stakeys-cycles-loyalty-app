@@ -82,7 +82,7 @@ export const DEFAULT_PRIZE_WHEEL: PrizeWheel = {
       probability: 0.05,
       prizeId: 'prize-coffee',
       rewardType: 'service',
-      rewardValue: 'Free Barista Coffee while bike is serviced',
+      rewardValue: 'Free Coffee while bike is serviced',
     },
   ],
 };

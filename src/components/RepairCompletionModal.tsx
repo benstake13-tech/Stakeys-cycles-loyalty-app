@@ -52,7 +52,7 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
   isOpen,
   onClose,
   onSaveInvoice,
-  currentStaffName = 'Ben Stake - Cytech Master',
+  currentStaffName = 'Ben Stake - Lead Mechanic',
 }) => {
   // Existing invoice or fresh state
   const existingInvoice = booking.invoice;
@@ -92,7 +92,7 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
   const [vatRate, setVatRate] = useState<number>(existingInvoice?.vatRate || 0);
   const voucherDiscount = booking.notes?.includes('£40 Service Voucher') || booking.serviceTitle.includes('£40 Voucher') ? 40 : 0;
   const [leadMechanic, setLeadMechanic] = useState(
-    existingInvoice?.leadMechanic || currentStaffName || 'Ben Stake - Cytech Master'
+    existingInvoice?.leadMechanic || currentStaffName || 'Ben Stake - Lead Mechanic'
   );
   const [mechanicNotes, setMechanicNotes] = useState(
     existingInvoice?.mechanicNotes ||
@@ -244,8 +244,8 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
         bookingId: booking.id,
         issuedAt: existingInvoice?.issuedAt || new Date().toISOString(),
         completedAt: new Date().toISOString(),
-        leadMechanic: leadMechanic.trim() || 'Ben Stake - Cytech Master',
-        cytechCertification: 'Cytech Certified Master Bench',
+        leadMechanic: leadMechanic.trim() || 'Ben Stake - Lead Mechanic',
+        mechanicCertification: 'Master Bench',
         customerName: booking.customerName,
         customerEmail: booking.customerEmail,
         customerPhone: booking.customerPhone,
@@ -379,7 +379,7 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 <h3 className="font-display text-sm font-bold text-white">
-                  1. Workshop Repair Completion &amp; Cytech Sign-Off Checklist
+                  1. Workshop Repair Completion &amp; Workshop Sign-Off Checklist
                 </h3>
               </div>
 
@@ -612,7 +612,7 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
                   type="text"
                   value={leadMechanic}
                   onChange={(e) => setLeadMechanic(e.target.value)}
-                  placeholder="e.g. Ben Stake - Cytech Master"
+                  placeholder="e.g. Ben Stake - Lead Mechanic"
                   className="w-full bg-[#090b0e] border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
 

@@ -213,7 +213,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
 
   return (
     <div className="min-h-screen bg-[#0c1017] text-neutral-100 flex flex-col justify-center items-center px-4 py-8 sm:py-12 relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Background Atelier Photography with Warm Workshop Lighting */}
+      {/* Background Workshop Photography with Warm Workshop Lighting */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <img
           src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
@@ -249,9 +249,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
 
             {/* Unboxed Metadata Header */}
             <div className="text-xs text-neutral-300 mt-1.5 flex items-center justify-center gap-2 font-mono">
-              <span className="text-emerald-400 font-semibold">Workshop Atelier</span>
+              <span className="text-emerald-400 font-semibold">Workshop</span>
               <span aria-hidden="true" className="text-neutral-500">·</span>
-              <span>Cytech Certified</span>
+              <span>Workshop Certified</span>
               <span aria-hidden="true" className="text-neutral-500">·</span>
               <span>Digital Loyalty Pass</span>
             </div>

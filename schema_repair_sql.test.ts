@@ -33,6 +33,27 @@ describe('generateRepairSqlForTables', () => {
     const sql = generateRepairSqlForTables(['not_a_real_table']);
     expect(sql).toMatch(/nothing to repair/i);
   });
+
+  it('repairs the counter_sales quote/approval lifecycle columns', () => {
+    const sql = generateRepairSqlForTables(['counter_sales']);
+    for (const col of [
+      'status',
+      'quoted_amount',
+      'quote_note',
+      'quote_sent_at',
+      'quote_sent_by',
+      'approved_at',
+      'approved_by',
+      'declined_at',
+      'decline_reason',
+      'discount_source',
+    ]) {
+      expect(sql).toContain(`ADD COLUMN IF NOT EXISTS ${col} `);
+    }
+    // Legacy CHECKs would reject 'unpaid' / 'quote' / 'approved'.
+    expect(sql).toContain('counter_sales_status_check');
+    expect(sql).toContain('counter_sales_payment_method_check');
+  });
 });
 
 describe('generateProfileBalanceProbeSql', () => {

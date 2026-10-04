@@ -174,7 +174,7 @@ export function generateCustomerBookingEmailHtml(booking: ServiceBooking, config
       <td style="padding: 28px 24px;">
         <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 8px 0;">Hello ${booking.customerName},</h2>
         <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
-          Thank you for choosing Stakey's Cycles &amp; Scooter. We have received your service booking request. Our Cytech-certified mechanics are currently reviewing workbench capacity for your requested slot.
+          Thank you for choosing Stakey's Cycles &amp; Scooter. We have received your service booking request. Our workshop-certified mechanics are currently reviewing workbench capacity for your requested slot.
         </p>
 
         <!-- Booking Summary Card -->
@@ -230,7 +230,7 @@ export function generateCustomerBookingEmailHtml(booking: ServiceBooking, config
     <!-- Footer -->
     <tr>
       <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
-        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Atelier
+        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Workshop
       </td>
     </tr>
   </table>
@@ -303,7 +303,7 @@ export function generateCustomer24hReminderEmailHtml(booking: ServiceBooking, co
         <!-- Drop-off advice -->
         <h3 style="color: #d4d4d8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">Drop-Off Information</h3>
         <ul style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 24px 0; padding-left: 20px;">
-          <li>Location: <strong>Unit 4, Workshop Lane, Stakey's Atelier</strong>.</li>
+          <li>Location: <strong>Unit 4, Workshop Lane, Stakey's Workshop</strong>.</li>
           <li>For E-Bikes and E-Scooters, please bring your battery key and charger.</li>
           <li>Need to reschedule? Reply directly to this email or call <strong style="color: #ffffff;">${shopPhone}</strong>.</li>
         </ul>
@@ -733,7 +733,7 @@ export function generateBookingApprovalEmailHtml(
         <!-- Drop-off instructions -->
         <h3 style="color: #d4d4d8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">Drop-Off Instructions</h3>
         <ul style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 24px 0; padding-left: 20px;">
-          <li>Please bring your vehicle to <strong>Stakey's Workshop Atelier (Unit 4, Workshop Lane)</strong> during your booked window.</li>
+          <li>Please bring your vehicle to <strong>Stakey's Workshop (Unit 4, Workshop Lane)</strong> during your booked window.</li>
           <li>For E-Bikes and E-Scooters, remember to bring the battery key and charging cable.</li>
           <li>All notifications and status updates are communicated exclusively via email to <strong style="color: #ffffff;">${booking.customerEmail}</strong>.</li>
         </ul>
@@ -757,7 +757,7 @@ export function generateBookingApprovalEmailHtml(
     <!-- Footer -->
     <tr>
       <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
-        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Atelier
+        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Workshop
       </td>
     </tr>
   </table>
