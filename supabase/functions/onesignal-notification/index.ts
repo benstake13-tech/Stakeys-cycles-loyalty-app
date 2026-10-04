@@ -102,7 +102,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const result = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!response.ok || (Array.isArray(result?.errors) && result.errors.length > 0)) {
+  // OneSignal's v2 API returns HTTP 200 with a populated `errors` field on
+  // failure (e.g. `["All included players are not subscribed"]`) and an empty
+  // `id`. A real success always carries a notification id, so require both.
+  if (!response.ok || !result?.id) {
     console.error('OneSignal rejected the request', { status: response.status, result });
     return json({ error: 'Push delivery failed', detail: result }, 502);
   }

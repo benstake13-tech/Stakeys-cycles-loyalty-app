@@ -161,7 +161,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const data = (await upstream.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!upstream.ok || (Array.isArray(data?.errors) && data.errors.length > 0)) {
+  // OneSignal's v2 API returns HTTP 200 with a populated `errors` field on
+  // failure (e.g. `["All included players are not subscribed"]`) and an empty
+  // `id`. A real success always carries a notification id, so require both.
+  if (!upstream.ok || !data?.id) {
     console.error('OneSignal rejected the request', upstream.status, data);
     return json({ error: 'Push provider rejected the request', detail: data }, 502);
   }
