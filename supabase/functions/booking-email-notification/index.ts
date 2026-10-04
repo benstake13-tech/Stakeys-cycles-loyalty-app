@@ -76,15 +76,43 @@ Deno.serve(async (req: Request) => {
   const name = clean(booking.customer_name);
   const date = clean(booking.preferred_date);
   const time = clean(booking.preferred_time_slot);
+  const status = clean(booking.status);
+  const phone = clean(booking.customer_phone);
+  const vehicleModel = clean(booking.vehicle_model);
+  const notes = clean(booking.notes);
+
+  // Bike identity (jsonb) -> human-readable summary.
+  const bike = (booking.bike_details ?? {}) as Record<string, unknown>;
+  const bikeBits = [
+    bike.ebikeStatus === "factory"
+      ? "Factory e-bike"
+      : bike.ebikeStatus === "converted"
+      ? "Converted e-bike"
+      : bike.ebikeStatus === "not_ebike"
+      ? "Not an e-bike"
+      : "",
+    bike.colour ? `colour ${clean(bike.colour)}` : "",
+    bike.year ? `year ${clean(bike.year)}` : "",
+    bike.frameSize ? `frame ${clean(bike.frameSize)}` : "",
+    bike.conversionSystem ? clean(bike.conversionSystem) : "",
+  ].filter(Boolean).join(", ");
+
+  const details = [
+    `Reference:  #${bookingId}`,
+    `Service:    ${service}`,
+    `Bike:       ${vehicleModel}${bikeBits ? ` (${bikeBits})` : ""}`,
+    `Drop-off:   ${date} at ${time}`,
+    notes && notes !== "(not provided)" ? `Notes:      ${notes}` : "",
+  ].filter(Boolean).join("\n");
 
   for (const recipient of recipients) {
     const isCustomer = customerEmail && recipient.toLowerCase() === customerEmail.toLowerCase();
     const subject = isCustomer
-      ? `Booking request received: ${service}`
-      : `New service booking: ${service}`;
+      ? `Booking received: ${service} (#${bookingId})`
+      : `New service booking: ${service} (#${bookingId})`;
     const text = isCustomer
-      ? `Hello ${name},\n\nWe received your booking request.\n\nService: ${service}\nPreferred date: ${date}\nPreferred time: ${time}\nReference: ${bookingId}\n\nThe booking is not confirmed until your business confirms it.`
-      : `A new service booking was made.\n\nCustomer: ${name}\nCustomer email: ${customerEmail || "(not provided)"}\nCustomer phone: ${clean(booking.customer_phone)}\nService: ${service}\nPreferred date: ${date}\nPreferred time: ${time}\nStatus: ${clean(booking.status)}\nReference: ${bookingId}`;
+      ? `Hello ${name},\n\nThanks — we've received your workshop booking request.\n\n${details}\n\nThe booking is not confirmed until the workshop approves it; we'll email you the moment it is.\n\n— Stakey's Cycles Workshop`
+      : `A new service booking was made.\n\n${details}\n\nCustomer: ${name}\nPhone:    ${phone}\nEmail:    ${customerEmail || "(not provided)"}\nStatus:   ${status}`;
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",

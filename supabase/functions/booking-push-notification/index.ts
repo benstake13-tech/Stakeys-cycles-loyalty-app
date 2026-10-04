@@ -119,7 +119,22 @@ Deno.serve(async (req: Request) => {
   if (!bookingId) return json({ error: 'Booking ID is missing' }, 400);
 
   const service = text(booking.service_type) || text(booking.service_title) || 'Repair';
-  const content = `New booking: ${service} (Job #${bookingId})`;
+  const customer = text(booking.customer_name) || 'Guest';
+  const bike = text(booking.vehicle_model);
+  const date = text(booking.preferred_date);
+  const time = text(booking.preferred_time_slot);
+  const phone = text(booking.customer_phone);
+  const when = date ? `${date}${time ? ` ${time}` : ''}` : '';
+
+  // Push text carries the booking details so the admin can triage at a glance.
+  const title = `🚴 New Booking — ${customer}`;
+  const content = [
+    service,
+    bike,
+    when,
+    phone,
+    `#${bookingId}`,
+  ].filter(Boolean).join(' · ');
 
   // Alert the admin device only. Booking alerts must reach the shop's admin
   // regardless of who booked (admin, staff, customer or guest), so we do not
@@ -135,7 +150,7 @@ Deno.serve(async (req: Request) => {
 
   let response: Response;
   try {
-    response = await sendPush(apiKey, '🚴 New Customer Booking!', content, recipients);
+    response = await sendPush(apiKey, title, content, recipients);
   } catch (error) {
     console.error('PushEngage request failed', error);
     return json({ error: 'Could not reach push notification provider' }, 502);

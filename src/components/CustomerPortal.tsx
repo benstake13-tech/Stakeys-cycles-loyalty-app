@@ -457,6 +457,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         <BookingPortal
           initialBikeId={selectedBikeForBooking}
           onGoToMyBikes={() => setActiveTab('garage')}
+          onGoToBookings={() => setActiveTab('bookings')}
         />
       )}
 

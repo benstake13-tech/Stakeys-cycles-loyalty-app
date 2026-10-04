@@ -38,9 +38,10 @@ import confetti from 'canvas-confetti';
 interface BookingPortalProps {
   initialBikeId?: string;
   onGoToMyBikes?: () => void;
+  onGoToBookings?: () => void;
 }
 
-export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes }) => {
+export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes, onGoToBookings }) => {
   const { currentUser, createBooking, redeemServiceVoucher, ownerConfig } = useShop();
 
   // If user has saved bikes in profile, check if initialBikeId is set
@@ -562,7 +563,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             <div>Bring your bike to Stakey's Cycles during your selected time window. Our workshop mechanic will perform a safety check with you before beginning repairs.</div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 flex-wrap">
             {onGoToMyBikes && (
               <button
                 type="button"
@@ -572,6 +573,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 View in My Garage
               </button>
             )}
+            {onGoToBookings && (
+              <button
+                type="button"
+                onClick={onGoToBookings}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/40 text-emerald-300 font-medium text-xs cursor-pointer transition-colors"
+              >
+                Track This Booking
+              </button>
+            )}
             <button
               type="button"
               onClick={handleBookAnother}
@@ -579,6 +589,16 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             >
               Book Another Service
             </button>
+            <a
+              href="#customer"
+              onClick={(e) => {
+                e.preventDefault();
+                (onGoToMyBikes ?? onGoToBookings)?.();
+              }}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg text-neutral-400 hover:text-white font-medium text-xs cursor-pointer transition-colors text-center"
+            >
+              Back to Stakey&rsquo;s App
+            </a>
           </div>
         </div>
       </div>
