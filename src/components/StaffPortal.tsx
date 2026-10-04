@@ -546,7 +546,7 @@ export const StaffPortal: React.FC = () => {
                     <span className={`w-2 h-2 rounded-full ${isStaffBookingSoundEnabled ? 'bg-emerald-400 animate-pulse' : 'bg-neutral-600'}`} />
                     <span className="text-neutral-400 text-[11px] font-medium">Audio Alert:</span>
                     <span className={`font-mono text-[11px] font-bold ${isStaffBookingSoundEnabled ? 'text-emerald-400' : 'text-neutral-500'}`}>
-                      {isStaffBookingSoundEnabled ? 'LOUD PING ACTIVE' : 'MUTED'}
+                      {isStaffBookingSoundEnabled ? 'CHIME ACTIVE' : 'MUTED'}
                     </span>
 
                     {isStaffBookingSoundEnabled && (
@@ -564,10 +564,10 @@ export const StaffPortal: React.FC = () => {
                       type="button"
                       onClick={playStaffBookingAlertPing}
                       className="ml-1 px-2.5 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 font-bold text-[10px] tracking-wide uppercase transition-colors cursor-pointer border border-emerald-500/30 flex items-center gap-1"
-                      title="Test loud workshop bell ping sound"
+                      title="Test the workshop booking chime"
                     >
                       <Bell className="w-3 h-3 text-emerald-400" />
-                      <span>Test Loud Ping</span>
+                      <span>Test Chime</span>
                     </button>
                     <button
                       type="button"

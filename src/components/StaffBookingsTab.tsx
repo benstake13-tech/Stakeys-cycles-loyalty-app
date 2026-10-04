@@ -405,18 +405,18 @@ export const StaffBookingsTab: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  Workshop Loud Booking Ping
+                  Workshop Booking Chime
                 </span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                   isStaffBookingSoundEnabled
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 }`}>
-                  {isStaffBookingSoundEnabled ? '🔔 LOUD PING ARMED' : '🔕 MUTED'}
+                  {isStaffBookingSoundEnabled ? '🔔 CHIME ARMED' : '🔕 MUTED'}
                 </span>
               </div>
               <p className="text-[11px] text-neutral-400 mt-0.5">
-                Staff terminals ping loudly as soon as a customer submits a repair booking. Customers never hear it.
+                Staff terminals play a cheerful booking chime as soon as a customer submits a repair booking. Customers never hear it.
               </p>
             </div>
           </div>
@@ -437,10 +437,10 @@ export const StaffBookingsTab: React.FC = () => {
               type="button"
               onClick={playStaffBookingAlertPing}
               className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-500/40 shadow-sm"
-              title="Test the loud workshop alert ping sound"
+              title="Test the workshop booking chime"
             >
               <Bell className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Test Loud Ping</span>
+              <span>Test Chime</span>
             </button>
 
             <button

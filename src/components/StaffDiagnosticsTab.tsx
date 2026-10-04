@@ -426,11 +426,11 @@ export const StaffDiagnosticsTab: React.FC = () => {
           />
           <TestButton
             icon={<Volume2 className="w-4 h-4" />}
-            title="Test Loud Ping"
+            title="Test Chime"
             subtitle={isStaffBookingSoundEnabled ? 'booking alert sound armed' : 'sound is muted'}
             onClick={() => {
               playStaffBookingAlertPing();
-              flash({ kind: 'ok', text: 'Played the workshop booking ping.' });
+              flash({ kind: 'ok', text: 'Played the workshop booking chime.' });
             }}
           />
           <TestButton

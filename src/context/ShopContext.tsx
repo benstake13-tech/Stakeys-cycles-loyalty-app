@@ -992,7 +992,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsStaffBookingSoundEnabled(newState);
     if (newState) {
       staffBookingAudio.playLoudBookingPing();
-      toast.success('🔊 Workshop booking audio alert activated (Loud Ping)', { icon: '🔔' });
+      toast.success('🔊 Workshop booking chime activated', { icon: '🔔' });
     } else {
       toast('🔇 Workshop booking audio alert muted', { icon: '🔕' });
     }
@@ -1016,8 +1016,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const playStaffBookingAlertPing = () => {
     staffBookingAudio.playLoudBookingPing();
     staffBookingAudio.dispatchPushNotification(
-      '🔔 Workshop Audio Alert Test',
-      "Loud alert ping sounded! Workshop terminals are armed for real-time booking alerts."
+      '🔔 Workshop Booking Chime Test',
+      'Booking chime sounded! Workshop terminals are armed for real-time booking alerts.'
     );
   };
 
@@ -2517,7 +2517,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Remote Database Mutation: INSERT directly into service_bookings table
     insertServiceBookingToDb(completedBooking).catch((e) => console.warn('[DB SYNC] Error inserting booking in DB:', e));
 
-    // Audio Alert & Push. The loud ping only plays on staff devices; the server
+    // Audio Alert & Push. The booking chime only plays on staff devices; the server
     // push is sent by whoever creates the booking so staff phones are reached
     // even when the terminal isn't open.
     const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';

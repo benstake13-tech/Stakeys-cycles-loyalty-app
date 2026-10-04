@@ -1,9 +1,10 @@
 /**
  * Stakey's Cycles Staff Booking Audio Alert Synthesizer
- * High-decibel, high-clarity Web Audio API alert ping for workshop terminals.
+ * A warm, recognisable Web Audio "booking chime" for workshop terminals.
  * Fires exclusively for staff sessions when a customer submits a repair booking.
  * 
- * Engineered for maximum acoustic penetration and high RMS loudness in busy workshops.
+ * Built for clarity and loudness in busy workshops, but voiced as a pleasant
+ * ascending bell arpeggio rather than a piercing beep.
  */
 
 export type WorkshopAudioVolume = 'normal' | 'loud' | 'max_workshop';
@@ -146,7 +147,9 @@ class StaffBookingAlertAudio {
       masterGain.connect(compressor);
       compressor.connect(this.ctx.destination);
 
-      // Helper function to synthesize rich, multi-layered chime strikes
+      // Warm bell voice: a fundamental plus soft octave/12th partials, shaped
+      // with a gentle attack and a long exponential tail so it reads as a
+      // pleasant chime rather than a piercing beep.
       const triggerChimeStrike = (
         baseFreq: number,
         startDelay: number,
@@ -156,68 +159,51 @@ class StaffBookingAlertAudio {
         if (!this.ctx) return;
         const strikeTime = now + startDelay;
 
-        // Layer A: Pure fundamental bell sine
-        const oscA = this.ctx.createOscillator();
-        oscA.type = 'sine';
-        oscA.frequency.setValueAtTime(baseFreq, strikeTime);
+        const partials: Array<{ ratio: number; level: number }> = [
+          { ratio: 1.0, level: 0.9 },
+          { ratio: 2.01, level: 0.32 },
+          { ratio: 3.02, level: 0.12 },
+          { ratio: 0.5, level: 0.28 }, // soft body an octave below
+        ];
 
-        // Layer B: Bright metallic overtone (harmonic sparkle)
-        const oscB = this.ctx.createOscillator();
-        oscB.type = 'triangle';
-        oscB.frequency.setValueAtTime(baseFreq * 2.02, strikeTime);
+        // A gentle lowpass keeps the chime warm instead of shrill.
+        const tone = this.ctx.createBiquadFilter();
+        tone.type = 'lowpass';
+        tone.frequency.setValueAtTime(5200, strikeTime);
+        tone.Q.setValueAtTime(0.7, strikeTime);
 
-        // Layer C: High-frequency resonant bell ring
-        const oscC = this.ctx.createOscillator();
-        oscC.type = 'sine';
-        oscC.frequency.setValueAtTime(baseFreq * 3.01, strikeTime);
+        const voiceGain = this.ctx.createGain();
+        voiceGain.gain.setValueAtTime(0.0001, strikeTime);
+        voiceGain.gain.linearRampToValueAtTime(strikePower, strikeTime + 0.012);
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, strikeTime + duration);
 
-        // Layer D: Acoustic transient bite (filtered triangle wave for sharp click attack)
-        const oscD = this.ctx.createOscillator();
-        oscD.type = 'triangle';
-        oscD.frequency.setValueAtTime(baseFreq * 0.5, strikeTime);
+        for (const partial of partials) {
+          const osc = this.ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(baseFreq * partial.ratio, strikeTime);
 
-        // Bandpass filter for bright, piercing workshop frequency response (1.2kHz - 3.5kHz range)
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'bandpass';
-        filter.frequency.setValueAtTime(Math.min(4200, baseFreq * 1.8), strikeTime);
-        filter.Q.setValueAtTime(3.0, strikeTime);
+          const partialGain = this.ctx.createGain();
+          partialGain.gain.setValueAtTime(partial.level, strikeTime);
+          // Higher partials fade faster, like a real struck bell.
+          partialGain.gain.exponentialRampToValueAtTime(0.0001, strikeTime + duration * 0.7);
 
-        // Envelope shaper: Instant sharp attack, punchy decay
-        const gainNode = this.ctx.createGain();
-        gainNode.gain.setValueAtTime(0.0001, strikeTime);
-        gainNode.gain.linearRampToValueAtTime(strikePower * 0.95, strikeTime + 0.003);
-        gainNode.gain.exponentialRampToValueAtTime(0.0001, strikeTime + duration);
+          osc.connect(partialGain);
+          partialGain.connect(tone);
+          osc.start(strikeTime);
+          osc.stop(strikeTime + duration + 0.08);
+        }
 
-        oscA.connect(gainNode);
-        oscB.connect(filter);
-        oscC.connect(filter);
-        oscD.connect(gainNode);
-
-        filter.connect(gainNode);
-        gainNode.connect(masterGain);
-
-        oscA.start(strikeTime);
-        oscB.start(strikeTime);
-        oscC.start(strikeTime);
-        oscD.start(strikeTime);
-
-        const stopTime = strikeTime + duration + 0.06;
-        oscA.stop(stopTime);
-        oscB.stop(stopTime);
-        oscC.stop(stopTime);
-        oscD.stop(stopTime);
+        tone.connect(voiceGain);
+        voiceGain.connect(masterGain);
       };
 
-      // Signature 4-Stage High-Decibel Workshop Alert Pattern:
-      // Rapid ascending sequence with maximum human ear sensitivity (~1kHz to 2.4kHz)
-      // Strike 1: 1046.5 Hz (High C6)
-      triggerChimeStrike(1046.5, 0.00, 0.35, 1.0);
-      // Strike 2: 1318.5 Hz (Bright E6)
-      triggerChimeStrike(1318.5, 0.14, 0.40, 1.1);
-      // Strike 3: 1568.0 Hz (Piercing G6 - Climax chime)
-      triggerChimeStrike(1568.0, 0.28, 0.55, 1.25);
-      // Strike 4: 2093.0 Hz (High C7 - Lingering bell resonance)
-      triggerChimeStrike(2093.0, 0.38, 0.85, 1.3);
+      // Signature booking motif: a cheerful ascending A-major arpeggio that ends
+      // on a bright, lingering sparkle — recognisable as "new booking" while
+      // still cutting through workshop noise.
+      triggerChimeStrike(880.0, 0.0, 0.55, 1.0); // A5
+      triggerChimeStrike(1108.73, 0.15, 0.55, 1.0); // C#6
+      triggerChimeStrike(1318.51, 0.3, 0.7, 1.1); // E6
+      triggerChimeStrike(1760.0, 0.45, 1.1, 1.15); // A6 (sparkle tail)
 
     } catch (err) {
       console.warn('[STAFF ALERT] Web Audio synthesizer error:', err);
