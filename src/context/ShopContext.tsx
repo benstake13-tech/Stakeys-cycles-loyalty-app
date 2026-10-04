@@ -89,6 +89,11 @@ import {
   fetchStaffMembersFromDb,
   upsertStaffMemberToDb,
   deleteStaffMemberFromDb,
+  fetchStaffAccountsFromDb,
+  createStaffAccountViaRpc,
+  setStaffRoleViaRpc,
+  StaffAccount,
+  StaffAccountRole,
   fetchPromotionsFromDb,
   upsertPromotionToDb,
   deletePromotionFromDb,
@@ -138,6 +143,19 @@ interface ShopContextType {
   resendConfirmationEmail: (email: string) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
   logoutUser: () => void;
+  // Staff login accounts (admin-only; backed by SECURITY DEFINER RPCs)
+  staffAccounts: StaffAccount[];
+  refreshStaffAccounts: () => Promise<void>;
+  createStaffAccount: (
+    email: string,
+    password: string,
+    displayName: string,
+    role: StaffAccountRole
+  ) => Promise<{ success: boolean; message?: string }>;
+  updateStaffAccountRole: (
+    userId: string,
+    role: 'customer' | StaffAccountRole
+  ) => Promise<{ success: boolean; message?: string }>;
   // Bike actions
   addCustomerBike: (bike: Omit<CustomerBike, 'id' | 'addedAt'>) => Promise<CustomerBike>;
   addCustomerBikeForUser: (
@@ -1624,6 +1642,56 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logoutUser = () => {
     setCurrentUser(null);
   };
+
+  /* ------------------------------------------------------------------ *
+   * Staff login accounts. Creation/role changes go through admin-gated
+   * SECURITY DEFINER RPCs; if the migration has not been applied yet the
+   * calls fail cleanly so the UI can prompt the admin to run the SQL.
+   * ------------------------------------------------------------------ */
+  const [staffAccounts, setStaffAccounts] = useState<StaffAccount[]>([]);
+
+  const refreshStaffAccounts = async () => {
+    const accounts = await fetchStaffAccountsFromDb();
+    setStaffAccounts(accounts);
+  };
+
+  const createStaffAccount = async (
+    email: string,
+    password: string,
+    displayName: string,
+    role: StaffAccountRole
+  ) => {
+    const res = await createStaffAccountViaRpc(email, password, displayName, role);
+    if (res.success) {
+      await refreshStaffAccounts();
+      toast.success(`Staff login created for ${email.trim().toLowerCase()}.`);
+    }
+    return { success: res.success, message: res.message };
+  };
+
+  const updateStaffAccountRole = async (
+    userId: string,
+    role: 'customer' | StaffAccountRole
+  ) => {
+    const res = await setStaffRoleViaRpc(userId, role);
+    if (res.success) {
+      // Keep the in-memory profile in sync when the admin edits their own row.
+      setUsers((prev) => prev.map((u) => (u.uid === userId ? { ...u, role } : u)));
+      await refreshStaffAccounts();
+      toast.success(role === 'customer' ? 'Staff access revoked.' : `Role updated to ${role}.`);
+    }
+    return res;
+  };
+
+  // Load staff logins for admins only. The RPC itself is admin-gated, so this
+  // is just to avoid a pointless request for everyone else.
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      fetchStaffAccountsFromDb().then(setStaffAccounts).catch(() => {});
+    } else {
+      setStaffAccounts([]);
+    }
+  }, [currentUser?.uid, currentUser?.role]);
 
   // Add Stamp logic enforcing rate limit and 10-stamp card completion
   const addStamp = async (customerId: string, staffId: string, bypassLimit = false) => {
@@ -3209,6 +3277,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resendConfirmationEmail,
         resetPassword,
         logoutUser,
+        staffAccounts,
+        refreshStaffAccounts,
+        createStaffAccount,
+        updateStaffAccountRole,
         addCustomerBike,
         addCustomerBikeForUser,
         removeCustomerBike,

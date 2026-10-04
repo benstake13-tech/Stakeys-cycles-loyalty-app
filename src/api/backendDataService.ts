@@ -970,6 +970,88 @@ export async function deleteStaffMemberFromDb(id: string): Promise<boolean> {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ * 8b. STAFF LOGINS (auth accounts with a staff/admin profile role)
+ *
+ * These go through SECURITY DEFINER RPCs defined in
+ * supabase/migrations/20261004_staff_accounts.sql. An anon-key client cannot
+ * mint a staff login, so the browser never touches auth.admin or the role
+ * column directly.
+ * ------------------------------------------------------------------ */
+
+export type StaffAccountRole = 'staff' | 'admin';
+
+export interface StaffAccount {
+  id: string;
+  email: string;
+  displayName: string;
+  role: StaffAccountRole;
+  createdAt: string;
+}
+
+export async function fetchStaffAccountsFromDb(): Promise<StaffAccount[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase.rpc('list_staff_accounts');
+    if (error) {
+      console.error('[SUPABASE NET ERROR] list_staff_accounts failed:', error.message);
+      return [];
+    }
+    return ((data || []) as any[]).map((row) => ({
+      id: row.id,
+      email: row.email || '',
+      displayName: row.display_name || '',
+      role: row.role === 'admin' ? 'admin' : 'staff',
+      createdAt: row.created_at || '',
+    }));
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchStaffAccountsFromDb:', err);
+    return [];
+  }
+}
+
+export async function createStaffAccountViaRpc(
+  email: string,
+  password: string,
+  displayName: string,
+  role: StaffAccountRole
+): Promise<{ success: boolean; message?: string; id?: string }> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase.rpc('create_staff_account', {
+      p_email: email.trim().toLowerCase(),
+      p_password: password,
+      p_display_name: displayName?.trim() || null,
+      p_role: role,
+    });
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true, id: data as string };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Could not create the staff account.' };
+  }
+}
+
+export async function setStaffRoleViaRpc(
+  userId: string,
+  role: 'customer' | StaffAccountRole
+): Promise<{ success: boolean; message?: string }> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.rpc('set_staff_role', {
+      p_user_id: userId,
+      p_role: role,
+    });
+    if (error) {
+      return { success: false, message: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Could not update the role.' };
+  }
+}
+
 function normalizeStringArray(value: unknown): string[] {
   if (Array.isArray(value)) return value.filter((v) => typeof v === 'string');
   if (typeof value === 'string') {
