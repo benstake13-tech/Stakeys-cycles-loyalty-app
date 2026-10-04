@@ -717,7 +717,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
         return {
           status: 'fail',
           detail: `quote=${quoted}; approve=${approved}; ${check.detail}`,
-          hint: 'counter_sales is missing quote/approval lifecycle columns on the live DB.',
+          hint: 'The sale row could not be updated. counter_sales.items is NOT NULL, so the lifecycle change must PATCH the existing row (updateCounterSaleInDb) — a partial upsert is rejected with 23502 before conflict resolution.',
         };
       } catch (e) {
         const message = err(e);

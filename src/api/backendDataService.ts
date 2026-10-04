@@ -1648,6 +1648,35 @@ function saleLifecycleColumns(sale: SaleTransaction) {
   };
 }
 
+const iso = (value: unknown) =>
+  value ? new Date(value as string | number | Date).toISOString() : null;
+
+/**
+ * Builds a lifecycle PATCH for an existing sale. Only the fields actually being
+ * changed are emitted, so approving a quote keeps the quote that was sent (a
+ * blind `saleLifecycleColumns(updates)` would null it out because the caller
+ * does not repeat the quote on approval).
+ */
+function saleLifecyclePatch(
+  existing: SaleTransaction,
+  updates: Partial<SaleTransaction>
+): Record<string, any> {
+  const merged: SaleTransaction = { ...existing, ...updates };
+  const patch: Record<string, any> = {};
+  if (updates.status !== undefined) patch.status = merged.status || 'completed';
+  if (updates.quote !== undefined) {
+    patch.quoted_amount = merged.quote?.amount ?? null;
+    patch.quote_note = merged.quote?.note ?? null;
+    patch.quote_sent_at = iso(merged.quote?.sentAt);
+    patch.quote_sent_by = merged.quote?.sentBy ?? null;
+  }
+  if (updates.approvedAt !== undefined) patch.approved_at = iso(merged.approvedAt);
+  if (updates.approvedBy !== undefined) patch.approved_by = merged.approvedBy ?? null;
+  if (updates.declinedAt !== undefined) patch.declined_at = iso(merged.declinedAt);
+  if (updates.declineReason !== undefined) patch.decline_reason = merged.declineReason ?? null;
+  return patch;
+}
+
 export async function insertCounterSaleToDb(sale: SaleTransaction): Promise<boolean> {
   const supabase = getSupabaseClient();
   try {
@@ -1691,18 +1720,36 @@ export async function updateCounterSaleInDb(
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
   try {
-    const payload: Record<string, any> = { id: saleId };
-    if (updates.status !== undefined || updates.quote !== undefined ||
-        updates.approvedAt !== undefined || updates.declinedAt !== undefined) {
-      Object.assign(payload, saleLifecycleColumns(updates as SaleTransaction));
+    // Read the current row so a lifecycle change (e.g. approve) does not wipe the
+    // quote that was already sent, and so we only PATCH fields that changed.
+    const { data: row, error: readError } = await supabase
+      .from('counter_sales')
+      .select('*')
+      .eq('id', saleId)
+      .maybeSingle();
+    if (readError) {
+      console.error('[SUPABASE NET ERROR] SELECT counter_sales (update) failed:', readError.message);
+      return false;
     }
+    if (!row) {
+      console.error(`[SUPABASE NET ERROR] counter_sales row ${saleId} not found; cannot update.`);
+      return false;
+    }
+
+    const existing = mapSaleRow(row);
+    const payload: Record<string, any> = saleLifecyclePatch(existing, updates);
     if (updates.paymentMethod !== undefined) payload.payment_method = updates.paymentMethod;
     if (updates.grandTotal !== undefined) payload.grand_total = updates.grandTotal;
     if (updates.discount !== undefined) payload.discount = updates.discount;
     if (updates.items !== undefined) payload.items = updates.items;
-    const { error } = await supabase.from('counter_sales').upsert(payload, { onConflict: 'id' });
+    if (Object.keys(payload).length === 0) return true;
+
+    // PATCH the existing row: a partial upsert would build an INSERT candidate
+    // (items is NOT NULL) that PostgREST rejects with 23502 before conflict
+    // resolution, so the quote/approve lifecycle never persisted.
+    const { error } = await supabase.from('counter_sales').update(payload).eq('id', saleId);
     if (error) {
-      console.error('[SUPABASE NET ERROR] UPSERT counter_sales (update) failed:', error.message);
+      console.error('[SUPABASE NET ERROR] UPDATE counter_sales failed:', error.message);
       return false;
     }
     return true;

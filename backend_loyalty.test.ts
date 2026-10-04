@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Capture every insert/upsert/update call so we can assert on the payloads.
+// Capture every insert/upsert/update/select call so we can assert on the payloads.
 const hoisted = vi.hoisted(() => ({
   inserts: [] as any[],
   upserts: [] as any[],
   updates: [] as any[],
+  selectResults: [] as any[],
   insertResults: [] as any[],
   upsertResults: [] as any[],
   updateResults: [] as any[],
@@ -31,11 +32,20 @@ vi.mock('./src/lib/supabase', () => ({
         };
         return chain;
       },
+      select: () => {
+        const result = hoisted.selectResults.shift() ?? { error: null, data: null };
+        const chain: any = {
+          eq: () => chain,
+          maybeSingle: () => Promise.resolve(result),
+          single: () => Promise.resolve(result),
+        };
+        return chain;
+      },
     }),
   }),
 }));
 
-import { insertStampLogToDb, ensureProfileRowInDb, updateUserProfileInDb } from './src/api/backendDataService';
+import { insertStampLogToDb, ensureProfileRowInDb, updateUserProfileInDb, updateCounterSaleInDb } from './src/api/backendDataService';
 
 const log = {
   id: 'log-1',
@@ -55,6 +65,7 @@ beforeEach(() => {
   hoisted.inserts = [];
   hoisted.upserts = [];
   hoisted.updates = [];
+  hoisted.selectResults = [];
   hoisted.insertResults = [];
   hoisted.upsertResults = [];
   hoisted.updateResults = [];
@@ -237,5 +248,67 @@ describe('updateUserProfileInDb', () => {
     expect(hoisted.upserts).toHaveLength(1);
     expect(hoisted.upserts[0].payload.id).toBe('11111111-1111-1111-1111-111111111111');
     expect(hoisted.updates).toHaveLength(2);
+  });
+});
+
+describe('updateCounterSaleInDb', () => {
+  const existingRow = {
+    id: 'sale-1',
+    sale_number: 'SALE-2026-0001',
+    customer_name: 'Ada',
+    items: [{ id: 'a', name: 'Brake pads', quantity: 1, unitPrice: 10 }],
+    subtotal: 10,
+    vat_rate: 0.2,
+    vat_amount: 2,
+    discount: 0,
+    grand_total: 12,
+    payment_method: 'unpaid',
+    status: 'quote',
+    quoted_amount: 12,
+    quote_note: 'as discussed',
+    quote_sent_at: '2026-10-03T09:00:00.000Z',
+    quote_sent_by: 'Ben',
+    created_at: '2026-10-03T08:00:00.000Z',
+  };
+
+  it('PATCHes (never upserts) and keeps the quote when approving', async () => {
+    hoisted.selectResults.push({ error: null, data: existingRow });
+    const ok = await updateCounterSaleInDb('sale-1', {
+      status: 'approved',
+      approvedAt: '2026-10-03T10:00:00.000Z',
+      approvedBy: 'Ben',
+    });
+    expect(ok).toBe(true);
+    expect(hoisted.upserts).toHaveLength(0);
+    expect(hoisted.updates).toHaveLength(1);
+    const { table, payload } = hoisted.updates[0];
+    expect(table).toBe('counter_sales');
+    expect(payload.status).toBe('approved');
+    expect(payload.approved_by).toBe('Ben');
+    // Approving must not clear the quote that was already sent.
+    expect(payload.quoted_amount).toBeUndefined();
+    expect(payload.quote_note).toBeUndefined();
+    expect(payload.quote_sent_at).toBeUndefined();
+  });
+
+  it('writes the quote columns when a quote is sent', async () => {
+    hoisted.selectResults.push({ error: null, data: { ...existingRow, status: 'completed' } });
+    const ok = await updateCounterSaleInDb('sale-1', {
+      status: 'quote',
+      quote: { amount: 12, note: 'diagnostics quote', sentAt: '2026-10-03T09:00:00.000Z', sentBy: 'Diagnostics' },
+    });
+    expect(ok).toBe(true);
+    const { payload } = hoisted.updates[0];
+    expect(payload.status).toBe('quote');
+    expect(payload.quoted_amount).toBe(12);
+    expect(payload.quote_note).toBe('diagnostics quote');
+    expect(payload.quote_sent_by).toBe('Diagnostics');
+  });
+
+  it('fails without writing when the sale row does not exist', async () => {
+    hoisted.selectResults.push({ error: null, data: null });
+    const ok = await updateCounterSaleInDb('missing', { status: 'approved' });
+    expect(ok).toBe(false);
+    expect(hoisted.updates).toHaveLength(0);
   });
 });
