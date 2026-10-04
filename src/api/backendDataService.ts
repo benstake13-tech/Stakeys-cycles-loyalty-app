@@ -536,6 +536,7 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
   console.log(`[SUPABASE NET] INSERT stamp_logs id=${log.id}`);
   const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const uid = (log as any).user_id || log.customerId;
+  const iso = log.timestamp instanceof Date ? log.timestamp.toISOString() : new Date().toISOString();
   const payload: any = {
     id: log.id,
     customer_id: log.customerId,
@@ -548,7 +549,7 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
     stamps_after: log.stampsAfter ?? null,
     reward_id: (log as any).rewardId || null,
     note: log.note || null,
-    timestamp: log.timestamp instanceof Date ? log.timestamp.toISOString() : new Date().toISOString(),
+    timestamp: iso,
   };
   // Legacy schemas have a NOT NULL `user_id`; supply it when the customer id is
   // a real UUID so the row can land before the schema sync migration is run.
@@ -560,6 +561,8 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
     e?.code === 'PGRST204' ||
     e?.code === '22P02' ||
     e?.code === '23502' ||
+    e?.code === '23503' ||
+    e?.code === '23514' ||
     e?.code === '42703' ||
     e?.code === '42501' ||
     e?.message?.includes('schema cache') ||
@@ -567,12 +570,31 @@ export async function insertStampLogToDb(log: StampLog): Promise<boolean> {
     e?.message?.includes('schema');
 
   // Attempts are ordered most-complete -> most-minimal so that whichever
-  // schema (current, legacy-uuid, or legacy-text) the project has, one lands.
-  const attempts: any[] = [payload];
-  const legacy: any = { reason: log.note || log.action || 'stamp_event' };
-  if (log.staffId) legacy.staff_id = log.staffId;
-  if (uid && uuid.test(uid)) legacy.user_id = uid;
-  attempts.push(legacy);
+  // schema (current, legacy-uuid, or legacy points-ledger) the project has,
+  // exactly one payload lands.
+  //
+  // Some projects' stamp_logs is an older points ledger whose `amount`
+  // (CHECK <> 0), `source` (CHECK IN ('visit','wheel')) and `created_at` are
+  // NOT NULL and are not columns the app otherwise writes; attempt 2 supplies
+  // valid values so the row can land before the repair SQL drops them.
+  // Attempt 3 keeps the full detail but drops `user_id`, because some projects
+  // keep a FK from stamp_logs.user_id to profiles and the customer may not have
+  // a profile row yet. Attempt 4 is the bare legacy shape for the oldest
+  // schemas that lack even the app's named columns.
+  const delta = (log.stampsAfter ?? 0) - (log.stampsBefore ?? 0);
+  const ledger: any = {
+    amount: delta !== 0 ? delta : log.action === 'redeem_reward' ? -1 : 1,
+    source: 'visit',
+    created_at: iso,
+  };
+  const withLedger: any = { ...payload, ...ledger };
+  const noFk: any = { ...withLedger };
+  delete noFk.user_id;
+
+  const bare: any = { reason: log.note || log.action || 'stamp_event' };
+  if (log.staffId) bare.staff_id = log.staffId;
+
+  const attempts: any[] = [payload, withLedger, noFk, bare];
 
   let lastError: any = null;
   for (let i = 0; i < attempts.length; i++) {

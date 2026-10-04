@@ -100,8 +100,13 @@ describe('generateSchemaSyncSql', () => {
 
   it('relaxes the legacy NOT NULLs that block bookings and stamp logs', () => {
     expect(sql).toContain(`ARRAY['customer_phone','service_id','service_title','preferred_date','preferred_time_slot']`);
-    expect(sql).toContain(`ARRAY['user_id']`);
+    expect(sql).toContain(`ARRAY['user_id','amount','source','created_at']`);
     expect(sql).toContain('DROP NOT NULL');
+  });
+
+  it('drops the legacy stamp_logs amount/source CHECK constraints', () => {
+    expect(sql).toContain(`ARRAY['stamp_logs_amount_check','stamp_logs_source_check']`);
+    expect(sql).toContain('DROP CONSTRAINT IF EXISTS');
   });
 
   it('coerces legacy uuid id columns to text', () => {

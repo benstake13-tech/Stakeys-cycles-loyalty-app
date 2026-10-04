@@ -332,7 +332,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
           : {
               status: 'fail',
               detail: 'Insert rejected — stamp history will not persist.',
-              hint: 'stamp_logs.id is likely still uuid while the app writes text ids. Run the repair SQL.',
+              hint: 'stamp_logs still carries legacy columns (amount / source / created_at) that are NOT NULL or CHECK-constrained, so the app payload is rejected. Run the repair SQL.',
             };
       } catch (e) {
         const message = err(e);

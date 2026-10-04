@@ -40,6 +40,12 @@ export interface ExpectedTable {
   columns: ExpectedColumn[];
   /** The app writes text ids ('bike-1727…'); coerce a legacy uuid column. */
   textId?: boolean;
+  /**
+   * Legacy CHECK constraints the app's values violate. Dropped by name so an
+   * older schema can accept the app's payload (e.g. stamp_logs.amount check
+   * rejects 0, but every stamp history row carries amount 0).
+   */
+  dropChecks?: string[];
 }
 
 export interface ColumnIssue {
@@ -149,6 +155,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
     name: 'stamp_logs',
     primaryKey: 'id',
     textId: true,
+    dropChecks: ['stamp_logs_amount_check', 'stamp_logs_source_check'],
     columns: [
       { name: 'id', type: 'text' },
       { name: 'customer_id', type: 'text' },
@@ -162,6 +169,12 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'reward_id', type: 'text' },
       { name: 'note', type: 'text' },
       { name: 'user_id', type: 'uuid', relaxNotNull: true },
+      // Legacy points-ledger columns: some projects declared these NOT NULL with
+      // CHECKs (amount <> 0, source IN ('visit','wheel')). The app always writes
+      // amount 0 / source 'visit', so both the NOT NULLs and the CHECKs must go.
+      { name: 'amount', type: 'numeric', default: '0', relaxNotNull: true },
+      { name: 'source', type: 'text', default: `'visit'`, relaxNotNull: true },
+      { name: 'created_at', type: 'timestamptz', default: NOW, relaxNotNull: true },
       { name: 'timestamp', type: 'timestamptz', default: NOW },
     ],
   },
@@ -550,6 +563,33 @@ export function generateSchemaSyncSql(): string {
       lines.push(`END $$;`);
       lines.push('');
     }
+  }
+
+  const dropChecksByTable = EXPECTED_SCHEMA.filter((t) => t.dropChecks?.length);
+  if (dropChecksByTable.length) {
+    lines.push('-- 3b. Drop legacy CHECK constraints the app values violate.');
+    lines.push(`DO $$`);
+    lines.push(`DECLARE c text;`);
+    lines.push(`BEGIN`);
+    for (const table of dropChecksByTable) {
+      lines.push(`  IF to_regclass('public.${table.name}') IS NULL THEN`);
+      lines.push(`    RAISE NOTICE 'skipping checks: public.${table.name} does not exist';`);
+      lines.push(`  ELSE`);
+      lines.push(
+        `    FOREACH c IN ARRAY ARRAY[${table.dropChecks!.map((c) => `'${c}'`).join(',')}] LOOP`
+      );
+      lines.push(`      BEGIN`);
+      lines.push(
+        `        EXECUTE format('ALTER TABLE public.${table.name} DROP CONSTRAINT IF EXISTS %I', c);`
+      );
+      lines.push(
+        `      EXCEPTION WHEN others THEN RAISE NOTICE '${table.name}.% check drop skipped: %', c, SQLERRM; END;`
+      );
+      lines.push(`    END LOOP;`);
+      lines.push(`  END IF;`);
+    }
+    lines.push(`END $$;`);
+    lines.push('');
   }
 
   const textIdTables = EXPECTED_SCHEMA.filter((t) => t.textId).map((t) => t.name);

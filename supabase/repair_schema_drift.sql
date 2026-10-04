@@ -67,6 +67,19 @@ BEGIN
   ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS stamps_before int;
   ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS stamps_after int;
   ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS timestamp timestamptz DEFAULT now();
+
+  -- Legacy points-ledger columns. On some projects these are NOT NULL with
+  -- CHECKs (amount <> 0, source IN ('visit','wheel')). The app writes amount 0
+  -- / source 'visit' for every history row, so the NOT NULLs and CHECKs must go
+  -- or the insert fails with 23502 / 23514 and nothing persists.
+  ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS amount numeric DEFAULT 0;
+  ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS source text DEFAULT 'visit';
+  ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS created_at timestamptz DEFAULT now();
+  ALTER TABLE public.stamp_logs ALTER COLUMN amount DROP NOT NULL;
+  ALTER TABLE public.stamp_logs ALTER COLUMN source DROP NOT NULL;
+  ALTER TABLE public.stamp_logs ALTER COLUMN created_at DROP NOT NULL;
+  ALTER TABLE public.stamp_logs DROP CONSTRAINT IF EXISTS stamp_logs_amount_check;
+  ALTER TABLE public.stamp_logs DROP CONSTRAINT IF EXISTS stamp_logs_source_check;
 EXCEPTION WHEN others THEN
   RAISE NOTICE 'stamp_logs repair skipped: %', SQLERRM;
 END $$;

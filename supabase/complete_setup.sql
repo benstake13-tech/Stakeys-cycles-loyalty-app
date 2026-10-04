@@ -262,6 +262,23 @@ EXCEPTION WHEN undefined_column THEN NULL; END $$;
 DO $$ BEGIN
   ALTER TABLE public.stamp_logs ALTER COLUMN user_id DROP NOT NULL;
 EXCEPTION WHEN undefined_column THEN NULL; END $$;
+-- Legacy points-ledger columns. Some projects declared these NOT NULL with
+-- CHECKs (amount <> 0, source IN ('visit','wheel')); the app writes amount 0 /
+-- source 'visit', so relax the NOT NULLs and drop the CHECKs.
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'visit';
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+DO $$ BEGIN
+  ALTER TABLE public.stamp_logs ALTER COLUMN amount DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE public.stamp_logs ALTER COLUMN source DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER TABLE public.stamp_logs ALTER COLUMN created_at DROP NOT NULL;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+ALTER TABLE public.stamp_logs DROP CONSTRAINT IF EXISTS stamp_logs_amount_check;
+ALTER TABLE public.stamp_logs DROP CONSTRAINT IF EXISTS stamp_logs_source_check;
 -- The app writes readable text ids ("log-…", "system-wheel"); uuid columns
 -- would reject them with 22P02. Convert in place, preserving existing rows.
 DO $$ BEGIN

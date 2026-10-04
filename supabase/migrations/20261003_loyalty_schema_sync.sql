@@ -37,6 +37,17 @@ ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS user_id UUID;
 ALTER TABLE public.stamp_logs ALTER COLUMN staff_id DROP NOT NULL;
 ALTER TABLE public.stamp_logs ALTER COLUMN action DROP NOT NULL;
 ALTER TABLE public.stamp_logs ALTER COLUMN user_id DROP NOT NULL;
+-- Legacy points-ledger columns (NOT NULL amount/source/created_at with CHECKs
+-- amount <> 0 and source IN ('visit','wheel')). The app writes amount 0 /
+-- source 'visit', so relax the NOT NULLs and drop the CHECKs.
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0;
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'visit';
+ALTER TABLE public.stamp_logs ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.stamp_logs ALTER COLUMN amount DROP NOT NULL;
+ALTER TABLE public.stamp_logs ALTER COLUMN source DROP NOT NULL;
+ALTER TABLE public.stamp_logs ALTER COLUMN created_at DROP NOT NULL;
+ALTER TABLE public.stamp_logs DROP CONSTRAINT IF EXISTS stamp_logs_amount_check;
+ALTER TABLE public.stamp_logs DROP CONSTRAINT IF EXISTS stamp_logs_source_check;
 -- The app generates readable text ids ("log-<ts>-<n>"); some projects declared
 -- stamp_logs.id as uuid, which rejected every history write with 22P02.
 ALTER TABLE public.stamp_logs ALTER COLUMN id TYPE TEXT USING id::text;
