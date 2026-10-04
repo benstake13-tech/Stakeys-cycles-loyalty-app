@@ -96,8 +96,12 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!response.ok) {
-      console.error(`Resend returned HTTP ${response.status}`);
-      return new Response("Email delivery failed", { status: 502 });
+      const detail = await response.text().catch(() => "");
+      console.error(`Resend rejected the message for ${recipient}: HTTP ${response.status} ${detail}`);
+      return new Response(JSON.stringify({ error: "Email delivery failed", status: response.status, detail }), {
+        status: 502,
+        headers: jsonHeaders,
+      });
     }
   }
 

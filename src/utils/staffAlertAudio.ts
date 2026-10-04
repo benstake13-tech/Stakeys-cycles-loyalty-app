@@ -15,6 +15,7 @@ class StaffBookingAlertAudio {
   private volumeLevel: WorkshopAudioVolume = 'max_workshop';
   private stinger: HTMLAudioElement | null = null;
   private stingerBroken = false;
+  private unlockInstalled = false;
 
   constructor() {
     try {
@@ -39,6 +40,41 @@ class StaffBookingAlertAudio {
     if (this.ctx && this.ctx.state === 'suspended') {
       this.ctx.resume().catch(() => {});
     }
+  }
+
+  /**
+   * Browsers block audio until the page has seen a user gesture. Prime the
+   * stinger on the first interaction so a booking that arrives later (e.g. from
+   * a realtime event, with no gesture of its own) still plays.
+   */
+  public installAutoplayUnlock(): void {
+    if (this.unlockInstalled || typeof window === 'undefined') return;
+    this.unlockInstalled = true;
+    const unlock = () => {
+      try {
+        if (!this.stinger && typeof Audio !== 'undefined') {
+          this.stinger = new Audio('/booking-chime.wav');
+          this.stinger.preload = 'auto';
+        }
+        if (this.stinger) {
+          this.stinger.volume = 0;
+          this.stinger.play().then(
+            () => {
+              this.stinger?.pause();
+              if (this.stinger) this.stinger.volume = 1;
+            },
+            () => {
+              if (this.stinger) this.stinger.volume = 1;
+            }
+          );
+        }
+      } catch {
+        /* ignore */
+      }
+      this.initContext();
+    };
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+    window.addEventListener('keydown', unlock, { once: true, passive: true });
   }
 
   public isSoundEnabled(): boolean {
@@ -99,13 +135,18 @@ class StaffBookingAlertAudio {
   public dispatchPushNotification(title: string, body: string) {
     try {
       if ('Notification' in window && Notification.permission === 'granted') {
+        // `sound` is honoured on Android; desktop Chrome/Edge ignore it and use
+        // the OS notification sound (no browser lets a site override that).
         const notif = new Notification(title, {
           body,
-          icon: '/favicon.ico',
-          badge: '/favicon.ico',
-          tag: 'stakeys-new-booking',
+          icon: '/logo.svg',
+          badge: '/logo.svg',
+          // Unique per notification so consecutive bookings each alert instead of
+          // silently replacing the previous one.
+          tag: `stakeys-booking-${Date.now()}`,
           requireInteraction: true,
-        });
+          ...({ sound: '/booking-chime.wav' } as Record<string, unknown>),
+        } as NotificationOptions);
         notif.onclick = () => {
           window.focus();
           notif.close();
