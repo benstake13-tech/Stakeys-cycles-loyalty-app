@@ -100,12 +100,12 @@ export const StaffPortal: React.FC = () => {
   const [pushState, setPushState] = useState<'idle' | 'working' | 'granted' | 'blocked'>('idle');
 
   const [staffTab, setStaffTab] = useState<
-    | 'dashboard'
+    | 'terminal'
+    | 'till'
     | 'bookings'
     | 'staff_roster'
     | 'promotions'
     | 'discount_codes'
-    | 'till'
     | 'customers'
     | 'draws'
     | 'logs'
@@ -114,7 +114,7 @@ export const StaffPortal: React.FC = () => {
     | 'business_performance'
     | 'diagnostics'
     | 'staff_accounts'
-  >('dashboard');
+  >('till');
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
@@ -321,7 +321,7 @@ export const StaffPortal: React.FC = () => {
   const latestFresh = freshBookings[0] || null;
 
   type StaffTabId =
-    | 'dashboard'
+    | 'terminal'
     | 'bookings'
     | 'staff_roster'
     | 'promotions'
@@ -337,12 +337,12 @@ export const StaffPortal: React.FC = () => {
     | 'staff_accounts';
 
   const operationsTabs: SegmentedTab<StaffTabId>[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: Layers, tone: 'emerald', hint: 'Workshop metrics overview' },
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
     { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings' },
     { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members' },
     { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel' },
     { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
+    { id: 'terminal', label: 'Workshop Terminal & Front Desk', icon: Layers, tone: 'emerald', hint: 'Workshop metrics overview' },
   ];
 
   const adminTabs: SegmentedTab<StaffTabId>[] = [
@@ -414,10 +414,10 @@ export const StaffPortal: React.FC = () => {
               <span className="text-neutral-500 font-mono text-[11px]">{currentUser.membershipNumber}</span>
             </div>
             <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Workshop Terminal &amp; Front Desk
+              Staff Station
             </h2>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              Organized workshop management: manage service bookings, inspect customer bikes &amp; OEM specs, stamp loyalty cards, and manage prize wheels.
+              Counter sales, workshop bookings, loyalty members and prize draws — everything you need at the front desk and bench.
             </p>
 
             <div className="flex flex-wrap items-center gap-2 mt-3.5">
@@ -649,8 +649,8 @@ export const StaffPortal: React.FC = () => {
 
       {/* 4. WORKSTATION VIEWS */}
 
-      {/* VIEW 0: Workshop Metrics & Loyalty Admin Dashboard */}
-      {staffTab === 'dashboard' && <AdminDashboard />}
+      {/* VIEW 0: Workshop Terminal & Front Desk (metrics + loyalty admin) */}
+      {staffTab === 'terminal' && <AdminDashboard />}
 
       {/* VIEW 1: Service Bookings Management */}
       {staffTab === 'bookings' && <StaffBookingsTab />}
