@@ -44,6 +44,7 @@ import {
   FlaskConical,
   DatabaseZap,
   Mail,
+  Smartphone,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -66,6 +67,7 @@ import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
 import { EmailSetupModal } from './EmailSetupModal';
+import { PushSetupModal } from './PushSetupModal';
 import { SchemaSyncModal } from './SchemaSyncModal';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
@@ -119,6 +121,7 @@ export const StaffPortal: React.FC = () => {
   const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
   const [isStaffAccountsSetupOpen, setIsStaffAccountsSetupOpen] = useState(false);
   const [isEmailSetupOpen, setIsEmailSetupOpen] = useState(false);
+  const [isPushSetupOpen, setIsPushSetupOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -527,6 +530,16 @@ export const StaffPortal: React.FC = () => {
                         ? 'Enabling…'
                         : 'Enable Push'}
                     </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsPushSetupOpen(true)}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/20 cursor-pointer"
+                    title="Step-by-step setup and tests to finish phone push notifications"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>Push Setup</span>
                   </button>
 
                   <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-xs shadow-inner">
@@ -1214,6 +1227,7 @@ export const StaffPortal: React.FC = () => {
         <StaffAccountsSetupModal onClose={() => setIsStaffAccountsSetupOpen(false)} />
       )}
       {isEmailSetupOpen && <EmailSetupModal onClose={() => setIsEmailSetupOpen(false)} />}
+      {isPushSetupOpen && <PushSetupModal onClose={() => setIsPushSetupOpen(false)} />}
     </div>
   );
 };
