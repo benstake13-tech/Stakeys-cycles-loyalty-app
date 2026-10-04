@@ -198,4 +198,19 @@ describe('updateUserProfileInDb', () => {
     await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', { stamps: 5 });
     expect(hoisted.upserts[0].payload.last_stamped_at).toBeUndefined();
   });
+
+  it('mirrors last_spun_at into last_spin_date so the weekly cooldown cannot drift', async () => {
+    const when = new Date('2026-10-03T09:30:00Z');
+    await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', { lastSpunAt: when });
+    const { payload } = hoisted.upserts[0];
+    expect(payload.last_spun_at).toBe(when.toISOString());
+    expect(payload.last_spin_date).toBe(when.toISOString());
+  });
+
+  it('clears both spin columns when the cooldown is reset', async () => {
+    await updateUserProfileInDb('11111111-1111-1111-1111-111111111111', 'STK-1', { lastSpunAt: null });
+    const { payload } = hoisted.upserts[0];
+    expect(payload.last_spun_at).toBeNull();
+    expect(payload.last_spin_date).toBeNull();
+  });
 });

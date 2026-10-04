@@ -655,7 +655,12 @@ export async function updateUserProfileInDb(
     if (updates.points !== undefined) payload.merit_points = updates.points;
     if (updates.displayName !== undefined) payload.display_name = updates.displayName;
     if (updates.phoneNumber !== undefined) payload.phone = updates.phoneNumber;
-    if (updates.lastSpinDate !== undefined) payload.last_spin_date = updates.lastSpinDate;
+    const spunIso =
+      updates.lastSpunAt !== undefined
+        ? updates.lastSpunAt instanceof Date
+          ? updates.lastSpunAt.toISOString()
+          : updates.lastSpunAt
+        : undefined;
     if (updates.lastStampedAt !== undefined) {
       payload.last_stamped_at =
         updates.lastStampedAt instanceof Date
@@ -663,10 +668,15 @@ export async function updateUserProfileInDb(
           : updates.lastStampedAt;
     }
     if (updates.lastSpunAt !== undefined) {
-      payload.last_spun_at =
-        updates.lastSpunAt instanceof Date
-          ? updates.lastSpunAt.toISOString()
-          : updates.lastSpunAt;
+      payload.last_spun_at = spunIso;
+    }
+    // Keep the legacy last_spin_date mirror in sync with last_spun_at: the
+    // fetch helpers fall back to it, so a cooldown set in one column but read
+    // from the other let customers spin more than once a week.
+    if (updates.lastSpinDate !== undefined) {
+      payload.last_spin_date = updates.lastSpinDate;
+    } else if (spunIso !== undefined) {
+      payload.last_spin_date = spunIso;
     }
 
     const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });

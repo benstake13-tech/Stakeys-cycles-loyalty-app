@@ -1855,8 +1855,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       stamps: stampsAfter,
       tickets: ticketsAfter,
       points: pointsAfter,
-      lastStampedAt: updates.resetDailyRateLimit ? undefined : target.lastStampedAt,
-      lastSpunAt: updates.resetSpinCooldown ? undefined : target.lastSpunAt,
+      lastStampedAt: updates.resetDailyRateLimit ? null : target.lastStampedAt,
+      lastSpunAt: updates.resetSpinCooldown ? null : target.lastSpunAt,
     };
 
     const changesSummary: string[] = [];
@@ -1893,13 +1893,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsers((prev) => prev.map((u) => (u.uid === customerId ? updatedUser : u)));
     setStampLogs((prev) => [newLog, ...prev]);
 
-    // Remote Database Mutation: Update profiles table and insert into stamp_logs table
+    // Remote Database Mutation: Update profiles table and insert into stamp_logs table.
+    // The rate-limit/cooldown resets must be persisted (null) or the override
+    // silently reverts on the next refresh.
     updateUserProfileInDb(customerId, target.membershipNumber, {
       stamps: stampsAfter,
       tickets: ticketsAfter,
       points: pointsAfter,
       displayName: updates.displayName?.trim() || target.displayName,
       phoneNumber: updates.phoneNumber !== undefined ? updates.phoneNumber.trim() : target.phoneNumber,
+      ...(updates.resetDailyRateLimit ? { lastStampedAt: null } : {}),
+      ...(updates.resetSpinCooldown ? { lastSpunAt: null } : {}),
     }).catch((e) => console.warn('[DB SYNC] Error updating customer points in DB:', e));
     insertStampLogToDb(newLog).catch((e) => console.warn('[DB SYNC] Error inserting point log in DB:', e));
 
