@@ -909,15 +909,55 @@ export function isSyntheticProfileIdIssue(message: string): boolean {
   return /22P02|invalid input syntax for type uuid/i.test(message) || /23503|violates foreign key constraint/i.test(message);
 }
 
+export interface BalanceProbePlan {
+  id: string;
+  membershipNumber?: string;
+  before: { stamps: number; completedCards: number; meritPoints: number };
+  /** Sentinel values (+1) so a write can be told apart from a no-op. */
+  probe: { stamps: number; tickets: number; points: number };
+  /** The original values (incl. last_spin_date), written back after the probe. */
+  restore: { stamps: number; tickets: number; points: number; lastSpinDate: string | null };
+}
+
+/**
+ * Plans a non-destructive balance write against a real profile row.
+ *
+ * profiles.id is uuid with a FK to auth.users, so the diagnostic cannot create
+ * a synthetic row to write to. Instead it probes an existing profile with
+ * sentinel values (+1) and restores the originals afterwards.
+ */
+export function planBalanceProbe(row: {
+  id: string;
+  membership_number?: string | null;
+  stamps?: unknown;
+  completed_cards?: unknown;
+  merit_points?: unknown;
+  last_spin_date?: unknown;
+}): BalanceProbePlan {
+  const before = {
+    stamps: Number(row.stamps) || 0,
+    completedCards: Number(row.completed_cards) || 0,
+    meritPoints: Number(row.merit_points) || 0,
+  };
+  const lastSpinDate = row.last_spin_date == null ? null : String(row.last_spin_date);
+  return {
+    id: row.id,
+    membershipNumber: row.membership_number || undefined,
+    before,
+    probe: { stamps: before.stamps + 1, tickets: before.completedCards + 1, points: before.meritPoints + 1 },
+    restore: { stamps: before.stamps, tickets: before.completedCards, points: before.meritPoints, lastSpinDate },
+  };
+}
+
 /**
  * Repair SQL for the loyalty-balance diagnostic.
  *
- * The self-test writes a *synthetic* profile row so it never touches a real
- * member, but profiles.id is uuid with a foreign key to auth.users, so no
- * synthetic id can satisfy it. There is no schema change that can fix that.
- * This script instead verifies the real problem (missing columns / grants) and
- * provides a UUID-safe manual write probe that proves stamp/ticket/point writes
- * work without inserting a row.
+ * The self-test now probes a real profile (writes sentinel values, then
+ * restores them), because profiles.id is uuid with a FK to auth.users so no
+ * synthetic row can satisfy it. This script is the manual fallback for when
+ * the write itself is broken: it adds any missing balance columns / grants and
+ * runs the same balance UPDATE inside a transaction that is rolled back, so no
+ * member data is changed.
  */
 export function generateProfileBalanceProbeSql(profileId?: string): string {
   const target = profileId ? `'${profileId}'::uuid` : 'NULL';

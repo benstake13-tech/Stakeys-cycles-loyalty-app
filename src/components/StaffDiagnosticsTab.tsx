@@ -224,13 +224,11 @@ export const StaffDiagnosticsTab: React.FC = () => {
       );
       if (last?.status === 'pass') {
         flash({ kind: 'ok', text: 'Balance write persisted — stamp/ticket/point upsert works.' });
-      } else if (last?.selfTestLimited) {
+      } else {
         setFixSql({
-          title: `${last.label} — UUID-safe balance probe`,
+          title: `${last?.label ?? 'Balance write'} — UUID-safe balance probe`,
           sql: generateProfileBalanceProbeSql(),
         });
-      } else {
-        flash({ kind: 'err', text: last?.detail || 'Balance write test failed.' });
       }
     } finally {
       setBusy(null);
@@ -297,12 +295,12 @@ export const StaffDiagnosticsTab: React.FC = () => {
                   write test · self-cleaning
                 </span>
               )}
-              {result.selfTestLimited && (
+              {result.id === 'profile-balance-write' && (
                 <span
                   className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
-                  title="This test writes a synthetic profile row, but profiles.id is uuid with a foreign key to auth.users, so it cannot fully self-test. Use the balance probe."
+                  title="profiles.id is uuid with a foreign key to auth.users, so this test writes sentinel values to a real profile and restores them afterwards."
                 >
-                  synthetic id — see probe
+                  real profile — restored
                 </span>
               )}
               <span className="text-[10px] font-mono text-neutral-500">{result.ms}ms</span>
@@ -324,7 +322,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
                   <Wrench className="w-3.5 h-3.5" />
                   <span>Create fix SQL</span>
                 </button>
-                {result.selfTestLimited && (
+                {result.id === 'profile-balance-write' && (
                   <button
                     type="button"
                     onClick={() => openBalanceProbeSql(result)}

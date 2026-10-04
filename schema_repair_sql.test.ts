@@ -3,6 +3,7 @@ import {
   generateRepairSqlForTables,
   generateProfileBalanceProbeSql,
   isSyntheticProfileIdIssue,
+  planBalanceProbe,
 } from './src/utils/schemaSync';
 
 describe('generateRepairSqlForTables', () => {
@@ -97,5 +98,32 @@ describe('isSyntheticProfileIdIssue', () => {
 
   it('does not swallow genuine schema drift', () => {
     expect(isSyntheticProfileIdIssue("column 'last_spin_date' does not exist")).toBe(false);
+  });
+});
+
+describe('planBalanceProbe', () => {
+  it('writes sentinel values one above the current balance and restores them', () => {
+    const plan = planBalanceProbe({
+      id: '3a9b7d17-7ca0-4fb9-97c2-0ec0afa0129c',
+      membership_number: 'STK-0042',
+      stamps: 4,
+      completed_cards: 2,
+      merit_points: 31,
+    });
+    expect(plan.probe).toEqual({ stamps: 5, tickets: 3, points: 32 });
+    expect(plan.restore).toEqual({ stamps: 4, tickets: 2, points: 31, lastSpinDate: null });
+    expect(plan.membershipNumber).toBe('STK-0042');
+  });
+
+  it('treats null/missing balances as zero', () => {
+    const plan = planBalanceProbe({ id: 'x', stamps: null, completed_cards: undefined });
+    expect(plan.before).toEqual({ stamps: 0, completedCards: 0, meritPoints: 0 });
+    expect(plan.probe).toEqual({ stamps: 1, tickets: 1, points: 1 });
+    expect(plan.restore).toEqual({ stamps: 0, tickets: 0, points: 0, lastSpinDate: null });
+  });
+
+  it('captures and restores last_spin_date so a spin is not blocked', () => {
+    const plan = planBalanceProbe({ id: 'x', last_spin_date: '2026-09-30T10:00:00.000Z' });
+    expect(plan.restore.lastSpinDate).toBe('2026-09-30T10:00:00.000Z');
   });
 });

@@ -41,7 +41,7 @@ import {
 } from '../utils/discountService';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { generateMembershipNumber, generateBarcodeValue } from '../api/firebaseService';
-import { isSyntheticProfileIdIssue } from '../utils/schemaSync';
+import { planBalanceProbe } from '../utils/schemaSync';
 import type {
   CustomerBike,
   ServiceBooking,
@@ -381,44 +381,72 @@ export const FEATURE_TESTS: FeatureTest[] = [
     id: 'profile-balance-write',
     area: 'loyalty',
     label: 'Write stamp / ticket / point balance',
-    description: 'Upserts a profile balance exactly as addStamp does (checks the last_spin_date column), then deletes it.',
+    description: 'Writes sentinel balance values to a real member profile (then restores them), using the same path as addStamp.',
     writes: true,
     tables: ['profiles'],
-    selfTestLimited: true,
     run: async () => {
-      const uid = sentinel(`profile-${Date.now()}`);
       const client = getSupabaseClient();
+      // profiles.id is uuid with a FK to auth.users, so a synthetic row is
+      // impossible. Probe a real profile instead and restore it afterwards.
+      const { data: row, error: readError } = await client
+        .from('profiles')
+        .select('id, membership_number, stamps, completed_cards, merit_points, last_spin_date')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (readError) {
+        return { status: 'fail', detail: readError.message, hint: hintFor(readError.message) };
+      }
+      if (!row) {
+        return {
+          status: 'warn',
+          detail: 'No profile rows exist yet, so there is nothing to probe.',
+          hint: 'Balance writes cannot be exercised until at least one member profile exists.',
+        };
+      }
+
+      const plan = planBalanceProbe(row as any);
+      let probeOk = false;
+      let writeError: string | undefined;
       try {
-        const ok = await updateUserProfileInDb(uid, 'STK-DIAG', {
-          stamps: 3,
-          tickets: 1,
-          points: 7,
+        probeOk = await updateUserProfileInDb(plan.id, plan.membershipNumber, {
+          stamps: plan.probe.stamps,
+          tickets: plan.probe.tickets,
+          points: plan.probe.points,
           lastSpinDate: new Date().toISOString(),
         });
-        const stamps = await verifyColumn('profiles', uid, 'stamps', 3);
-        const points = await verifyColumn('profiles', uid, 'merit_points', 7);
-        await client.from('profiles').delete().eq('id', uid);
-        if (ok && stamps.ok && points.ok) {
-          return { status: 'pass', detail: 'Stamp / ticket / point balance persisted.' };
-        }
-        const raw = `${stamps.detail}; ${points.detail}`;
-        if (isSyntheticProfileIdIssue(raw)) {
-          return {
-            status: 'warn',
-            detail: `Self-test limitation, not a schema fault: ${raw}.`,
-            hint: 'profiles.id is uuid with a FK to auth.users, so a synthetic row cannot be created. Use “Create fix SQL” to run a UUID-safe balance probe against a real profile.',
-          };
-        }
-        return {
-          status: 'fail',
-          detail: `upsert=${ok}; ${raw}`,
-          hint: 'profiles is missing last_spin_date on the live DB, which fails the whole upsert (PGRST204). Run the repair SQL.',
-        };
+        if (!probeOk) writeError = 'upsert reported an error (see console)';
       } catch (e) {
-        const message = err(e);
-        await client.from('profiles').delete().eq('id', uid);
-        return { status: 'fail', detail: message, hint: hintFor(message) };
+        writeError = err(e);
       }
+
+      // Read back the sentinel values *before* restoring.
+      const stamps = await verifyColumn('profiles', plan.id, 'stamps', plan.probe.stamps);
+      const points = await verifyColumn('profiles', plan.id, 'merit_points', plan.probe.points);
+      const cards = await verifyColumn('profiles', plan.id, 'completed_cards', plan.probe.tickets);
+
+      // Always restore the member's real balance (incl. last_spin_date), even
+      // if the probe failed, so the probe can't block their next spin.
+      const restored = await updateUserProfileInDb(plan.id, plan.membershipNumber, {
+        stamps: plan.restore.stamps,
+        tickets: plan.restore.tickets,
+        points: plan.restore.points,
+        lastSpinDate: plan.restore.lastSpinDate,
+      });
+
+      if (probeOk && stamps.ok && points.ok && cards.ok) {
+        return {
+          status: 'pass',
+          detail: `Stamp / ticket / point balance written to a real profile (${plan.id.slice(0, 8)}…) and restored.`,
+        };
+      }
+
+      const raw = `${stamps.detail}; ${points.detail}; ${cards.detail}`;
+      return {
+        status: 'fail',
+        detail: `upsert=${probeOk}; ${writeError ? `${writeError}; ` : ''}${raw}${restored ? '' : ' (restore failed)'}`,
+        hint: 'profiles is missing a balance column (stamps / completed_cards / merit_points / last_spin_date) on the live DB, or the write is blocked. Run the repair SQL.',
+      };
     },
   },
   {
