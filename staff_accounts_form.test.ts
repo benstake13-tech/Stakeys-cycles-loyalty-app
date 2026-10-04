@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateStaffForm } from './src/components/StaffAccountsTab';
+import { validateStaffForm } from './src/components/StaffManagementTab';
 
 const base = {
   email: 'sam@shop.co.uk',

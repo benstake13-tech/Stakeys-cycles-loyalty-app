@@ -64,9 +64,8 @@ import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
-import { StaffAccountsTab } from './StaffAccountsTab';
-import { SchemaSyncModal } from './SchemaSyncModal';
 import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
+import { SchemaSyncModal } from './SchemaSyncModal';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
@@ -113,7 +112,6 @@ export const StaffPortal: React.FC = () => {
     | 'google_business'
     | 'business_performance'
     | 'diagnostics'
-    | 'staff_accounts'
   >('till');
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -333,8 +331,7 @@ export const StaffPortal: React.FC = () => {
     | 'financials'
     | 'google_business'
     | 'business_performance'
-    | 'diagnostics'
-    | 'staff_accounts';
+    | 'diagnostics';
 
   const operationsTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
@@ -352,7 +349,6 @@ export const StaffPortal: React.FC = () => {
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
     { id: 'business_performance', label: 'Growth', icon: Building2, tone: 'emerald', hint: 'Google & Meta performance' },
     { id: 'diagnostics', label: 'Test Bench', icon: FlaskConical, tone: 'amber', hint: 'Test every feature' },
-    { id: 'staff_accounts', label: 'Staff Logins', icon: ShieldAlert, tone: 'emerald', hint: 'Create staff logins' },
   ];
 
   return (
@@ -684,7 +680,6 @@ export const StaffPortal: React.FC = () => {
 
       {/* VIEW 8: Feature Test Bench — live self-test of every backend feature */}
       {staffTab === 'diagnostics' && <StaffDiagnosticsTab />}
-      {staffTab === 'staff_accounts' && <StaffAccountsTab />}
 
       {/* VIEW 3: Customer Database Roster */}
       {staffTab === 'customers' && (
