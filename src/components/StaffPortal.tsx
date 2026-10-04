@@ -520,7 +520,7 @@ export const StaffPortal: React.FC = () => {
                         ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 cursor-default'
                         : 'bg-neutral-950/80 border-neutral-800 text-white hover:border-emerald-500/40'
                     }`}
-                    title="Enable PushEngage push notifications on this device"
+                    title="Enable OneSignal push notifications on this device"
                   >
                     <Bell className="w-4 h-4" />
                     <span>

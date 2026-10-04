@@ -2,29 +2,29 @@
 // -----------------------------------------------------------------------------
 // Fires from the `service_bookings` AFTER INSERT trigger
 // (`service_bookings_booking_push_insert`) and pushes a "new booking" alert to
-// staff/admin phones via PushEngage. The trigger authenticates with the shared
+// staff/admin phones via OneSignal. The trigger authenticates with the shared
 // `x-booking-webhook-secret` header (Vault `booking_webhook_secret`).
 //
 // Required secrets:
-//   PUSHENGAGE_API_KEY       PushEngage REST API key
+//   ONESIGNAL_API_KEY        OneSignal App API key (os_v2_app_...)
 //   BOOKING_WEBHOOK_SECRET   must match the Vault `booking_webhook_secret`
 //   SUPABASE_URL             auto-injected by the Edge Functions runtime
 //   SUPABASE_SERVICE_ROLE_KEY
 //                            auto-injected; used to look up the admin profile ids
 // Optional:
+//   ONESIGNAL_APP_ID         defaults to the app id baked into the client snippet.
 //   ADMIN_PROFILE_IDS        comma-separated override of the recipient list
 //
-// Targeting: the alert goes to the shop's admin device only, sent as ONE
-// multi-`profile_id` push. This is independent of who created the booking
-// (admin, staff, customer or guest) — the DB trigger fires for any insert. We
-// do NOT use a PushEngage segment — this account's plan has hit its segment
-// limit, so a `staff` segment cannot exist and any segment-targeted push would
-// be dropped with a 200/"Segment not found" while still looking like success.
+// Targeting: the alert goes to the shop's admin devices only, sent as ONE push
+// targeting the admin external ids (the profile ids set via OneSignal.login).
+// This is independent of who created the booking (admin, staff, customer or
+// guest) — the DB trigger fires for any insert.
 //
 // Deploy:  supabase functions deploy booking-push-notification --no-verify-jwt
 // -----------------------------------------------------------------------------
 
-const PUSHENGAGE_ENDPOINT = 'https://api.pushengage.com/apiv1/notifications';
+const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
+const ONESIGNAL_ENDPOINT = 'https://api.onesignal.com/notifications';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function json(body: Record<string, unknown>, status = 200): Response {
@@ -66,31 +66,30 @@ async function sendPush(
   apiKey: string,
   title: string,
   message: string,
-  profileIds: string[],
+  externalIds: string[],
   opts: { logoUrl?: string; url?: string } = {},
 ): Promise<Response> {
   const appUrl = opts.url || 'https://www.stakeyswheels.co.uk';
   const logoUrl = opts.logoUrl || DEFAULT_LOGO_URL;
-  const form = new URLSearchParams();
-  form.set('notification_title', title);
-  form.set('notification_message', message);
-  form.set('notification_url', appUrl);
-  form.set('notification_type', 'now');
   // Branding: the shop logo as the notification icon and a large banner image.
-  form.set('image_url', logoUrl);
-  form.set('big_image_url', logoUrl);
-  // Call-to-action button that opens the app.
-  form.set('multi_element_title1', "Open Stakey's");
-  form.set('multi_element_url1', appUrl);
-  for (const id of profileIds) form.append('profile_id[]', id);
+  const notification = {
+    app_id: Deno.env.get('ONESIGNAL_APP_ID') || DEFAULT_APP_ID,
+    include_aliases: { external_id: externalIds },
+    target_channel: 'push',
+    headings: { en: title },
+    contents: { en: message },
+    url: appUrl,
+    chrome_web_icon: logoUrl,
+    chrome_web_image: logoUrl,
+  };
 
-  return await fetch(PUSHENGAGE_ENDPOINT, {
+  return await fetch(ONESIGNAL_ENDPOINT, {
     method: 'POST',
     headers: {
-      'Api-Key': apiKey,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Key ${apiKey}`,
+      'Content-Type': 'application/json',
     },
-    body: form.toString(),
+    body: JSON.stringify(notification),
   });
 }
 
@@ -98,7 +97,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const webhookSecret = Deno.env.get('BOOKING_WEBHOOK_SECRET');
-  const apiKey = Deno.env.get('PUSHENGAGE_API_KEY');
+  const apiKey = Deno.env.get('ONESIGNAL_API_KEY');
   const logoUrl = Deno.env.get('BOOKING_LOGO_URL') || DEFAULT_LOGO_URL;
   if (!webhookSecret || !apiKey) {
     console.error('Required booking push secrets are not configured');
@@ -154,7 +153,7 @@ Deno.serve(async (req: Request) => {
     `#${bookingId}`,
   ].filter(Boolean).join(' · ');
 
-  // Alert the admin device only. Booking alerts must reach the shop's admin
+  // Alert the admin devices only. Booking alerts must reach the shop's admin
   // regardless of who booked (admin, staff, customer or guest), so we do not
   // add the customer or any assigned staff — the admin profile is the single
   // recipient.
@@ -170,17 +169,17 @@ Deno.serve(async (req: Request) => {
   try {
     response = await sendPush(apiKey, title, content, recipients, { logoUrl });
   } catch (error) {
-    console.error('PushEngage request failed', error);
+    console.error('OneSignal request failed', error);
     return json({ error: 'Could not reach push notification provider' }, 502);
   }
 
   const result = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  // PushEngage answers 200 even for failures ("Segment not found", "Invalid API
-  // Key"), so a successful HTTP status alone is not enough.
-  if (!response.ok || result?.success === false) {
-    console.error('PushEngage rejected notification', { status: response.status, result });
+  // OneSignal returns an `errors` array on failure (e.g. "All included players
+  // are not subscribed"), so a successful HTTP status alone is not enough.
+  if (!response.ok || (Array.isArray(result?.errors) && result.errors.length > 0)) {
+    console.error('OneSignal rejected notification', { status: response.status, result });
     return json({ error: 'Push notification provider rejected the request', detail: result }, 502);
   }
 
-  return json({ ok: true, recipients: recipients.length, notification_id: result?.notification_id ?? null });
+  return json({ ok: true, recipients: recipients.length, notification_id: result?.id ?? null });
 });

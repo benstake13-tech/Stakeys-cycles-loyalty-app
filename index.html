@@ -12,24 +12,20 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-    <!-- PushEngage Web Push. The snippet loads the SDK and queues `init`;
-         src/utils/pushNotifications.ts waits on window._peq instead of
-         initialising a second time. The service worker it registers is
-         public/service-worker.js (root scope). -->
+    <!-- OneSignal Web Push (v16). The snippet loads the SDK and queues init;
+         src/utils/pushNotifications.ts waits on window.OneSignalDeferred instead
+         of initialising a second time. The worker at /OneSignalSDKWorker.js is
+         the official root-scope shim. -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     <script>
-      (function (w, d) {
-        w.PushEngage = w.PushEngage || [];
-        w._peq = w._peq || [];
-        PushEngage.push(['init', {
-          appId: '23a65358-7d1f-4b0b-beff-de8b48f9689f'
-        }]);
-
-        var e = d.createElement('script');
-        e.src = 'https://clientcdn.pushengage.com/sdks/pushengage-web-sdk.js';
-        e.async = true;
-        e.type = 'text/javascript';
-        d.head.appendChild(e);
-      })(window, document);
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function (OneSignal) {
+        await OneSignal.init({
+          appId: '7f67ab94-3c85-4702-9cd8-d158cf294593',
+          serviceWorkerPath: '/OneSignalSDKWorker.js',
+          serviceWorkerParam: { scope: '/' },
+        });
+      });
     </script>
   </head>
   <body class="bg-[#090b0e] text-neutral-100 antialiased selection:bg-[#05C147] selection:text-neutral-950 font-['Plus_Jakarta_Sans',sans-serif]">

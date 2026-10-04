@@ -25,15 +25,15 @@ if [[ -z "${SUPABASE_ACCESS_TOKEN:-}" ]]; then
 fi
 
 # Functions invoked by database triggers with a shared-secret header, not a JWT.
-NO_JWT_FUNCTIONS=(booking-email-notification booking-push-notification pushengage-notification)
+NO_JWT_FUNCTIONS=(booking-email-notification booking-push-notification onesignal-notification)
 
 ALL_FUNCTIONS=(
   booking-email-notification
   booking-push-notification
   send-email
   notify-booking
-  pushengage-send
-  pushengage-notification
+  onesignal-send
+  onesignal-notification
   spin-wheel
   gbp-performance
   stamp-log

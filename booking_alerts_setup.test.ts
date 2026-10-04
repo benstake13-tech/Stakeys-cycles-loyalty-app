@@ -11,7 +11,7 @@ import {
   ALL_FUNCTIONS,
   NO_JWT_FUNCTIONS,
   RESEND_KEYS_URL,
-  PUSHENGAGE_DASHBOARD_URL,
+  ONESIGNAL_DASHBOARD_URL,
 } from './src/utils/bookingAlertsSetup';
 
 describe('webhookTriggerSql', () => {
@@ -50,14 +50,14 @@ describe('envTemplate', () => {
   it('lists both server secrets', () => {
     const env = envTemplate();
     expect(env).toContain('RESEND_API_KEY=');
-    expect(env).toContain('PUSHENGAGE_API_KEY=');
+    expect(env).toContain('ONESIGNAL_API_KEY=');
   });
 });
 
 describe('dashboard links', () => {
-  it('points at the Resend key page and PushEngage dashboard', () => {
+  it('points at the Resend key page and OneSignal dashboard', () => {
     expect(RESEND_KEYS_URL).toContain('resend.com');
-    expect(PUSHENGAGE_DASHBOARD_URL).toContain('pushengage.com');
+    expect(ONESIGNAL_DASHBOARD_URL).toContain('onesignal.com');
   });
 });
 
@@ -80,7 +80,7 @@ describe('secretsPrompt', () => {
   it('wraps the KEY=value lines in a pasteable prompt', () => {
     const prompt = secretsPrompt('lhojocpygcnkxvkrcuxh', envTemplate());
     expect(prompt).toContain('RESEND_API_KEY=');
-    expect(prompt).toContain('PUSHENGAGE_API_KEY=');
+    expect(prompt).toContain('ONESIGNAL_API_KEY=');
     expect(prompt).toContain('SUPABASE_ACCESS_TOKEN');
   });
 });
@@ -116,13 +116,13 @@ describe('fixAllBookingAlertsSql', () => {
     expect(sql).toMatch(/drop function if exists public\.notify_booking_webhook\(\)/i);
   });
 
-  it('routes in-app notifications to PushEngage and removes the OneSignal webhook', () => {
-    expect(sql).toContain('/functions/v1/pushengage-notification');
-    expect(sql).toContain("'pushengage_notification_webhook_secret'");
-    expect(sql).toMatch(/create trigger notifications_pushengage_push_after_insert/i);
-    expect(sql).toMatch(/drop trigger if exists notifications_onesignal_push_after_insert/i);
-    expect(sql).toMatch(/drop function if exists private\.dispatch_onesignal_notification\(\)/i);
-    expect(sql).not.toMatch(/api\.onesignal\.com/);
+  it('routes in-app notifications to OneSignal and removes the PushEngage webhook', () => {
+    expect(sql).toContain('/functions/v1/onesignal-notification');
+    expect(sql).toContain("'onesignal_notification_webhook_secret'");
+    expect(sql).toMatch(/create trigger notifications_onesignal_push_after_insert/i);
+    expect(sql).toMatch(/drop trigger if exists notifications_pushengage_push_after_insert/i);
+    expect(sql).toMatch(/drop function if exists private\.dispatch_pushengage_notification\(\)/i);
+    expect(sql).not.toMatch(/api\.pushengage\.com/);
   });
 
   it('syncs the workshop owner email and escapes quotes', () => {

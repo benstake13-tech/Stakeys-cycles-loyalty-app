@@ -202,15 +202,14 @@ async function startServer() {
   });
 
   /* ------------------------------------------------------------------ *
-   * PushEngage web push. The REST API key is server-only; the browser sends
-   * the target profile/segment and we dispatch server-to-server so pushes
+   * OneSignal web push. The App API key is server-only; the browser sends
+   * the target external id/segment and we dispatch server-to-server so pushes
    * arrive even when the app is closed.
    * ------------------------------------------------------------------ */
-  const PUSHENGAGE_APP_ID = () => process.env.VITE_PUSHENGAGE_APP_ID || process.env.PUSHENGAGE_APP_ID;
-  const PUSHENGAGE_API_KEY = () => process.env.PUSHENGAGE_API_KEY;
+  const ONESIGNAL_APP_ID = () => process.env.VITE_ONESIGNAL_APP_ID || process.env.ONESIGNAL_APP_ID;
+  const ONESIGNAL_API_KEY = () => process.env.ONESIGNAL_API_KEY;
 
-  // Admin/staff profile ids, used when the caller omits an explicit target. We
-  // cannot use a PushEngage segment (this plan has hit its segment limit).
+  // Admin/staff profile ids, used when the caller omits an explicit target.
   const resolveAdminProfileIds = async (): Promise<string[]> => {
     const base = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
@@ -227,44 +226,51 @@ async function startServer() {
     }
   };
 
-  app.get('/api/pushengage/config', (_req, res) => {
+  app.get('/api/onesignal/config', (_req, res) => {
     res.json({
-      appId: PUSHENGAGE_APP_ID() || null,
-      serverPush: Boolean(PUSHENGAGE_APP_ID() && PUSHENGAGE_API_KEY()),
+      appId: ONESIGNAL_APP_ID() || null,
+      serverPush: Boolean(ONESIGNAL_APP_ID() && ONESIGNAL_API_KEY()),
     });
   });
 
-  app.post('/api/pushengage/notify', async (req, res) => {
-    const { title, body, url, profileId, segment, audience } = req.body || {};
-    const apiKey = PUSHENGAGE_API_KEY();
-    if (!PUSHENGAGE_APP_ID() || !apiKey) {
-      return res.status(500).json({ error: 'PushEngage server push is not configured' });
+  app.post('/api/onesignal/notify', async (req, res) => {
+    const { title, body, url, externalId, segment, audience } = req.body || {};
+    const apiKey = ONESIGNAL_API_KEY();
+    if (!ONESIGNAL_APP_ID() || !apiKey) {
+      return res.status(500).json({ error: 'OneSignal server push is not configured' });
     }
 
     try {
-      const form = new URLSearchParams();
-      form.set('notification_title', title || 'Stakey’s Cycles');
-      form.set('notification_message', body || '');
-      form.set('notification_url', url || process.env.APP_ORIGIN || 'https://stakeyscycles.co.uk');
-      form.set('notification_type', 'now');
-      if (profileId) form.append('profile_id[]', profileId);
-      else if (segment) form.append('include_segments[]', segment);
-      else if ((audience || 'admin') !== 'all') {
-        for (const id of await resolveAdminProfileIds()) form.append('profile_id[]', id);
+      const notification: Record<string, unknown> = {
+        app_id: ONESIGNAL_APP_ID(),
+        headings: { en: title || 'Stakey’s Cycles' },
+        contents: { en: body || '' },
+        url: url || process.env.APP_ORIGIN || 'https://www.stakeyswheels.co.uk',
+      };
+      if (externalId) {
+        notification.include_aliases = { external_id: [externalId] };
+        notification.target_channel = 'push';
+      } else if (segment) {
+        notification.included_segments = [segment];
+      } else if ((audience || 'admin') !== 'all') {
+        notification.include_aliases = { external_id: await resolveAdminProfileIds() };
+        notification.target_channel = 'push';
+      } else {
+        notification.included_segments = ['Subscribed Users'];
       }
 
-      const upstream = await fetch('https://api.pushengage.com/apiv1/notifications', {
+      const upstream = await fetch('https://api.onesignal.com/notifications', {
         method: 'POST',
         headers: {
-          'Api-Key': apiKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Key ${apiKey}`,
+          'Content-Type': 'application/json',
         },
-        body: form.toString(),
+        body: JSON.stringify(notification),
       });
       const data = await upstream.json().catch(() => ({}));
       res.status(upstream.status).json(data);
     } catch (error: any) {
-      console.error('PushEngage push error:', error);
+      console.error('OneSignal push error:', error);
       res.status(500).json({ error: 'Push dispatch failed' });
     }
   });

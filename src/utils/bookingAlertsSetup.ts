@@ -7,7 +7,7 @@
  */
 
 export const RESEND_KEYS_URL = 'https://resend.com/api-keys';
-export const PUSHENGAGE_DASHBOARD_URL = 'https://dashboard.pushengage.com/';
+export const ONESIGNAL_DASHBOARD_URL = 'https://dashboard.onesignal.com/';
 
 /**
  * SQL that creates the trigger alerting the workshop the moment a booking is
@@ -51,7 +51,7 @@ create trigger notify_booking_on_insert
 export const NO_JWT_FUNCTIONS = [
   'booking-email-notification',
   'booking-push-notification',
-  'pushengage-notification',
+  'onesignal-notification',
 ] as const;
 
 /** The repository that holds the edge-function source. */
@@ -132,17 +132,16 @@ export function secretsPrompt(projectRef: string, secretLines: string): string {
 
 /**
  * Every edge function the project uses. The booking-alert pipeline is the first
- * five (email + push webhooks, the two client-invoked senders, and the
- * PushEngage server-send); the rest are the other live integrations that must
- * stay deployed.
+ * five (email + push webhooks, the two client-invoked senders, and the OneSignal
+ * server-send); the rest are the other live integrations that must stay deployed.
  */
 export const ALL_FUNCTIONS = [
   'booking-email-notification',
   'booking-push-notification',
   'send-email',
   'notify-booking',
-  'pushengage-send',
-  'pushengage-notification',
+  'onesignal-send',
+  'onesignal-notification',
   'spin-wheel',
   'gbp-performance',
   'stamp-log',
@@ -277,44 +276,44 @@ create trigger service_bookings_booking_push_insert
 drop trigger if exists notify_booking_on_insert on public.service_bookings;
 drop function if exists public.notify_booking_webhook();
 
--- 4. In-app notifications -> PushEngage (replaces the OneSignal webhook).
-${pushengageNotificationSql(base, secret).trim()}
+-- 4. In-app notifications -> OneSignal.
+${onesignalNotificationSql(base, secret).trim()}
 `;
 }
 
 /**
- * SQL that routes `notifications` INSERTs to the `pushengage-notification` edge
- * function (targeted per-user push). Replaces the old OneSignal webhook: the
- * Vault secret `pushengage_notification_webhook_secret` is created/updated, the
- * trigger is rebuilt, and the legacy OneSignal trigger + function are dropped.
+ * SQL that routes `notifications` INSERTs to the `onesignal-notification` edge
+ * function (targeted per-user push). The Vault secret
+ * `onesignal_notification_webhook_secret` is created/updated, the trigger is
+ * rebuilt, and any legacy PushEngage trigger + function are dropped.
  */
-export function pushengageNotificationSql(supabaseUrl: string, webhookSecret: string): string {
+export function onesignalNotificationSql(supabaseUrl: string, webhookSecret: string): string {
   const base = supabaseUrl.replace(/\/+$/, '');
-  return `-- 4. In-app notifications -> PushEngage (replaces OneSignal)
+  return `-- 4. In-app notifications -> OneSignal
 do $$
 declare v_id uuid;
 begin
-  select id into v_id from vault.secrets where name = 'pushengage_notification_webhook_secret';
+  select id into v_id from vault.secrets where name = 'onesignal_notification_webhook_secret';
   if v_id is null then
-    perform vault.create_secret('${webhookSecret}', 'pushengage_notification_webhook_secret', 'PushEngage notification webhook secret');
+    perform vault.create_secret('${webhookSecret}', 'onesignal_notification_webhook_secret', 'OneSignal notification webhook secret');
   else
     perform vault.update_secret(v_id, '${webhookSecret}');
   end if;
 end $$;
 
-create or replace function private.dispatch_pushengage_notification()
+create or replace function private.dispatch_onesignal_notification()
 returns trigger language plpgsql security definer set search_path to 'pg_catalog', 'public', 'vault', 'net' as $$
 declare v_secret text;
 begin
   select decrypted_secret into v_secret
-    from vault.decrypted_secrets where name = 'pushengage_notification_webhook_secret' limit 1;
+    from vault.decrypted_secrets where name = 'onesignal_notification_webhook_secret' limit 1;
   if v_secret is null or v_secret = '' then
-    raise warning 'pushengage_notification_webhook_secret missing from Vault; skipping push for notification %', NEW.id;
+    raise warning 'onesignal_notification_webhook_secret missing from Vault; skipping push for notification %', NEW.id;
     return new;
   end if;
   begin
     perform net.http_post(
-      url     := '${base}/functions/v1/pushengage-notification',
+      url     := '${base}/functions/v1/onesignal-notification',
       body    := jsonb_build_object(
         'type', 'INSERT', 'schema', 'public', 'table', 'notifications',
         'record', jsonb_build_object(
@@ -330,18 +329,18 @@ begin
       timeout_milliseconds := 5000
     );
   exception when others then
-    raise warning 'Could not enqueue PushEngage push for notification %: %', NEW.id, SQLERRM;
+    raise warning 'Could not enqueue OneSignal push for notification %: %', NEW.id, SQLERRM;
   end;
   return new;
 end;
 $$;
 
-drop trigger if exists notifications_onesignal_push_after_insert on public.notifications;
-create trigger notifications_pushengage_push_after_insert
+drop trigger if exists notifications_pushengage_push_after_insert on public.notifications;
+create trigger notifications_onesignal_push_after_insert
   after insert on public.notifications
-  for each row execute function private.dispatch_pushengage_notification();
+  for each row execute function private.dispatch_onesignal_notification();
 
-drop function if exists private.dispatch_onesignal_notification();
+drop function if exists private.dispatch_pushengage_notification();
 `;
 }
 
@@ -361,5 +360,5 @@ export function fixAllBookingAlertsSecrets(opts: FixAllOptions): string {
 
 /** The server secret lines the booking-alert pipeline needs. */
 export function envTemplate(): string {
-  return 'RESEND_API_KEY=re_your_key\nPUSHENGAGE_API_KEY=your_key';
+  return 'RESEND_API_KEY=re_your_key\nONESIGNAL_API_KEY=os_v2_app_your_key';
 }

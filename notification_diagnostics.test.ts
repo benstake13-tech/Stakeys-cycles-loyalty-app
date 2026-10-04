@@ -55,13 +55,13 @@ describe('classifyFunctionProbe', () => {
     expect(v.detail).toMatch(/webhook/i);
   });
 
-  it('reads the pushengage-send config to tell closed-app push apart from foreground-only', () => {
-    const ready = classifyFunctionProbe('pushengage-send', 200, '{"appId":"a","serverPush":true}');
+  it('reads the onesignal-send config to tell closed-app push apart from foreground-only', () => {
+    const ready = classifyFunctionProbe('onesignal-send', 200, '{"appId":"a","serverPush":true}');
     expect(ready.status).toBe('pass');
-    const noKey = classifyFunctionProbe('pushengage-send', 200, '{"appId":"a","serverPush":false}');
+    const noKey = classifyFunctionProbe('onesignal-send', 200, '{"appId":"a","serverPush":false}');
     expect(noKey.status).toBe('warn');
-    expect(noKey.hint).toMatch(/PUSHENGAGE_API_KEY/);
-    expect(classifyFunctionProbe('pushengage-send', 404, '').status).toBe('fail');
+    expect(noKey.hint).toMatch(/ONESIGNAL_API_KEY/);
+    expect(classifyFunctionProbe('onesignal-send', 404, '').status).toBe('fail');
   });
 });
 
@@ -86,8 +86,8 @@ describe('runNotificationSystemTests', () => {
       'notify-booking': { status: 403, body: 'restricted' },
       'booking-email-notification': { status: 401, body: 'Unauthorized' },
       'booking-push-notification': { status: 401, body: '{"error":"Unauthorized"}' },
-      'pushengage-send': { status: 200, body: '{"appId":"a","serverPush":true}' },
-      'pushengage-notification': { status: 401, body: 'Unauthorized' },
+      'onesignal-send': { status: 200, body: '{"appId":"a","serverPush":true}' },
+      'onesignal-notification': { status: 401, body: 'Unauthorized' },
     });
     const checks = await runNotificationSystemTests({
       supabaseUrl: URL,
@@ -104,8 +104,8 @@ describe('runNotificationSystemTests', () => {
     expect(byId['fn-notify-booking'].status).toBe('pass');
     expect(byId['fn-booking-email-notification'].status).toBe('pass');
     expect(byId['fn-booking-push-notification'].status).toBe('pass');
-    expect(byId['fn-pushengage-send'].status).toBe('pass');
-    expect(byId['fn-pushengage-notification'].status).toBe('pass');
+    expect(byId['fn-onesignal-send'].status).toBe('pass');
+    expect(byId['fn-onesignal-notification'].status).toBe('pass');
     expect(byId['email-recipient'].status).toBe('pass');
     expect(byId['push-permission'].status).toBe('pass');
     expect(byId['push-worker'].status).toBe('pass');
@@ -175,6 +175,6 @@ describe('runNotificationSystemTests', () => {
     });
     const c = checks.find((x) => x.id === 'push-server')!;
     expect(c.status).toBe('warn');
-    expect(c.fix?.href).toContain('pushengage');
+    expect(c.fix?.href).toContain('onesignal');
   });
 });

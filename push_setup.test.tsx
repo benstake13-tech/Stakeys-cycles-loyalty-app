@@ -96,7 +96,7 @@ describe('ensureRootServiceWorker', () => {
     const { register } = installServiceWorker([], [{ scope: 'https://example.com/' }]);
     const ok = await ensureRootServiceWorker(navigator.serviceWorker);
     expect(ok).toBe(true);
-    expect(register).toHaveBeenCalledWith('/service-worker.js', { scope: '/' });
+    expect(register).toHaveBeenCalledWith('/OneSignalSDKWorker.js', { scope: '/' });
   });
   it('does not register twice when a root worker already exists', async () => {
     const { register } = installServiceWorker([{ scope: 'https://example.com/' }]);

@@ -162,7 +162,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       flash(
         res.ok
           ? { kind: 'ok', text: `Test push sent (via ${res.via}).` }
-          : { kind: 'err', text: 'Push not delivered — PushEngage may not be configured.' }
+          : { kind: 'err', text: 'Push not delivered — OneSignal may not be configured.' }
       );
     } catch (e: any) {
       flash({ kind: 'err', text: e?.message || 'Push test failed.' });
@@ -413,7 +413,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
           <TestButton
             icon={<Smartphone className="w-4 h-4" />}
             title="Send Test Push"
-            subtitle="PushEngage device push"
+            subtitle="OneSignal device push"
             onClick={handleTestPush}
             busy={busy === 'push'}
           />

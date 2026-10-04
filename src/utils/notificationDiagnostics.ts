@@ -4,7 +4,7 @@
  * Answers one question for staff: "is the whole alert system working, and if
  * not, exactly which piece is missing?" It walks the real pipeline — config →
  * app_settings recipient → `send-email` deployed → `notify-booking` deployed →
- * Resend secret set → webhook → PushEngage device + server — and returns a
+ * Resend secret set → webhook → OneSignal device + server — and returns a
  * per-step verdict with a concrete fix.
  *
  * Everything that touches the network or the browser takes its dependency as an
@@ -81,7 +81,7 @@ export function classifyFunctionProbe(
   if (
     name === 'booking-email-notification' ||
     name === 'booking-push-notification' ||
-    name === 'pushengage-notification'
+    name === 'onesignal-notification'
   ) {
     if (status === 401 || status === 403) {
       return { status: 'pass', detail: 'Deployed and correctly locked to the webhook secret.' };
@@ -92,17 +92,17 @@ export function classifyFunctionProbe(
     return { status: 'pass', detail: `Deployed and reachable (HTTP ${status}).` };
   }
 
-  // pushengage-send answers a GET with its config, so we can read whether the
-  // server REST key is present (the difference between closed- and open-app push).
-  if (name === 'pushengage-send') {
+  // onesignal-send answers a GET with its config, so we can read whether the
+  // server App API key is present (the difference between closed- and open-app push).
+  if (name === 'onesignal-send') {
     if (status === 200 && /"serverPush"\s*:\s*true/.test(body)) {
       return { status: 'pass', detail: 'Deployed and configured — pushes send with the app closed.' };
     }
     if (status === 200) {
       return {
         status: 'warn',
-        detail: 'Deployed, but PUSHENGAGE_API_KEY is not set — only foreground pushes work.',
-        hint: 'Add PUSHENGAGE_API_KEY under Supabase → Edge Functions → Secrets.',
+        detail: 'Deployed, but ONESIGNAL_API_KEY is not set — only foreground pushes work.',
+        hint: 'Add ONESIGNAL_API_KEY under Supabase → Edge Functions → Secrets.',
       };
     }
     if (status >= 500) {
@@ -253,8 +253,8 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
     { name: 'notify-booking', label: 'notify-booking (workshop alert, service-role webhook)' },
     { name: 'booking-email-notification', label: 'booking-email-notification (booking webhook email)' },
     { name: 'booking-push-notification', label: 'booking-push-notification (booking webhook push)' },
-    { name: 'pushengage-send', label: 'pushengage-send (closed-app push, server REST key)' },
-    { name: 'pushengage-notification', label: 'pushengage-notification (in-app notification webhook)' },
+    { name: 'onesignal-send', label: 'onesignal-send (closed-app push, server App API key)' },
+    { name: 'onesignal-notification', label: 'onesignal-notification (in-app notification webhook)' },
   ];
   for (const { name, label } of probes) {
     const { status, body } = await probe(fetcher, deps.supabaseUrl, deps.anonKey, name);
@@ -285,7 +285,7 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
     checks.push(checkEmailRecipient(settings));
   }
 
-  // 4. PushEngage client
+  // 4. OneSignal client
   if (deps.getPushPermission) {
     const perm = await deps.getPushPermission().catch(() => 'unknown');
     checks.push({
@@ -329,19 +329,19 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
     checks.push({
       id: 'push-server',
       group: 'push',
-      label: 'Server can send push (PushEngage key)',
+      label: 'Server can send push (OneSignal key)',
       status: cfg.serverPush ? 'pass' : cfg.appId ? 'warn' : 'fail',
       detail: cfg.serverPush
-        ? 'Server-side push is configured (pushengage-send edge function has the REST key).'
+        ? 'Server-side push is configured (onesignal-send edge function has the App API key).'
         : cfg.appId
-          ? 'PushEngage app id is set, but the server REST key is missing — closed-app pushes will not send.'
-          : 'No PushEngage app id reachable from the server.',
+          ? 'OneSignal app id is set, but the server App API key is missing — closed-app pushes will not send.'
+          : 'No OneSignal app id reachable from the server.',
       fix: cfg.serverPush
         ? undefined
         : {
-            label: 'Open PushEngage dashboard',
-            href: 'https://dashboard.pushengage.com/',
-            hint: 'Copy the REST API key and set PUSHENGAGE_API_KEY as a secret for the pushengage-send function.',
+            label: 'Open OneSignal dashboard',
+            href: 'https://dashboard.onesignal.com/',
+            hint: 'Copy the App API key and set ONESIGNAL_API_KEY as a secret for the onesignal-send function.',
           },
     });
   }

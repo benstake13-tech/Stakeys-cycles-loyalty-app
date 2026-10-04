@@ -1,26 +1,24 @@
-// Supabase Edge Function: pushengage-notification
+// Supabase Edge Function: onesignal-notification
 // -----------------------------------------------------------------------------
-// Webhook on `notifications` INSERT -> targeted PushEngage push to one user.
-// PushEngage replacement for the old `onesignal-notification` function.
+// Webhook on `notifications` INSERT -> targeted OneSignal push to one user.
 //
-// The trigger `private.dispatch_pushengage_notification()` POSTs a
+// The trigger `private.dispatch_onesignal_notification()` POSTs a
 // { type, schema, table, record } envelope here with an
 // `x-webhook-secret` header that must match the Vault secret
-// `pushengage_notification_webhook_secret`.
+// `onesignal_notification_webhook_secret`.
 //
 // Required secrets:
-//   PUSHENGAGE_API_KEY   PushEngage REST API key
+//   ONESIGNAL_API_KEY    OneSignal App API key (os_v2_app_...)
 // Optional:
-//   PUSHENGAGE_APP_ID    defaults to the app id baked into the client snippet.
-//   PUSHENGAGE_NOTIFICATION_WEBHOOK_SECRET
-//                        shared secret the trigger must send (falls back to the
-//                        legacy NOTIFICATION_WEBHOOK_SECRET).
+//   ONESIGNAL_APP_ID     defaults to the app id baked into the client snippet.
+//   ONESIGNAL_NOTIFICATION_WEBHOOK_SECRET
+//                        shared secret the trigger must send.
 //
-// Deploy:  supabase functions deploy pushengage-notification --no-verify-jwt
+// Deploy:  supabase functions deploy onesignal-notification --no-verify-jwt
 // -----------------------------------------------------------------------------
 
-const DEFAULT_APP_ID = '23a65358-7d1f-4b0b-beff-de8b48f9689f';
-const PUSHENGAGE_ENDPOINT = 'https://api.pushengage.com/apiv1/notifications';
+const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
+const ONESIGNAL_ENDPOINT = 'https://api.onesignal.com/notifications';
 const MAX_BODY_BYTES = 16_384;
 
 function json(body: unknown, status = 200): Response {
@@ -34,8 +32,8 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   const webhookSecret =
-    Deno.env.get('PUSHENGAGE_NOTIFICATION_WEBHOOK_SECRET') ?? Deno.env.get('NOTIFICATION_WEBHOOK_SECRET');
-  const apiKey = Deno.env.get('PUSHENGAGE_API_KEY');
+    Deno.env.get('ONESIGNAL_NOTIFICATION_WEBHOOK_SECRET') ?? Deno.env.get('NOTIFICATION_WEBHOOK_SECRET');
+  const apiKey = Deno.env.get('ONESIGNAL_API_KEY');
   if (!webhookSecret || !apiKey) {
     console.error('Required push secrets are not configured');
     return json({ error: 'Push notification service is not configured' }, 503);
@@ -74,39 +72,41 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Notification is missing required fields' }, 400);
   }
 
-  const form = new URLSearchParams();
-  form.set('notification_title', title);
-  form.set('notification_message', message);
-  form.set('notification_url', 'https://www.stakeyswheels.co.uk');
-  form.set('notification_type', 'now');
   // Branding: shop logo as the notification icon.
   const logoUrl = Deno.env.get('BOOKING_LOGO_URL') ||
     'https://lhojocpygcnkxvkrcuxh.supabase.co/storage/v1/object/public/brand/stakeys-logo.png';
-  form.set('image_url', logoUrl);
-  form.append('profile_id[]', userId);
+
+  const notification = {
+    app_id: Deno.env.get('ONESIGNAL_APP_ID') || DEFAULT_APP_ID,
+    include_aliases: { external_id: [userId] },
+    target_channel: 'push',
+    headings: { en: title },
+    contents: { en: message },
+    url: 'https://www.stakeyswheels.co.uk',
+    chrome_web_icon: logoUrl,
+  };
 
   let response: Response;
   try {
-    response = await fetch(PUSHENGAGE_ENDPOINT, {
+    response = await fetch(ONESIGNAL_ENDPOINT, {
       method: 'POST',
       headers: {
-        'Api-Key': apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Key ${apiKey}`,
+        'Content-Type': 'application/json',
       },
-      body: form.toString(),
+      body: JSON.stringify(notification),
     });
   } catch (error) {
-    console.error('PushEngage request failed', error);
+    console.error('OneSignal request failed', error);
     return json({ error: 'Could not reach the push provider' }, 502);
   }
 
   const result = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  // PushEngage returns HTTP 200 even for failures (e.g. "Segment not found").
-  if (!response.ok || result?.success === false) {
-    console.error('PushEngage rejected the request', { status: response.status, result });
+  if (!response.ok || (Array.isArray(result?.errors) && result.errors.length > 0)) {
+    console.error('OneSignal rejected the request', { status: response.status, result });
     return json({ error: 'Push delivery failed', detail: result }, 502);
   }
 
-  console.info('PushEngage push sent', { notificationId, userId });
+  console.info('OneSignal push sent', { notificationId, userId });
   return json({ accepted: true, result }, 202);
 });

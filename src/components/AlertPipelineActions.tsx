@@ -12,7 +12,7 @@ import {
   fixAllBookingAlertsSecrets,
   generateWebhookSecret,
   RESEND_KEYS_URL,
-  PUSHENGAGE_DASHBOARD_URL,
+  ONESIGNAL_DASHBOARD_URL,
 } from '../utils/bookingAlertsSetup';
 
 interface PipelineRow {
@@ -81,7 +81,7 @@ export const AlertPipelineActions: React.FC<{
       step: 'STEP 2',
       icon: <KeyRound className="w-4 h-4" />,
       title: 'Set the server secrets',
-      copyHint: 'Copies a prompt (with the RESEND_API_KEY / PUSHENGAGE_API_KEY lines) to set the secrets.',
+      copyHint: 'Copies a prompt (with the RESEND_API_KEY / ONESIGNAL_API_KEY lines) to set the secrets.',
       pasteHint:
         'Paste the prompt to an AI agent to set them, or copy the KEY=value lines into Supabase → Edge Functions → Secrets.',
       text: secretsPrompt(projectRef, envTemplate()),
@@ -284,12 +284,12 @@ export const AlertPipelineActions: React.FC<{
         </a>{' '}
         ·{' '}
         <a
-          href={PUSHENGAGE_DASHBOARD_URL}
+          href={ONESIGNAL_DASHBOARD_URL}
           target="_blank"
           rel="noreferrer"
           className="text-emerald-400 hover:underline"
         >
-          Get the PushEngage REST key
+          Get the OneSignal App API key
         </a>
         . When all three steps are done, run <span className="text-neutral-300">Test workshop alert</span>{' '}
         above and <span className="text-neutral-300">Send a test push</span> in Push Setup.

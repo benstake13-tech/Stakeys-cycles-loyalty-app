@@ -1029,7 +1029,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (perm === 'denied') {
       toast.error('Push notification permission was denied in your browser settings.');
     } else if (perm === 'not_configured') {
-      toast.error('PushEngage is not configured yet. Add VITE_PUSHENGAGE_APP_ID to enable push.');
+      toast.error('OneSignal is not configured yet. Add VITE_ONESIGNAL_APP_ID to enable push.');
     }
     return perm;
   };

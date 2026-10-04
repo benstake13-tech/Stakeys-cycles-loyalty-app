@@ -45,7 +45,7 @@ interface StepDef {
 
 /**
  * Staff-facing "Push Setup" control. Each part of the web-push pipeline —
- * device permission, the root-scope service worker, and the server-side REST
+ * device permission, the root-scope service worker, and the server-side App API
  * key — is a step with its own live check, its own Fix action and its own Test,
  * so staff can finish and verify the feature one step at a time.
  */
@@ -66,15 +66,15 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
       {
         key: 'worker',
         title: 'Root service worker is registered',
-        why: 'PushEngage needs a service worker at scope "/" to receive background pushes.',
+        why: 'OneSignal needs a service worker at scope "/" to receive background pushes.',
         howto: 'Press Fix once notifications are allowed — it installs the worker automatically.',
       },
       {
         key: 'serverkey',
         title: 'Server push key is configured',
-        why: 'Background pushes need the PushEngage REST API key on the server, so alerts arrive with the app closed.',
+        why: 'Background pushes need the OneSignal App API key on the server, so alerts arrive with the app closed.',
         howto:
-          'Press Fix to copy a prompt that sets PUSHENGAGE_API_KEY (paste it to an AI agent, or add the line in the Secrets page), replacing the value with the REST API key from your PushEngage dashboard.',
+          'Press Fix to copy a prompt that sets ONESIGNAL_API_KEY (paste it to an AI agent, or add the line in the Secrets page), replacing the value with the App API key from your OneSignal dashboard.',
         action: { label: 'Open Secrets page', href: `${dash}/settings/functions` },
       },
     ],
@@ -123,7 +123,7 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
       state: config.serverPush ? 'ok' : 'warn',
       detail: config.serverPush
         ? 'Configured — alerts arrive even when the app is closed.'
-        : 'Not configured. Foreground alerts work; closed-app alerts need PUSHENGAGE_API_KEY on the server.',
+        : 'Not configured. Foreground alerts work; closed-app alerts need ONESIGNAL_API_KEY on the server.',
     };
   }, []);
 
@@ -199,11 +199,11 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
   const fixServerKey = async () => {
     try {
       await navigator.clipboard.writeText(
-        secretsPrompt(projectRef, 'PUSHENGAGE_API_KEY=your-rest-api-key')
+        secretsPrompt(projectRef, 'ONESIGNAL_API_KEY=os_v2_app_your-app-api-key')
       );
-      flash({ kind: 'ok', text: 'Secrets prompt copied — paste it to an AI agent (or the Secrets page) with your real PushEngage REST key.' });
+      flash({ kind: 'ok', text: 'Secrets prompt copied — paste it to an AI agent (or the Secrets page) with your real OneSignal App API key.' });
     } catch {
-      flash({ kind: 'err', text: 'Clipboard blocked — add PUSHENGAGE_API_KEY manually.' });
+      flash({ kind: 'err', text: 'Clipboard blocked — add ONESIGNAL_API_KEY manually.' });
     }
   };
 

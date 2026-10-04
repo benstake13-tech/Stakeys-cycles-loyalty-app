@@ -33,7 +33,7 @@ import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { Toaster } from 'react-hot-toast';
-import { initPushEngage, linkUser, relinkUser, unlinkUser } from './utils/pushNotifications';
+import { initOneSignal, linkUser, relinkUser, unlinkUser } from './utils/pushNotifications';
 
 function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
@@ -69,14 +69,14 @@ function AppContent() {
     setMobileMenuOpen(false);
   }, [activeTab]);
 
-  // PushEngage: initialise once and target pushes at the signed-in user.
+  // OneSignal: initialise once and target pushes at the signed-in user.
   // Auth restore is async, so on a cold load `currentUser` is briefly null —
   // we must NOT treat that as "signed out" and unlink the device, or every
   // reload would detach this phone from the admin profile and silently break
   // booking alerts. Only unlink after a user has actually been linked.
   const pushLinkedRef = useRef(false);
   useEffect(() => {
-    void initPushEngage();
+    void initOneSignal();
   }, []);
 
   useEffect(() => {
