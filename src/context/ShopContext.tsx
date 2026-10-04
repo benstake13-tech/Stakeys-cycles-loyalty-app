@@ -43,7 +43,7 @@ import {
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
-import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/pushNotifications';
+import { requestPushPermission } from '../utils/pushNotifications';
 import { generateMembershipNumber } from '../api/firebaseService';
 import {
   STAMPS_PER_CARD,
@@ -1050,21 +1050,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
     setBookings(incomingBookings);
 
-    // ONLY staff receives the loud audio ping and push notification!
+    // ONLY staff receives the loud audio chime. The push itself is sent once,
+    // server-side, by the `service_bookings` INSERT trigger — not here — so a
+    // booking never produces duplicate notifications.
     if (isStaff && brandNewBookings.length > 0) {
       staffBookingAudio.playLoudBookingPing();
 
       const latest = brandNewBookings[0];
-      staffBookingAudio.dispatchPushNotification(
-        `🚨 New Workshop Booking: #${latest.id}`,
-        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`
-      );
-      // Server-to-server push so it reaches the phone even when the app is closed.
-      void sendPushToUser(
-        currentUserRef.current?.uid,
-        `🚨 New Workshop Booking #${latest.id}`,
-        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`
-      );
 
       toast(
         `🚨 NEW WORKSHOP BOOKING #${latest.id}!\n${latest.customerName} • ${latest.serviceTitle}`,
@@ -2517,24 +2509,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Remote Database Mutation: INSERT directly into service_bookings table
     insertServiceBookingToDb(completedBooking).catch((e) => console.warn('[DB SYNC] Error inserting booking in DB:', e));
 
-    // Audio Alert & Push. The booking chime only plays on staff devices; the server
-    // push is sent by whoever creates the booking so staff phones are reached
-    // even when the terminal isn't open.
+    // Audio chime only (staff devices). The push is sent once, server-side, by
+    // the `service_bookings` INSERT trigger — never here — so a booking does not
+    // produce duplicate notifications.
     const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
     if (isStaff) {
       staffBookingAudio.playLoudBookingPing();
-      staffBookingAudio.dispatchPushNotification(
-        `🚨 New Workshop Booking #${completedBooking.id}`,
-        `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`
-      );
     }
-    // A staff/admin creator targets their own device; a customer's booking has
-    // no user id, so the edge function alerts the workshop admins instead.
-    void sendPushToUser(
-      isStaff ? currentUser?.uid : undefined,
-      `🚨 New Workshop Booking #${completedBooking.id}`,
-      `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`
-    );
 
     // Trigger instant email alert confirmation banner
     const failureWarning = failures && failures.length > 0 ? ` ⚠️ ${failures.join(' ')}` : '';
