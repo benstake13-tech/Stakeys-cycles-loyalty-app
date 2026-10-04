@@ -3,6 +3,7 @@ import express from 'express';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import * as OneSignalApi from '@onesignal/node-onesignal';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -226,7 +227,7 @@ async function startServer() {
     }
 
     try {
-      const payload: Record<string, any> = {
+      const payload: OneSignalApi.Notification = {
         app_id: appId,
         headings: { en: title || 'Stakey’s Cycles' },
         contents: { en: body || '' },
@@ -245,19 +246,15 @@ async function startServer() {
         payload.included_segments = ['Subscribed Users'];
       }
 
-      const response = await fetch('https://api.onesignal.com/notifications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Key ${restKey}`,
-        },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-      res.status(response.status).json(data);
-    } catch (error) {
-      console.error('OneSignal push error:', error);
-      res.status(500).json({ error: 'Push dispatch failed' });
+      const client = new OneSignalApi.DefaultApi(
+        OneSignalApi.createConfiguration({ restApiKey: restKey })
+      );
+      const data = await client.createNotification(payload);
+      res.status(200).json(data);
+    } catch (error: any) {
+      console.error('OneSignal push error:', error?.body ?? error);
+      const status = typeof error?.code === 'number' && error.code >= 400 ? error.code : 500;
+      res.status(status).json(error?.body ?? { error: 'Push dispatch failed' });
     }
   });
 

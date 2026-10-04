@@ -1,20 +1,16 @@
 /**
  * OneSignal Web Push integration.
  *
- * Loads the OneSignal SDK, links each signed-in user (external_id = uid) so pushes
- * can be targeted, and exposes helpers used by the booking flow. Real delivery to a
- * phone requires a configured app id and (for background/server sends) the REST key
- * on the backend.
+ * Uses the official `react-onesignal` SDK (installed dependency) instead of
+ * injecting the CDN script at runtime. Links each signed-in user
+ * (external_id = uid) so pushes can be targeted, and exposes helpers used by
+ * the booking flow. Real delivery to a phone requires a configured app id and
+ * (for background/server sends) the REST key on the backend.
  */
 
-export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured';
+import OneSignal from 'react-onesignal';
 
-declare global {
-  interface Window {
-    OneSignal?: any;
-    OneSignalDeferred?: any[];
-  }
-}
+export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured';
 
 interface OneSignalRuntimeConfig {
   appId: string | null;
@@ -23,17 +19,19 @@ interface OneSignalRuntimeConfig {
 }
 
 let runtimeConfig: OneSignalRuntimeConfig | null = null;
-let sdkLoadPromise: Promise<void> | null = null;
 let initPromise: Promise<boolean> | null = null;
 
 const envAppId = (import.meta as any).env?.VITE_ONESIGNAL_APP_ID as string | undefined;
+
+function browserReady(): boolean {
+  return typeof window !== 'undefined' && typeof document !== 'undefined';
+}
 
 async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   if (runtimeConfig) return runtimeConfig;
   try {
     const res = await fetch('/api/onesignal/config');
-    const parsed = (await res.json()) as OneSignalRuntimeConfig;
-    runtimeConfig = parsed;
+    runtimeConfig = (await res.json()) as OneSignalRuntimeConfig;
   } catch {
     runtimeConfig = { appId: envAppId || null, safariWebId: null, serverPush: false };
   }
@@ -48,67 +46,27 @@ async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   return resolved;
 }
 
-function loadSdk(): Promise<void> {
-  if (window.OneSignal?.init) return Promise.resolve();
-  if (sdkLoadPromise) return sdkLoadPromise;
-  sdkLoadPromise = new Promise<void>((resolve) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
-    script.defer = true;
-    script.onload = () => resolve();
-    script.onerror = () => resolve();
-    document.head.appendChild(script);
-  });
-  return sdkLoadPromise;
-}
-
-/**
- * Resolves the OneSignal SDK instance. v16 only exposes the populated instance
- * through the OneSignalDeferred queue, so we enqueue a callback and await it.
- */
-function getOneSignal(): Promise<any> {
-  if (window.OneSignalDeferred?.length === 0 && window.OneSignal?.init) {
-    return Promise.resolve(window.OneSignal);
-  }
-  return new Promise((resolve) => {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    if (window.OneSignal?.init) return resolve(window.OneSignal);
-    const timer = window.setTimeout(() => resolve(window.OneSignal || null), 8000);
-    window.OneSignalDeferred.push((OS: any) => {
-      window.clearTimeout(timer);
-      resolve(OS);
-    });
-  });
-}
-
 /** Initialises the SDK once. Resolves true when push is actually configured. */
 export async function initOneSignal(): Promise<boolean> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
+    if (!browserReady()) return false;
     const cfg = await getRuntimeConfig();
     if (!cfg.appId) return false;
 
-    await loadSdk();
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-
-    return await new Promise<boolean>((resolve) => {
-      window.OneSignalDeferred!.push(async (OS: any) => {
-        try {
-          await OS.init({
-            appId: cfg.appId,
-            safari_web_id: cfg.safariWebId || undefined,
-            allowLocalhostAsSecureOrigin: true,
-            serviceWorkerPath: '/OneSignalSDKWorker.js',
-            serviceWorkerParam: { scope: '/' },
-            notifyButton: { enable: false },
-          });
-          resolve(true);
-        } catch (err) {
-          console.warn('[OneSignal] init failed:', err);
-          resolve(false);
-        }
+    try {
+      await OneSignal.init({
+        appId: cfg.appId,
+        safari_web_id: cfg.safariWebId || undefined,
+        allowLocalhostAsSecureOrigin: true,
+        serviceWorkerPath: '/OneSignalSDKWorker.js',
+        serviceWorkerParam: { scope: '/' },
       });
-    });
+      return true;
+    } catch (err) {
+      console.warn('[OneSignal] init failed:', err);
+      return false;
+    }
   })();
   return initPromise;
 }
@@ -116,7 +74,7 @@ export async function initOneSignal(): Promise<boolean> {
 export async function getPushPermission(): Promise<PushPermission> {
   const cfg = await getRuntimeConfig();
   if (!cfg.appId) return 'not_configured';
-  if (!('Notification' in window)) return 'unsupported';
+  if (!browserReady() || !('Notification' in window)) return 'unsupported';
   if (Notification.permission === 'granted' || Notification.permission === 'denied') {
     return Notification.permission;
   }
@@ -134,20 +92,10 @@ export async function requestPushPermission(): Promise<PushPermission> {
   const ok = await initOneSignal();
   if (!ok) return 'unsupported';
 
-  const OS = await getOneSignal();
-  if (!OS) return 'unsupported';
-
   try {
-    // v16: request permission via the native notification API trigger.
-    if (OS.Notifications?.requestPermission) {
-      await OS.Notifications.requestPermission();
-    } else if (OS.requestPermission) {
-      await OS.requestPermission();
-    } else if ('Notification' in window) {
-      await Notification.requestPermission();
-    }
-    if (OS.User?.PushSubscription?.optIn) {
-      await OS.User.PushSubscription.optIn();
+    await OneSignal.Notifications.requestPermission();
+    if (OneSignal.User?.PushSubscription?.optIn) {
+      await OneSignal.User.PushSubscription.optIn();
     }
   } catch (err) {
     console.warn('[OneSignal] permission request failed:', err);
@@ -160,13 +108,15 @@ export async function requestPushPermission(): Promise<PushPermission> {
 export async function linkUser(userId: string, tags?: Record<string, string | number>) {
   const configured = await initOneSignal();
   if (!configured) return;
-  const OS = await getOneSignal();
-  if (!OS) return;
   try {
-    if (OS?.login) await OS.login(userId);
-    if (tags && OS?.User?.addTags) await OS.User.addTags(tags);
-    if (OS?.User?.PushSubscription?.optIn && Notification?.permission === 'granted') {
-      await OS.User.PushSubscription.optIn();
+    await OneSignal.login(userId);
+    if (tags) {
+      const stringTags: Record<string, string> = {};
+      for (const [k, v] of Object.entries(tags)) stringTags[k] = String(v);
+      OneSignal.User.addTags(stringTags);
+    }
+    if (OneSignal.User?.PushSubscription?.optIn && Notification?.permission === 'granted') {
+      await OneSignal.User.PushSubscription.optIn();
     }
   } catch (err) {
     console.warn('[OneSignal] linkUser failed:', err);
@@ -175,7 +125,7 @@ export async function linkUser(userId: string, tags?: Record<string, string | nu
 
 export async function unlinkUser() {
   try {
-    if (window.OneSignal?.logout) await window.OneSignal.logout();
+    if (browserReady()) await OneSignal.logout();
   } catch {
     /* ignore */
   }
@@ -183,9 +133,9 @@ export async function unlinkUser() {
 
 export async function getSubscriptionId(): Promise<string | null> {
   try {
-    const OS = await getOneSignal();
-    const sub = OS?.User?.PushSubscription;
-    return sub?.id || sub?.getId?.() || null;
+    if (!browserReady()) return null;
+    const sub = OneSignal.User?.PushSubscription;
+    return sub?.id || null;
   } catch {
     return null;
   }
@@ -225,7 +175,7 @@ export async function sendPushToUser(
 
   // Local fallback (works while the page is open and permission is granted).
   try {
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (browserReady() && 'Notification' in window && Notification.permission === 'granted') {
       new Notification(title, { body, icon: '/logo.svg', badge: '/logo.svg', requireInteraction: true });
       return { ok: true, via: 'local' };
     }
