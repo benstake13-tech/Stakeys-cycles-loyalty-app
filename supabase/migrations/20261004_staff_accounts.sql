@@ -11,6 +11,9 @@
 -- ---------------------------------------------------------------------------
 
 -- 1. Admin-gated helper: true when the caller's profile role is 'admin'.
+--    `profiles.id` is uuid on the live project (and the app's expected schema),
+--    so cast the column to text before comparing — otherwise PostgreSQL has no
+--    uuid = text operator. Works whether the column is uuid or text.
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
 LANGUAGE sql
@@ -19,7 +22,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT COALESCE(
-    (SELECT role = 'admin' FROM public.profiles WHERE id = auth.uid()::text),
+    (SELECT role = 'admin' FROM public.profiles WHERE id::text = auth.uid()::text),
     false
   );
 $$;
@@ -43,7 +46,7 @@ DECLARE
   v_email text := lower(trim(p_email));
   v_role text := lower(trim(COALESCE(p_role, 'staff')));
   v_name text := NULLIF(trim(COALESCE(p_display_name, '')), '');
-  v_id text;
+  v_id uuid;
 BEGIN
   IF NOT public.is_admin() THEN
     RAISE EXCEPTION 'Only an admin can create staff accounts';
@@ -62,7 +65,7 @@ BEGIN
     RAISE EXCEPTION 'An account with this email already exists';
   END IF;
 
-  v_id := gen_random_uuid()::text;
+  v_id := gen_random_uuid();
 
   INSERT INTO auth.users (
     id, instance_id, aud, role, email,
@@ -70,7 +73,7 @@ BEGIN
     raw_app_meta_data, raw_user_meta_data,
     created_at, updated_at
   ) VALUES (
-    v_id::uuid,
+    v_id,
     '00000000-0000-0000-0000-000000000000',
     'authenticated', 'authenticated', v_email,
     crypt(p_password, gen_salt('bf')),
@@ -96,7 +99,7 @@ BEGIN
         display_name = COALESCE(EXCLUDED.display_name, public.profiles.display_name),
         email = COALESCE(public.profiles.email, EXCLUDED.email);
 
-  RETURN v_id;
+  RETURN v_id::text;
 END;
 $$;
 
@@ -114,7 +117,7 @@ STABLE
 SECURITY DEFINER
 SET search_path = public
 AS $$
-  SELECT p.id, p.email, p.display_name, p.role, p.created_at
+  SELECT p.id::text, p.email, p.display_name, p.role, p.created_at
   FROM public.profiles p
   WHERE public.is_admin() AND p.role IN ('staff', 'admin')
   ORDER BY p.role DESC, p.display_name ASC;
@@ -144,12 +147,12 @@ BEGIN
 
   IF v_role <> 'admin' THEN
     SELECT count(*) INTO v_admins FROM public.profiles WHERE role = 'admin';
-    IF v_admins <= 1 AND EXISTS (SELECT 1 FROM public.profiles WHERE id = p_user_id AND role = 'admin') THEN
+    IF v_admins <= 1 AND EXISTS (SELECT 1 FROM public.profiles WHERE id::text = p_user_id AND role = 'admin') THEN
       RAISE EXCEPTION 'Cannot remove the last admin';
     END IF;
   END IF;
 
-  UPDATE public.profiles SET role = v_role WHERE id = p_user_id;
+  UPDATE public.profiles SET role = v_role WHERE id::text = p_user_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'No profile found for %', p_user_id;
   END IF;
