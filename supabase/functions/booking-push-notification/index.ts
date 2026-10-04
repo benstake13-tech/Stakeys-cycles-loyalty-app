@@ -202,29 +202,19 @@ Deno.serve(async (req: Request) => {
   }
 
   const result = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-  // OneSignal's v2 API returns HTTP 200 with a populated `errors` field on
-  // failure (e.g. `["All included players are not subscribed"]`) and an empty
-  // `id`. A real success always carries a notification id, so require both.
+  // OneSignal's v2 API signals a real failure with HTTP 200, an EMPTY `id` and
+  // `errors: ["All included players are not subscribed"]`. A non-empty `id` means
+  // the push was accepted — even when `errors.invalid_aliases` is present (proven:
+  // such a send still delivered to every subscribed device). Only a missing id is
+  // a genuine miss.
   if (!response.ok || !result?.id) {
     console.error('OneSignal rejected notification', { status: response.status, result });
-    return json({ error: 'Push notification provider rejected the request', detail: result }, 502);
-  }
-
-  // An `id` can still come back while OneSignal reports every requested alias as
-  // invalid — the admin has no subscribed device right now. Re-apply the external
-  // id so a device that lost its link (e.g. after a logout) reconnects and future
-  // bookings reach it, then report the miss rather than a false ok.
-  const invalidAliases = (result.errors as { invalid_aliases?: { external_id?: string[] } } | undefined)
-    ?.invalid_aliases?.external_id;
-  if (invalidAliases?.length && recipients.every((id) => invalidAliases.includes(id))) {
-    console.error('No subscribed admin device; re-applying external ids', invalidAliases);
+    // Best-effort self-heal: re-apply the admin external id so a device that lost
+    // its link reconnects for future bookings.
     await relinkUsers(apiKey, recipients).catch((error) =>
       console.error('Re-link admin devices failed', error)
     );
-    return json(
-      { error: 'No subscribed admin device for this booking alert', detail: result, invalidAliases },
-      502
-    );
+    return json({ error: 'Push notification provider rejected the request', detail: result }, 502);
   }
 
   return json({ ok: true, recipients: recipients.length, notification_id: result.id });

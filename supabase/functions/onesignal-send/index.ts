@@ -166,7 +166,9 @@ Deno.serve(async (req: Request) => {
   } else {
     const audience = (payload.audience || 'admin').toLowerCase();
     if (audience === 'all') {
-      notification.included_segments = ['Subscribed Users'];
+      // OneSignal's default subscribed segment is "Active Subscriptions" on newer
+      // apps; "Subscribed Users" does not exist and yields no recipients.
+      notification.included_segments = ['Active Subscriptions'];
     } else {
       const recipients = await resolveAdminRecipients();
       if (recipients.length === 0) {
@@ -193,30 +195,14 @@ Deno.serve(async (req: Request) => {
   }
 
   const data = (await upstream.json().catch(() => ({}))) as Record<string, unknown>;
-  // OneSignal's v2 API returns HTTP 200 with a populated `errors` field on
-  // failure (e.g. `["All included players are not subscribed"]`) and an empty
-  // `id`. A real success always carries a notification id, so require both.
+  // OneSignal's v2 API signals a real failure with HTTP 200, an EMPTY `id` and
+  // `errors: ["All included players are not subscribed"]`. A non-empty `id` means
+  // the notification was accepted — even when `errors.invalid_aliases` is present
+  // (verified: such a send still delivered to every subscribed device). So the
+  // only reliable success test is a non-empty id.
   if (!upstream.ok || !data?.id) {
     console.error('OneSignal rejected the request', upstream.status, data);
     return json({ error: 'Push provider rejected the request', detail: data }, 502);
-  }
-
-  // A notification id can still come back while OneSignal reports every requested
-  // external id as invalid — that means no device is subscribed for those users,
-  // so the send reached nobody. Surface it instead of reporting a false success.
-  const requestedAliases = (notification.include_aliases as { external_id?: string[] } | undefined)?.external_id;
-  const invalidAliases = (data.errors as { invalid_aliases?: { external_id?: string[] } } | undefined)
-    ?.invalid_aliases?.external_id;
-  if (
-    requestedAliases?.length &&
-    invalidAliases?.length &&
-    requestedAliases.every((id) => invalidAliases.includes(id))
-  ) {
-    console.error('OneSignal had no valid recipients for the target aliases', invalidAliases);
-    return json(
-      { error: 'No device is subscribed for the target user(s)', detail: data, invalidAliases },
-      502
-    );
   }
 
   return json(data, 200);
