@@ -51,7 +51,7 @@ export const SYSTEM_GROUP_LABELS: Record<SystemGroup, string> = {
  *    deployed function returns 403 to our anon-key probe.
  */
 export function classifyFunctionProbe(
-  name: 'send-email' | 'notify-booking',
+  name: string,
   status: number,
   body: string
 ): { status: SystemStatus; detail: string; hint?: string } {
@@ -74,6 +74,18 @@ export function classifyFunctionProbe(
   // undeployed function cannot answer from the browser.
   if (status === 405) {
     return { status: 'pass', detail: 'Deployed and reachable (function responded).' };
+  }
+
+  // The booking webhook functions authenticate with a shared secret header, so a
+  // 401 to our secret-less probe still proves they are deployed.
+  if (name === 'booking-email-notification' || name === 'booking-push-notification') {
+    if (status === 401 || status === 403) {
+      return { status: 'pass', detail: 'Deployed and correctly locked to the booking webhook secret.' };
+    }
+    if (status >= 500) {
+      return { status: 'warn', detail: `Deployed, but returned HTTP ${status}.`, hint: 'Check the function logs.' };
+    }
+    return { status: 'pass', detail: `Deployed and reachable (HTTP ${status}).` };
   }
 
   if (name === 'send-email') {
@@ -213,14 +225,20 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
   }
 
   // 2. Edge functions deployed
-  for (const name of ['send-email', 'notify-booking'] as const) {
+  const probes: Array<{ name: string; label: string }> = [
+    { name: 'send-email', label: 'send-email (customer confirmation, approval, decline)' },
+    { name: 'notify-booking', label: 'notify-booking (workshop alert, service-role webhook)' },
+    { name: 'booking-email-notification', label: 'booking-email-notification (booking webhook email)' },
+    { name: 'booking-push-notification', label: 'booking-push-notification (booking webhook push)' },
+  ];
+  for (const { name, label } of probes) {
     const { status, body } = await probe(fetcher, deps.supabaseUrl, deps.anonKey, name);
     const verdict = classifyFunctionProbe(name, status, body);
-    const secretMissing = /RESEND_API_KEY is not configured/i.test(body);
+    const secretMissing = /is not configured/i.test(body);
     checks.push({
       id: `fn-${name}`,
       group: 'pipeline',
-      label: `Edge function "${name}" is deployed`,
+      label: `${label} is deployed`,
       status: verdict.status,
       detail: verdict.detail,
       fix:

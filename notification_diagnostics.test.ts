@@ -75,6 +75,8 @@ describe('runNotificationSystemTests', () => {
     const fetcher = fakeFetch({
       'send-email': { status: 400, body: '' },
       'notify-booking': { status: 403, body: 'restricted' },
+      'booking-email-notification': { status: 401, body: 'Unauthorized' },
+      'booking-push-notification': { status: 401, body: '{"error":"Unauthorized"}' },
     });
     const checks = await runNotificationSystemTests({
       supabaseUrl: URL,
@@ -89,11 +91,20 @@ describe('runNotificationSystemTests', () => {
     const byId = Object.fromEntries(checks.map((c) => [c.id, c]));
     expect(byId['fn-send-email'].status).toBe('pass');
     expect(byId['fn-notify-booking'].status).toBe('pass');
+    expect(byId['fn-booking-email-notification'].status).toBe('pass');
+    expect(byId['fn-booking-push-notification'].status).toBe('pass');
     expect(byId['email-recipient'].status).toBe('pass');
     expect(byId['push-permission'].status).toBe('pass');
     expect(byId['push-worker'].status).toBe('pass');
     expect(byId['push-server'].status).toBe('pass');
     expect(summarizeSystem(checks).ready).toBe(true);
+  });
+
+  it('reports the booking webhook functions as deployed when they answer 401', () => {
+    // The booking-* functions only accept the shared webhook secret, so a plain
+    // GET returning 401 still proves they exist.
+    expect(classifyFunctionProbe('booking-email-notification', 401, 'Unauthorized').status).toBe('pass');
+    expect(classifyFunctionProbe('booking-push-notification', 401, '{"error":"Unauthorized"}').status).toBe('pass');
   });
 
   it('offers a copy-the-deploy-command fix when a function is missing', async () => {

@@ -55,4 +55,35 @@ describe('AlertPipelineActions', () => {
     const copied = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(copied).toContain('/functions/v1/notify-booking');
   });
+
+  it('renders the "Fix everything at once" one-shot repair', () => {
+    render(<AlertPipelineActions ownerEmail="owner@stakeys.co.uk" />);
+    expect(screen.getByText(/Fix everything at once/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Copy the fix-all SQL/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Copy the fix-all secrets/i })).toBeTruthy();
+    expect(screen.getByText(/SQL Editor — paste & Run/i)).toBeTruthy();
+    expect(screen.getByText(/Secrets — paste here/i)).toBeTruthy();
+    // Owner email pre-fills the workshop recipient field.
+    expect((screen.getByDisplayValue('owner@stakeys.co.uk') as HTMLInputElement).value).toBe(
+      'owner@stakeys.co.uk'
+    );
+  });
+
+  it('fix-all SQL uses one shared secret and targets both booking functions', async () => {
+    render(<AlertPipelineActions ownerEmail="owner@stakeys.co.uk" />);
+    fireEvent.click(screen.getByRole('button', { name: /Copy the fix-all SQL/i }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalled());
+    const sql = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(sql).toContain('/functions/v1/booking-email-notification');
+    expect(sql).toContain('/functions/v1/booking-push-notification');
+    expect(sql).toContain("booking_webhook_secret");
+    expect(sql).toContain("owner_email = 'owner@stakeys.co.uk'");
+    // The same secret must appear in the SQL and the secrets blob.
+    const m = sql.match(/vault\.create_secret\('([0-9a-f]+)'/);
+    expect(m).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Copy the fix-all secrets/i }));
+    const secrets = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
+    expect(secrets).toContain(`BOOKING_WEBHOOK_SECRET=${m![1]}`);
+    expect(secrets).toContain('BOOKING_NOTIFY_EMAILS=owner@stakeys.co.uk');
+  });
 });

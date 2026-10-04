@@ -461,7 +461,10 @@ export const StaffDiagnosticsTab: React.FC = () => {
       <SystemStatusPanel onFlash={(text, ok) => flash({ kind: ok ? 'ok' : 'err', text })} />
 
       {/* Booking alert pipeline — SQL / deploy / secret fix buttons */}
-      <AlertPipelineActions onFlash={(text, ok) => flash({ kind: ok ? 'ok' : 'err', text })} />
+      <AlertPipelineActions
+        ownerEmail={ownerConfig.ownerEmail}
+        onFlash={(text, ok) => flash({ kind: ok ? 'ok' : 'err', text })}
+      />
 
       {/* Results grouped by area */}
       {AREA_ORDER.map((area) => {

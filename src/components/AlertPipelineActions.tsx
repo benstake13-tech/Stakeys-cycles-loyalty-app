@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { Database, Rocket, KeyRound, ExternalLink, Copy, Check } from 'lucide-react';
+import { Database, Rocket, KeyRound, ExternalLink, Copy, Check, Wand2, RefreshCw, Mail } from 'lucide-react';
 import { getStoredSupabaseUrl } from '../supabase';
 import { deriveProjectRef } from '../utils/emailSetup';
 import {
   webhookTriggerSql,
   deployFunctionsCommand,
+  deployAllFunctionsCommand,
   envTemplate,
+  fixAllBookingAlertsSql,
+  fixAllBookingAlertsSecrets,
+  generateWebhookSecret,
   RESEND_KEYS_URL,
   PUSHENGAGE_DASHBOARD_URL,
 } from '../utils/bookingAlertsSetup';
@@ -29,13 +33,19 @@ interface PipelineRow {
  * Each row is a copy button with an explicit "where to paste it" link right
  * beside it, so every step says exactly what to do with what it copies.
  */
-export const AlertPipelineActions: React.FC<{ onFlash?: (text: string, ok: boolean) => void }> = ({
-  onFlash,
-}) => {
+export const AlertPipelineActions: React.FC<{
+  onFlash?: (text: string, ok: boolean) => void;
+  ownerEmail?: string;
+}> = ({ onFlash, ownerEmail }) => {
   const supabaseUrl = getStoredSupabaseUrl();
   const projectRef = deriveProjectRef(supabaseUrl);
   const dash = `https://supabase.com/dashboard/project/${projectRef}`;
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // One secret drives both the SQL (Vault) and the function secrets, so they
+  // always match — a mismatch is exactly what silently broke the alerts.
+  const [fixSecret] = useState(() => generateWebhookSecret());
+  const [fixEmail, setFixEmail] = useState(ownerEmail || '');
 
   const copy = async (key: string, text: string, label: string) => {
     try {
@@ -106,6 +116,102 @@ export const AlertPipelineActions: React.FC<{ onFlash?: (text: string, ok: boole
         Everything needed to (re)build the notification that fires after a booking. Each step has a copy
         button and a button that opens the exact page to paste it into. Do them in order: 1 → 2 → 3.
       </p>
+
+      {/* ONE-SHOT repair — fixes the secret mismatch that silently broke alerts */}
+      <div className="mb-4 p-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/5">
+        <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+          <Wand2 className="w-4 h-4" />
+          Fix everything at once
+        </div>
+        <p className="text-[11px] text-neutral-300 mt-1 leading-relaxed max-w-3xl">
+          The alerts were failing because the trigger and the edge functions were told{' '}
+          <span className="text-white font-semibold">different</span> webhook secrets, so every call was
+          rejected. This copies both halves using <span className="text-white font-semibold">one matching secret</span>{' '}
+          — paste each where its button says, then press <span className="text-white font-semibold">Re-run system test</span>.
+        </p>
+
+        <label className="block mt-3">
+          <span className="text-[11px] font-bold text-neutral-300">Workshop alert email (owner)</span>
+          <input
+            type="email"
+            value={fixEmail}
+            onChange={(e) => setFixEmail(e.target.value)}
+            placeholder="owner@example.com"
+            className="mt-1 w-full max-w-md px-3 py-2 rounded-xl bg-neutral-950 border border-neutral-700 text-sm text-white placeholder:text-neutral-500 focus:border-emerald-500 focus:outline-none"
+          />
+        </label>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => copy('fix-sql', fixAllBookingAlertsSql(supabaseUrl, { webhookSecret: fixSecret, ownerEmail: fixEmail }), 'Fix-all SQL')}
+            className="flex items-center gap-2 p-2.5 pr-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 transition-colors cursor-pointer"
+          >
+            <span className="w-8 h-8 rounded-xl bg-neutral-950/15 flex items-center justify-center shrink-0">
+              {copiedKey === 'fix-sql' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </span>
+            <span className="text-xs font-bold whitespace-nowrap">
+              {copiedKey === 'fix-sql' ? 'Copied!' : 'Copy the fix-all SQL'}
+            </span>
+          </button>
+          <a
+            href={`${dash}/sql/new`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 p-2.5 pr-3.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/40 transition-colors"
+          >
+            <span className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <ExternalLink className="w-4 h-4" />
+            </span>
+            <span className="min-w-0 text-left">
+              <span className="block text-xs font-bold text-emerald-300 whitespace-nowrap">SQL Editor — paste &amp; Run</span>
+              <span className="block text-[10px] text-neutral-400">Rebuilds the triggers with the shared secret.</span>
+            </span>
+          </a>
+
+          <button
+            type="button"
+            onClick={() => copy('fix-secrets', fixAllBookingAlertsSecrets({ webhookSecret: fixSecret, ownerEmail: fixEmail }), 'Fix-all secrets')}
+            className="flex items-center gap-2 p-2.5 pr-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 transition-colors cursor-pointer"
+          >
+            <span className="w-8 h-8 rounded-xl bg-neutral-950/15 flex items-center justify-center shrink-0">
+              {copiedKey === 'fix-secrets' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+            </span>
+            <span className="text-xs font-bold whitespace-nowrap">
+              {copiedKey === 'fix-secrets' ? 'Copied!' : 'Copy the fix-all secrets'}
+            </span>
+          </button>
+          <a
+            href={`${dash}/settings/functions`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 p-2.5 pr-3.5 rounded-2xl bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/40 transition-colors"
+          >
+            <span className="w-8 h-8 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <ExternalLink className="w-4 h-4" />
+            </span>
+            <span className="min-w-0 text-left">
+              <span className="block text-xs font-bold text-emerald-300 whitespace-nowrap">Secrets — paste here</span>
+              <span className="block text-[10px] text-neutral-400">Sets BOOKING_WEBHOOK_SECRET to the same value.</span>
+            </span>
+          </a>
+        </div>
+
+        <p className="text-[11px] text-neutral-400 mt-3 leading-relaxed">
+          Order matters: paste the <span className="text-neutral-200">SQL</span> first (creates the secret), then the{' '}
+          <span className="text-neutral-200">secrets</span> (so the functions accept it). Need to redeploy the functions
+          from the repo?{' '}
+          <button
+            type="button"
+            onClick={() => copy('fix-deploy', deployAllFunctionsCommand(projectRef), 'Deploy-all command')}
+            className="inline-flex items-center gap-1 text-emerald-400 hover:underline cursor-pointer"
+          >
+            {copiedKey === 'fix-deploy' ? <Check className="w-3 h-3" /> : <RefreshCw className="w-3 h-3" />}
+            <span>{copiedKey === 'fix-deploy' ? 'Copied deploy-all command' : 'copy the deploy-all command'}</span>
+          </button>{' '}
+          and run it in a logged-in Supabase CLI terminal.
+        </p>
+      </div>
 
       <div className="space-y-3">
         {rows.map((row) => {
