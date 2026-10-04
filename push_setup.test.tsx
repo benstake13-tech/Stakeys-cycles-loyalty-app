@@ -28,6 +28,7 @@ import {
   ensureRootServiceWorker,
   checkPushOrigin,
   normalizeOrigin,
+  supabaseSecretsBlock,
 } from './src/utils/pushSetup';
 import { PushSetupModal } from './src/components/PushSetupModal';
 
@@ -55,6 +56,10 @@ beforeEach(() => {
   hoisted.requestPushPermission.mockReset().mockResolvedValue('granted');
   hoisted.getSubscriptionId.mockReset().mockResolvedValue('sub-123');
   hoisted.sendPushToUser.mockReset().mockResolvedValue({ ok: true, via: 'server' });
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: vi.fn(async () => {}) },
+  });
   localStorage.setItem('stakeys_supabase_url', 'https://lhojocpygcnkxvkrcuxh.supabase.co');
   globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ appId: 'app', serverPush: true }), { status: 200 })) as unknown as typeof fetch;
   installServiceWorker([]);
@@ -137,6 +142,23 @@ describe('permissionLabel', () => {
   });
 });
 
+describe('supabaseSecretsBlock', () => {
+  it('emits the app id and a placeholder API key when server push is unset', () => {
+    const block = supabaseSecretsBlock({ projectRef: 'ref123', appId: 'app-1', serverPush: false });
+    expect(block).toContain('ONESIGNAL_APP_ID=app-1');
+    expect(block).toContain('ONESIGNAL_API_KEY=os_v2_app_your-app-api-key');
+    expect(block).toContain('BOOKING_WEBHOOK_SECRET=');
+    expect(block).toContain('dashboard/project/ref123/settings/functions');
+  });
+
+  it('notes that the key is already set and falls back for missing values', () => {
+    const block = supabaseSecretsBlock({ projectRef: '', appId: null, serverPush: true });
+    expect(block).toContain('# ONESIGNAL_API_KEY is already set on the server.');
+    expect(block).toContain('ONESIGNAL_APP_ID=<your-onesignal-app-id>');
+    expect(block).toContain('<project-ref>');
+  });
+});
+
 describe('ensureRootServiceWorker', () => {
   it('registers the shim at root scope when none exists', async () => {
     const { register } = installServiceWorker([], [{ scope: 'https://example.com/' }]);
@@ -213,5 +235,16 @@ describe('PushSetupModal', () => {
     fireEvent.click(screen.getAllByRole('button', { name: /^Test$/i })[3]);
     await waitFor(() => expect(hoisted.sendPushToUser).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/Server push test passed/i)).toBeTruthy());
+  });
+
+  it('copies a paste-ready Supabase secrets block from the server-key step', async () => {
+    await renderSettled();
+    fireEvent.click(screen.getByRole('button', { name: /Copy keys for Supabase/i }));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalled());
+    const copied = (navigator.clipboard.writeText as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(copied).toContain('ONESIGNAL_APP_ID=app');
+    expect(copied).toContain('ONESIGNAL_API_KEY');
+    expect(copied).toContain('lhojocpygcnkxvkrcuxh');
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Copied$/i })).toBeTruthy());
   });
 });

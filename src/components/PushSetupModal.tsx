@@ -12,6 +12,8 @@ import {
   KeyRound,
   Smartphone,
   Server,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { getStoredSupabaseUrl } from '../supabase';
@@ -30,6 +32,7 @@ import {
   ensureRootServiceWorker,
   permissionLabel,
   checkPushOrigin,
+  supabaseSecretsBlock,
 } from '../utils/pushSetup';
 
 type Toast = { kind: 'ok' | 'err'; text: string } | null;
@@ -95,6 +98,7 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
   const [permission, setPermission] = useState<PushPermission | null>(null);
   const [subId, setSubId] = useState<string | null>(null);
   const [toast, setToast] = useState<Toast>(null);
+  const [copiedSecrets, setCopiedSecrets] = useState(false);
 
   const flash = (t: Toast) => {
     setToast(t);
@@ -225,6 +229,33 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
       flash({ kind: 'ok', text: 'Secrets prompt copied — paste it to an AI agent (or the Secrets page) with your real OneSignal App API key.' });
     } catch {
       flash({ kind: 'err', text: 'Clipboard blocked — add ONESIGNAL_API_KEY manually.' });
+    }
+  };
+
+  /**
+   * Copies a paste-ready block of the Supabase Edge Function secrets the push
+   * pipeline needs (OneSignal App ID, the App API key placeholder when it is not
+   * yet set server-side, and the booking webhook secret), so they can be pasted
+   * straight into Dashboard → Edge Functions → Secrets.
+   */
+  const copySupabaseKeys = async () => {
+    try {
+      const config = await fetchPushConfig().catch(() => null);
+      await navigator.clipboard.writeText(
+        supabaseSecretsBlock({
+          projectRef,
+          appId: config?.appId ?? null,
+          serverPush: config?.serverPush ?? false,
+        })
+      );
+      setCopiedSecrets(true);
+      setTimeout(() => setCopiedSecrets(false), 2000);
+      flash({
+        kind: 'ok',
+        text: 'Supabase secrets copied — paste them into Dashboard → Edge Functions → Secrets.',
+      });
+    } catch {
+      flash({ kind: 'err', text: 'Clipboard blocked — add the secrets manually.' });
     }
   };
 
@@ -497,6 +528,21 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                     )}
                     <span>Test</span>
                   </button>
+                  {step.key === 'serverkey' && (
+                    <button
+                      type="button"
+                      onClick={copySupabaseKeys}
+                      className="px-3 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer"
+                      title="Copy a paste-ready block of the Edge Function secrets for Supabase"
+                    >
+                      {copiedSecrets ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5 text-sky-400" />
+                      )}
+                      <span>{copiedSecrets ? 'Copied' : 'Copy keys for Supabase'}</span>
+                    </button>
+                  )}
                 </div>
 
                 {step.key === 'permission' && permission === 'denied' && (

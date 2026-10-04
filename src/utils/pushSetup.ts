@@ -169,3 +169,33 @@ export async function ensureRootServiceWorker(
     return false;
   }
 }
+
+/**
+ * Builds a paste-ready block of the Supabase Edge Function secrets the push
+ * pipeline needs, so staff can copy them into Dashboard → Edge Functions →
+ * Secrets (or hand them to an AI agent). Placeholder values are used when the
+ * real secret is only known to the browser (the App API key never reaches it).
+ */
+export function supabaseSecretsBlock(opts: {
+  projectRef: string;
+  appId?: string | null;
+  serverPush?: boolean;
+}): string {
+  const ref = opts.projectRef || '<project-ref>';
+  const appId = opts.appId || '<your-onesignal-app-id>';
+  const lines = [`ONESIGNAL_APP_ID=${appId}`];
+  lines.push(
+    opts.serverPush
+      ? '# ONESIGNAL_API_KEY is already set on the server.'
+      : 'ONESIGNAL_API_KEY=os_v2_app_your-app-api-key'
+  );
+  lines.push('BOOKING_WEBHOOK_SECRET=<must match the Vault booking_webhook_secret>');
+  return [
+    `Supabase Edge Function secrets — project "${ref}"`,
+    `Dashboard: https://supabase.com/dashboard/project/${ref}/settings/functions`,
+    '',
+    ...lines,
+    '',
+    'OneSignal → Settings → Keys & IDs gives the App ID and App API key.',
+  ].join('\n');
+}
