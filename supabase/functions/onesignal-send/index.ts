@@ -200,5 +200,24 @@ Deno.serve(async (req: Request) => {
     console.error('OneSignal rejected the request', upstream.status, data);
     return json({ error: 'Push provider rejected the request', detail: data }, 502);
   }
+
+  // A notification id can still come back while OneSignal reports every requested
+  // external id as invalid — that means no device is subscribed for those users,
+  // so the send reached nobody. Surface it instead of reporting a false success.
+  const requestedAliases = (notification.include_aliases as { external_id?: string[] } | undefined)?.external_id;
+  const invalidAliases = (data.errors as { invalid_aliases?: { external_id?: string[] } } | undefined)
+    ?.invalid_aliases?.external_id;
+  if (
+    requestedAliases?.length &&
+    invalidAliases?.length &&
+    requestedAliases.every((id) => invalidAliases.includes(id))
+  ) {
+    console.error('OneSignal had no valid recipients for the target aliases', invalidAliases);
+    return json(
+      { error: 'No device is subscribed for the target user(s)', detail: data, invalidAliases },
+      502
+    );
+  }
+
   return json(data, 200);
 });

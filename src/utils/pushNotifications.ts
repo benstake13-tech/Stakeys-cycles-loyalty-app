@@ -258,13 +258,15 @@ export async function sendPushToUser(
   body: string,
   url?: string,
   audience: 'admin' | 'all' = 'admin'
-): Promise<{ ok: boolean; via: 'server' | 'local' | 'none' }> {
+): Promise<{ ok: boolean; via: 'server' | 'local' | 'none'; detail?: string }> {
   const cfg = await getRuntimeConfig();
 
+  let serverDetail: string | undefined;
   if (cfg.serverPush) {
     const target = userId ? { externalId: userId } : { audience };
     const edge = await sendViaEdgeFunction({ title, body, url, ...target });
     if (edge.ok) return { ok: true, via: 'server' };
+    serverDetail = edge.detail;
 
     // Dev fallback: the Express route only exists under `npm run dev`.
     try {
@@ -283,10 +285,10 @@ export async function sendPushToUser(
   try {
     if (browserReady() && 'Notification' in window && Notification.permission === 'granted') {
       new Notification(title, { body, icon: '/logo.svg', badge: '/logo.svg', requireInteraction: true });
-      return { ok: true, via: 'local' };
+      return { ok: true, via: 'local', detail: serverDetail };
     }
   } catch {
     /* ignore */
   }
-  return { ok: false, via: 'none' };
+  return { ok: false, via: 'none', detail: serverDetail };
 }

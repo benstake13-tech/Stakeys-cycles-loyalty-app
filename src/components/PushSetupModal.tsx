@@ -51,7 +51,7 @@ interface StepDef {
  * so staff can finish and verify the feature one step at a time.
  */
 export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-  const { ownerConfig } = useShop();
+  const { ownerConfig, currentUser } = useShop();
 
   const projectRef = useMemo(() => deriveProjectRef(getStoredSupabaseUrl()), []);
   const dash = `https://supabase.com/dashboard/project/${projectRef}`;
@@ -292,15 +292,60 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
           flash({ kind: 'ok', text: 'Server push test passed — it should arrive even with the app closed.' });
         } else if (res.ok && res.via === 'local') {
           flash({
-            kind: 'ok',
-            text: 'Shown as a local notification (app must stay open). Set the server key for closed-app pushes.',
+            kind: 'err',
+            text: `The server could not reach a subscribed device${
+              res.detail ? ` (${res.detail})` : ''
+            }. A notification was shown locally while this page is open — press Fix on step 1 on your phone to subscribe it.`,
           });
         } else {
-          flash({ kind: 'err', text: 'Push test failed — allow notifications on this device first.' });
+          flash({
+            kind: 'err',
+            text: `Push test failed — no subscribed device reached${
+              res.detail ? ` (${res.detail})` : ''
+            }. Allow notifications on this device first.`,
+          });
         }
       }
     } finally {
       setStepBusy(key, undefined);
+    }
+  };
+
+  /**
+   * Sends the test push addressed to the signed-in user's own external id, so a
+   * pass proves *this* phone is actually subscribed — a segment/admin send can
+   * look successful even when no device is linked.
+   */
+  const testThisDevice = async () => {
+    const uid = currentUser?.uid;
+    if (!uid) {
+      flash({ kind: 'err', text: 'Sign in as a staff or admin account to test this device.' });
+      return;
+    }
+    setStepBusy('thisdevice', 'test');
+    try {
+      const res = await sendPushToUser(
+        uid,
+        '🔔 Test push to this device',
+        'If this reaches your phone, this device is subscribed for booking alerts.'
+      );
+      if (res.ok && res.via === 'server') {
+        flash({ kind: 'ok', text: 'Test sent to this device — it should arrive now, even with the app closed.' });
+      } else if (res.ok && res.via === 'local') {
+        flash({
+          kind: 'err',
+          text: `This device is not subscribed to the server${
+            res.detail ? ` (${res.detail})` : ''
+          }. A local notification was shown while the page is open — press Fix on step 1 above.`,
+        });
+      } else {
+        flash({
+          kind: 'err',
+          text: `This device could not be reached${res.detail ? ` (${res.detail})` : ''}.`,
+        });
+      }
+    } finally {
+      setStepBusy('thisdevice', undefined);
     }
   };
 
@@ -471,22 +516,39 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
             <Smartphone className="w-4 h-4 text-emerald-400" />
             <h4 className="text-xs font-bold uppercase tracking-wider">Send a real test to my phone</h4>
           </div>
-          <button
-            type="button"
-            onClick={() => testFor('serverkey')}
-            disabled={!!busy['serverkey']}
-            className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-          >
-            {busy['serverkey'] === 'test' ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-            ) : (
-              <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-            )}
-            <span>Send a test push</span>
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => testFor('serverkey')}
+              disabled={!!busy['serverkey']}
+              className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              {busy['serverkey'] === 'test' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+              ) : (
+                <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+              <span>Send a test push</span>
+            </button>
+            <button
+              type="button"
+              onClick={testThisDevice}
+              disabled={!!busy['thisdevice']}
+              className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Addresses the push to your own account, proving this phone is subscribed"
+            >
+              {busy['thisdevice'] === 'test' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+              ) : (
+                <Smartphone className="w-3.5 h-3.5 text-sky-400" />
+              )}
+              <span>Test this device</span>
+            </button>
+          </div>
           <p className="text-[11px] text-neutral-500 leading-relaxed">
             Uses the same path as booking alerts. With the server key set it arrives even when the app is
-            closed; otherwise it only appears while the app is open.
+            closed; otherwise it only appears while the app is open. “Test this device” targets your own
+            account, so it fails loudly if this phone is not actually subscribed.
           </p>
           {subId && <p className="text-[11px] text-neutral-500 font-mono">This device id: {subId}</p>}
         </div>

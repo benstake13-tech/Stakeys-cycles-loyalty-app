@@ -25,6 +25,7 @@
 
 const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
 const ONESIGNAL_ENDPOINT = 'https://api.onesignal.com/notifications';
+const ONESIGNAL_APP_ENDPOINT = 'https://api.onesignal.com/apps';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function json(body: Record<string, unknown>, status = 200): Response {
@@ -91,6 +92,33 @@ async function sendPush(
     },
     body: JSON.stringify(notification),
   });
+}
+
+/**
+ * Re-applies the external id to every existing OneSignal subscription for each
+ * user, using the "create user" endpoint. If a device that had been logged in
+ * lost its link (e.g. the user signed out, which calls `OneSignal.logout()`), the
+ * next booking reconnects it automatically — no manual re-subscribe needed. Only
+ * existing subscriptions are affected; no new device is created.
+ */
+async function relinkUsers(apiKey: string, externalIds: string[]): Promise<void> {
+  const appId = Deno.env.get('ONESIGNAL_APP_ID') || DEFAULT_APP_ID;
+  await Promise.all(
+    externalIds.map(async (externalId) => {
+      const res = await fetch(`${ONESIGNAL_APP_ENDPOINT}/${appId}/users`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Key ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ properties: { tags: {} }, identity: { external_id: externalId } }),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        console.error('OneSignal re-link failed', externalId, res.status, body.slice(0, 200));
+      }
+    })
+  );
 }
 
 Deno.serve(async (req: Request) => {
@@ -180,6 +208,23 @@ Deno.serve(async (req: Request) => {
   if (!response.ok || !result?.id) {
     console.error('OneSignal rejected notification', { status: response.status, result });
     return json({ error: 'Push notification provider rejected the request', detail: result }, 502);
+  }
+
+  // An `id` can still come back while OneSignal reports every requested alias as
+  // invalid — the admin has no subscribed device right now. Re-apply the external
+  // id so a device that lost its link (e.g. after a logout) reconnects and future
+  // bookings reach it, then report the miss rather than a false ok.
+  const invalidAliases = (result.errors as { invalid_aliases?: { external_id?: string[] } } | undefined)
+    ?.invalid_aliases?.external_id;
+  if (invalidAliases?.length && recipients.every((id) => invalidAliases.includes(id))) {
+    console.error('No subscribed admin device; re-applying external ids', invalidAliases);
+    await relinkUsers(apiKey, recipients).catch((error) =>
+      console.error('Re-link admin devices failed', error)
+    );
+    return json(
+      { error: 'No subscribed admin device for this booking alert', detail: result, invalidAliases },
+      502
+    );
   }
 
   return json({ ok: true, recipients: recipients.length, notification_id: result.id });

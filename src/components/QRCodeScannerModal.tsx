@@ -54,6 +54,26 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handlingRef = useRef(false); // guards against duplicate frames firing callbacks
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // A barcode held in view decodes every frame; don't machine-gun the error beep.
+  const lastErrorRef = useRef<{ code: string; at: number } | null>(null);
+
+  // Keep the live context values and callbacks in refs so the scanner start/stop
+  // callbacks never change identity. They are dependencies of the "start in
+  // lock-step with modal visibility" effect below: if they changed while the
+  // camera was running, that effect would tear the camera down and restart it on
+  // every context update — the decoder stalls and the preview jitters.
+  const usersRef = useRef(users);
+  usersRef.current = users;
+  const discountCodesRef = useRef(discountCodes);
+  discountCodesRef.current = discountCodes;
+  const resolveScannedMemberRef = useRef(resolveScannedMember);
+  resolveScannedMemberRef.current = resolveScannedMember;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const onCustomerScannedRef = useRef(onCustomerScanned);
+  onCustomerScannedRef.current = onCustomerScanned;
+  const onDiscountCodeScannedRef = useRef(onDiscountCodeScanned);
+  onDiscountCodeScannedRef.current = onDiscountCodeScanned;
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -72,55 +92,58 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   }, []);
 
   // Resolve a decoded string into a customer and act on it.
-  const processCode = useCallback(
-    async (rawCode: string) => {
-      if (handlingRef.current) return;
-      // Server-backed member resolution so a scan always binds to the correct
-      // account, even on a till that has not cached the full roster.
-      const customer = await resolveScannedMember(rawCode);
+  const processCode = useCallback(async (rawCode: string) => {
+    if (handlingRef.current) return;
+    // Server-backed member resolution so a scan always binds to the correct
+    // account, even on a till that has not cached the full roster.
+    const customer = await resolveScannedMemberRef.current(rawCode);
 
-      if (customer) {
-        handlingRef.current = true;
-        wheelAudio.playScannerBeep();
-        void stopScanner().finally(() => {
-          // Show the pass (with its stamps / tickets / points) before loading it,
-          // so staff can confirm the balances that came in on the code.
-          setScanResult({ customer, balance: parseMembershipPayload(rawCode) });
-          handlingRef.current = false;
-        });
-        return;
-      }
+    if (customer) {
+      handlingRef.current = true;
+      wheelAudio.playScannerBeep();
+      void stopScanner().finally(() => {
+        // Show the pass (with its stamps / tickets / points) before loading it,
+        // so staff can confirm the balances that came in on the code.
+        setScanResult({ customer, balance: parseMembershipPayload(rawCode) });
+        handlingRef.current = false;
+      });
+      return;
+    }
 
-      // Not a member — maybe it's a discount code on the till tablet.
-      const discount = findDiscountCode(normalizeScannedCode(rawCode), discountCodes || []);
-      if (discount && onDiscountCodeScanned) {
-        handlingRef.current = true;
-        wheelAudio.playScannerBeep();
-        void stopScanner().finally(() => {
-          onDiscountCodeScanned(discount);
-          onClose();
-          handlingRef.current = false;
-        });
-        return;
-      }
+    // Not a member — maybe it's a discount code on the till tablet.
+    const discount = findDiscountCode(normalizeScannedCode(rawCode), discountCodesRef.current || []);
+    if (discount && onDiscountCodeScannedRef.current) {
+      handlingRef.current = true;
+      wheelAudio.playScannerBeep();
+      void stopScanner().finally(() => {
+        onDiscountCodeScannedRef.current?.(discount);
+        onCloseRef.current();
+        handlingRef.current = false;
+      });
+      return;
+    }
 
-      const local = resolveCustomer(rawCode, users);
+    const local = resolveCustomer(rawCode, usersRef.current);
+    const normalized = normalizeScannedCode(rawCode);
+    const now = Date.now();
+    const last = lastErrorRef.current;
+    if (!last || last.code !== normalized || now - last.at > 1500) {
+      lastErrorRef.current = { code: normalized, at: now };
       wheelAudio.playScannerError();
-      if (local.status === 'multiple') {
-        setErrorMessage(
-          `"${normalizeScannedCode(rawCode)}" matches ${local.customers.length} customers — refine the code.`
-        );
-      } else {
-        setErrorMessage(`No registered customer found matching "${normalizeScannedCode(rawCode)}".`);
-      }
-    },
-    [users, discountCodes, onClose, onCustomerScanned, onDiscountCodeScanned, stopScanner, resolveScannedMember]
-  );
+    }
+    if (local.status === 'multiple') {
+      setErrorMessage(`"${normalized}" matches ${local.customers.length} customers — refine the code.`);
+    } else {
+      setErrorMessage(`No registered customer found matching "${normalized}".`);
+    }
+  }, [stopScanner]);
 
   const startScanner = useCallback(
     async (cameraIdOrConfig?: string | MediaTrackConstraints) => {
       if (!isOpen) return;
       if (!document.getElementById(READER_ID)) return;
+      // Never start a second camera while one is already running.
+      if (scannerRef.current) return;
 
       setCameraError(null);
       setErrorMessage(null);
@@ -158,6 +181,7 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         }
       } catch (err: any) {
         setIsScanning(false);
+        if (scannerRef.current === scanner) scannerRef.current = null;
         const msg = String(err?.message || err || '');
         setCameraError(
           /permission|denied|notallowed/i.test(msg)
