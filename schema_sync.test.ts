@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   EXPECTED_SCHEMA,
   expectedColumns,
@@ -31,6 +33,8 @@ describe('expected app schema', () => {
       'prize_draws',
       'app_settings',
       'app_theme_config',
+      'staff_members',
+      'promotions',
     ].forEach((t) => expect(names).toContain(t));
   });
 
@@ -44,6 +48,32 @@ describe('expected app schema', () => {
     ['approval_status', 'quoted_price', 'quote_note', 'repair_stage', 'progress_events'].forEach(
       (c) => expect(cols).toContain(c)
     );
+  });
+
+  it('matches every table the app actually queries via supabase.from()', () => {
+    const srcDir = join(process.cwd(), 'src');
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (/\.(ts|tsx)$/.test(entry) && !/\.test\./.test(entry)) files.push(full);
+      }
+    };
+    walk(srcDir);
+
+    const used = new Set<string>();
+    const re = /\.from\(['"]([a-z_]+)['"]\)/g;
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text))) used.add(m[1]);
+    }
+
+    expect(used.size).toBeGreaterThan(0);
+    const expected = new Set(EXPECTED_SCHEMA.map((t) => t.name));
+    const unknown = [...used].filter((t) => !expected.has(t)).sort();
+    expect(unknown, `Add these tables to EXPECTED_SCHEMA: ${unknown.join(', ')}`).toEqual([]);
   });
 });
 
