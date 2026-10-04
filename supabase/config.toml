@@ -3,3 +3,9 @@
 # verification is fine (the anon key is a valid JWT). Set to false only if you
 # want to allow completely unauthenticated calls.
 verify_jwt = true
+
+[functions.notify-booking]
+# Called only by the `service_bookings` Database Webhook, which authenticates
+# with the service_role key. Keep JWT verification on; the function additionally
+# rejects any caller whose role is not `service_role`.
+verify_jwt = true

@@ -1,9 +1,13 @@
 # Notification emails — setup and troubleshooting
 
-The app sends all notification emails (new booking → workshop, booking
-confirmation → customer, approval/decline, and the staff "Send test email"
-button) through a Supabase Edge Function called **`send-email`**, which forwards
-them to [Resend](https://resend.com).
+The app sends its customer-facing and staff notification emails (booking
+confirmation → customer, approval/decline → customer, and the staff "Send test
+email" button) through a Supabase Edge Function called **`send-email`**, which
+forwards them to [Resend](https://resend.com).
+
+The **new booking → workshop** alert is different: it is sent server-side by a
+Database Webhook + the `notify-booking` Edge Function, so it still fires when the
+customer's browser is closed. See `supabase/WEBHOOK_EMAIL_SETUP.md`.
 
 If emails never arrive, it is almost always because one of these three things is
 missing. Work top to bottom.
