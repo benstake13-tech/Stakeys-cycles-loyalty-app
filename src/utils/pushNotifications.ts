@@ -3,10 +3,14 @@
  *
  * The PushEngage snippet in index.html loads the SDK and queues `init`, so this
  * module waits for `window.PushEngage` to appear instead of initialising a
- * second time. It identifies each signed-in user (profile_id) and puts them in
- * a role segment so pushes can be targeted, and exposes the helpers the booking
- * flow uses. Real delivery to a phone requires a configured app id and, for
- * background/server sends, the REST API key on the backend.
+ * second time. It identifies each signed-in user (profile_id) so pushes can be
+ * targeted at that profile id, and exposes the helpers the booking flow uses.
+ * Real delivery to a phone requires a configured app id and, for background/
+ * server sends, the REST API key on the backend.
+ *
+ * Note: we target by profile id, never by PushEngage segment — this account's
+ * plan has hit its segment limit, so a segment-targeted push would be dropped
+ * ("Segment not found") while still returning HTTP 200.
  */
 
 import { getStoredSupabaseAnonKey, getStoredSupabaseUrl } from '../supabase';
@@ -231,24 +235,23 @@ async function sendViaEdgeFunction(
  * Sends a push so it lands even when the tab is closed. Tries the Supabase
  * `pushengage-send` edge function first (production), then the dev-only Express
  * route, and finally a foreground local notification while the page is open.
+ *
+ * When `userId` is omitted the edge function targets the workshop admins/staff
+ * (audience 'admin') resolved server-side — we cannot rely on a PushEngage
+ * segment because this plan has hit its segment limit.
  */
 export async function sendPushToUser(
   userId: string | undefined,
   title: string,
   body: string,
   url?: string,
-  tagFallback?: { key: string; value: string }
+  audience: 'admin' | 'all' = 'admin'
 ): Promise<{ ok: boolean; via: 'server' | 'local' | 'none' }> {
   const cfg = await getRuntimeConfig();
 
   if (cfg.serverPush) {
-    const edge = await sendViaEdgeFunction({
-      title,
-      body,
-      url,
-      ...(userId ? { profileId: userId } : {}),
-      ...(userId ? {} : tagFallback ? { segment: tagFallback.value } : {}),
-    });
+    const target = userId ? { profileId: userId } : { audience };
+    const edge = await sendViaEdgeFunction({ title, body, url, ...target });
     if (edge.ok) return { ok: true, via: 'server' };
 
     // Dev fallback: the Express route only exists under `npm run dev`.
@@ -256,13 +259,7 @@ export async function sendPushToUser(
       const res = await fetch('/api/pushengage/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          body,
-          url,
-          ...(userId ? { profileId: userId } : {}),
-          ...(userId ? {} : tagFallback ? { segment: tagFallback.value } : {}),
-        }),
+        body: JSON.stringify({ title, body, url, ...target }),
       });
       if (res.ok) return { ok: true, via: 'server' };
     } catch {

@@ -89,13 +89,16 @@ describe('pushNotifications (PushEngage)', () => {
     expect(body).toMatchObject({ title: 'Title', body: 'Body', profileId: 'uid-9' });
   });
 
-  it('sendPushToUser falls back to a segment when no profile is given', async () => {
+  it('sendPushToUser targets the admin audience when no profile is given', async () => {
     const { sendPushToUser } = await load();
-    await sendPushToUser(undefined, 'T', 'B', undefined, { key: 'role', value: 'staff' });
+    await sendPushToUser(undefined, 'T', 'B');
     const call = (fetch as any).mock.calls.find(
       (c: any[]) => String(c[0]).includes('/functions/v1/pushengage-send') && c[1]?.method === 'POST'
     );
-    expect(JSON.parse(call[1].body).segment).toBe('staff');
+    const body = JSON.parse(call[1].body);
+    expect(body).toMatchObject({ audience: 'admin' });
+    expect(body.profileId).toBeUndefined();
+    expect(body.segment).toBeUndefined();
   });
 
   it('falls back to a local notification when the edge function rejects the send', async () => {

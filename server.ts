@@ -209,6 +209,24 @@ async function startServer() {
   const PUSHENGAGE_APP_ID = () => process.env.VITE_PUSHENGAGE_APP_ID || process.env.PUSHENGAGE_APP_ID;
   const PUSHENGAGE_API_KEY = () => process.env.PUSHENGAGE_API_KEY;
 
+  // Admin/staff profile ids, used when the caller omits an explicit target. We
+  // cannot use a PushEngage segment (this plan has hit its segment limit).
+  const resolveAdminProfileIds = async (): Promise<string[]> => {
+    const base = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/+$/, '');
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    if (!base || !key) return [];
+    try {
+      const res = await fetch(`${base}/rest/v1/profiles?select=id&role=in.(admin,staff)`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
+      if (!res.ok) return [];
+      const rows = (await res.json()) as Array<{ id?: string }>;
+      return rows.map((r) => String(r.id || '')).filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
   app.get('/api/pushengage/config', (_req, res) => {
     res.json({
       appId: PUSHENGAGE_APP_ID() || null,
@@ -217,7 +235,7 @@ async function startServer() {
   });
 
   app.post('/api/pushengage/notify', async (req, res) => {
-    const { title, body, url, profileId, segment } = req.body || {};
+    const { title, body, url, profileId, segment, audience } = req.body || {};
     const apiKey = PUSHENGAGE_API_KEY();
     if (!PUSHENGAGE_APP_ID() || !apiKey) {
       return res.status(500).json({ error: 'PushEngage server push is not configured' });
@@ -231,6 +249,9 @@ async function startServer() {
       form.set('notification_type', 'now');
       if (profileId) form.append('profile_id[]', profileId);
       else if (segment) form.append('include_segments[]', segment);
+      else if ((audience || 'admin') !== 'all') {
+        for (const id of await resolveAdminProfileIds()) form.append('profile_id[]', id);
+      }
 
       const upstream = await fetch('https://api.pushengage.com/apiv1/notifications', {
         method: 'POST',

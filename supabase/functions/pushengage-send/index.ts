@@ -25,6 +25,7 @@
 const DEFAULT_APP_ID = '23a65358-7d1f-4b0b-beff-de8b48f9689f';
 const PUSHENGAGE_ENDPOINT = 'https://api.pushengage.com/apiv1/notifications';
 const MAX_BODY_BYTES = 16_384;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +42,27 @@ function json(body: unknown, status = 200): Response {
 
 function appId(): string {
   return Deno.env.get('PUSHENGAGE_APP_ID') || DEFAULT_APP_ID;
+}
+
+/** Admin/staff profile ids, from the env override or the profiles table. */
+async function resolveAdminRecipients(): Promise<string[]> {
+  const override = (Deno.env.get('ADMIN_PROFILE_IDS') || '').trim();
+  if (override) return override.split(',').map((s) => s.trim()).filter((s) => UUID_RE.test(s));
+
+  const url = (Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+  if (!url || !key) return [];
+
+  try {
+    const res = await fetch(`${url}/rest/v1/profiles?select=id&role=in.(admin,staff)`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) return [];
+    const rows = (await res.json()) as Array<{ id?: string }>;
+    return rows.map((r) => (typeof r.id === 'string' ? r.id.trim() : '')).filter((id) => UUID_RE.test(id));
+  } catch {
+    return [];
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -74,7 +96,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Payload too large' }, 413);
   }
 
-  let payload: { title?: string; body?: string; url?: string; profileId?: string; segment?: string };
+  let payload: {
+    title?: string;
+    body?: string;
+    url?: string;
+    profileId?: string;
+    segment?: string;
+    audience?: string;
+  };
   try {
     payload = JSON.parse(raw);
   } catch {
@@ -92,8 +121,19 @@ Deno.serve(async (req: Request) => {
   form.set('notification_message', message);
   form.set('notification_url', payload.url?.trim() || 'https://stakeyswheels.co.uk');
   form.set('notification_type', 'now');
-  if (payload.profileId) form.append('profile_id[]', payload.profileId);
-  else if (payload.segment) form.append('include_segments[]', payload.segment);
+
+  if (payload.profileId) {
+    form.append('profile_id[]', payload.profileId);
+  } else if (payload.segment) {
+    // Legacy path: an explicit PushEngage segment name (must already exist).
+    form.append('include_segments[]', payload.segment);
+  } else {
+    // No target given (e.g. a booking created by a customer). Resolve the
+    // admin/staff profile ids server-side — segments are not usable on this plan.
+    const audience = (payload.audience || 'admin').toLowerCase();
+    const recipients = audience === 'all' ? [] : await resolveAdminRecipients();
+    for (const id of recipients) form.append('profile_id[]', id);
+  }
 
   let upstream: Response;
   try {
@@ -110,8 +150,10 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Could not reach the push provider' }, 502);
   }
 
-  const data = await upstream.json().catch(() => ({}));
-  if (!upstream.ok) {
+  const data = (await upstream.json().catch(() => ({}))) as Record<string, unknown>;
+  // PushEngage returns HTTP 200 even for failures (e.g. "Invalid API Key",
+  // "Segment not found"), so check the body's `success` flag too.
+  if (!upstream.ok || data?.success === false) {
     console.error('PushEngage rejected the request', upstream.status, data);
     return json({ error: 'Push provider rejected the request', detail: data }, 502);
   }

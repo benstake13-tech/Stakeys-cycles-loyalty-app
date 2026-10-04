@@ -1,25 +1,30 @@
 // Supabase Edge Function: booking-push-notification
 // -----------------------------------------------------------------------------
 // Fires from the `service_bookings` AFTER INSERT trigger
-// (`notify_service_bookings_push`) and pushes a "new booking" alert to staff
-// phones via PushEngage. The trigger authenticates with the shared
+// (`service_bookings_booking_push_insert`) and pushes a "new booking" alert to
+// staff/admin phones via PushEngage. The trigger authenticates with the shared
 // `x-booking-webhook-secret` header (Vault `booking_webhook_secret`).
 //
-// Required secret:
-//   PUSHENGAGE_API_KEY      PushEngage REST API key
-//   BOOKING_WEBHOOK_SECRET  must match the Vault `booking_webhook_secret`
+// Required secrets:
+//   PUSHENGAGE_API_KEY       PushEngage REST API key
+//   BOOKING_WEBHOOK_SECRET   must match the Vault `booking_webhook_secret`
+//   SUPABASE_URL             auto-injected by the Edge Functions runtime
+//   SUPABASE_SERVICE_ROLE_KEY
+//                            auto-injected; used to look up the admin profile ids
 // Optional:
-//   PUSHENGAGE_APP_ID       defaults to the app id baked into the client snippet.
+//   ADMIN_PROFILE_IDS        comma-separated override of the recipient list
 //
-// The staff device is targeted by its PushEngage profile id (the signed-in
-// user's uid, set client-side via `identify`), with a fallback to the `staff`
-// segment so an alert is never dropped.
+// Targeting: the alert goes to the booking's assigned staff member (if any) and
+// to every admin/staff profile, sent as ONE multi-`profile_id` push. We do NOT
+// use a PushEngage segment — this account's plan has hit its segment limit, so a
+// `staff` segment cannot exist and any segment-targeted push would be dropped
+// with a 200/"Segment not found" while still looking like success.
 //
 // Deploy:  supabase functions deploy booking-push-notification --no-verify-jwt
 // -----------------------------------------------------------------------------
 
 const PUSHENGAGE_ENDPOINT = 'https://api.pushengage.com/apiv1/notifications';
-const STAFF_SEGMENT = 'staff';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -32,14 +37,34 @@ function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-async function sendPush(apiKey: string, title: string, message: string, profileId?: string): Promise<Response> {
+/** Admin/staff profile ids to alert, from the env override or the profiles table. */
+async function resolveStaffRecipients(): Promise<string[]> {
+  const override = text(Deno.env.get('ADMIN_PROFILE_IDS'));
+  if (override) return override.split(',').map((s) => s.trim()).filter((s) => UUID_RE.test(s));
+
+  const url = text(Deno.env.get('SUPABASE_URL'));
+  const key = text(Deno.env.get('SUPABASE_SERVICE_ROLE_KEY'));
+  if (!url || !key) return [];
+
+  try {
+    const res = await fetch(`${url}/rest/v1/profiles?select=id&role=in.(admin,staff)`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) return [];
+    const rows = (await res.json()) as Array<{ id?: string }>;
+    return rows.map((r) => text(r.id)).filter((id) => UUID_RE.test(id));
+  } catch {
+    return [];
+  }
+}
+
+async function sendPush(apiKey: string, title: string, message: string, profileIds: string[]): Promise<Response> {
   const form = new URLSearchParams();
   form.set('notification_title', title);
   form.set('notification_message', message);
   form.set('notification_url', 'https://stakeyswheels.co.uk');
   form.set('notification_type', 'now');
-  if (profileId) form.append('profile_id[]', profileId);
-  else form.append('include_segments[]', STAFF_SEGMENT);
+  for (const id of profileIds) form.append('profile_id[]', id);
 
   return await fetch(PUSHENGAGE_ENDPOINT, {
     method: 'POST',
@@ -94,21 +119,31 @@ Deno.serve(async (req: Request) => {
 
   const service = text(booking.service_type) || text(booking.service_title) || 'Repair';
   const content = `New booking: ${service} (Job #${bookingId})`;
-  const staffProfileId = text(booking.staff_id) || text(booking.assigned_to) || undefined;
+
+  const assigned = text(booking.staff_id) || text(booking.assigned_to);
+  const admins = await resolveStaffRecipients();
+  const recipients = [...new Set([...(UUID_RE.test(assigned) ? [assigned] : []), ...admins])];
+
+  if (recipients.length === 0) {
+    console.error('No push recipients resolved (no assigned staff and no admin profiles)');
+    return json({ error: 'No push recipients available' }, 503);
+  }
 
   let response: Response;
   try {
-    response = await sendPush(apiKey, '🚴 New Customer Booking!', content, staffProfileId);
+    response = await sendPush(apiKey, '🚴 New Customer Booking!', content, recipients);
   } catch (error) {
     console.error('PushEngage request failed', error);
     return json({ error: 'Could not reach push notification provider' }, 502);
   }
 
-  if (!response.ok) {
-    console.error('PushEngage rejected notification', { status: response.status });
-    return json({ error: 'Push notification provider rejected the request' }, 502);
+  const result = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  // PushEngage answers 200 even for failures ("Segment not found", "Invalid API
+  // Key"), so a successful HTTP status alone is not enough.
+  if (!response.ok || result?.success === false) {
+    console.error('PushEngage rejected notification', { status: response.status, result });
+    return json({ error: 'Push notification provider rejected the request', detail: result }, 502);
   }
 
-  const result = await response.json().catch(() => ({}));
-  return json({ ok: true, notification_id: result?.id ?? null });
+  return json({ ok: true, recipients: recipients.length, notification_id: result?.notification_id ?? null });
 });

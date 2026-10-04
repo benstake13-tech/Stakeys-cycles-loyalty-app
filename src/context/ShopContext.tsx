@@ -1063,9 +1063,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       void sendPushToUser(
         currentUserRef.current?.uid,
         `🚨 New Workshop Booking #${latest.id}`,
-        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`,
-        undefined,
-        { key: 'role', value: 'staff' }
+        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`
       );
 
       toast(
@@ -2530,12 +2528,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`
       );
     }
+    // A staff/admin creator targets their own device; a customer's booking has
+    // no user id, so the edge function alerts the workshop admins instead.
     void sendPushToUser(
       isStaff ? currentUser?.uid : undefined,
       `🚨 New Workshop Booking #${completedBooking.id}`,
-      `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`,
-      undefined,
-      { key: 'role', value: 'staff' }
+      `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`
     );
 
     // Trigger instant email alert confirmation banner

@@ -54,47 +54,51 @@ export const NO_JWT_FUNCTIONS = [
   'pushengage-notification',
 ] as const;
 
+/** The repository that holds the edge-function source. */
+export const REPO_URL = 'https://github.com/benstake13-tech/Stakeys-cycles-loyalty-app';
+
 /**
  * A ready-to-send PROMPT (instead of a CLI command) that asks an AI agent — or
  * anyone holding the Supabase access token — to deploy the edge functions.
  * `supabase login`/`link` are interactive and are frequently blocked ("generate
  * a token for your first build"), so the prompt instructs the deployer to use
- * `SUPABASE_ACCESS_TOKEN` + `--project-ref` and never the login flow.
+ * `SUPABASE_ACCESS_TOKEN` + `--project-ref` and never the login flow. It names
+ * the repo so a fresh agent can check out the source before deploying.
  */
 export function deployPrompt(projectRef: string, functions: readonly string[]): string {
-  const noJwt = functions.filter((f) => (NO_JWT_FUNCTIONS as readonly string[]).includes(f));
-  const jwtOn = functions.filter((f) => !(NO_JWT_FUNCTIONS as readonly string[]).includes(f));
+  const isNoJwt = (f: string) => (NO_JWT_FUNCTIONS as readonly string[]).includes(f);
+  const noJwt = functions.filter(isNoJwt);
+
+  const commandFor = (f: string) =>
+    `SUPABASE_ACCESS_TOKEN=<token> supabase functions deploy ${f} --project-ref ${projectRef}` +
+    (isNoJwt(f) ? ' --no-verify-jwt' : '');
 
   const lines = [
-    `Please deploy these Supabase Edge Functions to project "${projectRef}" and confirm each is ACTIVE afterwards.`,
+    `Deploy these Supabase Edge Functions to project "${projectRef}".`,
     '',
-    'Functions to deploy:',
-    ...functions.map((f) => `- ${f}`),
+    `Source repo: ${REPO_URL} (function source is under supabase/functions/<name>/).`,
+    'Check out the repo, then run the exact commands below from the repo root.',
     '',
-    'The function source lives in supabase/functions/<name>/ in the repo. Deploy from the repo root.',
+    'Run these commands:',
+    '',
+    ...functions.map(commandFor),
   ];
 
   if (noJwt.length) {
     lines.push(
       '',
-      'Deploy these with JWT verification DISABLED (add --no-verify-jwt):',
-      ...noJwt.map((f) => `- ${f}`),
-    );
-  }
-  if (jwtOn.length) {
-    lines.push(
-      '',
-      'Keep JWT verification ENABLED for the rest (the repo supabase/config.toml already records each function\u2019s setting).',
+      `The --no-verify-jwt flag is required for: ${noJwt.join(', ')} —`,
+      'they are called by database triggers with a shared-secret header, not a Supabase JWT.',
     );
   }
 
   lines.push(
     '',
-    'Use an access token instead of the interactive login \u2014 do NOT run `supabase login` or `supabase link`:',
-    `  SUPABASE_ACCESS_TOKEN=<token> supabase functions deploy <name> --project-ref ${projectRef}`,
-    '  (append --no-verify-jwt for the functions listed above)',
+    'Do NOT run `supabase login` or `supabase link` (they are interactive and often blocked).',
+    'Set the project access token in your environment first, then run the commands above.',
+    `Or, in one step from the repo root: SUPABASE_ACCESS_TOKEN=<token> npm run deploy:functions`,
     '',
-    'When finished, list the functions for this project and report each one\u2019s status.',
+    'When finished, list this project\u2019s functions and confirm each one is ACTIVE.',
   );
   return lines.join('\n');
 }

@@ -238,9 +238,7 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
         const res = await sendPushToUser(
           undefined,
           '🔔 Stakey’s test push',
-          'If you can see this on your phone, push notifications are working.',
-          undefined,
-          { key: 'role', value: 'staff' }
+          'If you can see this on your phone, push notifications are working.'
         );
         if (res.ok && res.via === 'server') {
           flash({ kind: 'ok', text: 'Server push test passed — it should arrive even with the app closed.' });

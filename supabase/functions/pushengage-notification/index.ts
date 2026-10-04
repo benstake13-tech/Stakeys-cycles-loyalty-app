@@ -96,10 +96,11 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'Could not reach the push provider' }, 502);
   }
 
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) {
+  const result = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  // PushEngage returns HTTP 200 even for failures (e.g. "Segment not found").
+  if (!response.ok || result?.success === false) {
     console.error('PushEngage rejected the request', { status: response.status, result });
-    return json({ error: 'Push delivery failed' }, 502);
+    return json({ error: 'Push delivery failed', detail: result }, 502);
   }
 
   console.info('PushEngage push sent', { notificationId, userId });
