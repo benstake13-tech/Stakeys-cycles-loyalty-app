@@ -7,9 +7,56 @@ import { UserProfile } from '../types/bikeShop';
  */
 export const STAKEYS_URN_PREFIX = 'urn:stakeys:membership:';
 
+/** Loyalty balances carried on a member pass (mirrors UserProfile). */
+export interface MembershipBalance {
+  stamps: number;
+  tickets: number;
+  points: number;
+}
+
+/** Reads the loyalty balances off a profile with sane numeric fallbacks. */
+export function membershipBalance(user: {
+  stamps?: number;
+  tickets?: number;
+  points?: number;
+}): MembershipBalance {
+  return {
+    stamps: Number(user?.stamps) || 0,
+    tickets: Number(user?.tickets) || 0,
+    points: Number(user?.points) || 0,
+  };
+}
+
 export function encodeMembership(membershipNumber: string | undefined): string {
   const token = (membershipNumber || '').toUpperCase().replace(/\s+/g, '');
   return `${token}|${STAKEYS_URN_PREFIX}${token}`;
+}
+
+/**
+ * Full pass payload: the scannable membership token plus the rider's live
+ * loyalty balances. The balances ride along as query params so a scan works
+ * offline / before the till has fetched the roster, while `normalizeScannedCode`
+ * still resolves the same membership number.
+ */
+export function encodeMembershipPayload(
+  membershipNumber: string | undefined,
+  balance?: MembershipBalance
+): string {
+  const base = encodeMembership(membershipNumber);
+  if (!balance) return base;
+  const { stamps, tickets, points } = membershipBalance(balance);
+  return `${base}?s=${stamps}&t=${tickets}&p=${points}`;
+}
+
+/**
+ * Extracts the balances from a scanned pass payload. Returns `undefined` for a
+ * bare token / legacy code that carries no balances.
+ */
+export function parseMembershipPayload(raw: string): MembershipBalance | undefined {
+  if (!raw) return undefined;
+  const match = raw.match(/[?&]s=(\d+)&t=(\d+)&p=(\d+)/i);
+  if (!match) return undefined;
+  return { stamps: Number(match[1]), tickets: Number(match[2]), points: Number(match[3]) };
 }
 
 /**

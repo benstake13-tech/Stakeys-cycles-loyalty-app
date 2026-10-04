@@ -9,6 +9,8 @@ import {
   UserCheck,
   BadgePercent,
   Ticket,
+  Award,
+  Sparkles,
   Check,
   AlertCircle,
   FileText,
@@ -37,7 +39,7 @@ import {
   voucherToDiscountState,
   describeDiscountValue,
 } from '../utils/discountService';
-import { normalizeScannedCode, resolveCustomer } from '../utils/membershipCode';
+import { normalizeScannedCode, resolveCustomer, membershipBalance, MembershipBalance } from '../utils/membershipCode';
 
 const QUICK_ITEMS: Omit<SaleLineItem, 'id'>[] = [
   { description: 'Standard Workshop Labour (30 min)', category: 'Labour', quantity: 1, unitPrice: 30 },
@@ -70,6 +72,8 @@ export const CounterSaleTab: React.FC = () => {
 
   const [lines, setLines] = useState<SaleLineItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(null);
+  // Balances carried on the scanned pass, shown until the roster refreshes.
+  const [scannedBalance, setScannedBalance] = useState<MembershipBalance | null>(null);
   const [discount, setDiscount] = useState<SaleDiscountState | null>(null);
   const [discountMessage, setDiscountMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [manualCode, setManualCode] = useState('');
@@ -204,9 +208,13 @@ export const CounterSaleTab: React.FC = () => {
   };
 
   /** A member was scanned or selected: load them and auto-apply their best discount. */
-  const handleCustomer = (customer: UserProfile, opts?: { autoApply?: boolean }) => {
+  const handleCustomer = (
+    customer: UserProfile,
+    opts?: { autoApply?: boolean; balance?: MembershipBalance }
+  ) => {
     setSelectedCustomer(customer);
     setLastSale(null);
+    setScannedBalance(opts?.balance ?? null);
     if (opts?.autoApply === false) return;
 
     const assigned = discountCodes
@@ -394,6 +402,37 @@ export const CounterSaleTab: React.FC = () => {
             )}
           </div>
         </div>
+
+        {selectedCustomer && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-sky-200">
+              <UserCheck className="w-3.5 h-3.5" />
+              {selectedCustomer.displayName}
+              <span className="font-mono font-normal text-sky-300/80">
+                · {selectedCustomer.membershipNumber}
+              </span>
+            </span>
+            {(() => {
+              // Prefer the live profile; fall back to the balances on the scanned pass.
+              const bal = membershipBalance(selectedCustomer);
+              const shown = bal.stamps || bal.tickets || bal.points ? bal : scannedBalance;
+              if (!shown) return null;
+              return (
+                <span className="flex items-center gap-2 text-[11px]">
+                  <span className="flex items-center gap-1 rounded-lg bg-emerald-500/15 px-2 py-0.5 font-mono font-bold text-emerald-300">
+                    <Award className="w-3 h-3" /> {shown.stamps}/10
+                  </span>
+                  <span className="flex items-center gap-1 rounded-lg bg-amber-500/15 px-2 py-0.5 font-mono font-bold text-amber-300">
+                    <Ticket className="w-3 h-3" /> {shown.tickets}
+                  </span>
+                  <span className="flex items-center gap-1 rounded-lg bg-sky-500/15 px-2 py-0.5 font-mono font-bold text-sky-300">
+                    <Sparkles className="w-3 h-3" /> {shown.points}
+                  </span>
+                </span>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Manual code entry */}
         <form onSubmit={handleManualCode} className="flex gap-2">
@@ -827,7 +866,7 @@ export const CounterSaleTab: React.FC = () => {
       <QRCodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onCustomerScanned={(customer) => handleCustomer(customer)}
+        onCustomerScanned={(customer, balance) => handleCustomer(customer, { balance })}
         onDiscountCodeScanned={(code) => applyDiscountCode(code)}
       />
     </div>

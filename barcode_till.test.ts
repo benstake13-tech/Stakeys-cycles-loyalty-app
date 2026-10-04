@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   encodeMembership,
+  encodeMembershipPayload,
+  parseMembershipPayload,
+  membershipBalance,
   normalizeScannedCode,
   resolveCustomer,
 } from './src/utils/membershipCode';
@@ -60,5 +63,30 @@ describe('barcode / QR membership codes', () => {
     ];
     // "ali" appears in both display names -> must not silently pick one.
     expect(resolveCustomer('ali', roster).status).toBe('multiple');
+  });
+
+  it('attaches stamp / ticket / point balances to the pass payload', () => {
+    const payload = encodeMembershipPayload('STK-100003', { stamps: 4, tickets: 2, points: 75 });
+    expect(payload).toContain('STK-100003');
+    expect(parseMembershipPayload(payload)).toEqual({ stamps: 4, tickets: 2, points: 75 });
+  });
+
+  it('still resolves the member from a payload that carries balances', () => {
+    const roster = [customer({ uid: 'uid-carol', displayName: 'Carol', membershipNumber: 'STK-100004' })];
+    const payload = encodeMembershipPayload('STK-100004', { stamps: 10, tickets: 1, points: 0 });
+    expect(normalizeScannedCode(payload)).toBe('STK-100004');
+    const match = resolveCustomer(payload, roster);
+    expect(match.status).toBe('match');
+    if (match.status === 'match') expect(match.customer.uid).toBe('uid-carol');
+  });
+
+  it('treats a bare token as having no attached balances', () => {
+    expect(parseMembershipPayload(encodeMembership('STK-100005'))).toBeUndefined();
+    expect(parseMembershipPayload('STK-100005')).toBeUndefined();
+  });
+
+  it('normalises missing balances to zero', () => {
+    expect(membershipBalance({ stamps: 3 })).toEqual({ stamps: 3, tickets: 0, points: 0 });
+    expect(membershipBalance({})).toEqual({ stamps: 0, tickets: 0, points: 0 });
   });
 });

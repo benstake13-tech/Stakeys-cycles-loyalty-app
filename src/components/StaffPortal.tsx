@@ -1182,12 +1182,15 @@ export const StaffPortal: React.FC = () => {
       <QRCodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
-        onCustomerScanned={(customer) => {
+        onCustomerScanned={(customer, balance) => {
           handleSelectCustomer(customer);
           setStaffTab('customers');
+          const balances = balance
+            ? ` — ${balance.stamps}/10 stamps · ${balance.tickets} ticket${balance.tickets === 1 ? '' : 's'} · ${balance.points} point${balance.points === 1 ? '' : 's'}`
+            : '';
           setActionFeedback({
             success: true,
-            message: `Scanned ${customer.displayName} (${customer.membershipNumber}) — loaded into the till.`,
+            message: `Scanned ${customer.displayName} (${customer.membershipNumber})${balances}.`,
           });
         }}
       />

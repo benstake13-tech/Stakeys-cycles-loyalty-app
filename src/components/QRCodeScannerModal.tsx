@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Scan, X, AlertCircle, Keyboard, Camera, CheckCircle, Upload, SwitchCamera } from 'lucide-react';
+import { Scan, X, AlertCircle, Keyboard, Camera, CheckCircle, Upload, SwitchCamera, Award, Ticket, Sparkles, UserCheck } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, DiscountCode } from '../types/bikeShop';
 import { wheelAudio } from '../utils/wheelAudio';
-import { resolveCustomer, normalizeScannedCode } from '../utils/membershipCode';
+import { resolveCustomer, normalizeScannedCode, parseMembershipPayload, MembershipBalance } from '../utils/membershipCode';
 import { findDiscountCode } from '../utils/discountService';
 import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
 
 interface QRCodeScannerModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCustomerScanned: (customer: UserProfile) => void;
+  onCustomerScanned: (customer: UserProfile, scannedBalance?: MembershipBalance) => void;
   /** Optional: fires when the scanned code is not a member but matches a discount code. */
   onDiscountCodeScanned?: (code: DiscountCode) => void;
 }
@@ -46,6 +46,10 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameras, setCameras] = useState<{ id: string; label: string }[]>([]);
   const [activeCameraIndex, setActiveCameraIndex] = useState(0);
+  // A resolved scan is shown with its balances before it is loaded into the till.
+  const [scanResult, setScanResult] = useState<
+    { customer: UserProfile; balance?: MembershipBalance } | null
+  >(null);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handlingRef = useRef(false); // guards against duplicate frames firing callbacks
@@ -79,8 +83,9 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         handlingRef.current = true;
         wheelAudio.playScannerBeep();
         void stopScanner().finally(() => {
-          onCustomerScanned(customer);
-          onClose();
+          // Show the pass (with its stamps / tickets / points) before loading it,
+          // so staff can confirm the balances that came in on the code.
+          setScanResult({ customer, balance: parseMembershipPayload(rawCode) });
           handlingRef.current = false;
         });
         return;
@@ -202,6 +207,7 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
       handlingRef.current = false;
       setManualQuery('');
       setErrorMessage(null);
+      setScanResult(null);
       const timer = setTimeout(() => void startScanner(), 250);
       return () => clearTimeout(timer);
     }
@@ -239,17 +245,86 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-black min-h-[240px]">
           <div id={READER_ID} className="w-full [&_video]:w-full [&_video]:rounded-2xl" />
 
-          {!isScanning && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center p-6 bg-[#0c0e12]">
-              <Camera className="w-8 h-8 text-neutral-600" />
-              <p className="text-xs text-neutral-400">
-                Camera is idle. Tap “Start camera” to scan a barcode or QR code.
-              </p>
-            </div>
-          )}
+          {scanResult ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0c0e12] p-6 text-center">
+              <div className="flex items-center gap-2 text-emerald-400">
+                <UserCheck className="w-5 h-5" />
+                <span className="text-sm font-bold text-white">{scanResult.customer.displayName}</span>
+              </div>
+              <div className="font-mono text-xs text-emerald-400">
+                {scanResult.customer.membershipNumber}
+              </div>
 
-          {isScanning && (
-            <div className="pointer-events-none absolute inset-10 rounded-xl border-2 border-emerald-400/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+              {scanResult.balance ? (
+                <div className="grid w-full max-w-sm grid-cols-3 gap-2 pt-1">
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-2 py-2">
+                    <div className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                      <Award className="w-3 h-3" /> Stamps
+                    </div>
+                    <div className="font-mono text-xl font-extrabold text-white tabular-nums">
+                      {scanResult.balance.stamps}
+                      <span className="text-[10px] font-normal text-emerald-400">/10</span>
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-amber-500/10 border border-amber-500/30 px-2 py-2">
+                    <div className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                      <Ticket className="w-3 h-3" /> Tickets
+                    </div>
+                    <div className="font-mono text-xl font-extrabold text-white tabular-nums">
+                      {scanResult.balance.tickets}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-sky-500/10 border border-sky-500/30 px-2 py-2">
+                    <div className="flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider text-sky-300">
+                      <Sparkles className="w-3 h-3" /> Points
+                    </div>
+                    <div className="font-mono text-xl font-extrabold text-white tabular-nums">
+                      {scanResult.balance.points}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-neutral-500">
+                  This code carried no balances — the account will be loaded from the database.
+                </p>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  onCustomerScanned(scanResult.customer, scanResult.balance);
+                  onClose();
+                }}
+                className="mt-1 pressable px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-sm font-bold flex items-center gap-2"
+              >
+                <CheckCircle className="w-4 h-4" /> Load into till
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setScanResult(null);
+                  void startScanner();
+                }}
+                className="text-[11px] text-neutral-400 hover:text-white underline"
+              >
+                Scan another code
+              </button>
+            </div>
+          ) : (
+            <>
+              {!isScanning && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center p-6 bg-[#0c0e12]">
+                  <Camera className="w-8 h-8 text-neutral-600" />
+                  <p className="text-xs text-neutral-400">
+                    Camera is idle. Tap “Start camera” to scan a barcode or QR code.
+                  </p>
+                </div>
+              )}
+
+              {isScanning && (
+                <div className="pointer-events-none absolute inset-10 rounded-xl border-2 border-emerald-400/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+              )}
+            </>
           )}
         </div>
 

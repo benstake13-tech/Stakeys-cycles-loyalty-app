@@ -1,8 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
+import { Award, Ticket, Sparkles } from 'lucide-react';
 import { UserProfile } from '../types/bikeShop';
-import { encodeMembership, STAKEYS_URN_PREFIX } from '../utils/membershipCode';
+import {
+  encodeMembershipPayload,
+  membershipBalance,
+  STAKEYS_URN_PREFIX,
+} from '../utils/membershipCode';
 
 interface MembershipPassCardProps {
   user: UserProfile;
@@ -10,12 +15,14 @@ interface MembershipPassCardProps {
 
 /**
  * Scannable digital membership pass: a QR code plus a CODE128 barcode whose
- * payloads are understood by QRCodeScannerModal.
+ * payloads are understood by QRCodeScannerModal. The payload also carries the
+ * rider's live stamp / ticket / point balances so a scan shows them instantly.
  */
 export const MembershipPassCard: React.FC<MembershipPassCardProps> = ({ user }) => {
   const barcodeRef = useRef<SVGSVGElement | null>(null);
   const membership = user.membershipNumber || 'STK-000000';
-  const payload = encodeMembership(membership);
+  const balance = membershipBalance(user);
+  const payload = encodeMembershipPayload(membership, balance);
 
   useEffect(() => {
     if (!barcodeRef.current) return;
@@ -65,11 +72,41 @@ export const MembershipPassCard: React.FC<MembershipPassCardProps> = ({ user }) 
             {membership}
           </div>
 
+          {/* Loyalty balances carried on this pass */}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-lg bg-emerald-50 ring-1 ring-emerald-200 px-2 py-1.5 text-center">
+              <div className="flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wider text-emerald-700">
+                <Award className="w-3 h-3" /> Stamps
+              </div>
+              <div className="font-mono text-lg font-extrabold text-emerald-800 tabular-nums">
+                {balance.stamps}
+                <span className="text-[10px] text-emerald-600 font-normal">/10</span>
+              </div>
+            </div>
+            <div className="rounded-lg bg-amber-50 ring-1 ring-amber-200 px-2 py-1.5 text-center">
+              <div className="flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-700">
+                <Ticket className="w-3 h-3" /> Tickets
+              </div>
+              <div className="font-mono text-lg font-extrabold text-amber-800 tabular-nums">
+                {balance.tickets}
+              </div>
+            </div>
+            <div className="rounded-lg bg-sky-50 ring-1 ring-sky-200 px-2 py-1.5 text-center">
+              <div className="flex items-center justify-center gap-1 text-[9px] font-bold uppercase tracking-wider text-sky-700">
+                <Sparkles className="w-3 h-3" /> Points
+              </div>
+              <div className="font-mono text-lg font-extrabold text-sky-800 tabular-nums">
+                {balance.points}
+              </div>
+            </div>
+          </div>
+
           <div className="mt-3 rounded-lg bg-white ring-1 ring-neutral-200 p-2 overflow-hidden">
             <svg ref={barcodeRef} className="w-full h-14" aria-label={`Barcode ${membership}`} />
           </div>
           <p className="text-[11px] text-neutral-500 mt-2">
-            Present this pass at the till. Staff scan the barcode or QR code to load your account.
+            Present this pass at the till. Staff scan the barcode or QR code to load your account —
+            stamps, prize draw tickets and points travel with the code.
           </p>
         </div>
       </div>
