@@ -38,6 +38,7 @@ interface StepDef {
   key: string;
   title: string;
   why: string;
+  howto: string;
   action?: { label: string; href: string };
 }
 
@@ -59,17 +60,21 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
         key: 'permission',
         title: 'Allow notifications on this device',
         why: 'Your phone must grant notification permission before any push can arrive.',
+        howto: 'Press Fix — your browser asks to allow notifications. Choose Allow.',
       },
       {
         key: 'worker',
         title: 'Root service worker is registered',
         why: 'PushEngage needs a service worker at scope "/" to receive background pushes.',
+        howto: 'Press Fix once notifications are allowed — it installs the worker automatically.',
       },
       {
         key: 'serverkey',
         title: 'Server push key is configured',
         why: 'Background pushes need the PushEngage REST API key on the server, so alerts arrive with the app closed.',
-        action: { label: 'Open Environment Variables', href: `${dash}/settings/functions` },
+        howto:
+          'Press Fix to copy PUSHENGAGE_API_KEY=…, then open the Secrets page and paste it there, replacing the value with the REST API key from your PushEngage dashboard.',
+        action: { label: 'Open Secrets page', href: `${dash}/settings/functions` },
       },
     ],
     [dash]
@@ -335,6 +340,7 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
                       <span className="font-bold text-sm">{step.title}</span>
                     </div>
                     <p className="text-xs text-neutral-400 mt-0.5 leading-relaxed">{step.why}</p>
+                    <p className="text-[11px] text-emerald-300/90 mt-1 leading-relaxed">→ {step.howto}</p>
                     <p
                       className={`text-xs mt-1.5 ${
                         result?.state === 'ok'
