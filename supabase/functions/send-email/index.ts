@@ -7,16 +7,16 @@
 // Required secret (Supabase Dashboard -> Edge Functions -> Secrets, or CLI):
 //   RESEND_API_KEY   e.g. re_xxxxxxxx
 // Optional:
-//   MAIL_FROM        default sender, e.g. "Stakey's Cycles <noreply@stakeyscyles.co.uk>"
+//   MAIL_FROM        default sender, e.g. "Stakey's Cycles <noreply@stakeyscycles.co.uk>"
 //                    The domain must be verified in Resend for the `from` to
-//                    match what the app sends (noreply@stakeyscyles.co.uk); set a
+//                    match what the app sends (noreply@stakeyscycles.co.uk); set a
 //                    different MAIL_FROM to override the app-supplied address.
 //
 // Deploy:  supabase functions deploy send-email
 // -----------------------------------------------------------------------------
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
-const DEFAULT_FROM = "Stakey's Cycles <noreply@stakeyscyles.co.uk>";
+const DEFAULT_FROM = "Stakey's Cycles <noreply@stakeyscycles.co.uk>";
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
