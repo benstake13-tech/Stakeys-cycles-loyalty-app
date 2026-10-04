@@ -9,6 +9,8 @@
  * background/server sends, the REST API key on the backend.
  */
 
+import { getStoredSupabaseAnonKey, getStoredSupabaseUrl } from '../supabase';
+
 export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured';
 
 declare global {
@@ -37,18 +39,40 @@ function browserReady(): boolean {
 
 async function getRuntimeConfig(): Promise<PushEngageRuntimeConfig> {
   if (runtimeConfig) return runtimeConfig;
+  const resolved: PushEngageRuntimeConfig = { appId: envAppId || null, serverPush: false };
+
+  // Production: the pushengage-send edge function knows whether the REST key is
+  // set. The static host has no /api, so this is the only config source there.
   try {
-    const res = await fetch('/api/pushengage/config');
-    runtimeConfig = (await res.json()) as PushEngageRuntimeConfig;
+    const base = getStoredSupabaseUrl().replace(/\/+$/, '');
+    const key = getStoredSupabaseAnonKey();
+    if (base && key) {
+      const res = await fetch(`${base}/functions/v1/pushengage-send`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.appId) resolved.appId = data.appId;
+        resolved.serverPush = Boolean(data?.serverPush);
+      }
+    }
   } catch {
-    runtimeConfig = { appId: envAppId || null, serverPush: false };
+    /* fall through to the dev route */
   }
-  const resolved: PushEngageRuntimeConfig = runtimeConfig ?? {
-    appId: envAppId || null,
-    serverPush: false,
-  };
+
+  // Dev: the Express config route (only exists under `npm run dev`).
+  if (!resolved.serverPush) {
+    try {
+      const res = await fetch('/api/pushengage/config');
+      const data = await res.json();
+      if (data?.appId) resolved.appId = data.appId;
+      if (data?.serverPush) resolved.serverPush = true;
+    } catch {
+      /* ignore */
+    }
+  }
+
   runtimeConfig = resolved;
-  if (!resolved.appId && envAppId) resolved.appId = envAppId;
   return resolved;
 }
 
@@ -173,8 +197,40 @@ export async function getSubscriptionId(): Promise<string | null> {
 }
 
 /**
- * Sends a push through the backend so it lands even when the tab is closed.
- * Falls back to a foreground local notification when the server isn't configured.
+ * POSTs a push through the Supabase `pushengage-send` edge function, which holds
+ * the PushEngage REST key server-side. This is the production path: unlike the
+ * Express `/api/pushengage/notify` route (dev-only, never runs on the static
+ * host), the edge function is always reachable, so a booking alert lands on the
+ * phone even with the app closed.
+ */
+async function sendViaEdgeFunction(
+  body: Record<string, unknown>
+): Promise<{ ok: boolean; detail?: string }> {
+  const base = getStoredSupabaseUrl().replace(/\/+$/, '');
+  const key = getStoredSupabaseAnonKey();
+  if (!base || !key) return { ok: false };
+  try {
+    const res = await fetch(`${base}/functions/v1/pushengage-send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) return { ok: true };
+    const text = await res.text().catch(() => '');
+    return { ok: false, detail: `HTTP ${res.status}${text ? `: ${text.slice(0, 120)}` : ''}` };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Sends a push so it lands even when the tab is closed. Tries the Supabase
+ * `pushengage-send` edge function first (production), then the dev-only Express
+ * route, and finally a foreground local notification while the page is open.
  */
 export async function sendPushToUser(
   userId: string | undefined,
@@ -186,6 +242,16 @@ export async function sendPushToUser(
   const cfg = await getRuntimeConfig();
 
   if (cfg.serverPush) {
+    const edge = await sendViaEdgeFunction({
+      title,
+      body,
+      url,
+      ...(userId ? { profileId: userId } : {}),
+      ...(userId ? {} : tagFallback ? { segment: tagFallback.value } : {}),
+    });
+    if (edge.ok) return { ok: true, via: 'server' };
+
+    // Dev fallback: the Express route only exists under `npm run dev`.
     try {
       const res = await fetch('/api/pushengage/notify', {
         method: 'POST',

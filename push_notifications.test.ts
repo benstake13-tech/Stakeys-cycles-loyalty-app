@@ -78,10 +78,12 @@ describe('pushNotifications (PushEngage)', () => {
     expect(await requestPushPermission()).toBe('granted');
   });
 
-  it('sendPushToUser posts the target profile to the backend when server push is configured', async () => {
+  it('sendPushToUser posts the target profile to the pushengage-send edge function', async () => {
     const { sendPushToUser } = await load();
     await sendPushToUser('uid-9', 'Title', 'Body', 'https://x.test');
-    const call = (fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('/api/pushengage/notify'));
+    const call = (fetch as any).mock.calls.find(
+      (c: any[]) => String(c[0]).includes('/functions/v1/pushengage-send') && c[1]?.method === 'POST'
+    );
     expect(call).toBeTruthy();
     const body = JSON.parse(call[1].body);
     expect(body).toMatchObject({ title: 'Title', body: 'Body', profileId: 'uid-9' });
@@ -90,8 +92,39 @@ describe('pushNotifications (PushEngage)', () => {
   it('sendPushToUser falls back to a segment when no profile is given', async () => {
     const { sendPushToUser } = await load();
     await sendPushToUser(undefined, 'T', 'B', undefined, { key: 'role', value: 'staff' });
-    const call = (fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('/api/pushengage/notify'));
+    const call = (fetch as any).mock.calls.find(
+      (c: any[]) => String(c[0]).includes('/functions/v1/pushengage-send') && c[1]?.method === 'POST'
+    );
     expect(JSON.parse(call[1].body).segment).toBe('staff');
+  });
+
+  it('falls back to a local notification when the edge function rejects the send', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: any) => {
+        if (String(url).includes('/functions/v1/pushengage-send')) {
+          if (init?.method === 'POST') {
+            return { ok: false, status: 502, text: async () => '{"error":"bad key"}' } as any;
+          }
+          return { ok: true, json: async () => ({ appId: APP_ID, serverPush: true }) } as any;
+        }
+        return { ok: false, status: 404, json: async () => ({}) } as any;
+      })
+    );
+    const notifications: any[] = [];
+    vi.stubGlobal(
+      'Notification',
+      Object.assign(
+        function (this: any, title: string, opts: any) {
+          notifications.push({ title, opts });
+        },
+        { permission: 'granted' }
+      )
+    );
+    const { sendPushToUser } = await load();
+    const res = await sendPushToUser('uid-1', 'T', 'B');
+    expect(res.via).toBe('local');
+    expect(notifications).toHaveLength(1);
   });
 
   it('initPushEngage resolves the SDK from the queue and is idempotent', async () => {

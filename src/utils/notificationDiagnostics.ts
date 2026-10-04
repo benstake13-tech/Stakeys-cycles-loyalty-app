@@ -88,6 +88,25 @@ export function classifyFunctionProbe(
     return { status: 'pass', detail: `Deployed and reachable (HTTP ${status}).` };
   }
 
+  // pushengage-send answers a GET with its config, so we can read whether the
+  // server REST key is present (the difference between closed- and open-app push).
+  if (name === 'pushengage-send') {
+    if (status === 200 && /"serverPush"\s*:\s*true/.test(body)) {
+      return { status: 'pass', detail: 'Deployed and configured — pushes send with the app closed.' };
+    }
+    if (status === 200) {
+      return {
+        status: 'warn',
+        detail: 'Deployed, but PUSHENGAGE_API_KEY is not set — only foreground pushes work.',
+        hint: 'Add PUSHENGAGE_API_KEY under Supabase → Edge Functions → Secrets.',
+      };
+    }
+    if (status >= 500) {
+      return { status: 'warn', detail: `Deployed, but returned HTTP ${status}.`, hint: 'Check the function logs.' };
+    }
+    return { status: 'pass', detail: `Deployed and reachable (HTTP ${status}).` };
+  }
+
   if (name === 'send-email') {
     if (/RESEND_API_KEY is not configured/i.test(body)) {
       return {
@@ -230,6 +249,7 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
     { name: 'notify-booking', label: 'notify-booking (workshop alert, service-role webhook)' },
     { name: 'booking-email-notification', label: 'booking-email-notification (booking webhook email)' },
     { name: 'booking-push-notification', label: 'booking-push-notification (booking webhook push)' },
+    { name: 'pushengage-send', label: 'pushengage-send (closed-app push, server REST key)' },
   ];
   for (const { name, label } of probes) {
     const { status, body } = await probe(fetcher, deps.supabaseUrl, deps.anonKey, name);
@@ -307,7 +327,7 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
       label: 'Server can send push (PushEngage key)',
       status: cfg.serverPush ? 'pass' : cfg.appId ? 'warn' : 'fail',
       detail: cfg.serverPush
-        ? 'Server-side push is configured.'
+        ? 'Server-side push is configured (pushengage-send edge function has the REST key).'
         : cfg.appId
           ? 'PushEngage app id is set, but the server REST key is missing — closed-app pushes will not send.'
           : 'No PushEngage app id reachable from the server.',
@@ -316,7 +336,7 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
         : {
             label: 'Open PushEngage dashboard',
             href: 'https://dashboard.pushengage.com/',
-            hint: 'Copy the REST API key and set PUSHENGAGE_API_KEY as a server secret.',
+            hint: 'Copy the REST API key and set PUSHENGAGE_API_KEY as a secret for the pushengage-send function.',
           },
     });
   }

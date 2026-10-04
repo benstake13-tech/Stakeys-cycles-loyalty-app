@@ -54,6 +54,15 @@ describe('classifyFunctionProbe', () => {
     expect(v.status).toBe('pass');
     expect(v.detail).toMatch(/webhook/i);
   });
+
+  it('reads the pushengage-send config to tell closed-app push apart from foreground-only', () => {
+    const ready = classifyFunctionProbe('pushengage-send', 200, '{"appId":"a","serverPush":true}');
+    expect(ready.status).toBe('pass');
+    const noKey = classifyFunctionProbe('pushengage-send', 200, '{"appId":"a","serverPush":false}');
+    expect(noKey.status).toBe('warn');
+    expect(noKey.hint).toMatch(/PUSHENGAGE_API_KEY/);
+    expect(classifyFunctionProbe('pushengage-send', 404, '').status).toBe('fail');
+  });
 });
 
 describe('checkEmailRecipient', () => {
@@ -77,6 +86,7 @@ describe('runNotificationSystemTests', () => {
       'notify-booking': { status: 403, body: 'restricted' },
       'booking-email-notification': { status: 401, body: 'Unauthorized' },
       'booking-push-notification': { status: 401, body: '{"error":"Unauthorized"}' },
+      'pushengage-send': { status: 200, body: '{"appId":"a","serverPush":true}' },
     });
     const checks = await runNotificationSystemTests({
       supabaseUrl: URL,
@@ -93,6 +103,7 @@ describe('runNotificationSystemTests', () => {
     expect(byId['fn-notify-booking'].status).toBe('pass');
     expect(byId['fn-booking-email-notification'].status).toBe('pass');
     expect(byId['fn-booking-push-notification'].status).toBe('pass');
+    expect(byId['fn-pushengage-send'].status).toBe('pass');
     expect(byId['email-recipient'].status).toBe('pass');
     expect(byId['push-permission'].status).toBe('pass');
     expect(byId['push-worker'].status).toBe('pass');

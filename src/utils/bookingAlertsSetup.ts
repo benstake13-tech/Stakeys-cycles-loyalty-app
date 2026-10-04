@@ -51,14 +51,17 @@ export function deployFunctionsCommand(projectRef: string): string {
 }
 
 /**
- * Every edge function the project uses. The first four are the booking-alert
- * pipeline; the rest are the other live integrations that must stay deployed.
+ * Every edge function the project uses. The booking-alert pipeline is the first
+ * five (email + push webhooks, the two client-invoked senders, and the
+ * PushEngage server-send); the rest are the other live integrations that must
+ * stay deployed.
  */
 export const ALL_FUNCTIONS = [
   'booking-email-notification',
   'booking-push-notification',
   'send-email',
   'notify-booking',
+  'pushengage-send',
   'spin-wheel',
   'gbp-performance',
   'stamp-log',

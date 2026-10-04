@@ -9,6 +9,7 @@
  * to test.
  */
 import type { PushPermission } from './pushNotifications';
+import { getStoredSupabaseAnonKey, getStoredSupabaseUrl } from '../supabase';
 
 export interface PushRuntimeConfig {
   appId: string | null;
@@ -31,8 +32,27 @@ export function hasRootScopeServiceWorker(
   });
 }
 
-/** Reads the backend's push config (`/api/pushengage/config`). */
+/**
+ * Reads the push config. Production truth comes from the `pushengage-send` edge
+ * function (the static host has no `/api`); falls back to the dev-only Express
+ * route so `npm run dev` still works.
+ */
 export async function fetchPushConfig(fetcher: typeof fetch = fetch): Promise<PushRuntimeConfig> {
+  const base = getStoredSupabaseUrl().replace(/\/+$/, '');
+  const key = getStoredSupabaseAnonKey();
+  if (base && key) {
+    try {
+      const res = await fetcher(`${base}/functions/v1/pushengage-send`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
+      const data = await res.json();
+      if (res.ok && data && typeof data === 'object') {
+        return { appId: data.appId ?? null, serverPush: Boolean(data.serverPush) };
+      }
+    } catch {
+      /* fall through to the dev route */
+    }
+  }
   try {
     const res = await fetcher('/api/pushengage/config');
     const data = await res.json();
