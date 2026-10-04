@@ -38,7 +38,7 @@ import {
   Bell,
   RefreshCcw,
   TrendingUp,
-  Building2,
+  Gauge,
   ShoppingCart,
   BadgePercent,
   FlaskConical,
@@ -56,10 +56,9 @@ import { PromotionsManagerTab } from './PromotionsManagerTab';
 import { DiscountCodesTab } from './DiscountCodesTab';
 import { CounterSaleTab } from './CounterSaleTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
-import { AdminDashboard } from './AdminDashboard';
 
 import { GoogleBusinessTab } from './GoogleBusinessTab';
-import { BusinessPerformanceTab } from './BusinessPerformanceTab';
+import { PerformanceTracker } from './PerformanceTracker';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
@@ -347,7 +346,7 @@ export const StaffPortal: React.FC = () => {
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
-    { id: 'business_performance', label: 'Growth', icon: Building2, tone: 'emerald', hint: 'Google & Meta performance' },
+    { id: 'business_performance', label: 'Performance', icon: Gauge, tone: 'emerald', hint: 'Requests, calls & growth' },
     { id: 'diagnostics', label: 'Test Bench', icon: FlaskConical, tone: 'amber', hint: 'Test every feature' },
   ];
 
@@ -647,7 +646,6 @@ export const StaffPortal: React.FC = () => {
               </div>
             </div>
           </div>
-          <AdminDashboard />
         </div>
       )}
 
@@ -679,7 +677,7 @@ export const StaffPortal: React.FC = () => {
       {staffTab === 'google_business' && <GoogleBusinessTab />}
 
       {/* VIEW 7B: Google & Meta Business Performance (OAuth authorised) */}
-      {staffTab === 'business_performance' && <BusinessPerformanceTab />}
+      {staffTab === 'business_performance' && <PerformanceTracker />}
 
       {/* VIEW 8: Feature Test Bench — live self-test of every backend feature */}
       {staffTab === 'diagnostics' && <StaffDiagnosticsTab />}
