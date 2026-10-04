@@ -277,7 +277,7 @@ export type RepairStageId =
   | 'ready_for_pickup'
   | 'collected';
 
-export type RepairEventKind = 'stage' | 'note' | 'photo';
+export type RepairEventKind = 'stage' | 'note' | 'photo' | 'customer_note' | 'eta';
 
 export interface RepairProgressEvent {
   id: string;
@@ -287,6 +287,8 @@ export interface RepairProgressEvent {
   note?: string;
   photoUrl?: string;
   createdBy?: string;
+  /** Who wrote this entry, so the tracker can style customer vs workshop notes. */
+  authorRole?: 'customer' | 'staff';
   createdAt: string;
 }
 

@@ -20,6 +20,10 @@ import {
   RefreshCw,
   ExternalLink,
   MessageSquare,
+  MessageSquarePlus,
+  Send,
+  Loader2,
+  User,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus } from '../types/bikeShop';
@@ -28,6 +32,7 @@ import { RepairInvoiceModal } from './RepairInvoiceModal';
 import {
   REPAIR_STAGES,
   deriveRepairStage,
+  formatEstimate,
   matchesRepairQuery,
   repairProgressPercent,
   repairStageIndex,
@@ -42,13 +47,16 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
   initialBookingId,
   onGoToBooking,
 }) => {
-  const { bookings, currentUser } = useShop();
+  const { bookings, currentUser, addRepairProgressNote } = useShop();
 
   const [searchQuery, setSearchQuery] = useState(initialBookingId || '');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(
     initialBookingId || null
   );
   const [viewingInvoice, setViewingInvoice] = useState<ServiceBooking | null>(null);
+  const [requestText, setRequestText] = useState('');
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestFeedback, setRequestFeedback] = useState<string | null>(null);
 
   // Relevant bookings for current user if logged in
   const userBookings = useMemo(() => {
@@ -119,6 +127,28 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
     const found = bookings.find((b) => matchesRepairQuery(b, searchQuery));
     if (found) {
       setSelectedBookingId(found.id);
+    }
+  };
+
+  /** Customer asks the workshop to look at something extra, at any time. */
+  const handleSendRequest = async () => {
+    if (!activeBooking || !requestText.trim()) return;
+    setRequestBusy(true);
+    setRequestFeedback(null);
+    try {
+      const res = await addRepairProgressNote(activeBooking.id, requestText.trim(), {
+        authorRole: 'customer',
+        kind: 'customer_note',
+        label: 'Customer request',
+      });
+      if (res.success) {
+        setRequestText('');
+        setRequestFeedback(res.message || 'Message sent to the workshop.');
+      } else {
+        setRequestFeedback(res.message || 'Could not send your message.');
+      }
+    } finally {
+      setRequestBusy(false);
     }
   };
 
@@ -251,18 +281,21 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
 
             {/* LIVE WORKSHOP PROGRESS TIMELINE */}
             <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between text-xs text-neutral-400 font-mono">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-neutral-400 font-mono">
                 <span>
                   Workshop Progress: Stage {currentStageIndex + 1} of {REPAIR_STAGES.length} ·{' '}
                   <span className="text-white font-bold">{REPAIR_STAGES[currentStageIndex].title}</span>
                 </span>
-                <span className="text-emerald-400 font-bold">{etaMessage}</span>
+                <span className="inline-flex items-center gap-1.5 text-emerald-300 font-bold bg-emerald-500/10 border border-emerald-500/30 rounded-full px-3 py-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {activeBooking.estimateReadyAt ? formatEstimate(activeBooking.estimateReadyAt) : etaMessage}
+                </span>
               </div>
 
               {/* Progress bar background */}
-              <div className="w-full h-2.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 p-0.5">
+              <div className="relative w-full h-2.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 p-0.5">
                 <div
-                  className="h-full bg-gradient-to-r from-emerald-500 to-[#05C147] rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(5,193,71,0.5)]"
+                  className="h-full bg-gradient-to-r from-emerald-500 to-[#05C147] rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(5,193,71,0.5)] progress-shimmer"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -276,9 +309,9 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                   return (
                     <div
                       key={stg.id}
-                      className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2 relative ${
+                      className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2 relative animate-rise ${
                         isCurrent
-                          ? 'bg-emerald-950/30 border-emerald-500/60 shadow-lg shadow-emerald-500/10'
+                          ? 'bg-emerald-950/30 border-emerald-500/60 shadow-lg shadow-emerald-500/10 animate-live-pulse'
                           : isDone
                           ? 'bg-neutral-950/70 border-neutral-800/90 text-neutral-300'
                           : 'bg-neutral-950/40 border-neutral-900 text-neutral-500 opacity-60'
@@ -322,7 +355,43 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
               </div>
             </div>
 
-            {/* WORKSHOP TIMELINE — notes & updates from the bench */}
+            {/* ASK THE WORKSHOP — customers can message the bench at any time */}
+            <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/30 space-y-3">
+              <div className="flex items-center gap-2 text-sky-200 font-bold text-sm">
+                <MessageSquarePlus className="w-4 h-4" />
+                Ask the Workshop
+              </div>
+              <p className="text-[11px] text-neutral-300 leading-relaxed">
+                Spotted something else while you wait — a wobbly headset, a squeaky brake? Add a request
+                here at any time and the mechanic will see it on the bench. They can reply with an update
+                below.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <textarea
+                  value={requestText}
+                  onChange={(e) => setRequestText(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Could you also check the wobbly headset while the bike is in?"
+                  className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-sky-500 resize-none"
+                />
+                <button
+                  type="button"
+                  disabled={requestBusy || !requestText.trim()}
+                  onClick={handleSendRequest}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-neutral-950 font-bold text-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed self-stretch sm:self-end pressable"
+                >
+                  {requestBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  Send to bench
+                </button>
+              </div>
+              {requestFeedback && (
+                <p className="text-[11px] text-emerald-300 flex items-center gap-1.5 animate-pop">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> {requestFeedback}
+                </p>
+              )}
+            </div>
+
+            {/* WORKSHOP TIMELINE — notes & updates from the bench and you */}
             {activeBooking.progressEvents && activeBooking.progressEvents.length > 0 && (
               <div className="space-y-2 pt-2">
                 <div className="font-mono text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -330,30 +399,58 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                   Workshop Updates ({activeBooking.progressEvents.length})
                 </div>
                 <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
-                  {activeBooking.progressEvents.slice(0, 20).map((ev) => (
-                    <div
-                      key={ev.id}
-                      className="flex items-start gap-3 p-3 rounded-2xl bg-neutral-950/80 border border-neutral-800 text-xs"
-                    >
-                      <div className={`p-1.5 rounded-lg bg-neutral-900 shrink-0 ${
-                        ev.kind === 'note' ? 'text-sky-400' : 'text-[#05C147]'
-                      }`}>
-                        {ev.kind === 'note' ? <MessageSquare className="w-3.5 h-3.5" /> : <Wrench className="w-3.5 h-3.5" />}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-neutral-100">{ev.label}</span>
-                          <span className="font-mono text-[9px] text-neutral-500 shrink-0">
-                            {ev.createdAt
-                              ? new Date(ev.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
-                              : ''}
-                          </span>
+                  {activeBooking.progressEvents.slice(0, 20).map((ev) => {
+                    const isCustomer = ev.authorRole === 'customer';
+                    const isEta = ev.kind === 'eta';
+                    const isNote = ev.kind === 'note';
+                    return (
+                      <div
+                        key={ev.id}
+                        className={`flex items-start gap-3 p-3 rounded-2xl border text-xs animate-rise ${
+                          isCustomer
+                            ? 'bg-sky-500/5 border-sky-500/25'
+                            : isEta
+                            ? 'bg-amber-500/5 border-amber-500/25'
+                            : 'bg-neutral-950/80 border-neutral-800'
+                        }`}
+                      >
+                        <div
+                          className={`p-1.5 rounded-lg bg-neutral-900 shrink-0 ${
+                            isCustomer ? 'text-sky-400' : isEta ? 'text-amber-400' : isNote ? 'text-sky-400' : 'text-[#05C147]'
+                          }`}
+                        >
+                          {isCustomer ? (
+                            <User className="w-3.5 h-3.5" />
+                          ) : isEta ? (
+                            <Calendar className="w-3.5 h-3.5" />
+                          ) : isNote ? (
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          ) : (
+                            <Wrench className="w-3.5 h-3.5" />
+                          )}
                         </div>
-                        {ev.note && <p className="text-neutral-300 mt-0.5 whitespace-pre-line">{ev.note}</p>}
-                        {ev.createdBy && <span className="text-[9px] text-neutral-600">by {ev.createdBy}</span>}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-neutral-100 flex items-center gap-1.5">
+                              {ev.label}
+                              {isCustomer && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
+                                  You
+                                </span>
+                              )}
+                            </span>
+                            <span className="font-mono text-[9px] text-neutral-500 shrink-0">
+                              {ev.createdAt
+                                ? new Date(ev.createdAt).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' })
+                                : ''}
+                            </span>
+                          </div>
+                          {ev.note && <p className="text-neutral-300 mt-0.5 whitespace-pre-line">{ev.note}</p>}
+                          {ev.createdBy && <span className="text-[9px] text-neutral-600">by {ev.createdBy}</span>}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

@@ -29,6 +29,7 @@ import {
   hasRootScopeServiceWorker,
   ensureRootServiceWorker,
   permissionLabel,
+  checkPushOrigin,
 } from '../utils/pushSetup';
 
 type Toast = { kind: 'ok' | 'err'; text: string } | null;
@@ -68,6 +69,14 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
         title: 'Root service worker is registered',
         why: 'OneSignal needs a service worker at scope "/" to receive background pushes.',
         howto: 'Press Fix once notifications are allowed — it installs the worker automatically.',
+      },
+      {
+        key: 'origin',
+        title: 'OneSignal origin matches this site',
+        why: 'OneSignal only starts on the origin it is configured for. If the app is set to a different host (e.g. the apex instead of www), the SDK never starts and no device can subscribe.',
+        howto:
+          'Press Fix to open the OneSignal dashboard, then Settings → Web Configuration and set the site URL/origin to this site. Re-check when saved.',
+        action: { label: 'Open OneSignal dashboard', href: 'https://dashboard.onesignal.com/' },
       },
       {
         key: 'serverkey',
@@ -127,6 +136,16 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
     };
   }, []);
 
+  const checkOrigin = useCallback(async (): Promise<CheckResult> => {
+    const config = await fetchPushConfig();
+    const siteOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const result = checkPushOrigin(siteOrigin, config.webConfig);
+    return {
+      state: result.status === 'ok' ? 'ok' : result.status === 'mismatch' ? 'fail' : 'warn',
+      detail: result.detail,
+    };
+  }, []);
+
   const checkOne = useCallback(
     async (key: string) => {
       setStepBusy(key, 'check');
@@ -136,13 +155,15 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
             ? await checkPermission()
             : key === 'worker'
             ? await checkWorker()
+            : key === 'origin'
+            ? await checkOrigin()
             : await checkServerKey();
         mark(key, result);
       } finally {
         setStepBusy(key, undefined);
       }
     },
-    [checkPermission, checkWorker, checkServerKey]
+    [checkPermission, checkWorker, checkOrigin, checkServerKey]
   );
 
   const runAll = useCallback(async () => {
@@ -207,8 +228,27 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
     }
   };
 
+  const fixOrigin = async () => {
+    setStepBusy('origin', 'fix');
+    try {
+      flash({
+        kind: 'err',
+        text: 'Open the OneSignal dashboard → Settings → Web Configuration and set the site URL/origin to this site, then press Check.',
+      });
+      mark('origin', await checkOrigin());
+    } finally {
+      setStepBusy('origin', undefined);
+    }
+  };
+
   const fixFor = (key: string) =>
-    key === 'permission' ? fixPermission : key === 'worker' ? fixWorker : fixServerKey;
+    key === 'permission'
+      ? fixPermission
+      : key === 'worker'
+      ? fixWorker
+      : key === 'origin'
+      ? fixOrigin
+      : fixServerKey;
 
   /* ----------------------------- Test actions ---------------------------- */
 
@@ -234,6 +274,14 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
             ? { kind: 'ok', text: 'Service worker test passed — a root-scope worker is active.' }
             : { kind: 'err', text: 'Service worker test failed — no root-scope worker.' }
         );
+      } else if (key === 'origin') {
+        const result = await checkOrigin();
+        mark('origin', result);
+        if (result.state === 'ok') {
+          flash({ kind: 'ok', text: 'Origin test passed — OneSignal will start on this site.' });
+        } else {
+          flash({ kind: 'err', text: result.detail });
+        }
       } else {
         const res = await sendPushToUser(
           undefined,
@@ -451,7 +499,7 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
           </div>
           <ol className="text-xs text-neutral-300 space-y-1.5 list-decimal list-inside leading-relaxed">
             <li>A new booking is created in the app.</li>
-            <li>The app asks the server to push to the <strong>staff</strong> segment.</li>
+            <li>The server resolves the workshop admins and staff, then pushes to their subscribed devices.</li>
             <li>Your subscribed phone receives the alert — even with the app closed, once the server key is set.</li>
           </ol>
         </div>
@@ -459,8 +507,8 @@ export const PushSetupModal: React.FC<{ onClose: () => void }> = ({ onClose }) =
         <div className="flex items-start gap-2 text-[11px] text-neutral-500">
           <KeyRound className="w-3.5 h-3.5 text-emerald-500/70 shrink-0 mt-0.5" />
           <span>
-            The REST API key is a server secret and never reaches the browser. Alerts for {recipient} are
-            delivered through the staff segment.
+            The App API key is a server secret and never reaches the browser. Alerts for {recipient} are
+            delivered to the subscribed workshop devices.
           </span>
         </div>
 

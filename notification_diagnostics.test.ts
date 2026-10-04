@@ -177,4 +177,38 @@ describe('runNotificationSystemTests', () => {
     expect(c.status).toBe('warn');
     expect(c.fix?.href).toContain('onesignal');
   });
+
+  it('fails when the OneSignal app origin does not match the served site', async () => {
+    const fetcher = fakeFetch({ 'send-email': { status: 400 }, 'notify-booking': { status: 403 } });
+    const checks = await runNotificationSystemTests({
+      supabaseUrl: URL,
+      anonKey: KEY,
+      fetcher,
+      getPushConfig: async () => ({
+        appId: 'app-1',
+        serverPush: true,
+        webConfig: { chromeWebOrigin: 'https://stakeyswheels.co.uk', restrictOrigin: true },
+      }),
+      getSiteOrigin: () => 'https://www.stakeyswheels.co.uk',
+    });
+    const c = checks.find((x) => x.id === 'push-origin')!;
+    expect(c.status).toBe('fail');
+    expect(c.detail).toMatch(/locked to https:\/\/stakeyswheels\.co\.uk/i);
+  });
+
+  it('passes the origin check when OneSignal matches the site', async () => {
+    const fetcher = fakeFetch({ 'send-email': { status: 400 }, 'notify-booking': { status: 403 } });
+    const checks = await runNotificationSystemTests({
+      supabaseUrl: URL,
+      anonKey: KEY,
+      fetcher,
+      getPushConfig: async () => ({
+        appId: 'app-1',
+        serverPush: true,
+        webConfig: { chromeWebOrigin: 'https://www.stakeyswheels.co.uk' },
+      }),
+      getSiteOrigin: () => 'https://www.stakeyswheels.co.uk',
+    });
+    expect(checks.find((x) => x.id === 'push-origin')!.status).toBe('pass');
+  });
 });

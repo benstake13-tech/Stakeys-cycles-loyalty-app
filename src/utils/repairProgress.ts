@@ -160,6 +160,7 @@ export function makeRepairEvent(input: {
   note?: string;
   photoUrl?: string;
   createdBy?: string;
+  authorRole?: RepairProgressEvent['authorRole'];
 }): RepairProgressEvent {
   const kind = input.kind ?? 'stage';
   const stage = input.stage;
@@ -171,8 +172,17 @@ export function makeRepairEvent(input: {
     note: input.note?.trim() || undefined,
     photoUrl: input.photoUrl,
     createdBy: input.createdBy,
+    authorRole: input.authorRole,
     createdAt: new Date().toISOString(),
   };
+}
+
+/** A short, human label for an estimated ready time. */
+export function formatEstimate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 /**

@@ -24,8 +24,38 @@
 
 const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
 const ONESIGNAL_ENDPOINT = 'https://api.onesignal.com/notifications';
+const ONESIGNAL_APP_ENDPOINT = 'https://api.onesignal.com/apps';
 const MAX_BODY_BYTES = 16_384;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Reads the app's public web configuration so the client can compare the origin
+ * the site is served from against the origin OneSignal is locked to. A mismatch
+ * (e.g. app set to the apex, site served from `www`) makes the SDK refuse to
+ * initialise, so no device ever subscribes. Only non-secret fields are returned.
+ */
+async function readWebConfig(apiKey: string): Promise<Record<string, unknown> | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(`${ONESIGNAL_APP_ENDPOINT}/${appId()}`, {
+      headers: { Authorization: `Key ${apiKey}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const data = (await res.json()) as Record<string, any>;
+    const restrict = data?.restrict_origin;
+    return {
+      chromeWebOrigin: data?.chrome_web_origin ?? null,
+      safariSiteOrigin: data?.safari_site_origin ?? null,
+      siteOrigin: data?.siteInfo?.origin ?? null,
+      restrictOrigin: Boolean(restrict && (restrict.enable ?? restrict)),
+    };
+  } catch {
+    return null;
+  }
+}
 
 const CORS_HEADERS: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
@@ -72,9 +102,11 @@ Deno.serve(async (req: Request) => {
 
   const apiKey = Deno.env.get('ONESIGNAL_API_KEY');
 
-  // Config probe: lets the client tell whether closed-app push is available.
+  // Config probe: lets the client tell whether closed-app push is available,
+  // and whether the OneSignal app's origin matches where the site is served.
   if (req.method === 'GET') {
-    return json({ appId: appId(), serverPush: Boolean(apiKey) });
+    const webConfig = apiKey ? await readWebConfig(apiKey) : null;
+    return json({ appId: appId(), serverPush: Boolean(apiKey), webConfig });
   }
 
   if (req.method !== 'POST') {

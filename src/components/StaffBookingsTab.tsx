@@ -44,6 +44,7 @@ export const StaffBookingsTab: React.FC = () => {
     declineBooking,
     updateBookingStatus,
     setRepairStage,
+    setRepairEstimate,
     addRepairProgressNote,
     updateBookingQuote,
     saveRepairInvoice,
@@ -970,6 +971,9 @@ export const StaffBookingsTab: React.FC = () => {
                 <StaffRepairProgressPanel
                   booking={b}
                   onSetStage={(stage, options) => setRepairStage(b.id, stage, options)}
+                  onSetEstimate={(estimateReadyAt, options) =>
+                    setRepairEstimate(b.id, estimateReadyAt, options)
+                  }
                   onAddNote={(note) => addRepairProgressNote(b.id, note)}
                 />
               )}

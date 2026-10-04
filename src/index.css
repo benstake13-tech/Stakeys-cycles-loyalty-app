@@ -78,6 +78,25 @@
     animation: pop 0.25s ease-out both;
   }
 
+  /* Animated highlight that sweeps across the repair progress bar */
+  .progress-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+    transform: translateX(-100%);
+    animation: shimmer 2.2s ease-in-out infinite;
+  }
+
+  /* Soft, continuous glow for the live "active" repair stage */
+  .animate-live-pulse {
+    animation: live-pulse 1.8s ease-in-out infinite;
+  }
+
   /* Staggered list entrances */
   .stagger > * {
     animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
@@ -126,6 +145,16 @@
 @keyframes pop {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(100%); }
+}
+
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(5, 193, 71, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(5, 193, 71, 0); }
 }
 
 /* Custom subtle scrollbar */

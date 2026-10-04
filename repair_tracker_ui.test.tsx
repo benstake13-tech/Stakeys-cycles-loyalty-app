@@ -2,7 +2,10 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const hoisted = vi.hoisted(() => ({ shop: {} as any }));
+const hoisted = vi.hoisted(() => ({
+  shop: {} as any,
+  addRepairProgressNote: vi.fn(async () => ({ success: true, message: 'Message sent to the workshop.' })),
+}));
 
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
 vi.mock('./src/components/RepairInvoiceModal', () => ({
@@ -54,7 +57,7 @@ function makeBooking(over: Partial<ServiceBooking> = {}): ServiceBooking {
 }
 
 function setup(bookings: ServiceBooking[], currentUser: any = null) {
-  hoisted.shop = { bookings, currentUser };
+  hoisted.shop = { bookings, currentUser, addRepairProgressNote: hoisted.addRepairProgressNote };
 }
 
 describe('CustomerRepairTracker', () => {
@@ -76,6 +79,50 @@ describe('CustomerRepairTracker', () => {
     setup([makeBooking({ status: 'confirmed', repairStage: 'parts_ordered' })] as ServiceBooking[], null);
     render(<CustomerRepairTracker initialBookingId="bk-2001" />);
     expect(screen.getByText(/Parts Ordered — Your Repair is Booked In/i)).toBeTruthy();
+  });
+
+  it('lets a customer ask the workshop to look at something extra', async () => {
+    hoisted.addRepairProgressNote.mockReset().mockResolvedValue({ success: true, message: 'Message sent to the workshop.' });
+    setup([makeBooking()], null);
+    render(<CustomerRepairTracker initialBookingId="bk-2001" />);
+
+    const box = screen.getByPlaceholderText(/wobbly headset/i) as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: 'Could you also check the wobbly headset?' } });
+    fireEvent.click(screen.getByText(/Send to bench/i));
+
+    await screen.findByText(/Message sent to the workshop/i);
+    expect(hoisted.addRepairProgressNote).toHaveBeenCalledWith(
+      'bk-2001',
+      'Could you also check the wobbly headset?',
+      expect.objectContaining({ authorRole: 'customer', kind: 'customer_note' })
+    );
+  });
+
+  it('shows the staff estimate and tags customer messages as "You"', () => {
+    setup(
+      [
+        makeBooking({
+          estimateReadyAt: '2026-10-06T15:30:00Z',
+          progressEvents: [
+            {
+              id: 'rep-cust',
+              kind: 'customer_note',
+              label: 'Customer request',
+              note: 'Please also check the wobbly headset.',
+              authorRole: 'customer',
+              createdBy: 'Ada',
+              createdAt: '2026-10-03T11:00:00Z',
+            },
+          ],
+        }),
+      ] as ServiceBooking[],
+      null
+    );
+    render(<CustomerRepairTracker initialBookingId="bk-2001" />);
+    expect(screen.getByText(/^You$/)).toBeTruthy();
+    expect(screen.getByText(/Please also check the wobbly headset/i)).toBeTruthy();
+    // The manually-edited ETA is shown verbatim, not the computed guess.
+    expect(screen.getByText(/6 Oct 2026/i)).toBeTruthy();
   });
 
   it('lets a customer (or guest) look a repair up by phone number', () => {

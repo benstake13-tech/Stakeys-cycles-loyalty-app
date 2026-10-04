@@ -11,6 +11,7 @@
  * argument, so the engine is fully unit-testable without a live project.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { checkPushOrigin, normalizeOrigin, type WebConfig } from './pushSetup';
 
 export type SystemStatus = 'pass' | 'fail' | 'warn' | 'skipped';
 export type SystemGroup = 'pipeline' | 'email' | 'push';
@@ -197,7 +198,35 @@ export interface SystemTestDeps {
   readAppSettings?: () => Promise<{ ownerEmail: string; emailAlertsEnabled: boolean } | null>;
   getPushPermission?: () => Promise<string>;
   getServiceWorkerScopes?: () => Promise<Array<{ scope?: string }>>;
-  getPushConfig?: () => Promise<{ appId: string | null; serverPush: boolean }>;
+  getPushConfig?: () => Promise<{ appId: string | null; serverPush: boolean; webConfig?: WebConfig | null }>;
+  /** The origin the site is served from; defaults to window.location.origin. */
+  getSiteOrigin?: () => string;
+}
+
+/**
+ * Maps the pure origin check (pushSetup) onto a pipeline check. This is the one
+ * that would have caught the origin-mismatch outage: with `restrict_origin` on,
+ * OneSignal refuses to start on any other origin, so no device ever subscribes.
+ */
+export function buildPushOriginCheck(
+  siteOrigin: string,
+  webConfig: WebConfig | null | undefined
+): SystemCheck {
+  const result = checkPushOrigin(siteOrigin, webConfig);
+  const base = { id: 'push-origin', group: 'push' as const, label: 'OneSignal origin matches this site' };
+  if (result.status === 'ok') return { ...base, status: 'pass', detail: result.detail };
+  if (result.status === 'unknown') return { ...base, status: 'skipped', detail: result.detail };
+  const site = normalizeOrigin(siteOrigin) ?? 'this site';
+  return {
+    ...base,
+    status: 'fail',
+    detail: result.detail,
+    fix: {
+      label: 'Open OneSignal dashboard',
+      href: 'https://dashboard.onesignal.com/',
+      hint: `Settings → Web Configuration → set the site URL/origin to ${site}.`,
+    },
+  };
 }
 
 /**
@@ -325,7 +354,7 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
   }
 
   if (deps.getPushConfig) {
-    const cfg = await deps.getPushConfig().catch(() => ({ appId: null, serverPush: false }));
+    const cfg = await deps.getPushConfig().catch(() => ({ appId: null, serverPush: false, webConfig: null }));
     checks.push({
       id: 'push-server',
       group: 'push',
@@ -344,6 +373,12 @@ export async function runNotificationSystemTests(deps: SystemTestDeps): Promise<
             hint: 'Copy the App API key and set ONESIGNAL_API_KEY as a secret for the onesignal-send function.',
           },
     });
+
+    // Origin match — the check that catches the "no device ever subscribes" outage.
+    const siteOrigin =
+      deps.getSiteOrigin?.() ??
+      (typeof window !== 'undefined' ? window.location.origin : '');
+    checks.push(buildPushOriginCheck(siteOrigin, cfg.webConfig));
   }
 
   return checks;

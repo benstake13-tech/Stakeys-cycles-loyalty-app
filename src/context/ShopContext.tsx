@@ -287,11 +287,21 @@ interface ShopContextType {
     stage: RepairStageId,
     options?: { note?: string; estimateReadyAt?: string | null }
   ) => Promise<{ success: boolean; message?: string }>;
+  setRepairEstimate: (
+    bookingId: string,
+    estimateReadyAt: string | null,
+    options?: { note?: string }
+  ) => Promise<{ success: boolean; message?: string }>;
   resolveScannedMember: (rawCode: string) => Promise<UserProfile | null>;
   addRepairProgressNote: (
     bookingId: string,
     note: string,
-    options?: { photoUrl?: string }
+    options?: {
+      photoUrl?: string;
+      kind?: RepairProgressEvent['kind'];
+      label?: string;
+      authorRole?: 'customer' | 'staff';
+    }
   ) => Promise<{ success: boolean; message?: string }>;
   saveRepairInvoice: (
     bookingId: string,
@@ -2908,6 +2918,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       label: repairStageLabel(stage),
       note: options?.note,
       createdBy: currentUser?.displayName || 'Workshop',
+      authorRole: 'staff',
     });
 
     const nextStageIndex = repairStageIndex(stage);
@@ -2966,18 +2977,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addRepairProgressNote = async (
     bookingId: string,
     note: string,
-    options?: { photoUrl?: string }
+    options?: {
+      photoUrl?: string;
+      kind?: RepairProgressEvent['kind'];
+      label?: string;
+      authorRole?: 'customer' | 'staff';
+    }
   ): Promise<{ success: boolean; message?: string }> => {
     if (!note.trim()) return { success: false, message: 'Note cannot be empty' };
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return { success: false, message: 'Booking not found' };
 
+    const authorRole = options?.authorRole ?? 'staff';
     const event = makeRepairEvent({
-      kind: 'note',
-      label: 'Workshop update',
+      kind: options?.kind ?? 'note',
+      label: options?.label || (authorRole === 'customer' ? 'Customer request' : 'Workshop update'),
       note,
       photoUrl: options?.photoUrl,
-      createdBy: currentUser?.displayName || 'Workshop',
+      createdBy: currentUser?.displayName || (authorRole === 'customer' ? 'Customer' : 'Workshop'),
+      authorRole,
     });
     const nextProgressEvents = [event, ...(target.progressEvents || [])];
 
@@ -2986,7 +3004,40 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
     await updateServiceBookingInDb(bookingId, { progressEvents: nextProgressEvents });
 
-    return { success: true, message: 'Progress note added.' };
+    return {
+      success: true,
+      message: authorRole === 'customer' ? 'Message sent to the workshop.' : 'Progress note added.',
+    };
+  };
+
+  /**
+   * Sets (or clears) the estimated ready time the customer sees, and records it
+   * as an `eta` timeline entry so the tracker reads as a living log. Staff can
+   * edit this manually at any point in the repair.
+   */
+  const setRepairEstimate = async (
+    bookingId: string,
+    estimateReadyAt: string | null,
+    options?: { note?: string }
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    const event = makeRepairEvent({
+      kind: 'eta',
+      label: estimateReadyAt ? 'Estimated ready time updated' : 'Estimated ready time cleared',
+      note: options?.note || undefined,
+      createdBy: currentUser?.displayName || 'Workshop',
+      authorRole: 'staff',
+    });
+    const nextProgressEvents = [event, ...(target.progressEvents || [])];
+
+    setBookings((prev) =>
+      prev.map((b) => (b.id === bookingId ? { ...b, estimateReadyAt, progressEvents: nextProgressEvents } : b))
+    );
+    await updateServiceBookingInDb(bookingId, { estimateReadyAt, progressEvents: nextProgressEvents });
+
+    return { success: true, message: 'Estimated ready time updated.' };
   };
 
   const updateBookingQuote = async (bookingId: string, quote: { quotedPrice: number, quoteNote?: string }): Promise<{ success: boolean; message?: string }> => {
@@ -3346,6 +3397,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         declineBooking,
         updateBookingStatus,
         setRepairStage,
+        setRepairEstimate,
         resolveScannedMember,
         addRepairProgressNote,
         updateBookingQuote,

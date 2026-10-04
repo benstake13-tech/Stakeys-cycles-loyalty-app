@@ -26,6 +26,8 @@ import {
   fetchPushConfig,
   permissionLabel,
   ensureRootServiceWorker,
+  checkPushOrigin,
+  normalizeOrigin,
 } from './src/utils/pushSetup';
 import { PushSetupModal } from './src/components/PushSetupModal';
 
@@ -71,15 +73,59 @@ describe('hasRootScopeServiceWorker', () => {
 });
 
 describe('fetchPushConfig', () => {
-  it('reads the server push flag from the backend', async () => {
-    const cfg = await fetchPushConfig(async () => new Response(JSON.stringify({ appId: 'a', serverPush: true })));
-    expect(cfg).toEqual({ appId: 'a', serverPush: true });
+  it('reads the server push flag and web config from the backend', async () => {
+    const cfg = await fetchPushConfig(
+      async () =>
+        new Response(
+          JSON.stringify({ appId: 'a', serverPush: true, webConfig: { chromeWebOrigin: 'https://www.example.com' } })
+        )
+    );
+    expect(cfg.appId).toBe('a');
+    expect(cfg.serverPush).toBe(true);
+    expect(cfg.webConfig).toEqual({ chromeWebOrigin: 'https://www.example.com' });
   });
   it('falls back to not-configured when the backend is unreachable', async () => {
     const cfg = await fetchPushConfig(async () => {
       throw new Error('network');
     });
     expect(cfg.serverPush).toBe(false);
+    expect(cfg.webConfig).toBeNull();
+  });
+});
+
+describe('checkPushOrigin', () => {
+  it('passes when the configured origin matches the site', () => {
+    const res = checkPushOrigin('https://www.stakeyswheels.co.uk', {
+      chromeWebOrigin: 'https://www.stakeyswheels.co.uk',
+    });
+    expect(res.status).toBe('ok');
+  });
+
+  it('flags the apex-vs-www mismatch that blocks the SDK from starting', () => {
+    const res = checkPushOrigin('https://www.stakeyswheels.co.uk', {
+      chromeWebOrigin: 'https://stakeyswheels.co.uk',
+      restrictOrigin: true,
+    });
+    expect(res.status).toBe('mismatch');
+    expect(res.configuredOrigin).toBe('https://stakeyswheels.co.uk');
+  });
+
+  it('treats a mismatch as fine when origin restriction is off', () => {
+    const res = checkPushOrigin('https://www.stakeyswheels.co.uk', {
+      chromeWebOrigin: 'https://stakeyswheels.co.uk',
+      restrictOrigin: false,
+    });
+    expect(res.status).toBe('ok');
+  });
+
+  it('reports unknown when the web config could not be read', () => {
+    expect(checkPushOrigin('https://www.stakeyswheels.co.uk', null).status).toBe('unknown');
+  });
+
+  it('normalises trailing slashes and default ports', () => {
+    expect(normalizeOrigin('https://www.example.com/')).toBe('https://www.example.com');
+    expect(normalizeOrigin('https://www.example.com:443')).toBe('https://www.example.com');
+    expect(checkPushOrigin('https://www.example.com', { chromeWebOrigin: 'https://www.example.com/' }).status).toBe('ok');
   });
 });
 
@@ -117,12 +163,35 @@ describe('PushSetupModal', () => {
     await renderSettled();
     expect(screen.getByText(/Allow notifications on this device/i)).toBeTruthy();
     expect(screen.getByText(/Root service worker is registered/i)).toBeTruthy();
+    expect(screen.getByText(/OneSignal origin matches this site/i)).toBeTruthy();
     expect(screen.getByText(/Server push key is configured/i)).toBeTruthy();
-    // One Check and one Test per step; two "Fix" buttons plus the env-line copy.
-    expect(screen.getAllByRole('button', { name: /^Check$/i })).toHaveLength(3);
-    expect(screen.getAllByRole('button', { name: /^Test$/i })).toHaveLength(3);
-    expect(screen.getAllByRole('button', { name: /^Fix$/i })).toHaveLength(2);
+    // One Check and one Test per step; three Fix buttons plus the env-line copy.
+    expect(screen.getAllByRole('button', { name: /^Check$/i })).toHaveLength(4);
+    expect(screen.getAllByRole('button', { name: /^Test$/i })).toHaveLength(4);
+    expect(screen.getAllByRole('button', { name: /^Fix$/i })).toHaveLength(3);
     expect(screen.getByRole('button', { name: /Copy env line/i })).toBeTruthy();
+  });
+
+  it('reports the OneSignal origin as unknown when the app config is unreadable', async () => {
+    await renderSettled();
+    expect(screen.getByText(/web origin could not be read/i)).toBeTruthy();
+  });
+
+  it('detects an origin mismatch and links to the OneSignal dashboard', async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            appId: 'app',
+            serverPush: true,
+            webConfig: { chromeWebOrigin: 'https://stakeyswheels.co.uk', restrictOrigin: true },
+          }),
+          { status: 200 }
+        )
+    ) as unknown as typeof fetch;
+    await renderSettled();
+    await waitFor(() => expect(screen.getByText(/OneSignal is locked to https:\/\/stakeyswheels\.co\.uk/i)).toBeTruthy());
+    expect(screen.getByRole('link', { name: /Open OneSignal dashboard/i })).toBeTruthy();
   });
 
   it('fixes only the step that was pressed (step 1 requests permission and subscribes)', async () => {
@@ -141,7 +210,7 @@ describe('PushSetupModal', () => {
 
   it('sends a real push when the server-key step test is pressed', async () => {
     await renderSettled();
-    fireEvent.click(screen.getAllByRole('button', { name: /^Test$/i })[2]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Test$/i })[3]);
     await waitFor(() => expect(hoisted.sendPushToUser).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/Server push test passed/i)).toBeTruthy());
   });

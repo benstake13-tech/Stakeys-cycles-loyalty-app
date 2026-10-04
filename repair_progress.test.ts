@@ -3,6 +3,7 @@ import {
   REPAIR_STAGES,
   REPAIR_STAGE_ORDER,
   deriveRepairStage,
+  formatEstimate,
   makeRepairEvent,
   matchesRepairQuery,
   nextRepairStage,
@@ -102,6 +103,24 @@ describe('makeRepairEvent', () => {
   it('keeps free-text notes and defaults empty notes to undefined', () => {
     expect(makeRepairEvent({ kind: 'note', note: '  ordering chain  ' }).note).toBe('ordering chain');
     expect(makeRepairEvent({ kind: 'note', note: '   ' }).note).toBeUndefined();
+  });
+
+  it('records who wrote an entry so customers and staff can be told apart', () => {
+    const cust = makeRepairEvent({ kind: 'customer_note', note: 'check the headset', authorRole: 'customer' });
+    expect(cust.authorRole).toBe('customer');
+    const staff = makeRepairEvent({ kind: 'note', note: 'on the bench', authorRole: 'staff' });
+    expect(staff.authorRole).toBe('staff');
+    // Defaults to undefined when not supplied (older events).
+    expect(makeRepairEvent({ kind: 'note', note: 'x' }).authorRole).toBeUndefined();
+  });
+});
+
+describe('formatEstimate', () => {
+  it('renders a readable date and handles empty/invalid input', () => {
+    expect(formatEstimate('2026-10-06T15:30:00Z')).toMatch(/6 Oct 2026/);
+    expect(formatEstimate(null)).toBeNull();
+    expect(formatEstimate('')).toBeNull();
+    expect(formatEstimate('not-a-date')).toBeNull();
   });
 });
 
