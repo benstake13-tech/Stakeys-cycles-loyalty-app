@@ -212,100 +212,179 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0c1017] text-neutral-100 flex flex-col justify-center items-center px-4 py-8 sm:py-12 relative overflow-hidden font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Background Workshop Photography with Warm Workshop Lighting */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+    <div className="min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* ===== LEFT: BRAND / WORKSHOP PANEL (desktop only) ===== */}
+      <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden p-10 xl:p-14">
         <img
           src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
           alt="Stakey's cycle and scooter workshop"
           referrerPolicy="no-referrer"
-          className="w-full h-full object-cover object-center opacity-35 filter saturate-100 scale-105"
+          className="absolute inset-0 w-full h-full object-cover object-center opacity-40 scale-105"
         />
-        {/* Ambient atmospheric gradients for contrast and depth */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0c1017] via-[#0c1017]/85 to-[#0c1017]/70" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
-      </div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0b0f15] via-[#0b0f15]/80 to-emerald-950/60" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,_rgba(5,193,71,0.22),transparent_55%)]" />
+        <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
-      {/* Main Container Card */}
-      <div className="w-full max-w-md z-10 relative">
-        {/* Top Floating Theme Toggle */}
-        <div className="flex justify-end mb-3">
-          <ThemeToggle showLabel={true} />
+        <div className="relative z-10 flex items-center gap-3">
+          <div className="p-2 rounded-2xl bg-neutral-950/80 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 backdrop-blur">
+            <StakeysLogo className="w-11 h-11" />
+          </div>
+          <div>
+            <div className="font-display text-xl font-extrabold tracking-tight text-white leading-none">
+              STAKEY'S
+            </div>
+            <div className="text-[10px] font-bold tracking-[0.25em] text-[#05C147] uppercase mt-1">
+              Cycles &amp; Scooter
+            </div>
+          </div>
         </div>
 
-        <div className="bg-neutral-900/95 border border-neutral-700/80 rounded-2xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(5,193,71,0.12)] backdrop-blur-xl ring-1 ring-emerald-500/20">
-          {/* Stakey's Brand Header */}
-          <div className="flex flex-col items-center text-center mb-5">
-            <div className="p-2 rounded-2xl bg-neutral-950 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 mb-3">
-              <StakeysLogo className="w-13 h-13" />
-            </div>
+        <div className="relative z-10 max-w-md">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-bold uppercase tracking-wider mb-5">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Digital Loyalty Pass</span>
+          </div>
+          <h2 className="font-display text-4xl xl:text-5xl font-extrabold leading-[1.05] text-white">
+            Every visit earns.
+            <br />
+            <span className="text-[#05C147]">Every rider rewards.</span>
+          </h2>
+          <p className="mt-4 text-sm text-neutral-300 leading-relaxed">
+            Collect a stamp on every workshop visit, fill your card and unlock £40 of service credit —
+            plus a free weekly spin on the prize wheel.
+          </p>
 
-            <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
-              <span>STAKEY'S</span>
-              <span className="text-[#05C147] text-sm font-bold tracking-wider uppercase font-sans">
-                CYCLES &amp; SCOOTER
+          <ul className="mt-8 space-y-3.5">
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 p-1.5 rounded-lg bg-neutral-950/70 border border-neutral-700/70 text-emerald-400">
+                <Bike className="w-4 h-4" />
               </span>
-            </h1>
+              <span>
+                <span className="block text-sm font-semibold text-white">10 stamps, one reward</span>
+                <span className="block text-xs text-neutral-400">Fill the card to bank £40 of workshop service credit.</span>
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 p-1.5 rounded-lg bg-neutral-950/70 border border-neutral-700/70 text-emerald-400">
+                <Wrench className="w-4 h-4" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-white">Live repair tracking</span>
+                <span className="block text-xs text-neutral-400">Follow your booking from quote through to collection.</span>
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <span className="mt-0.5 p-1.5 rounded-lg bg-neutral-950/70 border border-neutral-700/70 text-emerald-400">
+                <ShieldCheck className="w-4 h-4" />
+              </span>
+              <span>
+                <span className="block text-sm font-semibold text-white">Weekly prize wheel</span>
+                <span className="block text-xs text-neutral-400">One free spin every 7 days for stamps and store perks.</span>
+              </span>
+            </li>
+          </ul>
+        </div>
 
-            {/* Unboxed Metadata Header */}
-            <div className="text-xs text-neutral-300 mt-1.5 flex items-center justify-center gap-2 font-mono">
-              <span className="text-emerald-400 font-semibold">Workshop</span>
-              <span aria-hidden="true" className="text-neutral-500">·</span>
-              <span>Workshop Certified</span>
-              <span aria-hidden="true" className="text-neutral-500">·</span>
-              <span>Digital Loyalty Pass</span>
+        <div className="relative z-10 flex items-center gap-4 text-[11px] text-neutral-400">
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Supabase secured
+          </span>
+          <span className="flex items-center gap-1.5">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Workshop certified
+          </span>
+        </div>
+      </aside>
+
+      {/* ===== RIGHT: AUTH PANEL ===== */}
+      <main className="relative flex flex-col justify-center items-center px-4 py-8 sm:py-12 overflow-hidden">
+        {/* Mobile / tablet background */}
+        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none lg:hidden">
+          <img
+            src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
+            alt="Stakey's cycle and scooter workshop"
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover object-center opacity-25 filter saturate-100 scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f15] via-[#0b0f15]/90 to-[#0b0f15]/70" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
+        </div>
+
+        <div className="w-full max-w-md z-10 relative">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 lg:hidden">
+              <div className="p-1.5 rounded-xl bg-neutral-950 border border-emerald-500/40 text-emerald-400">
+                <StakeysLogo className="w-8 h-8" />
+              </div>
+              <span className="font-display text-lg font-extrabold text-white">STAKEY'S</span>
+            </div>
+            <div className="ml-auto">
+              <ThemeToggle showLabel={true} />
             </div>
           </div>
 
-          {/* Dedicated 3-Mode Switcher: Customer Sign In | Create Account | Staff Terminal */}
-          <div className="grid grid-cols-3 bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('signin');
-                setError(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer text-center ${
-                mode === 'signin'
-                  ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              Sign In
-            </button>
+          <div className="bg-neutral-900/95 border border-neutral-700/80 rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(5,193,71,0.12)] backdrop-blur-xl ring-1 ring-emerald-500/20">
+            {/* Brand Header */}
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="hidden lg:block p-2 rounded-2xl bg-neutral-950 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 mb-3">
+                <StakeysLogo className="w-13 h-13" />
+              </div>
+              <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                Welcome back
+              </h1>
+              <p className="text-xs text-neutral-400 mt-1.5">
+                Sign in to your loyalty pass, or join the workshop in under a minute.
+              </p>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode('register');
-                setError(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                mode === 'register'
-                  ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Sparkles className="w-3 h-3 text-[#05C147]" />
-              <span>Register</span>
-            </button>
+            {/* Dedicated 3-Mode Switcher: Customer Sign In | Create Account | Staff Terminal */}
+            <div className="grid grid-cols-3 bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signin');
+                  setError(null);
+                }}
+                className={`py-2 rounded-lg transition-all cursor-pointer text-center ${
+                  mode === 'signin'
+                    ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                Sign In
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setMode('staff');
-                setError(null);
-              }}
-              className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                mode === 'staff'
-                  ? 'bg-emerald-950/80 text-emerald-300 font-bold shadow-md border border-emerald-500/50'
-                  : 'text-amber-400 hover:text-amber-300'
-              }`}
-            >
-              <Shield className="w-3 h-3 text-emerald-400" />
-              <span>Staff Station</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('register');
+                  setError(null);
+                }}
+                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  mode === 'register'
+                    ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Sparkles className="w-3 h-3 text-[#05C147]" />
+                <span>Register</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('staff');
+                  setError(null);
+                }}
+                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                  mode === 'staff'
+                    ? 'bg-emerald-950/80 text-emerald-300 font-bold shadow-md border border-emerald-500/50'
+                    : 'text-amber-400 hover:text-amber-300'
+                }`}
+              >
+                <Shield className="w-3 h-3 text-emerald-400" />
+                <span>Staff Station</span>
+              </button>
+            </div>
 
           {/* Error Notice */}
           {error && (
@@ -704,8 +783,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               </p>
             </div>
           )}
+          </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
