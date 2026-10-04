@@ -105,13 +105,13 @@ export const WeeklyPrizeWheel: React.FC<WeeklyPrizeWheelProps> = ({
         rewardValue: 'Free Presta/Schrader Inner Tube at Till',
       },
       {
-        id: 'seg-merits-50',
-        label: '+50 Store Merits',
+        id: 'seg-points-50',
+        label: '+50 Store Points',
         color: '#db2777',
         probability: 0.05,
-        prizeId: 'prize-merits-50',
-        rewardType: 'merit',
-        rewardValue: '50 Bonus Loyalty Merits',
+        prizeId: 'prize-points-50',
+        rewardType: 'points',
+        rewardValue: '50 Bonus Loyalty Points',
       },
       {
         id: 'seg-espresso',
@@ -352,7 +352,7 @@ export const WeeklyPrizeWheel: React.FC<WeeklyPrizeWheelProps> = ({
         return <Gift className="w-3.5 h-3.5 inline mr-1 text-purple-300" />;
       case 'service':
         return <Coffee className="w-3.5 h-3.5 inline mr-1 text-amber-300" />;
-      case 'merit':
+      case 'points':
         return <Sparkles className="w-3.5 h-3.5 inline mr-1 text-pink-300" />;
       default:
         return <Award className="w-3.5 h-3.5 inline mr-1 text-emerald-300" />;

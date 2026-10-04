@@ -883,7 +883,7 @@ export const StaffPortal: React.FC = () => {
                 Live Staff Stamp &amp; Reward Audit Trail
               </div>
               <p className="text-xs text-neutral-400 mt-0.5">
-                Full chronological ledger of visit stamps, merit adjustments, and perks redeemed across all workshop stations.
+                Full chronological ledger of visit stamps, point adjustments, and perks redeemed across all workshop stations.
               </p>
             </div>
 
@@ -896,7 +896,7 @@ export const StaffPortal: React.FC = () => {
                 <option value="all">All Actions ({stampLogs.length})</option>
                 <option value="add_stamp">Visit Stamps Only</option>
                 <option value="redeem_reward">Reward Redemptions</option>
-                <option value="manual_merit_adjustment">Merit Adjustments</option>
+                <option value="manual_points_adjustment">Point Adjustments</option>
               </select>
             </div>
           </div>

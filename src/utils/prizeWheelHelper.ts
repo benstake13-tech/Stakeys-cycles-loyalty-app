@@ -67,13 +67,13 @@ export const DEFAULT_PRIZE_WHEEL: PrizeWheel = {
       rewardValue: 'Free Presta/Schrader Inner Tube at Till',
     },
     {
-      id: 'seg-merits-50',
-      label: '+50 Store Merits',
+      id: 'seg-points-50',
+      label: '+50 Store Points',
       color: '#db2777',
       probability: 0.05,
-      prizeId: 'prize-merits-50',
-      rewardType: 'merit',
-      rewardValue: '50 Bonus Loyalty Merits',
+      prizeId: 'prize-points-50',
+      rewardType: 'points',
+      rewardValue: '50 Bonus Loyalty Points',
     },
     {
       id: 'seg-espresso',

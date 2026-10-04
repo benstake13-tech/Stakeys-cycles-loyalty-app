@@ -671,7 +671,7 @@ SELECT
     {"id":"seg-cleaner","label":"Muc-Off Cleaner","color":"#7c3aed","probability":0.12,"prizeId":"prize-cleaner","rewardType":"merch","rewardValue":"Complimentary Muc-Off Bike Cleaner"},
     {"id":"seg-stamp-3","label":"+3 Stamps Jackpot!","color":"#d97706","probability":0.08,"prizeId":"prize-stamp-3","rewardType":"stamp","stampsAmount":3},
     {"id":"seg-tube","label":"Free Inner Tube","color":"#0891b2","probability":0.08,"prizeId":"prize-tube","rewardType":"merch","rewardValue":"Free Presta/Schrader Inner Tube at Till"},
-    {"id":"seg-merits-50","label":"+50 Store Merits","color":"#db2777","probability":0.05,"prizeId":"prize-merits-50","rewardType":"merit","rewardValue":"50 Bonus Loyalty Merits"},
+    {"id":"seg-points-50","label":"+50 Store Points","color":"#db2777","probability":0.05,"prizeId":"prize-points-50","rewardType":"points","rewardValue":"50 Bonus Loyalty Points"},
     {"id":"seg-espresso","label":"Free Workshop Coffee","color":"#ea580c","probability":0.05,"prizeId":"prize-coffee","rewardType":"service","rewardValue":"Free Barista Coffee while bike is serviced"}
   ]'::jsonb,
   TRUE,

@@ -21,7 +21,7 @@ function makeUser(over: any = {}) {
     membershipNumber: 'STK-1',
     stamps: 0,
     tickets: 0,
-    merits: 0,
+    points: 0,
     serviceVouchers: [],
     ...over,
   };

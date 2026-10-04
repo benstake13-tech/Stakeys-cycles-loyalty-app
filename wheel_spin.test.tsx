@@ -23,7 +23,7 @@ function makeUser(over: any = {}) {
     membershipNumber: 'STK-1',
     stamps: 3,
     tickets: 0,
-    merits: 0,
+    points: 0,
     ...over,
   };
 }

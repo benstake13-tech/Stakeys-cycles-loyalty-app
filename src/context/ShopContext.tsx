@@ -166,13 +166,13 @@ interface ShopContextType {
   // Core actions
   addStamp: (customerId: string, staffId: string, bypassLimit?: boolean) => Promise<{ success: boolean; message: string }>;
   redeemReward: (customerId: string, staffId: string, rewardDescription: string) => Promise<{ success: boolean; message: string }>;
-  updateCustomerMerits: (
+  updateCustomerPoints: (
     customerId: string,
     staffId: string,
     updates: {
       stamps?: number;
       tickets?: number;
-      merits?: number;
+      points?: number;
       displayName?: string;
       email?: string;
       phoneNumber?: string;
@@ -188,7 +188,7 @@ interface ShopContextType {
       phoneNumber?: string;
       stamps?: number;
       tickets?: number;
-      merits?: number;
+      points?: number;
     },
     staffId: string
   ) => Promise<{ success: boolean; message: string; customer?: UserProfile }>;
@@ -1121,7 +1121,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         bikes: mergedBikes,
         stamps: remoteStamps,
         tickets: remoteProfile?.tickets !== undefined ? remoteProfile.tickets : user.tickets,
-        merits: remoteProfile?.merits !== undefined ? remoteProfile.merits : user.merits,
+        points: remoteProfile?.points !== undefined ? remoteProfile.points : user.points,
         lastStampedAt:
           remoteProfile?.lastStampedAt !== undefined ? remoteProfile.lastStampedAt : user.lastStampedAt,
         lastSpunAt: remoteProfile?.lastSpunAt !== undefined ? remoteProfile.lastSpunAt : user.lastSpunAt,
@@ -1328,7 +1328,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           profile?.membership_number || `STK-${authUser.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
         stamps: profile?.stamps || 0,
         tickets: profile?.completed_cards || 0,
-        merits: profile?.merit_points || 0,
+        points: profile?.merit_points || 0,
         bikes: [],
         createdAt: profile?.created_at ? new Date(profile.created_at) : new Date(),
         lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
@@ -1491,7 +1491,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           profile?.membership_number || `STK-${data.user.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
         stamps: profile?.stamps || 0,
         tickets: profile?.completed_cards || 0,
-        merits: profile?.merit_points || 0,
+        points: profile?.merit_points || 0,
         bikes: [], // Will be populated by syncUserFromDatabase
         createdAt: profile?.created_at ? new Date(profile.created_at) : new Date(),
         lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
@@ -1809,14 +1809,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: `Redeemed: ${rewardDescription}` };
   };
 
-  // Manual Customer Merit & Balance Adjustment for Staff Database
-  const updateCustomerMerits = async (
+  // Manual Customer Point & Balance Adjustment for Staff Database
+  const updateCustomerPoints = async (
     customerId: string,
     staffId: string,
     updates: {
       stamps?: number;
       tickets?: number;
-      merits?: number;
+      points?: number;
       displayName?: string;
       email?: string;
       phoneNumber?: string;
@@ -1835,14 +1835,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const stampsBefore = target.stamps ?? 0;
     const ticketsBefore = target.tickets ?? 0;
-    const meritsBefore = target.merits ?? 0;
+    const pointsBefore = target.points ?? 0;
 
     const stampsAfter =
       updates.stamps !== undefined
         ? Math.max(0, Math.min(STAMPS_PER_CARD, updates.stamps))
         : stampsBefore;
     const ticketsAfter = updates.tickets !== undefined ? Math.max(0, updates.tickets) : ticketsBefore;
-    const meritsAfter = updates.merits !== undefined ? Math.max(0, updates.merits) : meritsBefore;
+    const pointsAfter = updates.points !== undefined ? Math.max(0, updates.points) : pointsBefore;
 
     const now = new Date();
 
@@ -1853,7 +1853,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       phoneNumber: updates.phoneNumber !== undefined ? updates.phoneNumber.trim() : target.phoneNumber,
       stamps: stampsAfter,
       tickets: ticketsAfter,
-      merits: meritsAfter,
+      points: pointsAfter,
       lastStampedAt: updates.resetDailyRateLimit ? undefined : target.lastStampedAt,
       lastSpunAt: updates.resetSpinCooldown ? undefined : target.lastSpunAt,
     };
@@ -1861,7 +1861,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const changesSummary: string[] = [];
     if (stampsAfter !== stampsBefore) changesSummary.push(`Stamps: ${stampsBefore} -> ${stampsAfter}`);
     if (ticketsAfter !== ticketsBefore) changesSummary.push(`Tickets: ${ticketsBefore} -> ${ticketsAfter}`);
-    if (meritsAfter !== meritsBefore) changesSummary.push(`Merits: ${meritsBefore} -> ${meritsAfter}`);
+    if (pointsAfter !== pointsBefore) changesSummary.push(`Points: ${pointsBefore} -> ${pointsAfter}`);
     if (updates.resetDailyRateLimit) changesSummary.push('Daily rate limit cleared');
     if (updates.resetSpinCooldown) changesSummary.push('Spin cooldown reset');
     if (updates.displayName && updates.displayName !== target.displayName) changesSummary.push(`Name: ${updates.displayName}`);
@@ -1869,22 +1869,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const summaryText = changesSummary.length > 0 ? changesSummary.join(', ') : 'Profile details updated';
     const finalNote = updates.staffNote?.trim()
       ? `${updates.staffNote.trim()} (${summaryText})`
-      : `Manual merit adjustment by ${staffName}: ${summaryText}`;
+      : `Manual point adjustment by ${staffName}: ${summaryText}`;
 
     const newLog: StampLog = {
-      id: `log-merit-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      id: `log-point-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       customerId,
       customerName: updatedUser.displayName,
       membershipNumber: updatedUser.membershipNumber,
       staffId,
       staffName,
-      action: 'manual_merit_adjustment',
+      action: 'manual_points_adjustment',
       stampsBefore,
       stampsAfter,
       ticketsBefore,
       ticketsAfter,
-      meritsBefore,
-      meritsAfter,
+      pointsBefore,
+      pointsAfter,
       timestamp: now,
       note: finalNote,
     };
@@ -1896,15 +1896,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateUserProfileInDb(customerId, target.membershipNumber, {
       stamps: stampsAfter,
       tickets: ticketsAfter,
-      merits: meritsAfter,
+      points: pointsAfter,
       displayName: updates.displayName?.trim() || target.displayName,
       phoneNumber: updates.phoneNumber !== undefined ? updates.phoneNumber.trim() : target.phoneNumber,
-    }).catch((e) => console.warn('[DB SYNC] Error updating customer merits in DB:', e));
-    insertStampLogToDb(newLog).catch((e) => console.warn('[DB SYNC] Error inserting merit log in DB:', e));
+    }).catch((e) => console.warn('[DB SYNC] Error updating customer points in DB:', e));
+    insertStampLogToDb(newLog).catch((e) => console.warn('[DB SYNC] Error inserting point log in DB:', e));
 
     return {
       success: true,
-      message: `Updated merits for ${updatedUser.displayName}: ${summaryText}`,
+      message: `Updated points for ${updatedUser.displayName}: ${summaryText}`,
       customer: updatedUser,
     };
   };
@@ -1917,7 +1917,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       phoneNumber?: string;
       stamps?: number;
       tickets?: number;
-      merits?: number;
+      points?: number;
     },
     staffId: string
   ) => {
@@ -1941,7 +1941,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       membershipNumber,
       stamps: customerData.stamps ?? 0,
       tickets: customerData.tickets ?? 0,
-      merits: customerData.merits ?? 0,
+      points: customerData.points ?? 0,
       createdAt: now,
       bikes: [],
     };
@@ -1956,9 +1956,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       action: 'edit_profile',
       stampsAfter: newCustomer.stamps,
       ticketsAfter: newCustomer.tickets,
-      meritsAfter: newCustomer.merits,
+      pointsAfter: newCustomer.points,
       timestamp: now,
-      note: `New customer pass registered at till by ${staff?.displayName || 'Staff'}. Assigned ${newCustomer.stamps} stamps, ${newCustomer.tickets} tickets, and ${newCustomer.merits} merits.`,
+      note: `New customer pass registered at till by ${staff?.displayName || 'Staff'}. Assigned ${newCustomer.stamps} stamps, ${newCustomer.tickets} tickets, and ${newCustomer.points} points.`,
     };
 
     setUsers((prev) => [...prev, newCustomer]);
@@ -2134,7 +2134,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const now = new Date();
     let stampsAwarded = 0;
     let extraTickets = 0;
-    let extraMerits = 0;
+    let extraPoints = 0;
     let newVoucher: CollectedVoucher | undefined = undefined;
 
     if (segment.rewardType === 'stamp') {
@@ -2143,8 +2143,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         (segment.label.includes('3') ? 3 : segment.label.includes('2') ? 2 : 1);
     } else if (segment.rewardType === 'ticket') {
       extraTickets = segment.label.includes('3') ? 3 : 1;
-    } else if (segment.rewardType === 'merit') {
-      extraMerits = parseInt(segment.rewardValue || '50', 10) || 50;
+    } else if (segment.rewardType === 'points') {
+      extraPoints = parseInt(segment.rewardValue || '50', 10) || 50;
     } else if (
       segment.rewardType === 'discount' ||
       segment.rewardType === 'merch' ||
@@ -2187,13 +2187,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Note: the previous implementation called a `spin_loyalty_wheel` RPC that
     // does not exist in the database, so every spin failed and nothing was saved.
     const updatedTickets = Math.max(0, (target.tickets || 0) + extraTickets);
-    const updatedMerits = (target.merits || 0) + extraMerits;
+    const updatedPoints = (target.points || 0) + extraPoints;
 
     const updatedUser: UserProfile = {
       ...target,
       stamps: updatedStamps,
       tickets: updatedTickets,
-      merits: updatedMerits,
+      points: updatedPoints,
       lastSpunAt: now,
       serviceVouchers: newVoucher
         ? [...(target.serviceVouchers || []), newVoucher]
@@ -2231,7 +2231,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateUserProfileInDb(userId, target.membershipNumber, {
       stamps: updatedStamps,
       tickets: updatedTickets,
-      merits: updatedMerits,
+      points: updatedPoints,
       lastSpunAt: now,
     }).catch((e) => console.warn('[DB SYNC] Error saving weekly wheel spin in DB:', e));
     insertStampLogToDb(newLog).catch((e) =>
@@ -2823,7 +2823,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       membershipNumber: target.membershipNumber,
       staffId: currentUser?.uid || 'staff-admin',
       staffName: currentUser?.displayName || 'Workshop Staff',
-      action: delta > 0 ? 'add_stamp' : 'manual_merit_adjustment',
+      action: delta > 0 ? 'add_stamp' : 'manual_points_adjustment',
       stampsBefore: result.stampsBefore,
       stampsAfter: result.stampsAfter,
       timestamp: now,
@@ -3286,7 +3286,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         removeCustomerBike,
         addStamp,
         redeemReward,
-        updateCustomerMerits,
+        updateCustomerPoints,
         createCustomerByStaff,
         updateWheel,
         executePrizeDraw,

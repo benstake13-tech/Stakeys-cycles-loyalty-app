@@ -15,7 +15,7 @@ function customer(over: Partial<UserProfile>): UserProfile {
     membershipNumber: 'STK-100001',
     stamps: 0,
     tickets: 0,
-    merits: 0,
+    points: 0,
     ...over,
   } as UserProfile;
 }

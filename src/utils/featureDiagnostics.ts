@@ -305,7 +305,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
     id: 'stamp-log-write',
     area: 'loyalty',
     label: 'Write stamp / reward history',
-    description: 'Inserts a temporary stamp_logs row (stamp + merit + audit trail) then deletes it.',
+    description: 'Inserts a temporary stamp_logs row (stamp + point + audit trail) then deletes it.',
     writes: true,
     run: async () => {
       const id = sentinel(`stamp-${Date.now()}`);
@@ -368,7 +368,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
   {
     id: 'profile-balance-write',
     area: 'loyalty',
-    label: 'Write stamp / ticket / merit balance',
+    label: 'Write stamp / ticket / point balance',
     description: 'Upserts a profile balance exactly as addStamp does (checks the last_spin_date column), then deletes it.',
     writes: true,
     run: async () => {
@@ -378,18 +378,18 @@ export const FEATURE_TESTS: FeatureTest[] = [
         const ok = await updateUserProfileInDb(uid, 'STK-DIAG', {
           stamps: 3,
           tickets: 1,
-          merits: 7,
+          points: 7,
           lastSpinDate: new Date().toISOString(),
         });
         const stamps = await verifyColumn('profiles', uid, 'stamps', 3);
-        const merits = await verifyColumn('profiles', uid, 'merit_points', 7);
+        const points = await verifyColumn('profiles', uid, 'merit_points', 7);
         await client.from('profiles').delete().eq('id', uid);
-        if (ok && stamps.ok && merits.ok) {
-          return { status: 'pass', detail: 'Stamp / ticket / merit balance persisted.' };
+        if (ok && stamps.ok && points.ok) {
+          return { status: 'pass', detail: 'Stamp / ticket / point balance persisted.' };
         }
         return {
           status: 'fail',
-          detail: `upsert=${ok}; ${stamps.detail}; ${merits.detail}`,
+          detail: `upsert=${ok}; ${stamps.detail}; ${points.detail}`,
           hint: 'profiles is missing last_spin_date on the live DB, which fails the whole upsert (PGRST204). Run the repair SQL.',
         };
       } catch (e) {

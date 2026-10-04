@@ -55,7 +55,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     stampLogs,
     addStamp,
     redeemReward,
-    updateCustomerMerits,
+    updateCustomerPoints,
     addCustomerBikeForUser,
     updateBookingStatus,
   } = useShop();
@@ -95,7 +95,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
   const rateLimitStatus = canCustomerReceiveStampToday(currentCustomer);
   const stamps = currentCustomer.stamps || 0;
   const tickets = currentCustomer.tickets || 0;
-  const merits = currentCustomer.merits || 0;
+  const points = currentCustomer.points || 0;
   const bikes = currentCustomer.bikes || [];
   const isRewardReady = stamps >= 10;
 
@@ -147,7 +147,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
 
   // Award Ticket Action
   const handleAwardTicket = async () => {
-    const res = await updateCustomerMerits(currentCustomer.uid, staffId, {
+    const res = await updateCustomerPoints(currentCustomer.uid, staffId, {
       tickets: tickets + 1,
       staffNote: 'Prize draw ticket awarded at front till',
     });
@@ -158,7 +158,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
   const handleSaveStaffNote = async () => {
     setIsSavingNote(true);
     try {
-      const res = await updateCustomerMerits(currentCustomer.uid, staffId, {
+      const res = await updateCustomerPoints(currentCustomer.uid, staffId, {
         staffNote: staffNote.trim(),
       });
       setFeedback({ success: res.success, message: 'Customer workshop notes saved.' });

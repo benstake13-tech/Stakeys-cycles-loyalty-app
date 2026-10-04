@@ -181,7 +181,7 @@ export interface UserProfile {
   membershipNumber: string; // e.g., 'STK-839201'
   stamps: number; // 0 to 10
   tickets: number; // entries for periodic prize draws
-  merits?: number; // Store loyalty merits / bonus points
+  points?: number; // Loyalty points / bonus balance
   createdAt: any; // Timestamp
   lastStampedAt?: any; // Timestamp of last visit stamp for 1-per-day rate limiting
   lastSpunAt?: any; // Timestamp of last wheel spin for 1-per-week rate limiting
@@ -196,7 +196,7 @@ export interface PrizeWheelSegment {
   color: string;
   probability: number; // 0.0 - 1.0 (or percentage)
   prizeId: string;
-  rewardType?: 'ticket' | 'discount' | 'merch' | 'service' | 'stamp' | 'merit';
+  rewardType?: 'ticket' | 'discount' | 'merch' | 'service' | 'stamp' | 'points';
   rewardValue?: string;
   stampsAmount?: number; // e.g., 1, 2, 3
 }
@@ -241,14 +241,14 @@ export interface StampLog {
   membershipNumber?: string;
   staffId: string;
   staffName?: string;
-  action: 'add_stamp' | 'redeem_reward' | 'manual_merit_adjustment' | 'edit_profile' | 'sale_completed';
+  action: 'add_stamp' | 'redeem_reward' | 'manual_points_adjustment' | 'edit_profile' | 'sale_completed';
   stampsBefore?: number;
   stampsAfter?: number;
   ticketsAwarded?: number;
   ticketsBefore?: number;
   ticketsAfter?: number;
-  meritsBefore?: number;
-  meritsAfter?: number;
+  pointsBefore?: number;
+  pointsAfter?: number;
   timestamp: any;
   note?: string;
 }

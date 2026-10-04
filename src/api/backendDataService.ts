@@ -12,6 +12,7 @@ import {
   VehicleCategory,
   BikeScrapeResult,
   PrizeWheel,
+  PrizeWheelSegment,
   PrizeDraw,
   CollectedVoucher,
   DiscountCode,
@@ -496,7 +497,7 @@ export async function ensureProfileRowInDb(profile: {
   membershipNumber?: string;
   stamps?: number;
   tickets?: number;
-  merits?: number;
+  points?: number;
 }): Promise<boolean> {
   const supabase = getSupabaseClient();
   try {
@@ -508,7 +509,7 @@ export async function ensureProfileRowInDb(profile: {
       membership_number: profile.membershipNumber || null,
       stamps: profile.stamps ?? 0,
       completed_cards: profile.tickets ?? 0,
-      merit_points: profile.merits ?? 0,
+      merit_points: profile.points ?? 0,
       updated_at: new Date().toISOString(),
     };
     // ignoreDuplicates: only INSERT when the row is missing. Existing profiles
@@ -633,7 +634,7 @@ export async function updateUserProfileInDb(
   updates: {
     stamps?: number;
     tickets?: number;
-    merits?: number;
+    points?: number;
     displayName?: string;
     phoneNumber?: string;
     lastStampedAt?: Date | null;
@@ -651,7 +652,7 @@ export async function updateUserProfileInDb(
     if (membershipNumber) payload.membership_number = membershipNumber;
     if (updates.stamps !== undefined) payload.stamps = updates.stamps;
     if (updates.tickets !== undefined) payload.completed_cards = updates.tickets;
-    if (updates.merits !== undefined) payload.merit_points = updates.merits;
+    if (updates.points !== undefined) payload.merit_points = updates.points;
     if (updates.displayName !== undefined) payload.display_name = updates.displayName;
     if (updates.phoneNumber !== undefined) payload.phone = updates.phoneNumber;
     if (updates.lastSpinDate !== undefined) payload.last_spin_date = updates.lastSpinDate;
@@ -720,7 +721,7 @@ export async function fetchUserProfileFromDb(
         membershipNumber: row.membership_number,
         stamps: row.stamps !== undefined ? row.stamps : 0,
         tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
-        merits: row.merit_points !== undefined ? row.merit_points : 0,
+        points: row.merit_points !== undefined ? row.merit_points : 0,
         lastStampedAt: row.last_stamped_at ? new Date(row.last_stamped_at) : undefined,
         lastSpunAt: row.last_spun_at
           ? new Date(row.last_spun_at)
@@ -758,7 +759,7 @@ export async function fetchAllProfilesFromDb(): Promise<UserProfile[]> {
         membershipNumber: row.membership_number,
         stamps: row.stamps !== undefined ? row.stamps : 0,
         tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
-        merits: row.merit_points !== undefined ? row.merit_points : 0,
+        points: row.merit_points !== undefined ? row.merit_points : 0,
         phoneNumber: row.phone || undefined,
         lastStampedAt: row.last_stamped_at ? new Date(row.last_stamped_at) : undefined,
         lastSpunAt: row.last_spun_at
@@ -1217,10 +1218,22 @@ function mapWheelRow(row: any): PrizeWheel {
     title: row.title,
     active: row.is_active !== undefined ? row.is_active : true,
     ticketCost: row.ticket_cost !== undefined && row.ticket_cost !== null ? row.ticket_cost : 1,
-    segments: Array.isArray(row.segments) ? row.segments : [],
+    segments: normalizeWheelSegments(row.segments),
     createdAt: row.created_at ? new Date(row.created_at) : undefined,
     updatedAt: row.updated_at ? new Date(row.updated_at) : undefined,
   };
+}
+
+/**
+ * Wheels seeded before the merits->points rename persist `rewardType: 'merit'`.
+ * Normalise on read so those segments still award points instead of silently
+ * falling through to a voucher.
+ */
+function normalizeWheelSegments(segments: unknown): PrizeWheelSegment[] {
+  if (!Array.isArray(segments)) return [];
+  return segments.map((seg: any) =>
+    seg && seg.rewardType === 'merit' ? { ...seg, rewardType: 'points' } : seg
+  );
 }
 
 export async function fetchPrizeWheelsFromDb(): Promise<PrizeWheel[]> {
