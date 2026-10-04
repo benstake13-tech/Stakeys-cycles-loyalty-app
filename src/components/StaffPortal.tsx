@@ -41,6 +41,7 @@ import {
   ShoppingCart,
   BadgePercent,
   FlaskConical,
+  DatabaseZap,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -62,6 +63,7 @@ import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
+import { SchemaSyncModal } from './SchemaSyncModal';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
@@ -111,6 +113,7 @@ export const StaffPortal: React.FC = () => {
   >('dashboard');
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -419,6 +422,16 @@ export const StaffPortal: React.FC = () => {
               >
                 <Scan className="w-4 h-4" />
                 <span>Scan Member Code</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsSchemaSyncOpen(true)}
+                className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/20 cursor-pointer"
+                title="Audit the live Supabase schema and copy a sync SQL script"
+              >
+                <DatabaseZap className="w-4 h-4" />
+                <span>Fix Database Schema</span>
               </button>
 
               <button
@@ -1164,6 +1177,9 @@ export const StaffPortal: React.FC = () => {
           });
         }}
       />
+
+      {/* Live schema audit + sync SQL (fixes app <-> Supabase drift) */}
+      {isSchemaSyncOpen && <SchemaSyncModal onClose={() => setIsSchemaSyncOpen(false)} />}
     </div>
   );
 };

@@ -114,11 +114,27 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   // Collapsible step sections so the (long) form is quicker to scan on mobile.
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({
     vehicle: true,
+    issues: true,
     schedule: true,
     contact: true,
   });
   const toggleStep = (id: string) =>
     setOpenSteps((prev) => ({ ...prev, [id]: !prev[id] }));
+  const goToStep = (id: string) => {
+    setOpenSteps((prev) => ({ ...prev, [id]: true }));
+    requestAnimationFrame(() => {
+      document.getElementById(`booking-step-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const resolvedModelName = resolveModel(bikeIdentity);
+  const bikeStepComplete = Boolean(bikeIdentity.brand && resolvedModelName);
+  const issuesStepComplete = problemSelectionMode === 'packages'
+    ? Boolean(selectedProblemId)
+    : selectedIssueIds.length > 0 || problemNotes.trim().length > 0;
+  const scheduleStepComplete = Boolean(preferredDate && preferredTimeSlot);
+  const contactStepComplete = Boolean(customerName.trim() && customerPhone.trim());
+  const bookingProgress = [bikeStepComplete, issuesStepComplete, scheduleStepComplete, contactStepComplete].filter(Boolean).length;
 
   // Pick an existing bike from profile garage
   const handleSelectSavedBike = (bikeId: string) => {
@@ -657,20 +673,78 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <span className="ml-auto text-emerald-400 font-semibold">Ask for a quote</span>
         </div>
 
+        {/* Step progress — tap a step to jump to it. */}
+        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl px-3 sm:px-5 py-3.5">
+          <div className="flex items-center justify-between gap-2">
+            {[
+              { id: 'vehicle', n: '01', label: 'Your Bike', done: bikeStepComplete },
+              { id: 'issues', n: '02', label: 'Issues', done: issuesStepComplete },
+              { id: 'schedule', n: '03', label: 'Drop-off', done: scheduleStepComplete },
+              { id: 'contact', n: '04', label: 'Contact', done: contactStepComplete },
+            ].map((step, i, arr) => (
+              <React.Fragment key={step.id}>
+                <button
+                  type="button"
+                  onClick={() => goToStep(step.id)}
+                  className="flex flex-col items-center gap-1.5 flex-1 min-w-0 cursor-pointer group"
+                  aria-label={`Go to step ${step.n}: ${step.label}`}
+                >
+                  <span
+                    className={`w-7 h-7 rounded-full border flex items-center justify-center text-[11px] font-bold font-mono shrink-0 transition-colors ${
+                      step.done
+                        ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                        : 'bg-neutral-900 border-neutral-700 text-neutral-400 group-hover:border-emerald-500/50'
+                    }`}
+                  >
+                    {step.done ? <CheckCircle2 className="w-4 h-4" /> : step.n}
+                  </span>
+                  <span
+                    className={`text-[10px] sm:text-[11px] font-medium truncate max-w-full ${
+                      step.done ? 'text-emerald-300' : 'text-neutral-400 group-hover:text-neutral-200'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </button>
+                {i < arr.length - 1 && (
+                  <div
+                    className={`h-0.5 flex-1 rounded-full self-start mt-3.5 ${
+                      step.done ? 'bg-emerald-500/60' : 'bg-neutral-800'
+                    }`}
+                    aria-hidden="true"
+                  />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="mt-2.5 flex items-center justify-between text-[11px] text-neutral-500">
+            <span>
+              {bookingProgress} of 4 steps ready
+            </span>
+            <span className="font-mono">{Math.round((bookingProgress / 4) * 100)}%</span>
+          </div>
+        </div>
+
         {/* STEP 1: Your bike (category + identity + e-bike conversion) */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+        <div id="booking-step-vehicle" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
           <button
             type="button"
             onClick={() => toggleStep('vehicle')}
             className="w-full flex items-center gap-3 text-left cursor-pointer"
           >
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center shrink-0">
-              01
+            <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+              bikeStepComplete
+                ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                : 'bg-neutral-900 border-neutral-800 text-emerald-400'
+            }`}>
+              {bikeStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '01'}
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-display text-base font-bold text-white">Your Bike</h3>
               <p className="text-xs text-neutral-400">
-                Type, brand, model, year and e-bike conversion details.
+                {bikeStepComplete
+                  ? `${bikeIdentity.brand} ${resolvedModelName}${isEbike(bikeIdentity) ? ' · e-bike' : ''}`
+                  : 'Type, brand, model, year and e-bike conversion details.'}
               </p>
             </div>
             <ChevronDown
@@ -727,17 +801,30 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         </div>
 
         {/* STEP 2: Problem Identification & Services */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6">
+        <div id="booking-step-issues" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-                02
+            <button
+              type="button"
+              onClick={() => toggleStep('issues')}
+              className="flex items-center gap-3 text-left cursor-pointer flex-1 min-w-0"
+            >
+              <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+                issuesStepComplete
+                  ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                  : 'bg-neutral-900 border-neutral-800 text-emerald-400'
+              }`}>
+                {issuesStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '02'}
               </div>
-              <div>
-                <h3 className="font-display text-base font-bold text-white">Identify Bike Issues &amp; Service</h3>
-                <p className="text-xs text-neutral-400">Select specific symptoms or choose an all-inclusive service package.</p>
+              <div className="min-w-0">
+                <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
+                  Identify Bike Issues &amp; Service
+                  <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform ${openSteps.issues ? 'rotate-180' : ''}`} />
+                </h3>
+                <p className="text-xs text-neutral-400 truncate">
+                  {issuesStepComplete ? computedService.headline : 'Select specific symptoms or choose an all-inclusive service package.'}
+                </p>
               </div>
-            </div>
+            </button>
 
             {/* Mode Switcher Tabs */}
             <div className="inline-flex p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
@@ -771,6 +858,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </div>
           </div>
 
+          {openSteps.issues && (
+          <>
           {/* Mode 1: Multi-Select Issues Checklist */}
           {problemSelectionMode === 'checklist' ? (
             <div className="space-y-4 pt-1">
@@ -840,20 +929,39 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </div>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* STEP 3: Choose Date, Time & Contact Info */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              03
+        <div id="booking-step-schedule" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+          <button
+            type="button"
+            onClick={() => toggleStep('schedule')}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
+            <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+              scheduleStepComplete
+                ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                : 'bg-neutral-900 border-neutral-800 text-emerald-400'
+            }`}>
+              {scheduleStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '03'}
             </div>
-            <div>
-              <h3 className="font-display text-base font-bold text-white">Drop-Off Window &amp; Contact</h3>
-              <p className="text-xs text-neutral-400">Choose your preferred date, time slot, and notification phone number.</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-display text-base font-bold text-white">Drop-Off Window</h3>
+              <p className="text-xs text-neutral-400">
+                {scheduleStepComplete ? `${preferredDate} · ${preferredTimeSlot}` : 'Choose your preferred drop-off date and time slot.'}
+              </p>
             </div>
-          </div>
+            <ChevronDown
+              className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform ${
+                openSteps.schedule ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
 
+          {openSteps.schedule && (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
@@ -985,6 +1093,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
             />
           </div>
+          </>
+          )}
         </div>
 
         {/* Voucher Redemption Option */}
