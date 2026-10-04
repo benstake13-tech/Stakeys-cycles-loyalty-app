@@ -12,6 +12,13 @@ import OneSignal from 'react-onesignal';
 
 export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured';
 
+declare global {
+  interface Window {
+    /** Set by the inline <head> snippet in index.html. */
+    __oneSignalHeadInit?: boolean;
+  }
+}
+
 interface OneSignalRuntimeConfig {
   appId: string | null;
   safariWebId: string | null;
@@ -46,13 +53,31 @@ async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   return resolved;
 }
 
-/** Initialises the SDK once. Resolves true when push is actually configured. */
+/**
+ * Resolves once the SDK is initialised. index.html already initialises it in the
+ * <head>, so we wait for that instead of calling init again — react-onesignal
+ * rejects a second init. Falls back to initialising ourselves when the head
+ * snippet is absent (e.g. tests).
+ */
 export async function initOneSignal(): Promise<boolean> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
     if (!browserReady()) return false;
     const cfg = await getRuntimeConfig();
     if (!cfg.appId) return false;
+
+    if (window.__oneSignalHeadInit) {
+      // The head snippet drives init; just wait for the instance to arrive.
+      if (window.OneSignal) return true;
+      return await new Promise<boolean>((resolve) => {
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        const timer = window.setTimeout(() => resolve(Boolean(window.OneSignal)), 8000);
+        window.OneSignalDeferred!.push(() => {
+          window.clearTimeout(timer);
+          resolve(true);
+        });
+      });
+    }
 
     try {
       await OneSignal.init({

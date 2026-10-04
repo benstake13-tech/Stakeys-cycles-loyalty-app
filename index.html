@@ -12,6 +12,22 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- OneSignal Web Push. Initialised here (before React) so the SDK is ready
+         as early as possible; src/utils/onesignalPush.ts waits for this init
+         instead of initialising a second time. -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.__oneSignalHeadInit = true;
+      OneSignalDeferred.push(async function (OneSignal) {
+        await OneSignal.init({
+          appId: '7f67ab94-3c85-4702-9cd8-d158cf294593',
+          allowLocalhostAsSecureOrigin: true,
+          serviceWorkerPath: '/OneSignalSDKWorker.js',
+          serviceWorkerParam: { scope: '/' },
+        });
+      });
+    </script>
   </head>
   <body class="bg-[#090b0e] text-neutral-100 antialiased selection:bg-[#05C147] selection:text-neutral-950 font-['Plus_Jakarta_Sans',sans-serif]">
     <div id="root"></div>
