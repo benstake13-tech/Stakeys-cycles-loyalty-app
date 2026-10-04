@@ -29,11 +29,14 @@ import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
+import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
 import {
-  POPULAR_BIKE_BRANDS,
-  BRAND_MODELS_MAP,
-  BIKE_CATEGORY_OPTIONS,
-} from '../data/bikeCatalog';
+  BikeIdentityFields,
+  BikeIdentityValue,
+  EMPTY_BIKE_IDENTITY,
+  toBikeDetails,
+  resolveModel,
+} from './BikeIdentityFields';
 import { scrapeBikeStockSpecs } from '../utils/bikeScraperService';
 
 interface CustomerPortalProps {
@@ -58,13 +61,15 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   // Modal for adding a new bike to profile
   const [isAddBikeModalOpen, setIsAddBikeModalOpen] = useState(false);
   const [isAiIdentifierOpen, setIsAiIdentifierOpen] = useState(false);
-  const [newBikeCategory, setNewBikeCategory] = useState<VehicleCategory>('cycle');
-  const [newBikeBrand, setNewBikeBrand] = useState('Trek');
-  const [newBikeModel, setNewBikeModel] = useState('FX 1 / 2 / 3 (Hybrid Commuter)');
-  const [newBikeCustomModel, setNewBikeCustomModel] = useState('');
-  const [newBikeColour, setNewBikeColour] = useState('');
-  const [newBikeNotes, setNewBikeNotes] = useState('');
+  const [bikeIdentity, setBikeIdentity] = useState<BikeIdentityValue>({
+    ...EMPTY_BIKE_IDENTITY,
+    brand: 'Trek',
+    model: 'FX 1 / 2 / 3 (Hybrid Commuter)',
+  });
   const [isSavingBike, setIsSavingBike] = useState(false);
+
+  const patchBikeIdentity = (patch: Partial<BikeIdentityValue>) =>
+    setBikeIdentity((prev) => ({ ...prev, ...patch }));
 
   // Guard: If not authenticated, return null AFTER declaring all hooks
   if (!currentUser) return null;
@@ -97,26 +102,32 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     e.preventDefault();
     setIsSavingBike(true);
     try {
-      const finalModel =
-        newBikeModel.includes('Other') && newBikeCustomModel.trim()
-          ? newBikeCustomModel.trim()
-          : newBikeModel;
+      const finalModel = resolveModel(bikeIdentity) || 'Model to be verified';
 
-      const catObj = BIKE_CATEGORY_OPTIONS.find((c) => c.id === newBikeCategory);
+      const catObj = BIKE_CATEGORY_OPTIONS.find((c) => c.id === bikeIdentity.category);
+      const details = toBikeDetails(bikeIdentity);
 
       const created = await addCustomerBike({
-        category: newBikeCategory,
+        category: bikeIdentity.category,
         categoryLabel: catObj ? catObj.title.split(' ')[0] : 'Bicycle',
-        brand: newBikeBrand,
+        brand: bikeIdentity.brand,
         model: finalModel,
-        colour: newBikeColour.trim() || undefined,
-        frameSizeOrNotes: newBikeNotes.trim() || undefined,
+        year: bikeIdentity.year || undefined,
+        colour: bikeIdentity.colour.trim() || undefined,
+        serialNumber: bikeIdentity.serialNumber.trim() || undefined,
+        frameSizeOrNotes: bikeIdentity.frameSize.trim() || undefined,
         healthStatus: 'healthy',
+        bikeDetails: details,
       });
 
       // Automatically scrape OEM stock parts for the customer's bike
       try {
-        const scraped = await scrapeBikeStockSpecs(newBikeBrand, finalModel, undefined, newBikeCategory);
+        const scraped = await scrapeBikeStockSpecs(
+          bikeIdentity.brand,
+          finalModel,
+          undefined,
+          bikeIdentity.category
+        );
         if (scraped && created && created.id) {
           await saveBikeScrapedSpecs(currentUser.uid, created.id, scraped);
         }
@@ -125,9 +136,11 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       }
 
       setIsAddBikeModalOpen(false);
-      setNewBikeColour('');
-      setNewBikeNotes('');
-      setNewBikeCustomModel('');
+      setBikeIdentity({
+        ...EMPTY_BIKE_IDENTITY,
+        brand: 'Trek',
+        model: 'FX 1 / 2 / 3 (Hybrid Commuter)',
+      });
     } catch {
       // ignore
     } finally {
@@ -345,8 +358,16 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                   {/* Card Body */}
                   <div className="p-5 flex-1 flex flex-col justify-between">
                     <div>
-                      <div className="text-xs text-neutral-400 font-mono">
-                        {bike.brand}
+                      <div className="text-xs text-neutral-400 font-mono flex items-center gap-2">
+                        <span>{bike.brand}</span>
+                        {(bike.bikeDetails?.ebikeStatus === 'converted' ||
+                          bike.bikeDetails?.ebikeStatus === 'factory' ||
+                          bike.category === 'ebike') && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold normal-case">
+                            <Zap className="w-3 h-3" />
+                            {bike.bikeDetails?.ebikeStatus === 'converted' ? 'Converted E-Bike' : 'E-Bike'}
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-display text-lg font-bold text-white mt-0.5">
                         {bike.model}
@@ -603,7 +624,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       {/* ADD BIKE MODAL */}
       {isAddBikeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl relative">
+          <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 max-w-2xl w-full space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
               <h3 className="font-display text-lg font-bold text-white flex items-center gap-2">
                 <Bike className="w-5 h-5 text-[#05C147]" />
@@ -619,103 +640,11 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
             </div>
 
             <form onSubmit={handleSaveNewBike} className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                  Category
-                </label>
-                <select
-                  value={newBikeCategory}
-                  onChange={(e) => setNewBikeCategory(e.target.value as VehicleCategory)}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                >
-                  <option value="cycle">Standard Bicycle (Road / Mountain / Hybrid)</option>
-                  <option value="ebike">Electric Bicycle (E-Bike)</option>
-                  <option value="electric_scooter">Electric Scooter</option>
-                  <option value="cargo">Kids / Cargo / Other</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    Brand
-                  </label>
-                  <select
-                    value={newBikeBrand}
-                    onChange={(e) => {
-                      const b = e.target.value;
-                      setNewBikeBrand(b);
-                      const models = BRAND_MODELS_MAP[b];
-                      if (models && models.length > 0) {
-                        setNewBikeModel(models[0]);
-                      } else {
-                        setNewBikeModel('Standard Model');
-                      }
-                    }}
-                    className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    {POPULAR_BIKE_BRANDS.map((b) => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    Model
-                  </label>
-                  <select
-                    value={newBikeModel}
-                    onChange={(e) => setNewBikeModel(e.target.value)}
-                    className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
-                  >
-                    {(BRAND_MODELS_MAP[newBikeBrand] || ['Standard Model', 'Other Model']).map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {newBikeModel.includes('Other') && (
-                <div>
-                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    Custom Model Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newBikeCustomModel}
-                    onChange={(e) => setNewBikeCustomModel(e.target.value)}
-                    placeholder="e.g. Vintage Sprint, Dual Hardtail"
-                    className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                  Colour (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={newBikeColour}
-                  onChange={(e) => setNewBikeColour(e.target.value)}
-                  placeholder="e.g. Matte Black, Deep Blue, Emerald Green"
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                  Notes / Frame Size (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={newBikeNotes}
-                  onChange={(e) => setNewBikeNotes(e.target.value)}
-                  placeholder="e.g. Size M, Shimano 105, fitted with rack"
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+              <BikeIdentityFields
+                value={bikeIdentity}
+                onChange={patchBikeIdentity}
+                idPrefix="garage-bike"
+              />
 
               <div className="pt-3 flex justify-end gap-2">
                 <button

@@ -6,6 +6,7 @@ import { getSupabaseClient } from '../lib/supabase';
 import {
   UserProfile,
   CustomerBike,
+  BikeDetails,
   ServiceBooking,
   StampLog,
   VehicleCategory,
@@ -94,6 +95,7 @@ export async function fetchCustomerBikesFromDb(
           healthStatus: extraMeta.healthStatus || 'healthy',
           stockSpecsScraped: Boolean(row.stock_specs_scraped),
           scrapedData: row.scraped_data && row.scraped_data.components ? row.scraped_data : undefined,
+          bikeDetails: (row.bike_details as BikeDetails) || extraMeta.bikeDetails || undefined,
         };
       });
     }
@@ -114,29 +116,44 @@ export async function insertCustomerBikeToDb(
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] INSERT customer_bikes id=${bike.id} for userId=${userId}`);
   try {
-    const payload = {
-      id: bike.id,
-      customer_id: userId,
-      brand: bike.brand,
-      model: bike.model,
-      year: bike.year || null,
-      color: bike.colour || bike.color || 'Standard',
-      serial_number: bike.serialNumber || null,
-      category: bike.category || 'cycle',
-      stock_specs_scraped: Boolean(bike.stockSpecsScraped),
-      scraped_data: {
-        ...(bike.scrapedData || {}),
-        meta: {
-          categoryLabel: bike.categoryLabel,
-          frameSizeOrNotes: bike.frameSizeOrNotes,
-          healthStatus: bike.healthStatus,
-          lastServiceDate: bike.lastServiceDate,
-          lastServiceTitle: bike.lastServiceTitle,
+    const buildPayload = (includeBikeDetails: boolean) => {
+      const payload: any = {
+        id: bike.id,
+        customer_id: userId,
+        brand: bike.brand,
+        model: bike.model,
+        year: bike.year || null,
+        color: bike.colour || bike.color || 'Standard',
+        serial_number: bike.serialNumber || null,
+        category: bike.category || 'cycle',
+        stock_specs_scraped: Boolean(bike.stockSpecsScraped),
+        scraped_data: {
+          ...(bike.scrapedData || {}),
+          meta: {
+            categoryLabel: bike.categoryLabel,
+            frameSizeOrNotes: bike.frameSizeOrNotes,
+            healthStatus: bike.healthStatus,
+            lastServiceDate: bike.lastServiceDate,
+            lastServiceTitle: bike.lastServiceTitle,
+            // Always mirror the details into meta so they survive even on the
+            // retry payload that omits the dedicated column.
+            ...(bike.bikeDetails ? { bikeDetails: bike.bikeDetails } : {}),
+          },
         },
-      },
+      };
+      // Only send the dedicated column when we know the live table has it; on an
+      // older project the unknown column would fail the whole insert (PGRST204).
+      if (includeBikeDetails && bike.bikeDetails) payload.bike_details = bike.bikeDetails;
+      return payload;
     };
 
-    const { error } = await supabase.from('customer_bikes').insert(payload);
+    let { error } = await supabase.from('customer_bikes').insert(buildPayload(true));
+    if (error) {
+      // Retry without the new column so the bike still saves on an unsynced DB.
+      const retry = await supabase.from('customer_bikes').insert(buildPayload(false));
+      error = retry.error;
+    }
+
     if (!error) {
       console.log(`[SUPABASE NET SUCCESS] INSERT customer_bikes succeeded for id=${bike.id}`);
       return true;
@@ -248,6 +265,7 @@ export async function fetchServiceBookingsFromDb(
         servicePrice: Number(row.service_price) || 0,
         vehicleCategory: normalizeCategory(row.vehicle_type),
         vehicleModel: row.vehicle_model || 'Bicycle',
+        bikeDetails: (row.bike_details as BikeDetails) || undefined,
         preferredDate: row.preferred_date,
         preferredTimeSlot: row.preferred_time_slot,
         notes: row.notes || undefined,
@@ -285,29 +303,39 @@ export async function insertServiceBookingToDb(
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] INSERT service_bookings id=${booking.id}`);
   try {
-    const payload = {
-      id: booking.id,
-      customer_id: booking.customerId || null,
-      customer_name: booking.customerName,
-      customer_phone: booking.customerPhone,
-      customer_email: booking.customerEmail,
-      membership_number: booking.membershipNumber || null,
-      service_id: booking.serviceId,
-      service_title: booking.serviceTitle,
-      service_price: booking.servicePrice,
-      vehicle_type: booking.vehicleCategory,
-      vehicle_model: booking.vehicleModel,
-      preferred_date: booking.preferredDate,
-      preferred_time_slot: booking.preferredTimeSlot,
-      notes: booking.notes || null,
-      status: booking.status,
-      reminder_24h_sent: Boolean(booking.reminder24hSent),
-      repair_stage: booking.repairStage || null,
-      progress_events: booking.progressEvents || [],
-      estimate_ready_at: booking.estimateReadyAt || null,
+    const buildPayload = (includeBikeDetails: boolean) => {
+      const payload: any = {
+        id: booking.id,
+        customer_id: booking.customerId || null,
+        customer_name: booking.customerName,
+        customer_phone: booking.customerPhone,
+        customer_email: booking.customerEmail,
+        membership_number: booking.membershipNumber || null,
+        service_id: booking.serviceId,
+        service_title: booking.serviceTitle,
+        service_price: booking.servicePrice,
+        vehicle_type: booking.vehicleCategory,
+        vehicle_model: booking.vehicleModel,
+        preferred_date: booking.preferredDate,
+        preferred_time_slot: booking.preferredTimeSlot,
+        notes: booking.notes || null,
+        status: booking.status,
+        reminder_24h_sent: Boolean(booking.reminder24hSent),
+        repair_stage: booking.repairStage || null,
+        progress_events: booking.progressEvents || [],
+        estimate_ready_at: booking.estimateReadyAt || null,
+      };
+      if (includeBikeDetails && booking.bikeDetails) payload.bike_details = booking.bikeDetails;
+      return payload;
     };
 
-    const { error } = await supabase.from('service_bookings').insert(payload);
+    let { error } = await supabase.from('service_bookings').insert(buildPayload(true));
+    if (error) {
+      // Older project without the bike_details column — still save the booking.
+      const retry = await supabase.from('service_bookings').insert(buildPayload(false));
+      error = retry.error;
+    }
+
     if (!error) {
       console.log(`[SUPABASE NET SUCCESS] INSERT service_bookings succeeded for id=${booking.id}`);
       return true;
@@ -345,6 +373,7 @@ export async function updateServiceBookingInDb(
     if (updates.repairStage !== undefined) payload.repair_stage = updates.repairStage;
     if (updates.progressEvents !== undefined) payload.progress_events = updates.progressEvents;
     if (updates.estimateReadyAt !== undefined) payload.estimate_ready_at = updates.estimateReadyAt;
+    if (updates.bikeDetails !== undefined) payload.bike_details = updates.bikeDetails;
 
     const { error } = await supabase
       .from('service_bookings')

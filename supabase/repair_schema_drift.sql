@@ -289,6 +289,12 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
+-- 9b. Bike identity & e-bike conversion details (jsonb)
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS bike_details jsonb;
+ALTER TABLE public.customer_bikes  ADD COLUMN IF NOT EXISTS bike_details jsonb;
+
+-- ---------------------------------------------------------------------------
 -- 10. Verify
 -- ---------------------------------------------------------------------------
 SELECT table_name, grantee, count(*) AS privs

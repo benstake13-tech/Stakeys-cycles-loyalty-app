@@ -133,6 +133,31 @@ export interface CustomerBike {
   healthStatus?: 'healthy' | 'due_service' | 'in_workshop';
   stockSpecsScraped?: boolean;
   scrapedData?: BikeScrapeResult;
+  bikeDetails?: BikeDetails;
+}
+
+/**
+ * Rich, workshop-relevant identity captured for every bike, whether it is added
+ * to a garage or booked in for repair. All fields are optional so older rows and
+ * quick bookings keep working.
+ */
+export interface BikeDetails {
+  /** Whether the bike left the factory as an e-bike or was converted afterwards. */
+  ebikeStatus?: 'factory' | 'converted' | 'not_ebike' | 'unsure';
+  /** Motor system when known (e.g. Bosch Performance Line, Bafang BBS02). */
+  conversionSystem?: string;
+  /** Where the battery sits: frame-integrated, rack, downtube, seat-tube… */
+  batteryPosition?: string;
+  /** How the motor drives the wheel. */
+  driveType?: string;
+  /** Free-text motor/battery details the customer wants the mechanic to know. */
+  motorDetails?: string;
+  serialNumber?: string;
+  frameSize?: string;
+  year?: string;
+  mileage?: string;
+  /** Any extra notes captured alongside the structured fields. */
+  notes?: string;
 }
 
 export interface CollectedVoucher {
@@ -439,6 +464,8 @@ export interface ServiceBooking {
   isGuest?: boolean;
   vehicleCategory: VehicleCategory;
   vehicleModel: string;
+  /** Structured identity + e-bike conversion details captured at booking time. */
+  bikeDetails?: BikeDetails;
   serviceId: string;
   serviceTitle: string;
   servicePrice: number;

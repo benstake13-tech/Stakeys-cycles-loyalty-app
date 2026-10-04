@@ -135,6 +135,7 @@ CREATE TABLE IF NOT EXISTS public.customer_bikes (
   category TEXT DEFAULT 'Bicycle',
   stock_specs_scraped BOOLEAN DEFAULT FALSE,
   scraped_data JSONB,
+  bike_details JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -156,6 +157,7 @@ CREATE TABLE IF NOT EXISTS public.service_bookings (
   notes TEXT,
   status TEXT DEFAULT 'pending',
   reminder_24h_sent BOOLEAN DEFAULT FALSE,
+  bike_details JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

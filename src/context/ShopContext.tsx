@@ -2511,11 +2511,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               categoryLabel: data.vehicleCategory === 'cycle' ? 'Bicycle' : data.vehicleCategory === 'ebike' ? 'Electric Bike' : data.vehicleCategory === 'electric_scooter' ? 'E-Scooter' : 'Kids / Cargo',
               brand,
               model,
+              year: data.bikeDetails?.year || undefined,
+              serialNumber: data.bikeDetails?.serialNumber || undefined,
+              frameSizeOrNotes: data.bikeDetails?.frameSize || undefined,
               colour: 'Workshop Recorded',
               addedAt: new Date().toISOString().split('T')[0],
               lastServiceDate: data.preferredDate || new Date().toISOString().split('T')[0],
               lastServiceTitle: data.serviceTitle,
               healthStatus: 'in_workshop',
+              bikeDetails: data.bikeDetails,
             };
 
             const updated = {

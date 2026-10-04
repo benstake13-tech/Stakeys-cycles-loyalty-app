@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -12,22 +12,22 @@ import {
   Bike,
   Zap,
   ChevronDown,
-  Sparkles,
   Award,
-  MessageSquare,
   ShieldCheck,
-  Activity,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { VehicleCategory } from '../types/bikeShop';
-import {
-  BIKE_CATEGORY_OPTIONS,
-  POPULAR_BIKE_BRANDS,
-  BRAND_MODELS_MAP,
-  FRIENDLY_SERVICE_OPTIONS,
-} from '../data/bikeCatalog';
+import { VehicleCategory, BikeDetails } from '../types/bikeShop';
+import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
 import { StakeysLogo } from './StakeysLogo';
 import { BikeIssuesChecklist } from './BikeIssuesChecklist';
+import {
+  BikeIdentityFields,
+  BikeIdentityValue,
+  EMPTY_BIKE_IDENTITY,
+  toBikeDetails,
+  resolveModel,
+  isEbike,
+} from './BikeIdentityFields';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import {
   createBookingMailtoUrl,
@@ -52,15 +52,31 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     initialBike ? initialBike.category : 'cycle'
   );
 
-  // Selected Brand & Model dropdowns
-  const [selectedBrand, setSelectedBrand] = useState<string>(
-    initialBike ? initialBike.brand : 'Trek'
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    initialBike ? initialBike.model : 'Marlin (Mountain)'
-  );
-  const [customModelText, setCustomModelText] = useState<string>('');
-  const [bikeColour, setBikeColour] = useState<string>(initialBike?.colour || '');
+  // Structured bike identity (brand, model, year, colour, e-bike conversion…).
+  const [bikeIdentity, setBikeIdentity] = useState<BikeIdentityValue>(() => ({
+    ...EMPTY_BIKE_IDENTITY,
+    category: initialBike ? initialBike.category : 'cycle',
+    brand: initialBike ? initialBike.brand : 'Trek',
+    model: initialBike ? initialBike.model : 'FX 1 / 2 / 3 (Hybrid Commuter)',
+    colour: initialBike?.colour || '',
+    year: initialBike?.year ? String(initialBike.year) : '',
+    frameSize: initialBike?.frameSizeOrNotes || '',
+    serialNumber: initialBike?.serialNumber || '',
+    ebikeStatus: initialBike?.bikeDetails?.ebikeStatus || '',
+    conversionSystem: initialBike?.bikeDetails?.conversionSystem || '',
+    batteryPosition: initialBike?.bikeDetails?.batteryPosition || '',
+    driveType: initialBike?.bikeDetails?.driveType || '',
+    motorDetails: initialBike?.bikeDetails?.motorDetails || '',
+  }));
+
+  const patchBike = (patch: Partial<BikeIdentityValue>) =>
+    setBikeIdentity((prev) => ({ ...prev, ...patch }));
+
+  // Keep the category cards (step 01) and the identity object in lock-step.
+  const chooseCategory = (category: VehicleCategory) => {
+    setSelectedCategory(category);
+    patchBike({ category });
+  };
 
   // Structured Problem Checklist State (Choose all that apply)
   const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([
@@ -87,7 +103,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     d.setDate(d.getDate() + 2);
     return d.toISOString().split('T')[0];
   });
-  const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>('Morning (09:00 - 12:00)');
+  const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>(TIME_SLOT_OPTIONS[0]);
   const [notes, setNotes] = useState<string>('');
 
   // Submission State
@@ -95,22 +111,51 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const [submittedBooking, setSubmittedBooking] = useState<any | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Available models for currently chosen brand
-  const brandModels = BRAND_MODELS_MAP[selectedBrand] || [
-    'Standard Model',
-    'Other Model',
-    'I Don’t Know My Model',
-  ];
+  // Collapsible step sections so the (long) form is quicker to scan on mobile.
+  const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({
+    vehicle: true,
+    schedule: true,
+    contact: true,
+  });
+  const toggleStep = (id: string) =>
+    setOpenSteps((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Pick an existing bike from profile garage
   const handleSelectSavedBike = (bikeId: string) => {
     const found = savedBikes.find((b) => b.id === bikeId);
     if (!found) return;
     setSelectedCategory(found.category);
-    setSelectedBrand(found.brand);
-    setSelectedModel(found.model);
-    setBikeColour(found.colour || '');
+    setBikeIdentity((prev) => ({
+      ...prev,
+      category: found.category,
+      brand: found.brand,
+      model: found.model,
+      colour: found.colour || '',
+      year: found.year ? String(found.year) : '',
+      frameSize: found.frameSizeOrNotes || '',
+      serialNumber: found.serialNumber || '',
+      ebikeStatus: found.bikeDetails?.ebikeStatus || prev.ebikeStatus,
+      conversionSystem: found.bikeDetails?.conversionSystem || '',
+      batteryPosition: found.bikeDetails?.batteryPosition || '',
+      driveType: found.bikeDetails?.driveType || '',
+      motorDetails: found.bikeDetails?.motorDetails || '',
+    }));
   };
+
+  // Friendly quick-pick dates (today / tomorrow / +2 / +7) plus the native picker.
+  const quickDates = useMemo(() => {
+    const make = (offset: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().split('T')[0];
+    };
+    return [
+      { label: 'Today', value: make(0) },
+      { label: 'Tomorrow', value: make(1) },
+      { label: 'In 2 days', value: make(2) },
+      { label: 'Next week', value: make(7) },
+    ];
+  }, []);
 
   const computedService = React.useMemo(() => {
     if (problemSelectionMode === 'packages') {
@@ -207,12 +252,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     }
 
     // Determine final model string
-    const finalModel =
-      selectedModel.includes('Other')
-        ? customModelText.trim() || `${selectedBrand} (Model to be verified in shop)`
-        : selectedModel;
+    const finalModel = resolveModel(bikeIdentity);
 
-    const formattedVehicleName = `${selectedBrand} - ${finalModel}${bikeColour ? ` (${bikeColour})` : ''}`;
+    const formattedVehicleName = `${bikeIdentity.brand} - ${finalModel}${
+      bikeIdentity.colour ? ` (${bikeIdentity.colour})` : ''
+    }`;
+
+    const bikeDetails: BikeDetails | undefined = toBikeDetails(bikeIdentity);
 
     const selectedVoucher =
       applyVoucher && availableServiceVouchers.length > 0 ? availableServiceVouchers[0] : null;
@@ -234,12 +280,37 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             issueItems.map((it) => `• [${it?.category}] ${it?.label}`).join('\n')
           : '';
 
+      const ebikeLabel =
+        bikeIdentity.ebikeStatus === 'factory'
+          ? 'Factory e-bike'
+          : bikeIdentity.ebikeStatus === 'converted'
+          ? 'CONVERTED to e-bike (aftermarket kit)'
+          : bikeIdentity.ebikeStatus === 'not_ebike'
+          ? 'Not an e-bike'
+          : bikeIdentity.ebikeStatus === 'unsure'
+          ? 'E-bike status to be confirmed'
+          : '';
+
+      const bikeBlock = [
+        `Bike: ${formattedVehicleName}`,
+        bikeIdentity.year ? `Year: ${bikeIdentity.year}` : '',
+        bikeIdentity.frameSize ? `Frame size: ${bikeIdentity.frameSize}` : '',
+        bikeIdentity.serialNumber ? `Serial: ${bikeIdentity.serialNumber}` : '',
+        ebikeLabel ? `E-Bike: ${ebikeLabel}` : '',
+        bikeIdentity.conversionSystem ? `Motor/system: ${bikeIdentity.conversionSystem}` : '',
+        bikeIdentity.batteryPosition ? `Battery: ${bikeIdentity.batteryPosition}` : '',
+        bikeIdentity.driveType ? `Drive: ${bikeIdentity.driveType}` : '',
+        bikeIdentity.motorDetails ? `Motor notes: ${bikeIdentity.motorDetails}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
       const finalNotes = [
+        bikeBlock,
         issuesBlock,
         problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
         notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
         voucherNote,
-        bikeColour ? `Colour: ${bikeColour}` : '',
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -254,8 +325,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         customerPhone: customerPhone.trim(),
         customerId: currentUser?.uid,
         membershipNumber: currentUser?.membershipNumber,
-        vehicleCategory: selectedCategory,
+        vehicleCategory: bikeIdentity.category,
         vehicleModel: formattedVehicleName,
+        bikeDetails,
         serviceId: computedService.serviceId,
         serviceTitle: selectedVoucher
           ? `${computedService.headline} (£40 Voucher Applied)`
@@ -328,6 +400,27 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <span className="text-neutral-400">Bike / Vehicle:</span>
               <span className="font-semibold text-white">{submittedBooking.vehicleModel}</span>
             </div>
+            {submittedBooking.bikeDetails && (
+              <div className="flex justify-between py-1 gap-3">
+                <span className="text-neutral-400 shrink-0">Bike Details:</span>
+                <span className="text-neutral-200 text-right">
+                  {[
+                    submittedBooking.bikeDetails.ebikeStatus === 'factory'
+                      ? 'Factory e-bike'
+                      : submittedBooking.bikeDetails.ebikeStatus === 'converted'
+                      ? 'Converted e-bike'
+                      : submittedBooking.bikeDetails.ebikeStatus === 'not_ebike'
+                      ? 'Not an e-bike'
+                      : '',
+                    submittedBooking.bikeDetails.year && `Year ${submittedBooking.bikeDetails.year}`,
+                    submittedBooking.bikeDetails.frameSize && `Frame ${submittedBooking.bikeDetails.frameSize}`,
+                    submittedBooking.bikeDetails.conversionSystem,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || 'Captured at booking'}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between py-1">
               <span className="text-neutral-400">Service Package:</span>
               <span className="font-semibold text-emerald-400">{submittedBooking.serviceTitle}</span>
@@ -527,7 +620,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 type="button"
                 onClick={() => handleSelectSavedBike(b.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 transition-colors cursor-pointer ${
-                  selectedBrand === b.brand && selectedModel === b.model
+                  bikeIdentity.brand === b.brand && bikeIdentity.model === b.model
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
                     : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border-neutral-800'
                 }`}
@@ -543,156 +636,102 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
       {/* Booking Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* STEP 1: What type of ride do you have? */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              01
-            </div>
-            <div>
-              <h3 className="font-display text-base font-bold text-white">Select Vehicle Type</h3>
-              <p className="text-xs text-neutral-400">Choose the category matching your bike or scooter.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-            {BIKE_CATEGORY_OPTIONS.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  selectedCategory === cat.id
-                    ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
-                    : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700 text-neutral-400'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    {cat.id === 'electric_scooter' || cat.id === 'ebike' ? (
-                      <Zap className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
-                    ) : (
-                      <Bike className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
-                    )}
-                    {selectedCategory === cat.id && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    )}
-                  </div>
-                  <div className={`text-xs font-semibold ${selectedCategory === cat.id ? 'text-white' : 'text-neutral-300'}`}>
-                    {cat.title}
-                  </div>
-                  <div className="text-[11px] text-neutral-400 mt-1 leading-snug">
-                    {cat.subtitle}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
+        {/* Live summary — sticks to the top while the form scrolls. */}
+        <div className="sticky top-2 z-20 bg-[#0d1015]/95 backdrop-blur border border-neutral-800 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs shadow-lg">
+          <span className="flex items-center gap-1.5 text-white font-semibold">
+            <Bike className="w-3.5 h-3.5 text-emerald-400" />
+            {bikeIdentity.brand} {resolveModel(bikeIdentity) || '—'}
+          </span>
+          {isEbike(bikeIdentity) && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
+              <Zap className="w-3 h-3" />
+              {bikeIdentity.ebikeStatus === 'converted' ? 'Converted E-Bike' : 'E-Bike'}
+            </span>
+          )}
+          <span className="text-neutral-500 hidden sm:inline">•</span>
+          <span className="text-neutral-300 truncate max-w-[220px]">{computedService.headline}</span>
+          <span className="text-neutral-500 hidden sm:inline">•</span>
+          <span className="text-neutral-400">
+            {preferredDate} · {preferredTimeSlot}
+          </span>
+          <span className="ml-auto text-emerald-400 font-semibold">Ask for a quote</span>
         </div>
 
-        {/* STEP 2: Brand and Model Dropdowns */}
+        {/* STEP 1: Your bike (category + identity + e-bike conversion) */}
         <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              02
+          <button
+            type="button"
+            onClick={() => toggleStep('vehicle')}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
+            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center shrink-0">
+              01
             </div>
-            <div>
-              <h3 className="font-display text-base font-bold text-white">Brand &amp; Model</h3>
-              <p className="text-xs text-neutral-400">Select your bike's maker and model, or pick "I Don't Know" and we'll check it in store.</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-display text-base font-bold text-white">Your Bike</h3>
+              <p className="text-xs text-neutral-400">
+                Type, brand, model, year and e-bike conversion details.
+              </p>
             </div>
-          </div>
+            <ChevronDown
+              className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform ${
+                openSteps.vehicle ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {/* Brand Dropdown */}
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Manufacturer / Brand
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedBrand}
-                  onChange={(e) => {
-                    const newBrand = e.target.value;
-                    setSelectedBrand(newBrand);
-                    const models = BRAND_MODELS_MAP[newBrand];
-                    if (models && models.length > 0) {
-                      setSelectedModel(models[0]);
-                    } else {
-                      setSelectedModel('Standard Model');
-                    }
-                  }}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
-                >
-                  {POPULAR_BIKE_BRANDS.map((brand) => (
-                    <option key={brand} value={brand} className="bg-neutral-950 text-white">
-                      {brand}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          {openSteps.vehicle && (
+            <div className="space-y-5 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {BIKE_CATEGORY_OPTIONS.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => chooseCategory(cat.id)}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      selectedCategory === cat.id
+                        ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
+                        : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700 text-neutral-400'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        {cat.id === 'electric_scooter' || cat.id === 'ebike' ? (
+                          <Zap className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                        ) : (
+                          <Bike className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                        )}
+                        {selectedCategory === cat.id && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        )}
+                      </div>
+                      <div className={`text-xs font-semibold ${selectedCategory === cat.id ? 'text-white' : 'text-neutral-300'}`}>
+                        {cat.title}
+                      </div>
+                      <div className="text-[11px] text-neutral-400 mt-1 leading-snug">
+                        {cat.subtitle}
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
-            </div>
 
-            {/* Model Dropdown */}
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Model (or Closest Match)
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
-                >
-                  {brandModels.map((m) => (
-                    <option key={m} value={m} className="bg-neutral-950 text-white">
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
-          </div>
-
-          {/* Custom model text */}
-          {(selectedModel.includes('Other') || selectedBrand === 'Other / Not Listed') && (
-            <div className="pt-2">
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Specify Model (Optional)
-              </label>
-              <input
-                type="text"
-                value={customModelText}
-                onChange={(e) => setCustomModelText(e.target.value)}
-                placeholder="e.g. Vintage Sprint, Dual Hardtail"
-                className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              <BikeIdentityFields
+                value={bikeIdentity}
+                onChange={patchBike}
+                showCategory={false}
+                idPrefix="booking-bike"
               />
             </div>
           )}
-
-          {/* Bike Colour */}
-          <div className="pt-2">
-            <label className="block text-xs font-medium text-neutral-300 mb-1.5 flex items-center justify-between">
-              <span>Bike Colour (Optional)</span>
-              <span className="text-[11px] text-neutral-500">Assists our technicians at drop-off</span>
-            </label>
-            <input
-              type="text"
-              value={bikeColour}
-              onChange={(e) => setBikeColour(e.target.value)}
-              placeholder="e.g. Matte Black, Deep Blue, Emerald Green"
-              className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
         </div>
 
-        {/* STEP 3: Problem Identification & Services */}
+        {/* STEP 2: Problem Identification & Services */}
         <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-                03
+                02
               </div>
               <div>
                 <h3 className="font-display text-base font-bold text-white">Identify Bike Issues &amp; Service</h3>
@@ -803,11 +842,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </div>
         </div>
 
-        {/* STEP 4: Choose Date, Time & Contact Info */}
+        {/* STEP 3: Choose Date, Time & Contact Info */}
         <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              04
+              03
             </div>
             <div>
               <h3 className="font-display text-base font-bold text-white">Drop-Off Window &amp; Contact</h3>
@@ -820,6 +859,22 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
                 Preferred Drop-off Date
               </label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {quickDates.map((q) => (
+                  <button
+                    key={q.value}
+                    type="button"
+                    onClick={() => setPreferredDate(q.value)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium border cursor-pointer transition-colors ${
+                      preferredDate === q.value
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                        : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                    }`}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
               <div className="relative">
                 <Calendar className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
@@ -843,13 +898,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   onChange={(e) => setPreferredTimeSlot(e.target.value)}
                   className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
                 >
-                  <option value="Morning (09:00 - 12:00)">Morning (09:00 - 12:00)</option>
-                  <option value="Midday (12:00 - 15:00)">Midday (12:00 - 15:00)</option>
-                  <option value="Afternoon (15:00 - 18:00)">Afternoon (15:00 - 18:00)</option>
-                  <option value="Saturday Morning (09:30 - 13:00)">Saturday Morning (09:30 - 13:00)</option>
+                  {TIME_SLOT_OPTIONS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+              <p className="text-[11px] text-neutral-500 mt-1">
+                Workshop hours Mon–Fri 09:00–18:00, Sat 09:30–13:00.
+              </p>
             </div>
           </div>
 

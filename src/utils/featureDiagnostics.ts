@@ -515,6 +515,54 @@ export const FEATURE_TESTS: FeatureTest[] = [
     },
   },
 
+  // ---- Bike identity / e-bike conversion ----------------------------------
+  {
+    id: 'bike-details-write',
+    area: 'bookings',
+    label: 'Save e-bike conversion details',
+    description: 'Writes a booking with bike_details (factory/converted e-bike, motor, battery), verifies the jsonb, then deletes it.',
+    writes: true,
+    run: async () => {
+      const booking = makeDiagBooking(diagBookingId());
+      booking.bikeDetails = {
+        ebikeStatus: 'converted',
+        conversionSystem: 'Bafang BBSHD (Mid-Drive Kit)',
+        batteryPosition: 'Downtube (bolt-on, external)',
+        driveType: 'Mid-drive (motor at the cranks)',
+        frameSize: 'M',
+        year: '2019',
+      };
+      const client = getSupabaseClient();
+      try {
+        const ok = await insertServiceBookingToDb(booking);
+        // jsonb reorders keys, so compare the fields we care about, not the raw JSON.
+        const { data } = await client
+          .from('service_bookings')
+          .select('*')
+          .eq('id', booking.id)
+          .maybeSingle();
+        const saved = (data as any)?.bike_details;
+        await client.from('service_bookings').delete().eq('id', booking.id);
+        const matches =
+          saved?.ebikeStatus === 'converted' &&
+          saved?.conversionSystem === 'Bafang BBSHD (Mid-Drive Kit)' &&
+          saved?.frameSize === 'M';
+        if (ok && matches) {
+          return { status: 'pass', detail: 'Bike identity + e-bike conversion details persisted as jsonb.' };
+        }
+        return {
+          status: 'fail',
+          detail: `insert=${ok}; bike_details=${saved ? JSON.stringify(saved) : 'null'}`,
+          hint: 'Run the bike-details migration to add service_bookings.bike_details. Until then the app falls back to storing the details inside notes/scraped_data.',
+        };
+      } catch (e) {
+        const message = err(e);
+        await client.from('service_bookings').delete().eq('id', booking.id);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+
   // ---- Till & discounts ---------------------------------------------------
   {
     id: 'sales-read',
