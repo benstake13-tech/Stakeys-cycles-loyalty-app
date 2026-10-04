@@ -153,32 +153,61 @@ export async function requestPushPermission(): Promise<PushPermission> {
 
   try {
     const res = await api.showNativePermissionPrompt?.();
-    if (res?.permission) return res.permission as PushPermission;
+    if (res?.permission) {
+      const perm = res.permission as PushPermission;
+      // A brand-new device subscription only exists after opt-in, so re-apply
+      // the profile id now that it can be attached.
+      if (perm === 'granted') await relinkUser();
+      return perm;
+    }
   } catch (err) {
     console.warn('[PushEngage] permission request failed:', err);
   }
 
-  return getPushPermission();
+  const perm = await getPushPermission();
+  if (perm === 'granted') await relinkUser();
+  return perm;
 }
 
 /** Identifies the signed-in user and tags them so targeted pushes can reach them. */
+let lastLinkedUserId: string | null = null;
+let lastLinkedTags: Record<string, string | number> | undefined;
+
 export async function linkUser(userId: string, tags?: Record<string, string | number>) {
-  const configured = await initPushEngage();
-  if (!configured) return;
+  lastLinkedUserId = userId;
+  lastLinkedTags = tags;
+  const api = await initPushEngage();
+  if (!api) return;
   try {
-    peq(['identify', { profile_id: userId }]);
+    // Attach the profile id to this device subscription so a server-side
+    // `profile_id[]` push reaches it. The PushEngage Web SDK exposes
+    // `setProfileId`; the legacy `identify` queue command is not handled by the
+    // current SDK, which is why targeted sends were reaching no device.
+    if (typeof api.setProfileId === 'function') {
+      await api.setProfileId(userId);
+    } else {
+      peq(['identify', { profile_id: userId }]);
+    }
+
     if (tags) {
       const attributes: Record<string, string> = {};
       for (const [k, v] of Object.entries(tags)) attributes[k] = String(v);
-      peq(['set-attributes', attributes]);
+      if (typeof api.setAttributes === 'function') {
+        await api.setAttributes(attributes);
+      } else {
+        peq(['set-attributes', attributes]);
+      }
+      // NB: no role segment — this PushEngage plan is at its segment limit, so
+      // targeting is done by profile id only.
     }
-    // Role segment (e.g. 'staff') so pushes can target a group. The segment must
-    // exist in the PushEngage dashboard.
-    const role = tags?.role;
-    if (role) peq(['add-to-segment', String(role)]);
   } catch (err) {
     console.warn('[PushEngage] linkUser failed:', err);
   }
+}
+
+/** Re-applies the last profile id — call after a device subscribes. */
+export async function relinkUser(): Promise<void> {
+  if (lastLinkedUserId) await linkUser(lastLinkedUserId, lastLinkedTags);
 }
 
 /** Clears the personal identifiers added by linkUser. */

@@ -10,6 +10,8 @@ function fakeApi(overrides: Record<string, any> = {}) {
     getPermission: vi.fn(async () => 'granted'),
     showNativePermissionPrompt: vi.fn(async () => ({ permission: 'granted', subscriber_id: 'sub-1' })),
     getSubscriberId: vi.fn(async () => 'sub-1'),
+    setProfileId: vi.fn(async () => {}),
+    setAttributes: vi.fn(async () => {}),
     ...overrides,
   };
 }
@@ -39,15 +41,14 @@ afterEach(() => {
 });
 
 describe('pushNotifications (PushEngage)', () => {
-  it('linkUser identifies the profile and adds the role segment via the _peq queue', async () => {
-    (window as any).PushEngage = fakeApi();
+  it('linkUser attaches the profile id and attributes via the SDK', async () => {
+    const api = fakeApi();
+    (window as any).PushEngage = api;
     const { linkUser } = await load();
     await linkUser('uid-123', { role: 'staff', membership: 'STK-1' });
 
-    const queued = (window as any)._peq.push.mock.calls.map((c: any[]) => c[0]);
-    expect(queued).toContainEqual(['identify', { profile_id: 'uid-123' }]);
-    expect(queued).toContainEqual(['add-to-segment', 'staff']);
-    expect(queued).toContainEqual(['set-attributes', { role: 'staff', membership: 'STK-1' }]);
+    expect(api.setProfileId).toHaveBeenCalledWith('uid-123');
+    expect(api.setAttributes).toHaveBeenCalledWith({ role: 'staff', membership: 'STK-1' });
   });
 
   it('unlinkUser logs the subscriber out', async () => {
