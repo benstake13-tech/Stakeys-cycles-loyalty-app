@@ -14,7 +14,6 @@
   "dependencies": {
     "@google/genai": "^2.4.0",
     "@google/generative-ai": "^0.24.1",
-    "@onesignal/node-onesignal": "^5.19.0",
     "@supabase/supabase-js": "^2.117.1",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
@@ -33,7 +32,6 @@
     "react-dom": "^19.0.1",
     "react-hot-toast": "^2.6.1",
     "react-is": "^19.3.0",
-    "react-onesignal": "^3.5.6",
     "recharts": "^3.10.1",
     "vite": "^8.3.0"
   },

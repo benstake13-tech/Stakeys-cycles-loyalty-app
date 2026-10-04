@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { dispatchTestEmail } from '../utils/notificationService';
-import { sendPushToUser } from '../utils/onesignalPush';
+import { sendPushToUser } from '../utils/pushNotifications';
 import {
   AREA_LABELS,
   FEATURE_TESTS,
@@ -154,7 +154,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       flash(
         res.ok
           ? { kind: 'ok', text: `Test push sent (via ${res.via}).` }
-          : { kind: 'err', text: 'Push not delivered — OneSignal may not be configured.' }
+          : { kind: 'err', text: 'Push not delivered — PushEngage may not be configured.' }
       );
     } catch (e: any) {
       flash({ kind: 'err', text: e?.message || 'Push test failed.' });
@@ -332,7 +332,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
           <TestButton
             icon={<Smartphone className="w-4 h-4" />}
             title="Send Test Push"
-            subtitle="OneSignal device push"
+            subtitle="PushEngage device push"
             onClick={handleTestPush}
             busy={busy === 'push'}
           />

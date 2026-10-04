@@ -8,7 +8,7 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
 vi.mock('./src/utils/notificationService', () => ({ dispatchTestEmail: vi.fn(async () => ({ success: true })) }));
-vi.mock('./src/utils/onesignalPush', () => ({ sendPushToUser: vi.fn(async () => ({ ok: true, via: 'local' })) }));
+vi.mock('./src/utils/pushNotifications', () => ({ sendPushToUser: vi.fn(async () => ({ ok: true, via: 'local' })) }));
 
 import { FEATURE_TESTS, runFeatureTests, summarize, AREA_LABELS } from './src/utils/featureDiagnostics';
 import { StaffDiagnosticsTab } from './src/components/StaffDiagnosticsTab';

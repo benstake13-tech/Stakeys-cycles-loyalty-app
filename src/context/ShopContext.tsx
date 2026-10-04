@@ -43,7 +43,7 @@ import {
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
-import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/onesignalPush';
+import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/pushNotifications';
 import { generateMembershipNumber } from '../api/firebaseService';
 import {
   STAMPS_PER_CARD,
@@ -1010,7 +1010,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (perm === 'denied') {
       toast.error('Push notification permission was denied in your browser settings.');
     } else if (perm === 'not_configured') {
-      toast.error('OneSignal is not configured yet. Add VITE_ONESIGNAL_APP_ID to enable push.');
+      toast.error('PushEngage is not configured yet. Add VITE_PUSHENGAGE_APP_ID to enable push.');
     }
     return perm;
   };

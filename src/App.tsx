@@ -33,7 +33,7 @@ import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { Toaster } from 'react-hot-toast';
-import { initOneSignal, linkUser, unlinkUser } from './utils/onesignalPush';
+import { initPushEngage, linkUser, unlinkUser } from './utils/pushNotifications';
 
 function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
@@ -69,9 +69,9 @@ function AppContent() {
     setMobileMenuOpen(false);
   }, [activeTab]);
 
-  // OneSignal: initialise once and target pushes at the signed-in user.
+  // PushEngage: initialise once and target pushes at the signed-in user.
   useEffect(() => {
-    void initOneSignal();
+    void initPushEngage();
   }, []);
 
   useEffect(() => {
