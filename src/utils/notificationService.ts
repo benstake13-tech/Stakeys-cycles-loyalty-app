@@ -9,6 +9,34 @@ export interface DispatchResult {
   failures?: string[];
 }
 
+/** Public logo used in every outbound email so branding is consistent. */
+const BRAND_LOGO_URL =
+  'https://lhojocpygcnkxvkrcuxh.supabase.co/storage/v1/object/public/brand/stakeys-logo.png';
+
+/** Shared branded email header (shield logo + wordmark). */
+function brandHeader(subtitle: string): string {
+  return `
+    <tr>
+      <td style="padding: 26px 24px 18px 24px; text-align: center; border-bottom: 1px solid #27272a;">
+        <img src="${BRAND_LOGO_URL}" alt="Stakey's Cycles &amp; Scooter" width="84" style="display: block; margin: 0 auto 10px auto; width: 84px; height: auto; border-radius: 12px;" />
+        <div style="color: #ffffff; font-size: 17px; font-weight: 800; letter-spacing: 1px;">STAKEY'S CYCLES &amp; SCOOTER</div>
+        <div style="color: #9ca3af; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px;">${subtitle}</div>
+      </td>
+    </tr>`;
+}
+
+/** Shared branded email footer with contact details. */
+function brandFooter(note: string, supportEmail: string, supportPhone: string): string {
+  return `
+    <tr>
+      <td style="background-color: #090a0b; padding: 18px 24px; text-align: center; border-top: 1px solid #27272a; color: #9ca3af; font-size: 11px; line-height: 1.7;">
+        Stakey's Cycles &amp; Scooter · Workshop Service<br/>
+        Questions? <a href="mailto:${supportEmail}" style="color: #05C147; text-decoration: none;">${supportEmail}</a> · <a href="tel:${supportPhone}" style="color: #05C147; text-decoration: none;">${supportPhone}</a><br/>
+        <span style="color: #6b7280;">${note}</span>
+      </td>
+    </tr>`;
+}
+
 /**
  * Generates branded HTML email content for the workshop owner/staff
  */
@@ -23,12 +51,7 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
     <!-- Header with Stakey's Shield Branding -->
-    <tr>
-      <td style="background-color: #05C147; padding: 24px; text-align: center;">
-        <h1 style="color: #000000; margin: 0; font-size: 26px; font-weight: 800; letter-spacing: 2px;">STAKEYS</h1>
-        <p style="color: #000000; margin: 4px 0 0 0; font-size: 14px; font-weight: 600; letter-spacing: 1px;">CYCLES &amp; SCOOTER</p>
-      </td>
-    </tr>
+    ${brandHeader('Workshop Booking Alert')}
 
     <!-- Alert Banner -->
     <tr>
@@ -127,11 +150,11 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
     </tr>
 
     <!-- Footer -->
-    <tr>
-      <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
-        Notification delivered automatically to <strong>${config.ownerEmail}</strong> • Stakey's Cycles &amp; Scooter Staff Portal
-      </td>
-    </tr>
+    ${brandFooter(
+      `Notification delivered automatically to ${config.ownerEmail}`,
+      config.ownerEmail || 'workshop@stakeyscycles.com',
+      config.ownerPhone || '+44 7700 900821'
+    )}
   </table>
 </body>
 </html>
@@ -155,12 +178,7 @@ export function generateCustomerBookingEmailHtml(booking: ServiceBooking, config
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
     <!-- Header with Stakey's Branding -->
-    <tr>
-      <td style="background-color: #05C147; padding: 26px; text-align: center;">
-        <h1 style="color: #000000; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">STAKEY'S</h1>
-        <p style="color: #000000; margin: 4px 0 0 0; font-size: 13px; font-weight: 700; letter-spacing: 1px;">CYCLES &amp; SCOOTER WORKSHOP</p>
-      </td>
-    </tr>
+    ${brandHeader('Customer Booking Confirmation')}
 
     <!-- Status Banner -->
     <tr>
@@ -228,11 +246,11 @@ export function generateCustomerBookingEmailHtml(booking: ServiceBooking, config
     </tr>
 
     <!-- Footer -->
-    <tr>
-      <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
-        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Workshop
-      </td>
-    </tr>
+    ${brandFooter(
+      `Sent to ${booking.customerEmail} · Keep this email as your booking reference.`,
+      shopEmail,
+      shopPhone
+    )}
   </table>
 </body>
 </html>
@@ -256,12 +274,7 @@ export function generateCustomer24hReminderEmailHtml(booking: ServiceBooking, co
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
     <!-- Header with Stakey's Branding -->
-    <tr>
-      <td style="background-color: #05C147; padding: 24px; text-align: center;">
-        <h1 style="color: #000000; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">STAKEY'S</h1>
-        <p style="color: #000000; margin: 4px 0 0 0; font-size: 13px; font-weight: 700; letter-spacing: 1px;">CYCLES &amp; SCOOTER WORKSHOP</p>
-      </td>
-    </tr>
+    ${brandHeader('Service Reminder')}
 
     <!-- Reminder Banner -->
     <tr>
@@ -325,11 +338,11 @@ export function generateCustomer24hReminderEmailHtml(booking: ServiceBooking, co
     </tr>
 
     <!-- Footer -->
-    <tr>
-      <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
-        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Automated Reminder Engine
-      </td>
-    </tr>
+    ${brandFooter(
+      `Sent to ${booking.customerEmail} · Automated 24-hour reminder.`,
+      shopEmail,
+      shopPhone
+    )}
   </table>
 </body>
 </html>
@@ -349,11 +362,7 @@ export function generateOwner24hReminderEmailHtml(booking: ServiceBooking, confi
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
-    <tr>
-      <td style="background-color: #05C147; padding: 20px; text-align: center;">
-        <h1 style="color: #000000; margin: 0; font-size: 22px; font-weight: 900;">STAKEY'S WORKSHOP</h1>
-      </td>
-    </tr>
+    ${brandHeader('Bench Schedule Reminder')}
     <tr>
       <td style="background-color: #18181b; padding: 12px 24px; border-bottom: 1px solid #27272a; color: #34d399; font-size: 13px; font-weight: 700;">
         ⏰ 24-HOUR BENCH SCHEDULE REMINDER
@@ -373,11 +382,11 @@ export function generateOwner24hReminderEmailHtml(booking: ServiceBooking, confi
         </p>
       </td>
     </tr>
-    <tr>
-      <td style="background-color: #090a0b; padding: 12px 24px; text-align: center; color: #71717a; font-size: 11px;">
-        Recipient: ${config.ownerEmail} • Stakey's Cycles Staff Dispatch
-      </td>
-    </tr>
+    ${brandFooter(
+      `Recipient: ${config.ownerEmail} · Stakey's Cycles Staff Dispatch`,
+      config.ownerEmail || 'workshop@stakeyscycles.com',
+      config.ownerPhone || '+44 7700 900821'
+    )}
   </table>
 </body>
 </html>
@@ -648,12 +657,7 @@ export function generateBookingApprovalEmailHtml(
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
     <!-- Header with Stakey's Branding -->
-    <tr>
-      <td style="background-color: #05C147; padding: 26px; text-align: center;">
-        <h1 style="color: #000000; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">STAKEY'S</h1>
-        <p style="color: #000000; margin: 4px 0 0 0; font-size: 13px; font-weight: 700; letter-spacing: 1px;">CYCLES &amp; SCOOTER WORKSHOP</p>
-      </td>
-    </tr>
+    ${brandHeader('Booking Approved')}
 
     <!-- Success Status Banner -->
     <tr>
@@ -737,11 +741,11 @@ export function generateBookingApprovalEmailHtml(
     </tr>
 
     <!-- Footer -->
-    <tr>
-      <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
-        Sent to <strong>${booking.customerEmail}</strong> • Stakey's Cycles &amp; Scooter Workshop
-      </td>
-    </tr>
+    ${brandFooter(
+      `Sent to ${booking.customerEmail} · Booking Ref #${booking.id}`,
+      shopEmail,
+      shopPhone
+    )}
   </table>
 </body>
 </html>
@@ -770,12 +774,7 @@ export function generateBookingDeclinedEmailHtml(
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
     <!-- Header with Stakey's Branding -->
-    <tr>
-      <td style="background-color: #18181b; padding: 26px; text-align: center; border-bottom: 2px solid #ef4444;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">STAKEY'S</h1>
-        <p style="color: #a1a1aa; margin: 4px 0 0 0; font-size: 13px; font-weight: 700; letter-spacing: 1px;">CYCLES &amp; SCOOTER WORKSHOP</p>
-      </td>
-    </tr>
+    ${brandHeader('Booking Update')}
 
     <!-- Decline Notice Banner -->
     <tr>
@@ -824,11 +823,11 @@ export function generateBookingDeclinedEmailHtml(
     </tr>
 
     <!-- Footer -->
-    <tr>
-      <td style="background-color: #090a0b; padding: 16px 24px; text-align: center; border-top: 1px solid #27272a; color: #71717a; font-size: 12px;">
-        Sent to <strong>${booking.customerEmail}</strong> • Booking Ref #${booking.id}
-      </td>
-    </tr>
+    ${brandFooter(
+      `Sent to ${booking.customerEmail} · Booking Ref #${booking.id}`,
+      shopEmail,
+      shopPhone
+    )}
   </table>
 </body>
 </html>

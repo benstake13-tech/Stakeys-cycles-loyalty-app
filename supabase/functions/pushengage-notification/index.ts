@@ -77,8 +77,12 @@ Deno.serve(async (req: Request) => {
   const form = new URLSearchParams();
   form.set('notification_title', title);
   form.set('notification_message', message);
-  form.set('notification_url', 'https://stakeyswheels.co.uk');
+  form.set('notification_url', 'https://www.stakeyswheels.co.uk');
   form.set('notification_type', 'now');
+  // Branding: shop logo as the notification icon.
+  const logoUrl = Deno.env.get('BOOKING_LOGO_URL') ||
+    'https://lhojocpygcnkxvkrcuxh.supabase.co/storage/v1/object/public/brand/stakeys-logo.png';
+  form.set('image_url', logoUrl);
   form.append('profile_id[]', userId);
 
   let response: Response;

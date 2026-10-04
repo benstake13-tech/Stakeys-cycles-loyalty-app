@@ -59,12 +59,29 @@ async function resolveAdminRecipients(): Promise<string[]> {
   }
 }
 
-async function sendPush(apiKey: string, title: string, message: string, profileIds: string[]): Promise<Response> {
+const DEFAULT_LOGO_URL =
+  'https://lhojocpygcnkxvkrcuxh.supabase.co/storage/v1/object/public/brand/stakeys-logo.png';
+
+async function sendPush(
+  apiKey: string,
+  title: string,
+  message: string,
+  profileIds: string[],
+  opts: { logoUrl?: string; url?: string } = {},
+): Promise<Response> {
+  const appUrl = opts.url || 'https://www.stakeyswheels.co.uk';
+  const logoUrl = opts.logoUrl || DEFAULT_LOGO_URL;
   const form = new URLSearchParams();
   form.set('notification_title', title);
   form.set('notification_message', message);
-  form.set('notification_url', 'https://stakeyswheels.co.uk');
+  form.set('notification_url', appUrl);
   form.set('notification_type', 'now');
+  // Branding: the shop logo as the notification icon and a large banner image.
+  form.set('image_url', logoUrl);
+  form.set('big_image_url', logoUrl);
+  // Call-to-action button that opens the app.
+  form.set('multi_element_title1', "Open Stakey's");
+  form.set('multi_element_url1', appUrl);
   for (const id of profileIds) form.append('profile_id[]', id);
 
   return await fetch(PUSHENGAGE_ENDPOINT, {
@@ -82,6 +99,7 @@ Deno.serve(async (req: Request) => {
 
   const webhookSecret = Deno.env.get('BOOKING_WEBHOOK_SECRET');
   const apiKey = Deno.env.get('PUSHENGAGE_API_KEY');
+  const logoUrl = Deno.env.get('BOOKING_LOGO_URL') || DEFAULT_LOGO_URL;
   if (!webhookSecret || !apiKey) {
     console.error('Required booking push secrets are not configured');
     return json({ error: 'Push notification service is not configured' }, 503);
@@ -150,7 +168,7 @@ Deno.serve(async (req: Request) => {
 
   let response: Response;
   try {
-    response = await sendPush(apiKey, title, content, recipients);
+    response = await sendPush(apiKey, title, content, recipients, { logoUrl });
   } catch (error) {
     console.error('PushEngage request failed', error);
     return json({ error: 'Could not reach push notification provider' }, 502);
