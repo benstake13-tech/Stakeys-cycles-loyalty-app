@@ -23,6 +23,7 @@ import {
   Bell,
   FileText,
   AlertTriangle,
+  Trash2,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../types/bikeShop';
@@ -33,6 +34,7 @@ import { dispatchTestEmail } from '../utils/notificationService';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
+import { ClearBookingsModal } from './ClearBookingsModal';
 
 export const StaffBookingsTab: React.FC = () => {
   const {
@@ -78,6 +80,9 @@ export const StaffBookingsTab: React.FC = () => {
   const [quotedPrice, setQuotedPrice] = useState('');
   const [quoteNote, setQuoteNote] = useState('');
   const [isQuoting, setIsQuoting] = useState(false);
+
+  // Launch prep: wipe the whole booking list
+  const [isClearBookingsOpen, setIsClearBookingsOpen] = useState(false);
 
   // Action toast / feedback
   const [actionFeedback, setActionFeedback] = useState<{
@@ -305,6 +310,16 @@ export const StaffBookingsTab: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setIsClearBookingsOpen(true)}
+              disabled={bookings.length === 0}
+              className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-rose-950/70 disabled:opacity-40 disabled:cursor-not-allowed text-rose-300 hover:text-white text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-rose-900/70"
+              title="Permanently remove every booking (launch prep)"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Clear Bookings{bookings.length > 0 ? ` (${bookings.length})` : ''}</span>
+            </button>
+
             <button
               onClick={() => setIsEditingSettings(!isEditingSettings)}
               className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-neutral-700"
@@ -1247,6 +1262,11 @@ export const StaffBookingsTab: React.FC = () => {
           }}
           isStaff={true}
         />
+      )}
+
+      {/* Launch prep: clear every booking */}
+      {isClearBookingsOpen && (
+        <ClearBookingsModal onClose={() => setIsClearBookingsOpen(false)} />
       )}
     </div>
   );

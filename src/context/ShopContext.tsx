@@ -55,6 +55,8 @@ import {
   fetchServiceBookingsFromDb,
   insertServiceBookingToDb,
   updateServiceBookingInDb,
+  deleteServiceBookingFromDb,
+  deleteAllServiceBookingsFromDb,
   fetchStampLogsFromDb,
   insertStampLogToDb,
   updateUserProfileInDb,
@@ -251,6 +253,8 @@ interface ShopContextType {
   ) => Promise<{ success: boolean; message?: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => void;
   updateBookingQuote: (bookingId: string, quote: { quotedPrice: number, quoteNote?: string }) => Promise<{ success: boolean; message?: string }>;
+  deleteBooking: (bookingId: string) => Promise<{ success: boolean; message?: string }>;
+  clearAllBookings: () => Promise<{ success: boolean; message?: string; deleted: number }>;
   setRepairStage: (
     bookingId: string,
     stage: RepairStageId,
@@ -2949,6 +2953,77 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
+  const deleteBooking = async (
+    bookingId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+
+    const persisted = await deleteServiceBookingFromDb(bookingId).catch((e) => {
+      console.warn('[DB SYNC] Error deleting booking in DB:', e);
+      return false;
+    });
+
+    const auditLog: StampLog = {
+      id: `log-bkdel-${Date.now()}`,
+      customerId: target.customerId || 'guest',
+      customerName: target.customerName,
+      membershipNumber: target.membershipNumber,
+      staffId: currentUser?.uid || 'staff-001',
+      staffName: currentUser?.displayName || 'Workshop Staff',
+      action: 'edit_profile',
+      timestamp: new Date(),
+      note: `🗑️ BOOKING DELETED: ${target.customerName} — "${target.serviceTitle}" (${target.preferredDate}).`,
+    };
+    setStampLogs((prev) => [auditLog, ...prev]);
+
+    return {
+      success: true,
+      message: persisted
+        ? `Booking #${bookingId} deleted.`
+        : `Booking #${bookingId} removed on this device only — the database delete failed.`,
+    };
+  };
+
+  const clearAllBookings = async (): Promise<{
+    success: boolean;
+    message?: string;
+    deleted: number;
+  }> => {
+    const count = bookings.length;
+    if (count === 0) return { success: true, deleted: 0, message: 'There are no bookings to clear.' };
+
+    setBookings([]);
+
+    const persisted = await deleteAllServiceBookingsFromDb().catch((e) => {
+      console.warn('[DB SYNC] Error clearing bookings in DB:', e);
+      return false;
+    });
+
+    const auditLog: StampLog = {
+      id: `log-bkclear-${Date.now()}`,
+      customerId: 'system',
+      customerName: 'Workshop',
+      membershipNumber: '-',
+      staffId: currentUser?.uid || 'staff-001',
+      staffName: currentUser?.displayName || 'Workshop Staff',
+      action: 'edit_profile',
+      timestamp: new Date(),
+      note: `🧹 BOOKINGS CLEARED: removed all ${count} booking(s) ready for launch.`,
+    };
+    setStampLogs((prev) => [auditLog, ...prev]);
+
+    return {
+      success: persisted,
+      deleted: count,
+      message: persisted
+        ? `Cleared ${count} booking${count === 1 ? '' : 's'} — workshop is ready for launch.`
+        : `Cleared ${count} booking${count === 1 ? '' : 's'} on this device only — the database delete failed.`,
+    };
+  };
+
   const saveRepairInvoice = async (
     bookingId: string,
     invoice: RepairInvoice
@@ -3204,6 +3279,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resolveScannedMember,
         addRepairProgressNote,
         updateBookingQuote,
+        deleteBooking,
+        clearAllBookings,
         saveRepairInvoice,
         updateInvoicePaymentStatus,
         updateOwnerConfig,

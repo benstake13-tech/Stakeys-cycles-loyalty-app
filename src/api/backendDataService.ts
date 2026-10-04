@@ -349,6 +349,45 @@ export async function insertServiceBookingToDb(
 }
 
 /**
+ * 8. DELETE BOOKING(S) — used by the staff "Clear Bookings" launch tool.
+ */
+export async function deleteServiceBookingFromDb(bookingId: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('service_bookings').delete().eq('id', bookingId);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE service_bookings failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteServiceBookingFromDb:', err);
+    return false;
+  }
+}
+
+export async function deleteAllServiceBookingsFromDb(): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    // PostgREST requires a filter on DELETE; ids are the primary key so this
+    // matches every row without needing to enumerate them.
+    const { error } = await supabase
+      .from('service_bookings')
+      .delete()
+      .not('id', 'is', null);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE ALL service_bookings failed:', error.message);
+      return false;
+    }
+    console.log('[SUPABASE NET SUCCESS] DELETE ALL service_bookings succeeded');
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteAllServiceBookingsFromDb:', err);
+    return false;
+  }
+}
+
+/**
  * 7. UPDATE BOOKING
  */
 export async function updateServiceBookingInDb(

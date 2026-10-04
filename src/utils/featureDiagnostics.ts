@@ -31,6 +31,7 @@ import {
   deleteStaffMemberFromDb,
   deletePromotionFromDb,
   deleteDiscountCodeFromDb,
+  deleteServiceBookingFromDb,
 } from '../api/backendDataService';
 import {
   validateDiscountCode,
@@ -468,6 +469,40 @@ export const FEATURE_TESTS: FeatureTest[] = [
             };
       } catch (e) {
         const message = err(e);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'booking-delete',
+    area: 'bookings',
+    label: 'Delete a booking (launch clear)',
+    description: 'Writes a temporary booking then removes it via the Clear Bookings path and confirms it is gone.',
+    writes: true,
+    run: async () => {
+      const booking = makeDiagBooking(diagBookingId());
+      const client = getSupabaseClient();
+      try {
+        if (!(await insertServiceBookingToDb(booking))) {
+          return { status: 'fail', detail: 'Could not create the probe booking.', hint: 'See the "Create a repair booking" test.' };
+        }
+        const ok = await deleteServiceBookingFromDb(booking.id);
+        const { data } = await client
+          .from('service_bookings')
+          .select('id')
+          .eq('id', booking.id)
+          .maybeSingle();
+        if (ok && !data) {
+          return { status: 'pass', detail: 'Booking deleted and confirmed gone.' };
+        }
+        return {
+          status: 'fail',
+          detail: `delete=${ok}; row still present=${!!data}`,
+          hint: 'DELETE on service_bookings is blocked (RLS/grants). Re-run the schema sync SQL so staff can clear bookings.',
+        };
+      } catch (e) {
+        const message = err(e);
+        await client.from('service_bookings').delete().eq('id', booking.id);
         return { status: 'fail', detail: message, hint: hintFor(message) };
       }
     },
