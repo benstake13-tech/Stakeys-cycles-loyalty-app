@@ -2,6 +2,11 @@
 
 React 19 + Vite + TS + Supabase loyalty/rewards app for a bike shop.
 
+## Repository shape — two builds, one shared core
+- Two builds share one repo + one Supabase backend: **customer** (`main`, `fix/booking-approval-signup-notifications`) and **staff-only** (`staff-only-terminal` = same repo with the customer side removed; has `StaffLoginScreen.tsx`, trimmed `App.tsx`).
+- **`src/shared/`** is the shared package both builds depend on: `context/` (ShopContext), `types/`, `data/`, `utils/`, `api/`, `lib/`, plus `supabase.ts` + `firebaseConfig.ts`. Import via the `@shared` alias (barrel `@shared` or deep `@shared/utils/...`; configured in tsconfig/vite/vitest). UI (`src/components/`, `src/App.tsx`) is per-build and NOT shared.
+- **Rule: any change under `src/shared/` must be applied to BOTH branches** or the builds drift. Documented in `AGENTS.md`. Paths like `types/bikeShop.ts` in these notes now live at `src/shared/types/bikeShop.ts`.
+
 ## Key facts
 - `UserProfile` primary key is `uid` (NOT `id`). `CustomerBike` has `category/categoryLabel/brand/model/...`, optional `scrapedData`, `aiIdentification`.
 - `addCustomerBike(bike)` adds to the *current user's* garage (`ShopContext.tsx`). `addCustomerBikeForUser(userId, bike)` adds to any user's garage — use this for staff-side flows. Both optimistically update `users`/`currentUser` then persist via `insertCustomerBikeToDb`.
