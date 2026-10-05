@@ -53,4 +53,23 @@ describe('BikeIdentityFields', () => {
       customModel: '',
     });
   });
+
+  it('scopes the brand picker to bikes for a bicycle category', () => {
+    renderFields({ category: 'cycle' });
+    fireEvent.click(screen.getByText('Change'));
+    expect(screen.getByText(/^Bike brands · \d+$/)).toBeTruthy();
+    expect(screen.getByPlaceholderText('Search bike brands, or type a type (mountain, e-bike…)')).toBeTruthy();
+    // Scooter-only brands stay out of the bike section.
+    expect(screen.queryByText('Xiaomi')).toBeNull();
+  });
+
+  it('scopes the brand picker to e-scooters for an e-scooter category', () => {
+    renderFields({ category: 'electric_scooter' });
+    fireEvent.click(screen.getByText('Change'));
+    expect(screen.getByText(/^E-Scooter brands · \d+$/)).toBeTruthy();
+    expect(screen.getByPlaceholderText('Search e-scooter brands…')).toBeTruthy();
+    expect(screen.getByText('Xiaomi')).toBeTruthy();
+    // A pure bicycle brand is not offered in the scooter section.
+    expect(screen.queryByText('Trek')).toBeNull();
+  });
 });

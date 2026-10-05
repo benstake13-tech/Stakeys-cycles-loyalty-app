@@ -1,12 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Check, X, Bike, Zap, ChevronDown } from 'lucide-react';
 import {
-  BIKE_BRAND_PROFILES,
   BIKE_BRAND_TYPES,
   BikeBrandType,
   modelsForBrand,
   brandProfileFor,
   isCustomModel,
+  isScooterCategory,
+  bicycleBrandProfiles,
+  scooterBrandProfiles,
   EBIKE_STATUS_OPTIONS,
   EBIKE_MOTOR_SYSTEMS,
   EBIKE_BATTERY_POSITIONS,
@@ -75,14 +77,36 @@ const BrandPicker: React.FC<{
   brand: string;
   onSelect: (brand: string) => void;
   idPrefix: string;
-}> = ({ brand, onSelect, idPrefix }) => {
+  /** Vehicle category the picker is being used for — scopes the brand list. */
+  category?: VehicleCategory;
+}> = ({ brand, onSelect, idPrefix, category }) => {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<BikeBrandType | 'All'>('All');
 
+  // Two sections: bikes/e-bikes, or e-scooters. The category decides which one
+  // this picker shows (falling back to the current brand's tags when the
+  // parent has not fixed a category).
+  const scooter =
+    isScooterCategory(category) ||
+    (!category && Boolean(brandProfileFor(brand)?.types.includes('E-Scooter')));
+  const sectionLabel = scooter ? 'E-Scooter brands' : 'Bike brands';
+  const scoped = useMemo(
+    () => (scooter ? scooterBrandProfiles() : bicycleBrandProfiles()),
+    [scooter]
+  );
+  // E-Scooter is not a useful chip inside the bike section (those brands live
+  // in the other section), so it is only dropped from the bike chip row.
+  const typeChips: (BikeBrandType | 'All')[] = scooter
+    ? ['All']
+    : (['All', ...BIKE_BRAND_TYPES.filter((t) => t !== 'E-Scooter')] as (
+        | BikeBrandType
+        | 'All'
+      )[]);
+
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return BIKE_BRAND_PROFILES.filter((b) => {
+    return scoped.filter((b) => {
       if (typeFilter !== 'All' && !b.types.includes(typeFilter)) return false;
       if (!q) return true;
       return (
@@ -91,14 +115,20 @@ const BrandPicker: React.FC<{
         b.types.some((t) => t.toLowerCase().includes(q))
       );
     });
-  }, [query, typeFilter]);
+  }, [query, typeFilter, scoped]);
+
+  // A chip from the other section can't apply here (e.g. E-Scooter chips are
+  // hidden in the bike section), so clear the filter when the section flips.
+  useEffect(() => {
+    setTypeFilter('All');
+  }, [scooter]);
 
   const selected = brandProfileFor(brand);
 
   return (
     <div>
       <label className={labelClass} htmlFor={`${idPrefix}-brand-search`}>
-        Manufacturer / Brand
+        Manufacturer / Brand <span className="text-neutral-500 font-normal">· {sectionLabel}</span>
       </label>
 
       {!open ? (
@@ -108,13 +138,17 @@ const BrandPicker: React.FC<{
           onClick={() => setOpen(true)}
           className="w-full flex items-center justify-between gap-2 bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white hover:border-neutral-700 cursor-pointer"
         >
-          <span className="flex items-center gap-2 min-w-0">
-            <Bike className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span className="truncate">{brand || 'Choose a brand'}</span>
-            {selected && selected.country !== '—' && (
-              <span className="text-[10px] text-neutral-500 font-mono shrink-0">{selected.country}</span>
-            )}
-          </span>
+            <span className="flex items-center gap-2 min-w-0">
+              {scooter ? (
+                <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
+              ) : (
+                <Bike className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span className="truncate">{brand || 'Choose a brand'}</span>
+              {selected && selected.country !== '—' && (
+                <span className="text-[10px] text-neutral-500 font-mono shrink-0">{selected.country}</span>
+              )}
+            </span>
           <span className="text-[11px] text-emerald-400 font-semibold shrink-0">Change</span>
         </button>
       ) : (
@@ -127,7 +161,11 @@ const BrandPicker: React.FC<{
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search 90+ brands, or type a type (mountain, e-bike…)"
+              placeholder={
+                scooter
+                  ? 'Search e-scooter brands…'
+                  : 'Search bike brands, or type a type (mountain, e-bike…)'
+              }
               className="w-full bg-transparent py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none"
             />
             <button
@@ -144,7 +182,7 @@ const BrandPicker: React.FC<{
           </div>
 
           <div className="flex gap-1.5 overflow-x-auto px-3 py-2 border-b border-neutral-800/80">
-            {(['All', ...BIKE_BRAND_TYPES] as const).map((t) => (
+            {typeChips.map((t) => (
               <button
                 key={t}
                 type="button"
@@ -161,6 +199,9 @@ const BrandPicker: React.FC<{
           </div>
 
           <div className="max-h-56 overflow-y-auto">
+            <div className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+              {sectionLabel} · {results.length}
+            </div>
             {results.length === 0 ? (
               <div className="px-3 py-4 text-xs text-neutral-400">
                 No brand matches “{query}”. Choose <strong>Other / Not Listed</strong> and type the
@@ -222,6 +263,21 @@ export const BikeIdentityFields: React.FC<Props> = ({
     onChange({ brand, model: nextModels[0] || '', customModel: '' });
   };
 
+  // Switching between bikes and e-scooters re-scopes the brand list, so drop a
+  // now-out-of-section brand back to the first brand of the new section.
+  const handleCategory = (category: VehicleCategory) => {
+    const scoped = isScooterCategory(category) ? scooterBrandProfiles() : bicycleBrandProfiles();
+    const stillValid = scoped.some(
+      (b) => b.name.toLowerCase() === (value.brand || '').toLowerCase()
+    );
+    if (stillValid) {
+      onChange({ category });
+      return;
+    }
+    const fallback = scoped[0]?.name || value.brand;
+    onChange({ category, brand: fallback, model: modelsForBrand(fallback)[0] || '', customModel: '' });
+  };
+
   return (
     <div className="space-y-4">
       {showCategory && (
@@ -233,7 +289,7 @@ export const BikeIdentityFields: React.FC<Props> = ({
             <select
               id={`${idPrefix}-category`}
               value={value.category}
-              onChange={(e) => onChange({ category: e.target.value as VehicleCategory })}
+              onChange={(e) => handleCategory(e.target.value as VehicleCategory)}
               className={`${fieldClass} appearance-none cursor-pointer`}
             >
               <option value="cycle">Standard Bicycle (Road / Mountain / Hybrid)</option>
@@ -247,7 +303,12 @@ export const BikeIdentityFields: React.FC<Props> = ({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <BrandPicker brand={value.brand} onSelect={handleBrand} idPrefix={idPrefix} />
+        <BrandPicker
+          brand={value.brand}
+          onSelect={handleBrand}
+          idPrefix={idPrefix}
+          category={showCategory ? value.category : undefined}
+        />
 
         <div>
           <label className={labelClass} htmlFor={`${idPrefix}-model`}>
