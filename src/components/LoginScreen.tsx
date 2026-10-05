@@ -347,7 +347,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               </div>
               <span className="font-display text-lg font-extrabold text-white">STAKEY'S</span>
             </div>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                aria-label="Staff access"
+                title="Staff access"
+                onClick={() => {
+                  setMode('staff');
+                  setError(null);
+                }}
+                className="p-2 rounded-lg text-neutral-600 hover:text-neutral-300 hover:bg-neutral-800/60 transition-colors cursor-pointer"
+              >
+                <Shield className="w-4 h-4" />
+              </button>
               <ThemeToggle showLabel={true} />
             </div>
           </div>
@@ -366,8 +378,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               </p>
             </div>
 
-            {/* Dedicated 3-Mode Switcher: Customer Sign In | Create Account | Staff Terminal */}
-            <div className="grid grid-cols-3 bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1">
+            {/* 2-Mode Switcher: Customer Sign In | Create Account. Staff access
+                is deliberately not advertised — staff reach it via the discreet
+                shield icon in the header. */}
+            <div className="grid grid-cols-2 bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1">
               <button
                 type="button"
                 onClick={() => {
@@ -397,22 +411,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               >
                 <Sparkles className="w-3 h-3 text-[#05C147]" />
                 <span>Register</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('staff');
-                  setError(null);
-                }}
-                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  mode === 'staff'
-                    ? 'bg-emerald-950/80 text-emerald-300 font-bold shadow-md border border-emerald-500/50'
-                    : 'text-amber-400 hover:text-amber-300'
-                }`}
-              >
-                <Shield className="w-3 h-3 text-emerald-400" />
-                <span>Staff Station</span>
               </button>
             </div>
 
@@ -606,7 +604,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 )}
               </button>
 
-              <div className="pt-2 flex items-center justify-between text-xs text-neutral-400">
+              <div className="pt-2 text-center text-xs text-neutral-400">
                 <span>
                   Need an account?{' '}
                   <button
@@ -620,18 +618,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                     Register
                   </button>
                 </span>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('staff');
-                    setError(null);
-                  }}
-                  className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  <Shield className="w-3 h-3" />
-                  <span>Staff Station</span>
-                </button>
               </div>
             </form>
           )}
