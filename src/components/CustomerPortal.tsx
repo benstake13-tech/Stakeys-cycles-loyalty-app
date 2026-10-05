@@ -17,9 +17,11 @@ import {
   Info,
   FileText,
   Activity,
+  Smile,
 } from 'lucide-react';
 import { useShop } from '../shared/context/ShopContext';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
+import toast from 'react-hot-toast';
 
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
@@ -28,6 +30,8 @@ import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
+import { AvatarStudio } from './AvatarStudio';
+import { Avatar } from './Avatar';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../shared/types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS } from '../shared/data/bikeCatalog';
 import {
@@ -50,9 +54,10 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     addCustomerBike,
     removeCustomerBike,
     saveBikeScrapedSpecs,
+    saveMyAvatar,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps'>('garage');
+  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'avatar'>('garage');
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
@@ -84,8 +89,9 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps'>[] = [
+  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'avatar'>[] = [
     { id: 'garage', label: `My Garage (${customerBikes.length})`, icon: Bike, tone: 'emerald', hint: 'Your registered bikes' },
+    { id: 'avatar', label: 'My Avatar', icon: Smile, tone: 'amber', hint: 'Build your rider character' },
     { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
     { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
     { id: 'repairs', label: `Repairs (${customerBookings.length})`, icon: Activity, tone: 'emerald', hint: 'Live repair progress tracker' },
@@ -573,6 +579,31 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           }
           onGoToBooking={() => setActiveTab('booking')}
         />
+      )}
+
+      {/* TAB: MY AVATAR — Bitmoji-style rider character */}
+      {activeTab === 'avatar' && (
+        <div className="space-y-6">
+          <div className="p-5 rounded-2xl bg-[#0d1015] border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Avatar config={currentUser.avatar} size={64} title="Your current avatar" />
+              <div>
+                <h3 className="font-display text-lg font-bold text-white">Build your rider character</h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Pick a face, hair, helmet and jersey — your avatar shows on your profile and loyalty pass.
+                </p>
+              </div>
+            </div>
+          </div>
+          <AvatarStudio
+            value={currentUser.avatar}
+            onSave={async (config) => {
+              const res = await saveMyAvatar(config);
+              if (res.success) toast.success(res.message || 'Avatar saved.');
+              else toast.error(res.message || 'Could not save your avatar.');
+            }}
+          />
+        </div>
       )}
 
       {/* TAB: WEEKLY PRIZE WHEEL */}

@@ -86,6 +86,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'last_spin_date', type: 'text' },
       { name: 'last_spun_at', type: 'timestamptz' },
       { name: 'last_stamped_at', type: 'timestamptz' },
+      { name: 'avatar_config', type: 'jsonb' },
       { name: 'created_at', type: 'timestamptz', default: NOW },
       { name: 'updated_at', type: 'timestamptz', default: NOW },
     ],

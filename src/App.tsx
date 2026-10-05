@@ -22,6 +22,7 @@ import { ShopProvider, useShop } from './shared/context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { CustomerPortal } from './components/CustomerPortal';
+import { Avatar } from './components/Avatar';
 import { StaffPortal } from './components/StaffPortal';
 import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
@@ -263,6 +264,7 @@ function AppContent() {
             {isStaff && <ServiceStatusBadge variant="header" />}
 
             <div className={`hidden lg:flex items-center gap-2 text-xs ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+              {!isStaff && <Avatar config={currentUser.avatar} size={28} title={`${currentUser.displayName}'s avatar`} className="rounded-full shrink-0" />}
               <span className={`font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{currentUser.displayName}</span>
               {isStaff ? (
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/50">

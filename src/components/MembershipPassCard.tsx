@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
 import { Award, Ticket, Sparkles } from 'lucide-react';
 import { UserProfile } from '../shared/types/bikeShop';
+import { Avatar } from './Avatar';
 import {
   encodeMembershipPayload,
   membershipBalance,
@@ -63,8 +64,11 @@ export const MembershipPassCard: React.FC<MembershipPassCardProps> = ({ user }) 
           <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-neutral-500">
             Stakey's Cycles &amp; Scooter
           </div>
-          <div className="font-display text-xl font-extrabold text-neutral-950 mt-0.5">
-            {user.displayName}
+          <div className="flex items-center justify-center sm:justify-start gap-2 mt-0.5">
+            <Avatar config={user.avatar} size={36} title={`${user.displayName}'s avatar`} className="rounded-full shrink-0 ring-1 ring-neutral-200" />
+            <span className="font-display text-xl font-extrabold text-neutral-950">
+              {user.displayName}
+            </span>
           </div>
           <div className="font-mono text-sm font-bold text-emerald-700 mt-0.5">{membership}</div>
           <div className="font-mono text-[10px] text-neutral-400 mt-1">

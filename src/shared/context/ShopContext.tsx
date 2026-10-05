@@ -24,6 +24,7 @@ import {
   RepairStageId,
   RepairProgressEvent,
 } from '../types/bikeShop';
+import { normalizeAvatar, type AvatarConfig } from '../types/avatar';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
   makeRepairEvent,
@@ -296,6 +297,8 @@ interface ShopContextType {
     options?: { note?: string }
   ) => Promise<{ success: boolean; message?: string }>;
   resolveScannedMember: (rawCode: string) => Promise<UserProfile | null>;
+  /** Save the signed-in customer's Bitmoji-style avatar. */
+  saveMyAvatar: (config: AvatarConfig) => Promise<{ success: boolean; message?: string }>;
   addRepairProgressNote: (
     bookingId: string,
     note: string,
@@ -1136,6 +1139,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastSpunAt: remoteProfile?.lastSpunAt !== undefined ? remoteProfile.lastSpunAt : user.lastSpunAt,
         displayName: remoteProfile?.displayName || user.displayName,
         phoneNumber: remoteProfile?.phoneNumber || user.phoneNumber,
+        avatar: remoteProfile?.avatar || user.avatar,
         serviceVouchers:
           remoteVouchers && remoteVouchers.length > 0
             ? remoteVouchers
@@ -1845,6 +1849,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
     toast.success(`Redeemed: ${rewardDescription}`);
     return { success: true, message: `Redeemed: ${rewardDescription}` };
+  };
+
+  // Bitmoji-style rider avatar (customer self-service)
+  const saveMyAvatar = async (
+    config: AvatarConfig
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = currentUser;
+    if (!target) return { success: false, message: 'You need to be signed in to save an avatar.' };
+
+    const avatar = normalizeAvatar(config);
+    const updatedUser: UserProfile = { ...target, avatar };
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.uid === target.uid ? updatedUser : u)));
+
+    const ok = await updateUserProfileInDb(target.uid, target.membershipNumber, { avatar });
+    if (!ok) {
+      return {
+        success: false,
+        message: 'Saved on this device, but the cloud sync failed — try again once you are online.',
+      };
+    }
+    return { success: true, message: 'Avatar saved.' };
   };
 
   // Manual Customer Point & Balance Adjustment for Staff Database
@@ -3453,6 +3479,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRepairStage,
         setRepairEstimate,
         resolveScannedMember,
+        saveMyAvatar,
         addRepairProgressNote,
         updateBookingQuote,
         deleteBooking,

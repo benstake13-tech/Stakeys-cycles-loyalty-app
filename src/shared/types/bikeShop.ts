@@ -2,6 +2,8 @@
  * Stakey's Cycles - Data Models and Type Definitions
  */
 
+import type { AvatarConfig } from './avatar';
+
 export type ThemeMode = 'dark' | 'light';
 
 export type UserRole = 'customer' | 'staff' | 'admin';
@@ -189,6 +191,8 @@ export interface UserProfile {
   phoneNumber?: string;
   bikes?: CustomerBike[]; // Personal registered bikes in customer's garage
   serviceVouchers?: CollectedVoucher[]; // Collected rewards such as £40 service voucher
+  /** Bitmoji-style rider avatar (see shared/types/avatar.ts). */
+  avatar?: AvatarConfig;
 }
 
 export interface PrizeWheelSegment {

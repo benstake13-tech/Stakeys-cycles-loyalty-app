@@ -3,6 +3,7 @@
  * Uses singleton Supabase client from src/lib/supabase with diagnostic console logging.
  */
 import { getSupabaseClient } from '../lib/supabase';
+import { normalizeAvatar, type AvatarConfig } from '../types/avatar';
 import {
   UserProfile,
   CustomerBike,
@@ -665,6 +666,7 @@ export async function updateUserProfileInDb(
     lastStampedAt?: Date | null;
     lastSpinDate?: string | null;
     lastSpunAt?: Date | string | null;
+    avatar?: AvatarConfig;
   }
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
@@ -680,6 +682,7 @@ export async function updateUserProfileInDb(
     if (updates.points !== undefined) payload.merit_points = updates.points;
     if (updates.displayName !== undefined) payload.display_name = updates.displayName;
     if (updates.phoneNumber !== undefined) payload.phone = updates.phoneNumber;
+    if (updates.avatar !== undefined) payload.avatar_config = updates.avatar;
     const spunIso =
       updates.lastSpunAt !== undefined
         ? updates.lastSpunAt instanceof Date
@@ -790,6 +793,7 @@ export async function fetchUserProfileFromDb(
           : row.last_spin_date
           ? new Date(row.last_spin_date)
           : undefined,
+        avatar: normalizeAvatar(row.avatar_config),
       };
     }
   } catch (err) {
@@ -830,6 +834,7 @@ export async function fetchAllProfilesFromDb(): Promise<UserProfile[]> {
           ? new Date(row.last_spin_date)
           : undefined,
         createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+        avatar: normalizeAvatar(row.avatar_config),
       }));
     }
   } catch (err) {
