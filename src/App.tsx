@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { ShopProvider, useShop } from './context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
+import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { CustomerPortal } from './components/CustomerPortal';
 import { StaffPortal } from './components/StaffPortal';
 import { BookingPortal } from './components/BookingPortal';
@@ -173,6 +174,11 @@ function AppContent() {
 
   // 1. FIRST SCREEN: If user is not authenticated, show LoginScreen or Guest Booking
   if (!currentUser) {
+    // Password-recovery email lands on /reset-password — show the set-password
+    // page before the login screen so the recovery session can be used.
+    if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/reset-password') {
+      return <ResetPasswordPage />;
+    }
     if (showGuestBooking) {
       return (
         <div className={`min-h-screen ${isDark ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>

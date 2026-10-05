@@ -144,6 +144,7 @@ interface ShopContextType {
   registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string) => Promise<{ success: boolean; message?: string }>;
   resendConfirmationEmail: (email: string) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
+  updatePassword: (newPassword: string) => Promise<{ success: boolean; message?: string }>;
   logoutUser: () => void;
   // Staff login accounts (admin-only; backed by SECURITY DEFINER RPCs)
   staffAccounts: StaffAccount[];
@@ -1321,7 +1322,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // emits a signed-in session; we then build the profile, self-heal the row and
   // log them straight in, so they never have to re-enter a password.
   useEffect(() => {
-    const hasConfirmationParams = AUTH_LINK_ON_LOAD;
+    // Only treat this as a signup confirmation on the normal entry path. A
+    // password-recovery link also carries auth tokens, but it must land on
+    // /reset-password so the customer can set a new password instead of being
+    // silently logged in.
+    const onResetPath =
+      typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/reset-password';
+    const hasConfirmationParams = AUTH_LINK_ON_LOAD && !onResetPath;
 
     const completeSignupSession = async (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => {
       const { data: profile } = await supabase
@@ -1639,6 +1646,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       console.error('Password reset error:', err);
       return { success: false, message: 'An unexpected error occurred.' };
+    }
+  };
+
+  // Sets a new password for the user who opened a recovery link. The recovery
+  // link establishes a short-lived session, so updateUser is authorised.
+  const updatePassword = async (newPassword: string) => {
+    const pass = newPassword.trim();
+    if (pass.length < 6) {
+      return { success: false, message: 'Password must be at least 6 characters long.' };
+    }
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pass });
+      if (error) {
+        return { success: false, message: error.message };
+      }
+      return { success: true, message: 'Password updated. You can now sign in.' };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Could not update your password.' };
     }
   };
 
@@ -3367,6 +3392,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerCustomerAccount,
         resendConfirmationEmail,
         resetPassword,
+        updatePassword,
         logoutUser,
         staffAccounts,
         refreshStaffAccounts,
