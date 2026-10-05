@@ -40,6 +40,9 @@ import {
   TrendingUp,
   Gauge,
   ShoppingCart,
+  ShoppingBag,
+  Store,
+  Images,
   BadgePercent,
   FlaskConical,
   DatabaseZap,
@@ -58,6 +61,9 @@ import { StaffManagementTab } from './StaffManagementTab';
 import { PromotionsManagerTab } from './PromotionsManagerTab';
 import { DiscountCodesTab } from './DiscountCodesTab';
 import { CounterSaleTab } from './CounterSaleTab';
+import { ShopOrdersTab } from './ShopOrdersTab';
+import { ShopManagerTab } from './ShopManagerTab';
+import { GalleryManagerTab } from './GalleryManagerTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
 
 import { GoogleBusinessTab } from './GoogleBusinessTab';
@@ -117,8 +123,17 @@ export const StaffPortal: React.FC = () => {
     | 'google_business'
     | 'business_performance'
     | 'avatar_creator'
+    | 'shop_orders'
+    | 'shop_manager'
+    | 'gallery_manager'
     | 'diagnostics'
   >('till');
+
+  // Live badges for the website-linked tabs, raised by the tabs themselves so
+  // the counts stay in step with what each tab actually shows.
+  const [websiteOrderCount, setWebsiteOrderCount] = useState(0);
+  const [shopItemCount, setShopItemCount] = useState(0);
+  const [galleryItemCount, setGalleryItemCount] = useState(0);
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
@@ -340,11 +355,15 @@ export const StaffPortal: React.FC = () => {
     | 'google_business'
     | 'business_performance'
     | 'avatar_creator'
+    | 'shop_orders'
+    | 'shop_manager'
+    | 'gallery_manager'
     | 'diagnostics';
 
   const operationsTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
     { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings' },
+    { id: 'shop_orders', label: 'Shop Orders', icon: ShoppingBag, tone: 'emerald', badge: websiteOrderCount > 0 ? websiteOrderCount : undefined, hint: 'Website shop orders awaiting payment' },
     { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members' },
     { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel' },
     { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
@@ -352,6 +371,8 @@ export const StaffPortal: React.FC = () => {
   ];
 
   const adminTabs: SegmentedTab<StaffTabId>[] = [
+    { id: 'shop_manager', label: 'Shop Manager', icon: Store, tone: 'emerald', badge: shopItemCount > 0 ? shopItemCount : undefined, hint: 'Website shop catalogue' },
+    { id: 'gallery_manager', label: 'Gallery', icon: Images, tone: 'emerald', badge: galleryItemCount > 0 ? galleryItemCount : undefined, hint: 'Website job photos' },
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
     { id: 'avatar_creator', label: 'Stakey Helper', icon: Bot, tone: 'emerald', hint: 'Set up the AI helper' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
@@ -697,6 +718,15 @@ export const StaffPortal: React.FC = () => {
 
       {/* VIEW 1C-C: Counter Sale / Till — scanned discounts auto-apply */}
       {staffTab === 'till' && <CounterSaleTab />}
+
+      {/* VIEW 1C-D: Website shop orders — arrange payment and fulfil */}
+      {staffTab === 'shop_orders' && <ShopOrdersTab onCountChange={setWebsiteOrderCount} />}
+
+      {/* VIEW 1C-E: Website shop catalogue (products) */}
+      {staffTab === 'shop_manager' && <ShopManagerTab onCountChange={setShopItemCount} />}
+
+      {/* VIEW 1C-F: Website gallery (job photos) */}
+      {staffTab === 'gallery_manager' && <GalleryManagerTab onCountChange={setGalleryItemCount} />}
 
       {/* VIEW 1D: Derailleur Hanger Identifier Module */}
       {/* Removed */}
