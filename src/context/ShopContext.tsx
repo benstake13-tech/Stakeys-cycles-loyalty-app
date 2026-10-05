@@ -339,46 +339,6 @@ export const SEASONAL_THEME_LABELS: Record<SeasonalThemeId, string> = {
 };
 
 const STORAGE_KEY = 'stakeys_cycles_pb_state_v2';
-// Workshop (staff/admin) devices keep their session so a terminal that has been
-// signed in before returns straight to the staff view on reload — and re-links
-// its OneSignal subscription so booking alerts keep arriving. Customer sessions
-// are deliberately NOT persisted (shared devices must start at the login screen).
-const RESTORE_USER_KEY = `${STORAGE_KEY}_workshop_session`;
-
-function isWorkshopRole(role: string | undefined | null): boolean {
-  return role === 'staff' || role === 'admin';
-}
-
-function readRestoredWorkshopUser(): UserProfile | null {
-  try {
-    const raw = localStorage.getItem(RESTORE_USER_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as UserProfile;
-    if (parsed && parsed.uid && isWorkshopRole(parsed.role)) return parsed;
-  } catch {
-    /* ignore a corrupt entry */
-  }
-  return null;
-}
-
-/**
- * Persist (or clear) the device's workshop session. Only staff/admin identities
- * are remembered; anything else removes the stored session so a shared customer
- * device always starts at the login screen.
- */
-export function persistWorkshopUser(user: UserProfile | null): void {
-  try {
-    if (user && isWorkshopRole(user.role)) {
-      localStorage.setItem(RESTORE_USER_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(RESTORE_USER_KEY);
-    }
-  } catch {
-    // ignore storage failures (private mode etc.)
-  }
-}
-
-export { isWorkshopRole, readRestoredWorkshopUser, RESTORE_USER_KEY };
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -387,9 +347,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [draws, setDraws] = useState<PrizeDraw[]>([]);
   const [stampLogs, setStampLogs] = useState<StampLog[]>([]);
 
-  // Workshop devices restore their previous session; everyone else starts at the
-  // login screen. The restored session is re-verified against Supabase on mount.
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => readRestoredWorkshopUser());
+  // Login is strictly the first screen: every app load starts at the login
+  // screen, so a device can always sign out and stay signed out.
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
   // Latest Winner Announcement for shop-wide broadcasts
   const [latestAnnouncement, setLatestAnnouncement] = useState<WinnerAnnouncement | null>(null);
@@ -1464,41 +1424,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Supabase-backed only — intentionally not cached in localStorage, so the app
   // never shows stale local data that the database would overwrite anyway.
 
-  // Persist a workshop (staff/admin) session so this device auto-signs-in next
-  // time; clear it on sign-out or for customer sessions so shared devices always
-  // start at the login screen.
-  useEffect(() => {
-    persistWorkshopUser(currentUser);
-  }, [currentUser]);
-
-  // On a restored session, re-verify it against Supabase before trusting it. A
-  // positive non-workshop role (the account was downgraded) drops back to the
-  // login screen. A null result is ambiguous — it can mean the profile is gone
-  // OR a transient network error — so we keep the session rather than sign a
-  // workshop terminal out (and drop its push link) on a flaky connection.
-  useEffect(() => {
-    const restored = readRestoredWorkshopUser();
-    if (!restored) return;
-    let cancelled = false;
-    (async () => {
-      const fresh = (await fetchUserProfileFromDb(restored.uid)) as UserProfile | null;
-      if (cancelled || !fresh) return;
-      if (isWorkshopRole(fresh.role)) {
-        setCurrentUser(fresh);
-      } else {
-        try {
-          localStorage.removeItem(RESTORE_USER_KEY);
-        } catch {
-          /* ignore */
-        }
-        setCurrentUser(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Keep currentUser state in sync when updated in the users array
   useEffect(() => {
     if (currentUser) {
@@ -1712,8 +1637,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logoutUser = () => {
     setCurrentUser(null);
+    // Purge any workshop session a previously-installed build may have left
+    // behind, so an already-persisted device signs out cleanly.
     try {
-      localStorage.removeItem(RESTORE_USER_KEY);
+      localStorage.removeItem(`${STORAGE_KEY}_workshop_session`);
     } catch {
       /* ignore */
     }
