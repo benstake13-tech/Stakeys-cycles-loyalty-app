@@ -53,25 +53,25 @@ beforeEach(() => {
   hoisted.fail = false;
 });
 
-describe('dispatchBookingNotifications — workshop alert is server-side', () => {
-  it('emails only the customer and never the workshop from the browser', async () => {
+describe('dispatchBookingNotifications — both emails are server-side', () => {
+  it('sends nothing from the browser (no duplicate customer email)', async () => {
     const result = await dispatchBookingNotifications(booking, config);
 
-    expect(hoisted.invokes).toHaveLength(1);
-    expect(hoisted.invokes[0].name).toBe('send-email');
-    expect(hoisted.invokes[0].body.to).toBe('sam@example.com');
-    // The workshop alert is delivered by the service_bookings DB webhook, so
-    // sending it here too would double-alert the workshop.
-    expect(hoisted.invokes.some((i) => i.body.to === config.ownerEmail)).toBe(false);
+    // The customer confirmation AND the workshop alert are delivered by the
+    // `service_bookings` INSERT trigger -> booking-email-notification. The
+    // browser must not also send them, or the customer gets two emails.
+    expect(hoisted.invokes).toHaveLength(0);
     expect(result.failures).toEqual([]);
+    expect(result.customerEmailLog.recipient).toBe('sam@example.com');
+    expect(result.emailLog.recipient).toBe(config.ownerEmail);
   });
 
-  it('surfaces a customer-confirmation failure without claiming success', async () => {
+  it('does not fail the booking when the provider is down (client sends nothing)', async () => {
     hoisted.fail = true;
 
     const result = await dispatchBookingNotifications(booking, config);
 
-    expect(result.failures && result.failures.length).toBeGreaterThan(0);
-    expect(result.failures?.join(' ')).toContain('provider down');
+    expect(hoisted.invokes).toHaveLength(0);
+    expect(result.failures).toEqual([]);
   });
 });

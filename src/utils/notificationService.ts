@@ -529,34 +529,17 @@ export async function dispatchBookingNotifications(
     status: 'delivered',
   };
 
-  // Live Email Gateway: forward the customer confirmation to the Supabase Edge
-  // Function. The workshop/owner alert is intentionally NOT sent here — it is
-  // delivered server-side by a Database Webhook on `service_bookings` INSERT
-  // (see supabase/WEBHOOK_EMAIL_SETUP.md), so it still fires when the customer's
-  // browser is closed and works even if this tab navigates away mid-request.
-  // Sending it here as well would double-alert the workshop.
+  // Live Email Gateway: the customer confirmation AND the workshop alert are
+  // both delivered server-side by the `service_bookings` INSERT trigger
+  // (`notify_booking_email_via_pg_net` -> `booking-email-notification`, see
+  // supabase/WEBHOOK_EMAIL_SETUP.md). That fires when the customer's browser is
+  // closed and works even if this tab navigates away mid-request.
+  //
+  // The browser used to ALSO invoke `send-email` for the customer here, which
+  // sent a second, differently-styled confirmation to the same inbox on every
+  // booking. The server trigger is now the single source, so nothing is sent
+  // from the client — otherwise the customer receives two emails per booking.
   const failures: string[] = [];
-  try {
-    const supabase = getSupabaseClient();
-    const customerSend = await supabase.functions.invoke('send-email', {
-      body: {
-        from: 'noreply@stakeyswheels.co.uk',
-        to: booking.customerEmail,
-        subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
-        html: generateCustomerBookingEmailHtml(booking, config),
-      },
-    });
-
-    if (customerSend.error) {
-      failures.push(`Customer confirmation failed: ${customerSend.error.message}`);
-      console.error(`[STAKEYS EMAIL ENGINE] ❌ Customer confirmation email failed: ${customerSend.error.message}`);
-    } else {
-      console.log(`[STAKEYS EMAIL ENGINE] ✅ Confirmation email sent to customer (${booking.customerEmail})`);
-    }
-  } catch (err) {
-    failures.push(`Booking emails failed: ${(err as Error).message || String(err)}`);
-    console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
-  }
 
   return {
     emailLog,
