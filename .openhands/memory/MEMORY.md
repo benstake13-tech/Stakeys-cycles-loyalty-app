@@ -2,6 +2,10 @@
 
 React 19 + Vite + TS + Supabase loyalty/rewards app for a bike shop.
 
+## Staff-only app (2026-10-05, branch `staff-only-terminal`)
+- A SECOND app was spun from PR #2 head as a dedicated **staff-only terminal**: branch `staff-only-terminal` (original `main` + PR #2 branch untouched). `src/App.tsx` is now a staff shell (nav = staff + deliverables only) and the first screen is `src/components/StaffLoginScreen.tsx` (staff email/password only — no customer sign-in/register/guest/recovery). A signed-in customer is denied by an explicit "Staff Access Only" view as defence-in-depth; `loginStaff` already rejects non-staff roles. Customer components still exist as dead (unimported) source; `metadata.json` + `index.html` re-branded "Staff Terminal". Tests `staff_only_shell.test.tsx`. Both apps share the same Supabase project — separation is technical (which UI ships) and must be enforced for data by RLS gated on `profiles.role`.
+
+
 ## Key facts
 - `UserProfile` primary key is `uid` (NOT `id`). `CustomerBike` has `category/categoryLabel/brand/model/...`, optional `scrapedData`, `aiIdentification`.
 - `addCustomerBike(bike)` adds to the *current user's* garage (`ShopContext.tsx`). `addCustomerBikeForUser(userId, bike)` adds to any user's garage — use this for staff-side flows. Both optimistically update `users`/`currentUser` then persist via `insertCustomerBikeToDb`.

@@ -1,6 +1,6 @@
 {
-  "name": "Stakey's Cycles Loyalty & Rewards",
-  "description": "Digital loyalty stamp card, weekly prize wheel roulette, grand prize draws, and staff terminal for Stakey's Cycles bike shop.",
+  "name": "Stakey's Cycles Staff Terminal",
+  "description": "Dedicated workshop staff terminal for Stakey's Cycles bike shop: bookings, till, customers, loyalty, prize draws and diagnostics. Authorized workshop personnel only.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

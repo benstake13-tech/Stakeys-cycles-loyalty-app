@@ -1,29 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  User,
-  Shield,
-  Layers,
-  LogOut,
-  Scan,
-  Wrench,
-  KeyRound,
-  X,
-  ShieldCheck,
-  AlertCircle,
-  Tag,
-  Menu,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  Loader2,
-} from 'lucide-react';
+import { LogOut, Scan, Layers, Menu, X, ShieldCheck, AlertCircle } from 'lucide-react';
 import { ShopProvider, useShop } from './context/ShopContext';
-import { LoginScreen } from './components/LoginScreen';
-import { ResetPasswordPage } from './components/ResetPasswordPage';
-import { CustomerPortal } from './components/CustomerPortal';
+import { StaffLoginScreen } from './components/StaffLoginScreen';
 import { StaffPortal } from './components/StaffPortal';
-import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
 import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner';
 import { StakeysLogo } from './components/StakeysLogo';
@@ -32,39 +11,37 @@ import { NavTabId } from './components/Navigation3DDeck';
 import { SHOP_SOCIAL_LINKS } from './data/socialLinks';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
-import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { LegalDisclaimersButton } from './components/LegalDisclaimers';
 import { Toaster } from 'react-hot-toast';
 import { initOneSignal, linkUser, relinkUser, unlinkUser } from './utils/pushNotifications';
 
+/**
+ * Staff-only build of the Stakey's Cycles app.
+ *
+ * This app intentionally ships none of the customer surfaces (customer portal,
+ * bookings, promotions, registration, guest booking or password recovery). Every
+ * visitor must sign in with an account whose Supabase role is `staff` or `admin`;
+ * a customer account is rejected at the login step and never reaches the
+ * terminal. The customer-facing app lives in a separate deployment.
+ */
 function AppContent() {
-  const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
+  const { currentUser, logoutUser, theme, bookings, seasonalTheme } = useShop();
   const isDark = theme === 'dark';
-  const [showGuestBooking, setShowGuestBooking] = useState(false);
-  const [activeTab, setActiveTab] = useState<NavTabId>('customer');
+  const [activeTab, setActiveTab] = useState<NavTabId>('staff');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Secure staff unlock modal (Supabase email + password, role verified server-side)
-  const [showStaffPinModal, setShowStaffPinModal] = useState(false);
-  const [staffEmail, setStaffEmail] = useState('');
-  const [staffPassword, setStaffPassword] = useState('');
-  const [showStaffPassword, setShowStaffPassword] = useState(false);
-  const [staffError, setStaffError] = useState<string | null>(null);
-  const [staffSubmitting, setStaffSubmitting] = useState(false);
 
   const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
   const freshBookingsCount = isStaff
     ? bookings.filter((b) => b.status === 'pending' || b.approvalStatus === 'pending_approval').length
     : 0;
 
-  // Keep activeTab in sync with user role changes without violating Hook rules
+  // The terminal is the staff landing view; keep the destination valid if the
+  // signed-in role ever changes without violating Hook rules.
   useEffect(() => {
-    if (currentUser) {
-      const isStaffUser = currentUser.role === 'staff' || currentUser.role === 'admin';
-      setActiveTab(isStaffUser ? 'staff' : 'customer');
-    }
-  }, [currentUser?.role, currentUser?.uid]);
+    if (currentUser && !isStaff) return;
+    if (activeTab !== 'staff' && activeTab !== 'deliverables') setActiveTab('staff');
+  }, [currentUser?.role]);
 
   // Return to the top whenever the destination changes so each view starts fresh
   useEffect(() => {
@@ -85,7 +62,7 @@ function AppContent() {
   useEffect(() => {
     if (currentUser) {
       pushLinkedRef.current = true;
-      void linkUser(currentUser.uid, { role: currentUser.role || 'customer' });
+      void linkUser(currentUser.uid, { role: currentUser.role || 'staff' });
     } else if (pushLinkedRef.current) {
       pushLinkedRef.current = false;
       void unlinkUser();
@@ -102,121 +79,52 @@ function AppContent() {
     return () => window.removeEventListener('focus', onFocus);
   }, [currentUser?.uid]);
 
-  const openStaffUnlock = () => {
-    setStaffError(null);
-    setStaffEmail('');
-    setStaffPassword('');
-    setShowStaffPassword(false);
-    setShowStaffPinModal(true);
-  };
-
-  const handleStaffUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setStaffError(null);
-
-    if (!staffEmail.trim() || !staffPassword) {
-      setStaffError('Enter your workshop email and password.');
-      return;
-    }
-
-    setStaffSubmitting(true);
-    try {
-      const res = await loginStaff(staffEmail.trim(), staffPassword);
-      if (res.success) {
-        setShowStaffPinModal(false);
-        setStaffPassword('');
-        setActiveTab('staff');
-      } else {
-        setStaffError(res.message || 'Access denied. Authorized workshop personnel only.');
-      }
-    } catch {
-      setStaffError('An unexpected error occurred. Please try again.');
-    } finally {
-      setStaffSubmitting(false);
-    }
-  };
-
-  const goToTab = (tab: NavTabId) => {
-    if (tab === 'staff' && !isStaff) {
-      openStaffUnlock();
-      return;
-    }
-    setActiveTab(tab);
-  };
-
-  // Primary destinations, shared by the desktop nav, mobile sheet and bottom bar
+  // Staff terminal destinations only — there are no customer tabs in this build.
   const navTabs: SegmentedTab<NavTabId>[] = [
     {
-      id: 'customer',
-      label: isStaff ? 'Customer Preview' : 'My Garage & Pass',
-      icon: User,
-      tone: 'emerald',
-      hint: 'Your bikes, loyalty pass and bookings',
-    },
-    { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
-    { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', hint: 'Current offers and rewards' },
-  ];
-
-  if (isStaff) {
-    navTabs.push({
       id: 'staff',
       label: 'Staff Terminal',
       icon: Scan,
       tone: 'emerald',
       badge: freshBookingsCount > 0 ? `${freshBookingsCount} new` : undefined,
       hint: 'Workshop terminal',
-    });
-    navTabs.push({ id: 'deliverables', label: 'Config', icon: Layers, tone: 'neutral', hint: 'Architecture & deliverables' });
-  }
-  // No "Staff Station" entry for customers: the workshop terminal is an
-  // administrative view and must not be advertised in the public interface.
-  // Staff still sign in from the login screen's Staff Station tab.
+    },
+    { id: 'deliverables', label: 'Config', icon: Layers, tone: 'neutral', hint: 'Architecture & deliverables' },
+  ];
 
-  // 1. FIRST SCREEN: If user is not authenticated, show LoginScreen or Guest Booking
+  // 1. FIRST SCREEN: staff sign-in only. There is no customer entry point here.
   if (!currentUser) {
-    // Password-recovery email lands on /reset-password — show the set-password
-    // page before the login screen so the recovery session can be used.
-    if (typeof window !== 'undefined' && window.location.pathname.replace(/\/+$/, '') === '/reset-password') {
-      return <ResetPasswordPage />;
-    }
-    if (showGuestBooking) {
-      return (
-        <div className={`min-h-screen ${isDark ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
-          <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
-                  <StakeysLogo className="w-9 h-9" />
-                </div>
-                <div>
-                  <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
-                    STAKEYS
-                    <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">
-                      Cycles &amp; Scooter
-                    </span>
-                  </span>
-                  <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Workshop Service Booking</div>
-                </div>
-              </div>
+    return <StaffLoginScreen />;
+  }
 
-              <div className="flex items-center gap-3">
-                <ThemeToggle showLabel={false} />
-                <button
-                  onClick={() => setShowGuestBooking(false)}
-                  className={`pressable px-4 py-2 rounded-xl ${isDark ? 'bg-neutral-800 hover:bg-neutral-700 text-white' : 'bg-neutral-200 hover:bg-neutral-300 text-neutral-900'} text-xs font-semibold cursor-pointer`}
-                >
-                  Back to Sign In
-                </button>
-              </div>
+  // 2. A customer account can never reach the terminal. If one somehow has a
+  //    session (e.g. an old customer token), deny access and offer a sign-out.
+  if (!isStaff) {
+    return (
+      <div className={`min-h-screen ${isDark ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
+        <main className="flex-1 flex items-center justify-center px-4 py-10">
+          <div className={`max-w-md w-full rounded-3xl border p-8 text-center space-y-4 ${isDark ? 'bg-[#0d1015] border-amber-500/40' : 'bg-white border-amber-400'}`}>
+            <ShieldCheck className="w-12 h-12 text-amber-400 mx-auto" />
+            <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Staff Access Only</h3>
+            <p className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+              This app is the dedicated workshop terminal. Signed-in customers are not permitted here — please
+              use the customer loyalty app instead.
+            </p>
+            <div className={`flex items-center justify-center gap-2 text-xs rounded-lg border px-3 py-2 ${isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-400' : 'border-neutral-200 bg-neutral-100 text-neutral-600'}`}>
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{currentUser.email || currentUser.displayName}</span>
             </div>
-          </header>
-          <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <BookingPortal onGoToMyBikes={() => setShowGuestBooking(false)} />
-          </main>
-        </div>
-      );
-    }
-    return <LoginScreen onGoToBooking={() => setShowGuestBooking(true)} />;
+            <button
+              type="button"
+              onClick={logoutUser}
+              className="pressable px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider cursor-pointer"
+            >
+              Sign Out
+            </button>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   return (
@@ -240,7 +148,7 @@ function AppContent() {
           {/* Brand */}
           <button
             type="button"
-            onClick={() => setActiveTab(isStaff ? 'staff' : 'customer')}
+            onClick={() => setActiveTab('staff')}
             className="flex items-center gap-3 shrink-0 cursor-pointer group"
           >
             <div className={`p-1 rounded-xl border text-emerald-400 transition-transform group-hover:scale-105 ${isDark ? 'bg-neutral-900 border-emerald-500/30' : 'bg-neutral-100 border-emerald-500/30'}`}>
@@ -248,31 +156,25 @@ function AppContent() {
             </div>
             <span className={`font-display font-extrabold text-lg tracking-tight flex items-baseline gap-1.5 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
               STAKEY'S
-              <span className="text-[#05C147] font-semibold text-xs tracking-wider uppercase font-sans">CYCLES</span>
+              <span className="text-[#05C147] font-semibold text-xs tracking-wider uppercase font-sans">STAFF</span>
             </span>
           </button>
 
           {/* Desktop navigation */}
           <nav className="hidden md:block">
-            <SegmentedTabs tabs={navTabs} active={activeTab} onChange={goToTab} ariaLabel="Primary navigation" />
+            <SegmentedTabs tabs={navTabs} active={activeTab} onChange={setActiveTab} ariaLabel="Staff navigation" />
           </nav>
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle showLabel={false} />
-            {/* Backend/Supabase diagnostics are an operator concern — only show
-                the status chip in the staff terminal, not to customers. */}
-            {isStaff && <ServiceStatusBadge variant="header" />}
+            <ServiceStatusBadge variant="header" />
 
             <div className={`hidden lg:flex items-center gap-2 text-xs ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
               <span className={`font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{currentUser.displayName}</span>
-              {isStaff ? (
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/50">
-                  Staff Verified
-                </span>
-              ) : (
-                <span className={`font-mono text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{currentUser.membershipNumber}</span>
-              )}
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/50">
+                Staff Verified
+              </span>
             </div>
 
             <button
@@ -315,7 +217,7 @@ function AppContent() {
                   <button
                     key={tab.id}
                     type="button"
-                    onClick={() => goToTab(tab.id)}
+                    onClick={() => setActiveTab(tab.id)}
                     className={`pressable flex items-center gap-2.5 rounded-xl border px-3 py-3 text-left text-xs font-semibold cursor-pointer ${
                       isActive
                         ? isDark
@@ -354,29 +256,8 @@ function AppContent() {
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 pb-28 md:pb-8 space-y-8">
         <div key={activeTab} className="animate-fade-in">
-          {activeTab === 'customer' && <CustomerPortal />}
-          {activeTab === 'booking' && <BookingPortal />}
-          {activeTab === 'promotions' && <PromotionsCarousel />}
-          {activeTab === 'staff' &&
-            (isStaff ? (
-              <StaffPortal />
-            ) : (
-              <div className={`max-w-md mx-auto rounded-3xl border p-8 text-center space-y-4 ${isDark ? 'bg-[#0d1015] border-amber-500/40' : 'bg-white border-amber-400'}`}>
-                <ShieldCheck className="w-12 h-12 text-amber-400 mx-auto" />
-                <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Staff Terminal Locked</h3>
-                <p className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                  The Workshop Terminal requires an authorized staff sign-in.
-                </p>
-                <button
-                  type="button"
-                  onClick={openStaffUnlock}
-                  className="pressable px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider cursor-pointer"
-                >
-                  Staff Sign In
-                </button>
-              </div>
-            ))}
-          {activeTab === 'deliverables' && isStaff && <DeliverablesViewer />}
+          {activeTab === 'staff' && <StaffPortal />}
+          {activeTab === 'deliverables' && <DeliverablesViewer />}
         </div>
       </main>
 
@@ -387,31 +268,28 @@ function AppContent() {
         }`}
         aria-label="Quick navigation"
       >
-        <div className="grid grid-cols-4">
-          {navTabs
-            .filter((t) => t.id !== 'deliverables')
-            .slice(0, 4)
-            .map((tab) => {
-              const Icon = tab.icon!;
-              const isActive = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => goToTab(tab.id)}
-                  className={`pressable relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold cursor-pointer ${
-                    isActive ? 'text-emerald-400' : isDark ? 'text-neutral-500' : 'text-neutral-500'
-                  }`}
-                >
-                  {isActive && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-emerald-400" />}
-                  <Icon className="w-5 h-5" />
-                  <span className="truncate max-w-full px-1">{tab.label.split(' ')[0]}</span>
-                  {tab.badge !== undefined && (
-                    <span className="absolute top-1.5 right-1/4 w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  )}
-                </button>
-              );
-            })}
+        <div className="grid grid-cols-2">
+          {navTabs.map((tab) => {
+            const Icon = tab.icon!;
+            const isActive = tab.id === activeTab;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`pressable relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold cursor-pointer ${
+                  isActive ? 'text-emerald-400' : isDark ? 'text-neutral-500' : 'text-neutral-500'
+                }`}
+              >
+                {isActive && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-emerald-400" />}
+                <Icon className="w-5 h-5" />
+                <span className="truncate max-w-full px-1">{tab.label.split(' ')[0]}</span>
+                {tab.badge !== undefined && (
+                  <span className="absolute top-1.5 right-1/4 w-1.5 h-1.5 rounded-full bg-amber-400" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </nav>
 
@@ -421,7 +299,7 @@ function AppContent() {
           <div className={`flex items-center gap-2.5 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
             <StakeysLogo className="w-6 h-6" />
             <span className={`font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Stakey's Cycles &amp; Scooter</span>
-            <span className="hidden sm:inline">• Workshop Repairs &amp; Customer Loyalty</span>
+            <span className="hidden sm:inline">• Staff Terminal</span>
           </div>
           <div className="flex items-center gap-4 text-[11px]">
             <div className="flex items-center gap-2">
@@ -450,99 +328,6 @@ function AppContent() {
           </div>
         </div>
       </footer>
-
-      {/* Secure staff sign-in modal */}
-      {showStaffPinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <form
-            onSubmit={handleStaffUnlock}
-            className={`w-full max-w-sm rounded-2xl border p-6 space-y-4 shadow-2xl animate-pop ${
-              isDark ? 'bg-[#0d1015] border-neutral-800' : 'bg-white border-neutral-200'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className={`font-display text-lg font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                <KeyRound className="w-5 h-5 text-amber-400" />
-                Staff Terminal Access
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowStaffPinModal(false)}
-                aria-label="Close"
-                className={`pressable p-1.5 rounded-lg cursor-pointer ${isDark ? 'text-neutral-400 hover:text-white hover:bg-neutral-800' : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'}`}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-              Sign in with your authorized workshop account. Access is verified against your staff role in Supabase.
-            </p>
-
-            {staffError && (
-              <div className="flex items-center gap-2 rounded-lg border border-rose-700 bg-rose-950/60 px-3 py-2 text-xs text-rose-200">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{staffError}</span>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div className={`flex items-center gap-2 rounded-xl border px-3 ${isDark ? 'bg-[#090b0e] border-neutral-800' : 'bg-neutral-50 border-neutral-300'}`}>
-                <Mail className="w-4 h-4 text-neutral-500 shrink-0" />
-                <input
-                  type="email"
-                  autoComplete="username"
-                  autoFocus
-                  value={staffEmail}
-                  onChange={(e) => setStaffEmail(e.target.value)}
-                  placeholder="staff@stakeyscycles.co.uk"
-                  className={`w-full bg-transparent py-3 text-sm focus:outline-none ${isDark ? 'text-white' : 'text-neutral-900'}`}
-                />
-              </div>
-
-              <div className={`flex items-center gap-2 rounded-xl border px-3 ${isDark ? 'bg-[#090b0e] border-neutral-800' : 'bg-neutral-50 border-neutral-300'}`}>
-                <Lock className="w-4 h-4 text-neutral-500 shrink-0" />
-                <input
-                  type={showStaffPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={staffPassword}
-                  onChange={(e) => setStaffPassword(e.target.value)}
-                  placeholder="Password"
-                  className={`w-full bg-transparent py-3 text-sm focus:outline-none ${isDark ? 'text-white' : 'text-neutral-900'}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowStaffPassword((v) => !v)}
-                  aria-label={showStaffPassword ? 'Hide password' : 'Show password'}
-                  className="text-neutral-500 hover:text-neutral-300 cursor-pointer"
-                >
-                  {showStaffPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowStaffPinModal(false)}
-                className={`pressable flex-1 rounded-xl border px-4 py-2.5 text-xs font-semibold cursor-pointer ${
-                  isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-300' : 'border-neutral-300 bg-neutral-100 text-neutral-700'
-                }`}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={staffSubmitting}
-                className="pressable flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-950 cursor-pointer disabled:opacity-60"
-              >
-                {staffSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                <span>{staffSubmitting ? 'Verifying' : 'Unlock'}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
       </div>
     </div>
   );
