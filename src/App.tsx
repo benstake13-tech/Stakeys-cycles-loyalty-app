@@ -31,6 +31,7 @@ import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
 import { SHOP_SOCIAL_LINKS } from './shared/data/socialLinks';
+import AppSwitcherButton from './shared/components/AppSwitcherButton';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
@@ -259,6 +260,10 @@ function AppContent() {
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Cross-app switcher: jumps to the public website and (for staff)
+                the workshop terminal, so the three apps stay one click apart.
+                The staff entry stays concealed from customers. */}
+            <AppSwitcherButton current="customer" compact showStaff={isStaff} />
             <ThemeToggle showLabel={false} />
             {/* Backend/Supabase diagnostics are an operator concern — only show
                 the status chip in the staff terminal, not to customers. */}

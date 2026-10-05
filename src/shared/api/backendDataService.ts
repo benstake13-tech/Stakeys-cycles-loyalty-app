@@ -23,7 +23,9 @@ import {
   RepairInvoice,
   StaffMember,
   ShopPromotion,
+  StakeyAvatarConfig,
 } from '../types/bikeShop';
+import { normalizeStakeyAvatarConfig } from '../data/stakeyAvatar';
 
 export interface DatabaseSyncStatus {
   lastSyncAt: string;
@@ -1246,6 +1248,8 @@ export interface AppSettings {
   smsAlertsEnabled: boolean;
   businessName: string;
   automatedRemindersEnabled: boolean;
+  /** Virtual Stakey — the staff-authored helper avatar shown to customers. */
+  stakeyAvatar?: StakeyAvatarConfig;
 }
 
 export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | null> {
@@ -1270,6 +1274,7 @@ export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | n
       businessName: row.business_name || undefined,
       automatedRemindersEnabled:
         row.automated_reminders_enabled == null ? undefined : row.automated_reminders_enabled === true,
+      stakeyAvatar: row.stakey_avatar ? normalizeStakeyAvatarConfig(row.stakey_avatar) : undefined,
     };
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] fetchAppSettingsFromDb:', err);
@@ -1289,8 +1294,17 @@ export async function upsertAppSettingsToDb(settings: Partial<AppSettings>): Pro
     if (settings.automatedRemindersEnabled !== undefined) {
       payload.automated_reminders_enabled = settings.automatedRemindersEnabled;
     }
+    if (settings.stakeyAvatar !== undefined) payload.stakey_avatar = settings.stakeyAvatar;
     const { error } = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
     if (error) {
+      // The `stakey_avatar` column may not exist on an older project. Fall back
+      // to persisting the rest of the settings so nothing else regresses.
+      if (isMissingColumnError(error) && 'stakey_avatar' in payload) {
+        console.warn('[SUPABASE NET] app_settings.stakey_avatar missing — retrying without it.');
+        delete payload.stakey_avatar;
+        const retry = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
+        return !retry.error;
+      }
       console.error('[SUPABASE NET ERROR] upsert app_settings failed:', error.message);
       return false;
     }

@@ -523,3 +523,20 @@ export interface OwnerNotificationConfig {
   businessName: string;
 }
 
+/* ------------------------------------------------------------------ *
+ * Virtual Stakey — the animated AI helper avatar
+ * ------------------------------------------------------------------ */
+
+export type StakeyAvatarVoiceStyle = 'warm' | 'bright' | 'calm' | 'energetic';
+
+/** A staff-authored, customer-facing helper character ("Virtual Stakey"). */
+export interface StakeyAvatarConfig {
+  enabled: boolean;
+  name: string;
+  voiceStyle: StakeyAvatarVoiceStyle;
+  /** Opt-in: speak answers aloud via the browser speech engine. */
+  voiceEnabled: boolean;
+  /** Staff guidance layered on top of the built-in knowledge. */
+  persona: string;
+}
+

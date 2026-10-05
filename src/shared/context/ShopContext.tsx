@@ -23,8 +23,10 @@ import {
   SalePaymentMethod,
   RepairStageId,
   RepairProgressEvent,
+  StakeyAvatarConfig,
 } from '../types/bikeShop';
 import { normalizeAvatar, normalizeAvatarImage, type AvatarConfig, type AvatarImage } from '../types/avatar';
+import { DEFAULT_STAKEY_AVATAR, normalizeStakeyAvatarConfig } from '../data/stakeyAvatar';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
   makeRepairEvent,
@@ -129,6 +131,9 @@ interface ShopContextType {
   // 24-Hour Reminder & SMS Actions
   automatedRemindersEnabled: boolean;
   setAutomatedRemindersEnabled: (enabled: boolean) => void;
+  /** Virtual Stakey — the staff-authored helper avatar shown to customers. */
+  stakeyAvatar: StakeyAvatarConfig;
+  updateStakeyAvatar: (config: Partial<StakeyAvatarConfig>) => void;
   bookingsDueIn24h: ServiceBooking[];
   dispatch24hReminderForBooking: (bookingId: string) => Promise<boolean>;
   latestSmsAlert: {
@@ -1225,6 +1230,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           businessName: remoteSettings.businessName ?? prev.businessName,
         })
       );
+      if (remoteSettings.stakeyAvatar) {
+        setStakeyAvatar((prev) => keepIfEqual(prev, remoteSettings.stakeyAvatar!));
+      }
     }
 
     if (currentUser) {
@@ -1293,6 +1301,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (typeof settings.automatedRemindersEnabled === 'boolean') {
           setAutomatedRemindersEnabled(settings.automatedRemindersEnabled);
         }
+        if (settings.stakeyAvatar) setStakeyAvatar(settings.stakeyAvatar);
       }
     }).catch(() => {});
 
@@ -1419,6 +1428,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       return true;
     }
+  });
+
+  // Virtual Stakey — the staff-authored helper avatar shown to customers.
+  const [stakeyAvatar, setStakeyAvatar] = useState<StakeyAvatarConfig>(() => {
+    try {
+      const cached = localStorage.getItem('stakeys_stakey_avatar');
+      if (cached) return normalizeStakeyAvatarConfig(JSON.parse(cached));
+    } catch {
+      /* ignore malformed cache */
+    }
+    return { ...DEFAULT_STAKEY_AVATAR };
   });
 
   // Recent SMS alert toast / banner state
@@ -1904,6 +1924,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
     return { success: true, message: avatarImage ? 'Portrait saved.' : 'Portrait removed.' };
+  };
+
+  const updateStakeyAvatar = (config: Partial<StakeyAvatarConfig>) => {
+    setStakeyAvatar((prev) => {
+      const next = normalizeStakeyAvatarConfig({ ...prev, ...config });
+      try {
+        localStorage.setItem('stakeys_stakey_avatar', JSON.stringify(next));
+      } catch {
+        /* storage unavailable — the in-memory state still applies */
+      }
+      upsertAppSettingsToDb({ stakeyAvatar: next }).catch((e) =>
+        console.warn('[DB SYNC] updateStakeyAvatar persist failed:', e)
+      );
+      return next;
+    });
   };
 
   // Manual Customer Point & Balance Adjustment for Staff Database
@@ -3442,6 +3477,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateBikeComponent,
         automatedRemindersEnabled,
         setAutomatedRemindersEnabled,
+        stakeyAvatar,
+        updateStakeyAvatar,
         bookingsDueIn24h,
         dispatch24hReminderForBooking,
         latestSmsAlert,
