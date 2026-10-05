@@ -147,6 +147,8 @@ export interface BikeDetails {
   conversionSystem?: string;
   /** Where the battery sits: frame-integrated, rack, downtube, seat-tube… */
   batteryPosition?: string;
+  /** Nominal system voltage, e.g. "48 V (13S)". */
+  systemVoltage?: string;
   /** How the motor drives the wheel. */
   driveType?: string;
   /** Free-text motor/battery details the customer wants the mechanic to know. */

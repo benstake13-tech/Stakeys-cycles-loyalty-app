@@ -69,6 +69,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     ebikeStatus: initialBike?.bikeDetails?.ebikeStatus || '',
     conversionSystem: initialBike?.bikeDetails?.conversionSystem || '',
     batteryPosition: initialBike?.bikeDetails?.batteryPosition || '',
+    systemVoltage: initialBike?.bikeDetails?.systemVoltage || '',
     driveType: initialBike?.bikeDetails?.driveType || '',
     motorDetails: initialBike?.bikeDetails?.motorDetails || '',
   }));
@@ -173,6 +174,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       ebikeStatus: found.bikeDetails?.ebikeStatus || prev.ebikeStatus,
       conversionSystem: found.bikeDetails?.conversionSystem || '',
       batteryPosition: found.bikeDetails?.batteryPosition || '',
+      systemVoltage: found.bikeDetails?.systemVoltage || '',
       driveType: found.bikeDetails?.driveType || '',
       motorDetails: found.bikeDetails?.motorDetails || '',
     }));
@@ -387,6 +389,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         ebikeLabel ? `E-Bike: ${ebikeLabel}` : '',
         bikeIdentity.conversionSystem ? `Motor/system: ${bikeIdentity.conversionSystem}` : '',
         bikeIdentity.batteryPosition ? `Battery: ${bikeIdentity.batteryPosition}` : '',
+        bikeIdentity.systemVoltage ? `Voltage: ${bikeIdentity.systemVoltage}` : '',
         bikeIdentity.driveType ? `Drive: ${bikeIdentity.driveType}` : '',
         bikeIdentity.motorDetails ? `Motor notes: ${bikeIdentity.motorDetails}` : '',
       ]

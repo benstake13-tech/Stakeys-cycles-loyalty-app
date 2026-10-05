@@ -197,6 +197,7 @@ export const PhoneBookingPanel: React.FC = () => {
       bikeIdentity.ebikeStatus ? `E-Bike: ${bikeIdentity.ebikeStatus}` : '',
       bikeIdentity.conversionSystem ? `Motor/system: ${bikeIdentity.conversionSystem}` : '',
       bikeIdentity.batteryPosition ? `Battery: ${bikeIdentity.batteryPosition}` : '',
+      bikeIdentity.systemVoltage ? `Voltage: ${bikeIdentity.systemVoltage}` : '',
       bikeIdentity.driveType ? `Drive: ${bikeIdentity.driveType}` : '',
     ]
       .filter(Boolean)

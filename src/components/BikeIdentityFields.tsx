@@ -14,6 +14,8 @@ import {
   BIKE_YEAR_OPTIONS,
   EbikeStatus,
 } from '../data/bikeCatalog';
+import { EV_SYSTEM_VOLTAGE_OPTIONS } from '../data/evReference';
+import { EvReferenceGuide } from './EvReferenceGuide';
 import { VehicleCategory } from '../types/bikeShop';
 
 /** The subset of bike identity this component owns. */
@@ -29,6 +31,7 @@ export interface BikeIdentityValue {
   ebikeStatus: EbikeStatus | '';
   conversionSystem: string;
   batteryPosition: string;
+  systemVoltage: string;
   driveType: string;
   motorDetails: string;
 }
@@ -45,6 +48,7 @@ export const EMPTY_BIKE_IDENTITY: BikeIdentityValue = {
   ebikeStatus: '',
   conversionSystem: '',
   batteryPosition: '',
+  systemVoltage: '',
   driveType: '',
   motorDetails: '',
 };
@@ -382,7 +386,7 @@ export const BikeIdentityFields: React.FC<Props> = ({
         </div>
 
         {showEbikeQuestions && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
             <div>
               <label className={labelClass} htmlFor={`${idPrefix}-motor`}>
                 Motor / System
@@ -419,6 +423,27 @@ export const BikeIdentityFields: React.FC<Props> = ({
                   {EBIKE_BATTERY_POSITIONS.map((b) => (
                     <option key={b} value={b} className="bg-neutral-950 text-white">
                       {b}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor={`${idPrefix}-voltage`}>
+                System Voltage
+              </label>
+              <div className="relative">
+                <select
+                  id={`${idPrefix}-voltage`}
+                  value={value.systemVoltage}
+                  onChange={(e) => onChange({ systemVoltage: e.target.value })}
+                  className={`${fieldClass} appearance-none cursor-pointer`}
+                >
+                  <option value="">Not sure</option>
+                  {EV_SYSTEM_VOLTAGE_OPTIONS.map((v) => (
+                    <option key={v} value={v} className="bg-neutral-950 text-white">
+                      {v}
                     </option>
                   ))}
                 </select>
@@ -471,6 +496,8 @@ export const BikeIdentityFields: React.FC<Props> = ({
             />
           </div>
         )}
+
+        {showEbikeQuestions && <EvReferenceGuide idPrefix={idPrefix} />}
       </div>
     </div>
   );
@@ -482,6 +509,7 @@ export function toBikeDetails(value: BikeIdentityValue) {
   if (value.ebikeStatus) details.ebikeStatus = value.ebikeStatus;
   if (value.conversionSystem) details.conversionSystem = value.conversionSystem;
   if (value.batteryPosition) details.batteryPosition = value.batteryPosition;
+  if (value.systemVoltage) details.systemVoltage = value.systemVoltage;
   if (value.driveType) details.driveType = value.driveType;
   if (value.motorDetails) details.motorDetails = value.motorDetails;
   if (value.serialNumber) details.serialNumber = value.serialNumber;
