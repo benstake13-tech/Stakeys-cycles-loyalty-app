@@ -1078,3 +1078,21 @@ export function isCustomModel(model: string): boolean {
   const m = (model || '').toLowerCase();
   return m.includes('other') || m.includes('custom build') || m.includes('vintage');
 }
+
+/** True when a vehicle category is an e-scooter (not a bicycle / e-bike). */
+export function isScooterCategory(category: string | undefined | null): boolean {
+  return (category || '').toLowerCase() === 'electric_scooter';
+}
+
+/**
+ * Split the brand table into the two sections the picker shows: pedal/e-bikes
+ * and e-scooters. A brand that builds both (e.g. Pure Electric) appears in
+ * each section. "Other / Not Listed" always lands in the bicycle section.
+ */
+export function bicycleBrandProfiles(): BikeBrandProfile[] {
+  return BIKE_BRAND_PROFILES.filter((b) => !b.types.every((t) => t === 'E-Scooter'));
+}
+
+export function scooterBrandProfiles(): BikeBrandProfile[] {
+  return BIKE_BRAND_PROFILES.filter((b) => b.types.includes('E-Scooter'));
+}

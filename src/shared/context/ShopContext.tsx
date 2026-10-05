@@ -25,6 +25,7 @@ import {
   RepairProgressEvent,
   StakeyAvatarConfig,
 } from '../types/bikeShop';
+import { normalizeAvatar, normalizeAvatarImage, type AvatarConfig, type AvatarImage } from '../types/avatar';
 import { DEFAULT_STAKEY_AVATAR, normalizeStakeyAvatarConfig } from '../data/stakeyAvatar';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
@@ -117,8 +118,6 @@ interface ShopContextType {
   ownerConfig: OwnerNotificationConfig;
   latestDispatchedBooking: ServiceBooking | null;
   clearLatestDispatchedBooking: () => void;
-  // Virtual Stakey — the animated AI helper avatar (authored by staff, shown to customers)
-  stakeyAvatar: StakeyAvatarConfig;
   // Database Synchronization Status
   refreshDatabaseState: () => Promise<void>;
   isDatabaseSyncing: boolean;
@@ -132,6 +131,9 @@ interface ShopContextType {
   // 24-Hour Reminder & SMS Actions
   automatedRemindersEnabled: boolean;
   setAutomatedRemindersEnabled: (enabled: boolean) => void;
+  /** Virtual Stakey — the staff-authored helper avatar shown to customers. */
+  stakeyAvatar: StakeyAvatarConfig;
+  updateStakeyAvatar: (config: Partial<StakeyAvatarConfig>) => void;
   bookingsDueIn24h: ServiceBooking[];
   dispatch24hReminderForBooking: (bookingId: string) => Promise<boolean>;
   latestSmsAlert: {
@@ -300,6 +302,12 @@ interface ShopContextType {
     options?: { note?: string }
   ) => Promise<{ success: boolean; message?: string }>;
   resolveScannedMember: (rawCode: string) => Promise<UserProfile | null>;
+  /** Save the signed-in customer's Bitmoji-style avatar. */
+  saveMyAvatar: (config: AvatarConfig) => Promise<{ success: boolean; message?: string }>;
+  /** Save (or clear) the generated HD likeness portrait. */
+  saveMyAvatarImage: (
+    image: AvatarImage | null
+  ) => Promise<{ success: boolean; message?: string }>;
   addRepairProgressNote: (
     bookingId: string,
     note: string,
@@ -319,7 +327,6 @@ interface ShopContextType {
     paymentStatus: 'unpaid' | 'paid_card' | 'paid_cash' | 'paid_online'
   ) => Promise<void>;
   updateOwnerConfig: (config: Partial<OwnerNotificationConfig>) => void;
-  updateStakeyAvatar: (config: Partial<StakeyAvatarConfig>) => void;
   resetAllDemoData: () => void;
   hardResetApp: () => void;
   // Staff loud booking alert & push notifications
@@ -1141,6 +1148,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastSpunAt: remoteProfile?.lastSpunAt !== undefined ? remoteProfile.lastSpunAt : user.lastSpunAt,
         displayName: remoteProfile?.displayName || user.displayName,
         phoneNumber: remoteProfile?.phoneNumber || user.phoneNumber,
+        avatar: remoteProfile?.avatar || user.avatar,
+        avatarImage: remoteProfile?.avatarImage || user.avatarImage,
         serviceVouchers:
           remoteVouchers && remoteVouchers.length > 0
             ? remoteVouchers
@@ -1404,17 +1413,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     businessName: 'Stakey\'s Cycles',
   });
 
-  // Virtual Stakey — the staff-authored helper avatar shown to customers.
-  const [stakeyAvatar, setStakeyAvatar] = useState<StakeyAvatarConfig>(() => {
-    try {
-      const cached = localStorage.getItem('stakeys_stakey_avatar');
-      if (cached) return normalizeStakeyAvatarConfig(JSON.parse(cached));
-    } catch {
-      /* ignore malformed cache */
-    }
-    return { ...DEFAULT_STAKEY_AVATAR };
-  });
-
   // Track the most recently placed booking for live modal notification preview
   const [latestDispatchedBooking, setLatestDispatchedBooking] = useState<ServiceBooking | null>(null);
 
@@ -1430,6 +1428,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       return true;
     }
+  });
+
+  // Virtual Stakey — the staff-authored helper avatar shown to customers.
+  const [stakeyAvatar, setStakeyAvatar] = useState<StakeyAvatarConfig>(() => {
+    try {
+      const cached = localStorage.getItem('stakeys_stakey_avatar');
+      if (cached) return normalizeStakeyAvatarConfig(JSON.parse(cached));
+    } catch {
+      /* ignore malformed cache */
+    }
+    return { ...DEFAULT_STAKEY_AVATAR };
   });
 
   // Recent SMS alert toast / banner state
@@ -1865,6 +1874,71 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
     toast.success(`Redeemed: ${rewardDescription}`);
     return { success: true, message: `Redeemed: ${rewardDescription}` };
+  };
+
+  // Bitmoji-style rider avatar (customer self-service)
+  const saveMyAvatar = async (
+    config: AvatarConfig
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = currentUser;
+    if (!target) return { success: false, message: 'You need to be signed in to save an avatar.' };
+
+    const avatar = normalizeAvatar(config);
+    const updatedUser: UserProfile = { ...target, avatar };
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.uid === target.uid ? updatedUser : u)));
+
+    const ok = await updateUserProfileInDb(target.uid, target.membershipNumber, { avatar });
+    if (!ok) {
+      return {
+        success: false,
+        message: 'Saved on this device, but the cloud sync failed — try again once you are online.',
+      };
+    }
+    return { success: true, message: 'Avatar saved.' };
+  };
+
+  // Generated HD likeness portrait (customer self-service)
+  const saveMyAvatarImage = async (
+    image: AvatarImage | null
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = currentUser;
+    if (!target) {
+      return { success: false, message: 'You need to be signed in to save an avatar.' };
+    }
+
+    const avatarImage = image ? normalizeAvatarImage(image) : undefined;
+    if (image && !avatarImage) {
+      return { success: false, message: 'That image was too large or in an unsupported format.' };
+    }
+
+    const updatedUser: UserProfile = { ...target, avatarImage };
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.uid === target.uid ? updatedUser : u)));
+
+    const ok = await updateUserProfileInDb(target.uid, target.membershipNumber, { avatarImage });
+    if (!ok) {
+      return {
+        success: false,
+        message: 'Saved on this device, but the cloud sync failed — try again once you are online.',
+      };
+    }
+    return { success: true, message: avatarImage ? 'Portrait saved.' : 'Portrait removed.' };
+  };
+
+  const updateStakeyAvatar = (config: Partial<StakeyAvatarConfig>) => {
+    setStakeyAvatar((prev) => {
+      const next = normalizeStakeyAvatarConfig({ ...prev, ...config });
+      try {
+        localStorage.setItem('stakeys_stakey_avatar', JSON.stringify(next));
+      } catch {
+        /* storage unavailable — the in-memory state still applies */
+      }
+      upsertAppSettingsToDb({ stakeyAvatar: next }).catch((e) =>
+        console.warn('[DB SYNC] updateStakeyAvatar persist failed:', e)
+      );
+      return next;
+    });
   };
 
   // Manual Customer Point & Balance Adjustment for Staff Database
@@ -3291,21 +3365,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const updateStakeyAvatar = (config: Partial<StakeyAvatarConfig>) => {
-    setStakeyAvatar((prev) => {
-      const next = normalizeStakeyAvatarConfig({ ...prev, ...config });
-      try {
-        localStorage.setItem('stakeys_stakey_avatar', JSON.stringify(next));
-      } catch {
-        /* storage unavailable — the in-memory state still applies */
-      }
-      upsertAppSettingsToDb({ stakeyAvatar: next }).catch((e) =>
-        console.warn('[DB SYNC] updateStakeyAvatar persist failed:', e)
-      );
-      return next;
-    });
-  };
-
   const resetAllDemoData = () => {
     localStorage.clear();
     window.location.reload();
@@ -3409,8 +3468,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ownerConfig,
         latestDispatchedBooking,
         clearLatestDispatchedBooking,
-        stakeyAvatar,
-        updateStakeyAvatar,
         refreshDatabaseState,
         isDatabaseSyncing,
         serviceStatus,
@@ -3420,6 +3477,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateBikeComponent,
         automatedRemindersEnabled,
         setAutomatedRemindersEnabled,
+        stakeyAvatar,
+        updateStakeyAvatar,
         bookingsDueIn24h,
         dispatch24hReminderForBooking,
         latestSmsAlert,
@@ -3490,6 +3549,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRepairStage,
         setRepairEstimate,
         resolveScannedMember,
+        saveMyAvatar,
+        saveMyAvatarImage,
         addRepairProgressNote,
         updateBookingQuote,
         deleteBooking,

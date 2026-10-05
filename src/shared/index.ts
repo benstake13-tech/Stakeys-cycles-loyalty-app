@@ -14,6 +14,13 @@
  * or a deep path (`@shared/utils/loyaltyCard`) when you want a single module.
  */
 export * from './types/bikeShop';
+export {
+  STAKEY_APPS,
+  APP_DEEP_LINKS,
+  appPath,
+  type AppId,
+  type StakeyApp,
+} from './data/appLinks';
 export { ShopProvider, useShop } from './context/ShopContext';
 export {
   DEFAULT_SUPABASE_URL,
