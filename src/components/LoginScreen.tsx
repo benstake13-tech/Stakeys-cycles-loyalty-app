@@ -348,6 +348,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               <span className="font-display text-lg font-extrabold text-white">STAKEY'S</span>
             </div>
             <div className="ml-auto flex items-center gap-1">
+              {/* Staff entry is intentionally camouflaged: no visible icon until
+                  hovered/focused, so the customer login looks staff-free. The
+                  Staff Station itself is fully intact — just not advertised. */}
               <button
                 type="button"
                 aria-label="Staff access"
@@ -356,7 +359,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                   setMode('staff');
                   setError(null);
                 }}
-                className="p-2 rounded-lg text-neutral-600 hover:text-neutral-300 hover:bg-neutral-800/60 transition-colors cursor-pointer"
+                className="p-2 rounded-lg opacity-0 hover:opacity-100 focus-visible:opacity-100 text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800/60 transition-opacity cursor-pointer"
               >
                 <Shield className="w-4 h-4" />
               </button>
