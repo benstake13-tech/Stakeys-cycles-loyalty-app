@@ -11,7 +11,7 @@ const hoisted = vi.hoisted(() => ({
   updateResults: [] as any[],
 }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     from: (table: string) => ({
       insert: (payload: any) => {
@@ -45,7 +45,7 @@ vi.mock('./src/lib/supabase', () => ({
   }),
 }));
 
-import { insertStampLogToDb, ensureProfileRowInDb, updateUserProfileInDb, updateCounterSaleInDb } from './src/api/backendDataService';
+import { insertStampLogToDb, ensureProfileRowInDb, updateUserProfileInDb, updateCounterSaleInDb } from './src/shared/api/backendDataService';
 
 const log = {
   id: 'log-1',

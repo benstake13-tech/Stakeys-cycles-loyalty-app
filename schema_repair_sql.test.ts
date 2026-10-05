@@ -4,7 +4,7 @@ import {
   generateProfileBalanceProbeSql,
   isSyntheticProfileIdIssue,
   planBalanceProbe,
-} from './src/utils/schemaSync';
+} from './src/shared/utils/schemaSync';
 
 describe('generateRepairSqlForTables', () => {
   it('produces a focused, idempotent repair for the profiles table', () => {

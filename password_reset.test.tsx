@@ -12,7 +12,7 @@ const hoisted = vi.hoisted(() => ({
   addCustomerBike: vi.fn(async () => ({ success: true })),
 }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({
     loginWithCredentials: hoisted.loginWithCredentials,
     loginStaff: hoisted.loginStaff,
@@ -27,7 +27,7 @@ vi.mock('./src/context/ShopContext', () => ({
 vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
 
 // The reset page asks Supabase whether a recovery session already exists.
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   supabase: {
     auth: {
       getSession: async () => ({ data: { session: { user: { id: 'u1' } } } }),

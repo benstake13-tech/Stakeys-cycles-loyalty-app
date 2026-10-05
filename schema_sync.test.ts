@@ -5,7 +5,7 @@ import {
   EXPECTED_SCHEMA,
   expectedColumns,
   generateSchemaSyncSql,
-} from './src/utils/schemaSync';
+} from './src/shared/utils/schemaSync';
 
 // The audit hits the network; stub fetch per test.
 const realFetch = globalThis.fetch;
@@ -152,7 +152,7 @@ describe('auditLiveSchema', () => {
 
     // getStoredSupabaseAnonKey reads localStorage, which jsdom provides.
     localStorage.setItem('stakeys_supabase_anon_key', 'test-anon-key');
-    const { auditLiveSchema } = await import('./src/utils/schemaSync');
+    const { auditLiveSchema } = await import('./src/shared/utils/schemaSync');
     const report = await auditLiveSchema();
 
     expect(report.reachable).toBe(true);

@@ -11,7 +11,7 @@ import {
   AlertCircle,
   HelpCircle,
 } from 'lucide-react';
-import { PrizeWheel, PrizeWheelSegment } from '../types/bikeShop';
+import { PrizeWheel, PrizeWheelSegment } from '../shared/types/bikeShop';
 
 interface WheelEditorModalProps {
   wheel: PrizeWheel;

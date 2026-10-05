@@ -20,13 +20,13 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import { BusinessPerformanceTab } from './BusinessPerformanceTab';
 import {
   weeklyServiceRequests,
   callLog,
   summarizePerformance,
-} from '../utils/performanceTracker';
+} from '../shared/utils/performanceTracker';
 
 const cardCls = 'bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl';
 

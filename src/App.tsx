@@ -18,7 +18,7 @@ import {
   EyeOff,
   Loader2,
 } from 'lucide-react';
-import { ShopProvider, useShop } from './context/ShopContext';
+import { ShopProvider, useShop } from './shared/context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { CustomerPortal } from './components/CustomerPortal';
@@ -29,14 +29,14 @@ import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner'
 import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
-import { SHOP_SOCIAL_LINKS } from './data/socialLinks';
+import { SHOP_SOCIAL_LINKS } from './shared/data/socialLinks';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { LegalDisclaimersButton } from './components/LegalDisclaimers';
 import { Toaster } from 'react-hot-toast';
-import { initOneSignal, linkUser, relinkUser, unlinkUser } from './utils/pushNotifications';
+import { initOneSignal, linkUser, relinkUser, unlinkUser } from './shared/utils/pushNotifications';
 
 function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();

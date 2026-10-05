@@ -11,9 +11,9 @@ import {
   ChevronDown,
   Database,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { staffAccountsInstalled } from '../api/backendDataService';
-import { getStoredSupabaseUrl } from '../supabase';
+import { useShop } from '../shared/context/ShopContext';
+import { staffAccountsInstalled } from '../shared/api/backendDataService';
+import { getStoredSupabaseUrl } from '../shared/supabase';
 // Bundled at build time so staff always copy the exact script this build expects.
 import staffAccountsSql from '../../supabase/migrations/20261004_staff_accounts.sql?raw';
 

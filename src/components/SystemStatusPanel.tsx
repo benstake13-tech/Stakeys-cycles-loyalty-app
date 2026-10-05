@@ -15,11 +15,11 @@ import {
   Server,
   ShieldCheck,
 } from 'lucide-react';
-import { getStoredSupabaseUrl, getStoredSupabaseAnonKey, getSupabaseClient } from '../supabase';
-import { deriveProjectRef } from '../utils/emailSetup';
-import { getPushPermission } from '../utils/pushNotifications';
-import { fetchPushConfig } from '../utils/pushSetup';
-import { deployAllFunctionsPrompt, envTemplate, secretsPrompt, webhookTriggerSql } from '../utils/bookingAlertsSetup';
+import { getStoredSupabaseUrl, getStoredSupabaseAnonKey, getSupabaseClient } from '../shared/supabase';
+import { deriveProjectRef } from '../shared/utils/emailSetup';
+import { getPushPermission } from '../shared/utils/pushNotifications';
+import { fetchPushConfig } from '../shared/utils/pushSetup';
+import { deployAllFunctionsPrompt, envTemplate, secretsPrompt, webhookTriggerSql } from '../shared/utils/bookingAlertsSetup';
 import {
   runNotificationSystemTests,
   summarizeSystem,
@@ -27,7 +27,7 @@ import {
   type SystemCheck,
   type SystemGroup,
   type SystemStatus,
-} from '../utils/notificationDiagnostics';
+} from '../shared/utils/notificationDiagnostics';
 
 const GROUP_ORDER: SystemGroup[] = ['pipeline', 'email', 'push'];
 

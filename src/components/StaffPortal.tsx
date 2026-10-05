@@ -46,8 +46,8 @@ import {
   Mail,
   Smartphone,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
+import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../shared/types/bikeShop';
 
 import { PrizeWheelModal } from './PrizeWheelModal';
 import { WheelEditorModal } from './WheelEditorModal';
@@ -69,7 +69,7 @@ import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
 import { EmailSetupModal } from './EmailSetupModal';
 import { PushSetupModal } from './PushSetupModal';
 import { SchemaSyncModal } from './SchemaSyncModal';
-import { canCustomerReceiveStampToday } from '../api/firebaseService';
+import { canCustomerReceiveStampToday } from '../shared/api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
 export const StaffPortal: React.FC = () => {

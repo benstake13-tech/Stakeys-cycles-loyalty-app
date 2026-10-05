@@ -25,7 +25,7 @@ function fakeApi(overrides: Record<string, any> = {}) {
 async function load() {
   vi.stubEnv('VITE_ONESIGNAL_APP_ID', APP_ID);
   vi.resetModules();
-  return await import('./src/utils/pushNotifications');
+  return await import('./src/shared/utils/pushNotifications');
 }
 
 beforeEach(() => {

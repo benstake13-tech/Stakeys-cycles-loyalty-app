@@ -13,10 +13,10 @@ import {
   EBIKE_DRIVE_TYPES,
   BIKE_YEAR_OPTIONS,
   EbikeStatus,
-} from '../data/bikeCatalog';
-import { EV_SYSTEM_VOLTAGE_OPTIONS } from '../data/evReference';
+} from '../shared/data/bikeCatalog';
+import { EV_SYSTEM_VOLTAGE_OPTIONS } from '../shared/data/evReference';
 import { EvReferenceGuide } from './EvReferenceGuide';
-import { VehicleCategory } from '../types/bikeShop';
+import { VehicleCategory } from '../shared/types/bikeShop';
 
 /** The subset of bike identity this component owns. */
 export interface BikeIdentityValue {

@@ -18,7 +18,7 @@ import {
   FileText,
   Activity,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
 import { StampCard } from './StampCard';
@@ -28,8 +28,8 @@ import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
-import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
-import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
+import { VehicleCategory, CustomerBike, ServiceBooking } from '../shared/types/bikeShop';
+import { BIKE_CATEGORY_OPTIONS } from '../shared/data/bikeCatalog';
 import {
   BikeIdentityFields,
   BikeIdentityValue,
@@ -37,7 +37,7 @@ import {
   toBikeDetails,
   resolveModel,
 } from './BikeIdentityFields';
-import { scrapeBikeStockSpecs } from '../utils/bikeScraperService';
+import { scrapeBikeStockSpecs } from '../shared/utils/bikeScraperService';
 
 interface CustomerPortalProps {
   onStaffScanCustomer?: (membershipNumber: string) => void;

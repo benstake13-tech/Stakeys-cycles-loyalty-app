@@ -14,12 +14,12 @@ import {
   KeyRound,
   ChevronDown,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { getStoredSupabaseUrl, getStoredSupabaseAnonKey } from '../supabase';
-import { getSupabaseClient } from '../lib/supabase';
-import { probeEdgeFunction, deriveProjectRef, testWorkshopEmail, EmailTestResult } from '../utils/emailSetup';
-import { deployFunctionsPrompt, secretsPrompt, envTemplate } from '../utils/bookingAlertsSetup';
-import { dispatchTestEmail } from '../utils/notificationService';
+import { useShop } from '../shared/context/ShopContext';
+import { getStoredSupabaseUrl, getStoredSupabaseAnonKey } from '../shared/supabase';
+import { getSupabaseClient } from '../shared/lib/supabase';
+import { probeEdgeFunction, deriveProjectRef, testWorkshopEmail, EmailTestResult } from '../shared/utils/emailSetup';
+import { deployFunctionsPrompt, secretsPrompt, envTemplate } from '../shared/utils/bookingAlertsSetup';
+import { dispatchTestEmail } from '../shared/utils/notificationService';
 
 type Toast = { kind: 'ok' | 'err'; text: string } | null;
 type StepState = 'unknown' | 'checking' | 'ok' | 'fail';

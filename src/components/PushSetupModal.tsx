@@ -15,17 +15,17 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { getStoredSupabaseUrl } from '../supabase';
-import { deriveProjectRef } from '../utils/emailSetup';
-import { secretsPrompt } from '../utils/bookingAlertsSetup';
+import { useShop } from '../shared/context/ShopContext';
+import { getStoredSupabaseUrl } from '../shared/supabase';
+import { deriveProjectRef } from '../shared/utils/emailSetup';
+import { secretsPrompt } from '../shared/utils/bookingAlertsSetup';
 import {
   getPushPermission,
   requestPushPermission,
   getSubscriptionId,
   sendPushToUser,
   PushPermission,
-} from '../utils/pushNotifications';
+} from '../shared/utils/pushNotifications';
 import {
   fetchPushConfig,
   hasRootScopeServiceWorker,
@@ -33,7 +33,7 @@ import {
   permissionLabel,
   checkPushOrigin,
   supabaseSecretsBlock,
-} from '../utils/pushSetup';
+} from '../shared/utils/pushSetup';
 
 type Toast = { kind: 'ok' | 'err'; text: string } | null;
 type StepState = 'checking' | 'ok' | 'warn' | 'fail';

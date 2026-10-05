@@ -4,7 +4,7 @@ import {
   checkEmailRecipient,
   runNotificationSystemTests,
   summarizeSystem,
-} from './src/utils/notificationDiagnostics';
+} from './src/shared/utils/notificationDiagnostics';
 
 const URL = 'https://lhojocpygcnkxvkrcuxh.supabase.co';
 const KEY = 'anon-key';

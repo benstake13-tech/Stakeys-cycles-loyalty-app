@@ -21,8 +21,8 @@ import {
   BikeIssueItem,
   ALL_BIKE_ISSUES_MAP,
   issueCategoriesForVehicle,
-} from '../data/bikeIssuesCatalog';
-import type { VehicleCategory } from '../types/bikeShop';
+} from '../shared/data/bikeIssuesCatalog';
+import type { VehicleCategory } from '../shared/types/bikeShop';
 
 interface BikeIssuesChecklistProps {
   selectedIssueIds: string[];

@@ -2,12 +2,12 @@ import React, { useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import JsBarcode from 'jsbarcode';
 import { Award, Ticket, Sparkles } from 'lucide-react';
-import { UserProfile } from '../types/bikeShop';
+import { UserProfile } from '../shared/types/bikeShop';
 import {
   encodeMembershipPayload,
   membershipBalance,
   STAKEYS_URN_PREFIX,
-} from '../utils/membershipCode';
+} from '../shared/utils/membershipCode';
 
 interface MembershipPassCardProps {
   user: UserProfile;

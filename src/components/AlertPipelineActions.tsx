@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Database, Rocket, KeyRound, ExternalLink, Copy, Check, Wand2, RefreshCw, Mail } from 'lucide-react';
-import { getStoredSupabaseUrl } from '../supabase';
-import { deriveProjectRef } from '../utils/emailSetup';
+import { getStoredSupabaseUrl } from '../shared/supabase';
+import { deriveProjectRef } from '../shared/utils/emailSetup';
 import {
   webhookTriggerSql,
   deployFunctionsPrompt,
@@ -13,7 +13,7 @@ import {
   generateWebhookSecret,
   RESEND_KEYS_URL,
   ONESIGNAL_DASHBOARD_URL,
-} from '../utils/bookingAlertsSetup';
+} from '../shared/utils/bookingAlertsSetup';
 
 interface PipelineRow {
   key: string;

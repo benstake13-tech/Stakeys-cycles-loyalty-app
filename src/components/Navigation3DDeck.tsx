@@ -18,7 +18,7 @@ import {
   Flame,
   Activity,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 
 export type NavTabId =
   | 'customer'

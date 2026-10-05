@@ -6,7 +6,7 @@ const hoisted = vi.hoisted(() => ({
   rpcResults: [] as any[],
 }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     rpc: (fn: string, args: any) => {
       hoisted.rpcCalls.push({ fn, args });
@@ -20,7 +20,7 @@ import {
   createStaffAccountViaRpc,
   setStaffRoleViaRpc,
   staffAccountsInstalled,
-} from './src/api/backendDataService';
+} from './src/shared/api/backendDataService';
 
 beforeEach(() => {
   hoisted.rpcCalls = [];

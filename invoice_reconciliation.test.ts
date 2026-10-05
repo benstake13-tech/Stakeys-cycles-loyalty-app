@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ServiceBooking, RepairInvoice, InvoiceLineItem } from './src/types/bikeShop';
+import { ServiceBooking, RepairInvoice, InvoiceLineItem } from './src/shared/types/bikeShop';
 import {
   getRequestedWork,
   buildInvoiceLineItemsFromBooking,
@@ -7,7 +7,7 @@ import {
   applyBookingContextToInvoice,
   lineItemCoversRequest,
   describeBookedVehicle,
-} from './src/utils/invoiceReconciliation';
+} from './src/shared/utils/invoiceReconciliation';
 
 const baseBooking = (over: Partial<ServiceBooking> = {}): ServiceBooking => ({
   id: 'bk-5436',

@@ -7,13 +7,13 @@ const hoisted = vi.hoisted(() => ({
   addRepairProgressNote: vi.fn(async () => ({ success: true, message: 'Message sent to the workshop.' })),
 }));
 
-vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
+vi.mock('./src/shared/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
 vi.mock('./src/components/RepairInvoiceModal', () => ({
   RepairInvoiceModal: () => null,
 }));
 
 import { CustomerRepairTracker } from './src/components/CustomerRepairTracker';
-import type { ServiceBooking } from './src/types/bikeShop';
+import type { ServiceBooking } from './src/shared/types/bikeShop';
 
 function makeBooking(over: Partial<ServiceBooking> = {}): ServiceBooking {
   return {

@@ -1,14 +1,14 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import type { ServiceBooking, UserProfile } from './src/types/bikeShop';
+import type { ServiceBooking, UserProfile } from './src/shared/types/bikeShop';
 
 const hoisted = vi.hoisted(() => ({
   bookings: [] as ServiceBooking[],
   users: [] as UserProfile[],
 }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({ bookings: hoisted.bookings, users: hoisted.users }),
 }));
 

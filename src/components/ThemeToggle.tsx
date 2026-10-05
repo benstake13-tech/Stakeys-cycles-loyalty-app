@@ -1,6 +1,6 @@
 import React from 'react';
 import { Sun, Moon } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 
 interface ThemeToggleProps {
   className?: string;

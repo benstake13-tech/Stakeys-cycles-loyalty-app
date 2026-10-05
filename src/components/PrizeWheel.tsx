@@ -13,9 +13,9 @@ import {
   Zap,
   Info,
 } from 'lucide-react';
-import { PrizeWheel as PrizeWheelType, PrizeWheelSegment } from '../types/bikeShop';
-import { useShop } from '../context/ShopContext';
-import { checkSpinEligibility, pickWinningSegmentIndex } from '../utils/prizeWheelHelper';
+import { PrizeWheel as PrizeWheelType, PrizeWheelSegment } from '../shared/types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
+import { checkSpinEligibility, pickWinningSegmentIndex } from '../shared/utils/prizeWheelHelper';
 import { WheelEditorModal } from './WheelEditorModal';
 
 interface PrizeWheelProps {

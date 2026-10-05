@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { ServiceBooking } from './src/types/bikeShop';
+import type { ServiceBooking } from './src/shared/types/bikeShop';
 import {
   classifyBookingChannel,
   isPhoneCall,
@@ -7,7 +7,7 @@ import {
   weeklyServiceRequests,
   callLog,
   summarizePerformance,
-} from './src/utils/performanceTracker';
+} from './src/shared/utils/performanceTracker';
 
 const NOW = new Date('2026-10-03T12:00:00Z');
 

@@ -12,8 +12,8 @@ import {
   repairStageLabel,
   stageForStatus,
   statusForStage,
-} from './src/utils/repairProgress';
-import type { ServiceBooking } from './src/types/bikeShop';
+} from './src/shared/utils/repairProgress';
+import type { ServiceBooking } from './src/shared/types/bikeShop';
 
 const baseBooking: ServiceBooking = {
   id: 'bk-1042',

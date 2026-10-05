@@ -17,10 +17,10 @@ import {
   ShieldCheck,
   Check,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import { StakeysLogo } from './StakeysLogo';
 import { ThemeToggle } from './ThemeToggle';
-import { VehicleCategory } from '../types/bikeShop';
+import { VehicleCategory } from '../shared/types/bikeShop';
 import confetti from 'canvas-confetti';
 
 interface LoginScreenProps {

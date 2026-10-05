@@ -53,7 +53,7 @@ function makeBuilder(name: string, mode: 'select' | 'delete' | 'upsert', payload
   return builder;
 }
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     from: (name: string) => ({
       select: () => makeBuilder(name, 'select').select(),
@@ -72,7 +72,7 @@ import {
   deletePromotionFromDb,
   fetchAppSettingsFromDb,
   upsertAppSettingsToDb,
-} from './src/api/backendDataService';
+} from './src/shared/api/backendDataService';
 
 beforeEach(() => {
   hoisted.tables = {};

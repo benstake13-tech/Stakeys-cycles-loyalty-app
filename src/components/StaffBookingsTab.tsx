@@ -25,12 +25,12 @@ import {
   AlertTriangle,
   Trash2,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
+import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../shared/types/bikeShop';
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
-import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
-import { dispatchTestEmail, buildBookingApprovalSms, createBookingApprovalSmsUrl, normalizePhoneForSms } from '../utils/notificationService';
+import { ALL_BIKE_ISSUES_MAP } from '../shared/data/bikeIssuesCatalog';
+import { dispatchTestEmail, buildBookingApprovalSms, createBookingApprovalSmsUrl, normalizePhoneForSms } from '../shared/utils/notificationService';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';

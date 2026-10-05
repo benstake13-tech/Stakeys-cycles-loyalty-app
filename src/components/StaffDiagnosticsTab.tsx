@@ -22,11 +22,11 @@ import {
   ExternalLink,
   Award,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { dispatchTestEmail } from '../utils/notificationService';
-import { sendPushToUser } from '../utils/pushNotifications';
-import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
-import { getStoredSupabaseUrl } from '../supabase';
+import { useShop } from '../shared/context/ShopContext';
+import { dispatchTestEmail } from '../shared/utils/notificationService';
+import { sendPushToUser } from '../shared/utils/pushNotifications';
+import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../shared/utils/schemaSync';
+import { getStoredSupabaseUrl } from '../shared/supabase';
 import { AlertPipelineActions } from './AlertPipelineActions';
 import { SystemStatusPanel } from './SystemStatusPanel';
 import {
@@ -36,7 +36,7 @@ import {
   FeatureTestResult,
   runFeatureTests,
   summarize,
-} from '../utils/featureDiagnostics';
+} from '../shared/utils/featureDiagnostics';
 
 const AREA_ORDER: FeatureArea[] = [
   'connectivity',

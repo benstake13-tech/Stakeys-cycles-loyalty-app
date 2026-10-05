@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // merits->points read-normalisation without a live database.
 const hoisted = vi.hoisted(() => ({ wheelRows: [] as any[] }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     from: () => ({
       select: () => ({
@@ -14,7 +14,7 @@ vi.mock('./src/lib/supabase', () => ({
   }),
 }));
 
-import { fetchPrizeWheelsFromDb } from './src/api/backendDataService';
+import { fetchPrizeWheelsFromDb } from './src/shared/api/backendDataService';
 
 beforeEach(() => {
   hoisted.wheelRows = [];

@@ -14,8 +14,8 @@ import {
   Save,
   Check,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { ShopPromotion, VehicleCategory } from '../types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
+import { ShopPromotion, VehicleCategory } from '../shared/types/bikeShop';
 
 export const PromotionsManagerTab: React.FC = () => {
   const { promotions, addPromotion, updatePromotion, deletePromotion, refreshPromotionsExpiry } = useShop();

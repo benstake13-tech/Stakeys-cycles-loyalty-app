@@ -13,7 +13,7 @@ import {
   modelsForBrand,
   brandProfileFor,
   isCustomModel,
-} from './src/data/bikeCatalog';
+} from './src/shared/data/bikeCatalog';
 import {
   toBikeDetails,
   resolveModel,

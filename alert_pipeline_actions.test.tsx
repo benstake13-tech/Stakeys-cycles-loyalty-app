@@ -2,7 +2,7 @@ import React from 'react';
 import { render, fireEvent, waitFor, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('./src/supabase', () => ({
+vi.mock('./src/shared/supabase', () => ({
   getStoredSupabaseUrl: () => 'https://lhojocpygcnkxvkrcuxh.supabase.co',
 }));
 

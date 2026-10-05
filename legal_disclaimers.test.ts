@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LEGAL_DISCLAIMER_SECTIONS,
   LEGAL_DISCLAIMER_UPDATED,
-} from './src/data/legalDisclaimers';
+} from './src/shared/data/legalDisclaimers';
 
 const allText = LEGAL_DISCLAIMER_SECTIONS.map(
   (s) => [s.title, ...s.paragraphs, ...s.bullets.map((b) => `${b.label ?? ''} ${b.text}`)].join(' ')

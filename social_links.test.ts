@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SHOP_SOCIAL_LINKS } from './src/data/socialLinks';
+import { SHOP_SOCIAL_LINKS } from './src/shared/data/socialLinks';
 
 describe('SHOP_SOCIAL_LINKS', () => {
   it('exposes the shop Instagram and Facebook profiles', () => {

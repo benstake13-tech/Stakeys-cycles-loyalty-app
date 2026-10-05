@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, X, CheckCircle2, Wrench, User, Calendar, Clock } from 'lucide-react';
-import { ServiceBooking, OwnerNotificationConfig } from '../types/bikeShop';
+import { ServiceBooking, OwnerNotificationConfig } from '../shared/types/bikeShop';
 import { StakeysLogo } from './StakeysLogo';
 
 interface NotificationPreviewModalProps {

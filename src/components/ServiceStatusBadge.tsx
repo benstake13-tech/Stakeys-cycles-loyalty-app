@@ -19,17 +19,17 @@ import {
   Key,
   Code2,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import {
   checkSupabaseHealth,
   SupabaseHealthStatus,
   SUPABASE_SQL_SETUP,
-} from '../api/supabaseService';
+} from '../shared/api/supabaseService';
 import {
   getStoredSupabaseUrl,
   getStoredSupabaseAnonKey,
   saveSupabaseConfig,
-} from '../supabase';
+} from '../shared/supabase';
 
 interface ServiceStatusBadgeProps {
   variant?: 'compact' | 'full' | 'header';

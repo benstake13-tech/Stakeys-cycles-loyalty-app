@@ -14,9 +14,9 @@ import {
   Copy,
   Infinity as InfinityIcon,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { DiscountCode, DiscountCodeType, VehicleCategory } from '../types/bikeShop';
-import { describeDiscountValue } from '../utils/discountService';
+import { useShop } from '../shared/context/ShopContext';
+import { DiscountCode, DiscountCodeType, VehicleCategory } from '../shared/types/bikeShop';
+import { describeDiscountValue } from '../shared/utils/discountService';
 
 const CATEGORY_OPTIONS: { id: VehicleCategory; label: string }[] = [
   { id: 'cycle', label: 'Bicycle' },

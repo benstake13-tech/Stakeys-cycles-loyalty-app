@@ -15,11 +15,11 @@ const hoisted = vi.hoisted(() => ({
   dispatchTestEmail: vi.fn(async () => ({ success: true })),
 }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({ ownerConfig: hoisted.ownerConfig }),
 }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     from: () => ({
       insert: async (payload: any) => {
@@ -36,11 +36,11 @@ vi.mock('./src/lib/supabase', () => ({
   }),
 }));
 
-vi.mock('./src/utils/notificationService', () => ({
+vi.mock('./src/shared/utils/notificationService', () => ({
   dispatchTestEmail: hoisted.dispatchTestEmail,
 }));
 
-import { deriveProjectRef, probeEdgeFunction, testWorkshopEmail } from './src/utils/emailSetup';
+import { deriveProjectRef, probeEdgeFunction, testWorkshopEmail } from './src/shared/utils/emailSetup';
 import { EmailSetupModal } from './src/components/EmailSetupModal';
 import type { SupabaseClient } from '@supabase/supabase-js';
 

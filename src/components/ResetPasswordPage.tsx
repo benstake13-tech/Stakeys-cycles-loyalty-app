@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Lock, Eye, EyeOff, ArrowRight, CheckCircle2, AlertCircle, KeyRound } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import { StakeysLogo } from './StakeysLogo';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../shared/lib/supabase';
 
 /**
  * Landing page for the password-recovery email link.

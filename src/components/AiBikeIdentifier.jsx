@@ -16,8 +16,8 @@ import {
   Plus,
   CircleAlert,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { identifyBikeFromImage, isBikeVisionConfigured } from '../api/visionService';
+import { useShop } from '../shared/context/ShopContext';
+import { identifyBikeFromImage, isBikeVisionConfigured } from '../shared/api/visionService';
 
 const SEVERITY_STYLES = {
   high: 'border-rose-500/40 bg-rose-950/40 text-rose-200',
