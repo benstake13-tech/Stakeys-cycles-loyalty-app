@@ -16,11 +16,13 @@ import {
   ShieldCheck,
   CircleDot,
   MessageCircle,
+  Scale,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
 import { StakeysLogo } from './StakeysLogo';
+import { LegalDisclaimerSections } from './LegalDisclaimers';
 import { BikeIssuesChecklist } from './BikeIssuesChecklist';
 import {
   BikeIdentityFields,
@@ -1299,6 +1301,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
           <div className="text-center text-xs text-neutral-400">
             No upfront payment required. Book online and our mechanic will evaluate your vehicle on drop-off, or send bespoke job details/photos straight to the workshop on WhatsApp for a quote.
+          </div>
+
+          {/* Legal disclaimers — mobile call-out, repairs, e-scooter use & storage */}
+          <div className="pt-3 mt-1 border-t border-neutral-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Scale className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-semibold text-white">Legal Disclaimers &amp; Service Terms</span>
+            </div>
+            <LegalDisclaimerSections variant="accordion" idPrefix="booking-legal" />
           </div>
         </div>
       </form>

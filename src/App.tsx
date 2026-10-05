@@ -32,6 +32,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
+import { LegalDisclaimersButton } from './components/LegalDisclaimers';
 import { Toaster } from 'react-hot-toast';
 import { initOneSignal, linkUser, relinkUser, unlinkUser } from './utils/pushNotifications';
 
@@ -419,6 +420,8 @@ function AppContent() {
             <span>Expert Mechanics</span>
             <span aria-hidden="true">•</span>
             <span>Digital Stamp Rewards</span>
+            <span aria-hidden="true">•</span>
+            <LegalDisclaimersButton isDark={isDark} />
           </div>
         </div>
       </footer>
