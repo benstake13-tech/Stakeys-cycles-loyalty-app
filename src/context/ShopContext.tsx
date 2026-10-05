@@ -41,6 +41,7 @@ import {
   dispatchBookingApprovalNotification,
   dispatchBookingDeclinedNotification,
   isBookingDueIn24Hours,
+  selectDueReminderBookings,
 } from '../utils/notificationService';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { requestPushPermission, getOneSignalInitError } from '../utils/pushNotifications';
@@ -1019,6 +1020,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const knownBookingIdsRef = React.useRef<Set<string>>(new Set());
   const isInitialBookingsLoadRef = React.useRef<boolean>(true);
   const collectingRef = React.useRef<Set<string>>(new Set());
+  // Bookings this session has already dispatched a 24h reminder for. Prevents a
+  // repeated dispatch (and its alert banner) if a poll briefly reverts the flag.
+  const remindedBookingIdsRef = React.useRef<Set<string>>(new Set());
   const currentUserRef = React.useRef<UserProfile | null>(currentUser);
   currentUserRef.current = currentUser;
 
@@ -3315,16 +3319,35 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.location.reload();
   };
 
+  // Live mirrors of the poll-replaced objects. The 24h reminder effect below is
+  // deliberately keyed only on `automatedRemindersEnabled`, so it and the
+  // dispatcher it calls must read the *current* bookings/ownerConfig through
+  // refs rather than closing over a render where they were still empty.
+  const bookingsRef = React.useRef(bookings);
+  bookingsRef.current = bookings;
+  const ownerConfigRef = React.useRef(ownerConfig);
+  ownerConfigRef.current = ownerConfig;
+
   const dispatch24hReminderForBooking = async (bookingId: string): Promise<boolean> => {
-    const target = bookings.find((b) => b.id === bookingId);
+    const target = bookingsRef.current.find((b) => b.id === bookingId);
     if (!target) return false;
+
+    // Already handled this session — don't re-send or re-raise the alert banner.
+    if (remindedBookingIdsRef.current.has(bookingId)) return false;
+    remindedBookingIdsRef.current.add(bookingId);
 
     const { customerReminderLog, ownerReminderLog, updatedBooking } = await dispatch24hReminderNotification(
       target,
-      ownerConfig
+      ownerConfigRef.current
     );
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updatedBooking : b)));
+
+    // Persist the flag so the 4s background poll (which reloads bookings from the
+    // database) doesn't reset it to false and re-trigger the reminder every cycle.
+    updateServiceBookingInDb(bookingId, { reminder24hSent: true }).catch((e) =>
+      console.warn('[24H REMINDER ENGINE] persist reminder24hSent failed:', e)
+    );
 
     setLatestSmsAlert({
       title: '⏰ 24-Hour Reminder Email Sent',
@@ -3337,15 +3360,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  // Background automated 24-hour reminder check
+  // Background automated 24-hour reminder check.
+  //
+  // The interval must NOT depend on `bookings`/`ownerConfig` identity: the 4s
+  // poll replaces both objects on every cycle, which would tear down and rebuild
+  // this timer constantly. Reading them through refs keeps the timer stable and
+  // stops the reminder from being re-dispatched (and re-alerting) each cycle.
   useEffect(() => {
     if (!automatedRemindersEnabled) return;
 
     const runAutomatedRemindersCheck = async () => {
-      // Find eligible bookings:
-      // status !== 'completed' && status !== 'cancelled' && !reminder24hSent && isBookingDueIn24Hours(b)
-      const dueBookings = bookings.filter(
-        (b) => !b.reminder24hSent && b.status !== 'completed' && b.status !== 'cancelled' && isBookingDueIn24Hours(b)
+      const dueBookings = selectDueReminderBookings(
+        bookingsRef.current,
+        remindedBookingIdsRef.current
       );
 
       if (dueBookings.length === 0) return;
@@ -3365,7 +3392,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       clearTimeout(timer);
       clearInterval(interval);
     };
-  }, [bookings, automatedRemindersEnabled, ownerConfig]);
+  }, [automatedRemindersEnabled]);
 
   const bookingsDueIn24h = bookings.filter(
     (b) => isBookingDueIn24Hours(b) && b.status !== 'completed' && b.status !== 'cancelled'

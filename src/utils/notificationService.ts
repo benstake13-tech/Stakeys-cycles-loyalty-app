@@ -473,6 +473,26 @@ export function isBookingDueIn24Hours(booking: ServiceBooking): boolean {
 }
 
 /**
+ * Bookings that still need their one-off 24-hour reminder email. `alreadySent`
+ * is the set of ids this session has dispatched for — checked in addition to the
+ * persisted `reminder24hSent` flag so a background poll that briefly reloads a
+ * stale (still-false) flag can't cause a duplicate send.
+ */
+export function selectDueReminderBookings(
+  bookings: ServiceBooking[],
+  alreadySent: ReadonlySet<string> = new Set()
+): ServiceBooking[] {
+  return bookings.filter(
+    (b) =>
+      !b.reminder24hSent &&
+      !alreadySent.has(b.id) &&
+      b.status !== 'completed' &&
+      b.status !== 'cancelled' &&
+      isBookingDueIn24Hours(b)
+  );
+}
+
+/**
  * Dispatches Email notifications exclusively for a new booking:
  * - Customer Confirmation Email confirming request details and pending approval
  * - Workshop Staff Email alert with booking details and customer contacts
