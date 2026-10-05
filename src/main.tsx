@@ -3,8 +3,15 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { handleOAuthCallbackPage } from './utils/oauthService';
+import { unregisterLegacyPushWorkers } from './utils/pushSetup';
 import { staffBookingAudio } from './utils/staffAlertAudio';
 import './index.css';
+
+// Remove the PushEngage service worker left over from the pre-OneSignal push
+// migration. It keeps the root scope, so OneSignal's own worker can never
+// register and no device ever subscribes — clearing it on every load makes the
+// fix self-healing for existing installs.
+void unregisterLegacyPushWorkers().catch(() => {});
 
 // Prime the booking stinger on the first user gesture so a later booking alert
 // is allowed to play (browsers block audio until the page is interacted with).

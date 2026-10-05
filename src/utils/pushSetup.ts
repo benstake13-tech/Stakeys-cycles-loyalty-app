@@ -105,6 +105,39 @@ export function hasRootScopeServiceWorker(
 }
 
 /**
+ * True when a registration's script looks like the legacy PushEngage worker
+ * (`/service-worker.js?...appId=...`) rather than the OneSignal worker.
+ */
+export function isLegacyPushWorker(scriptURL: string | null | undefined): boolean {
+  if (!scriptURL) return false;
+  return /(^|\/)service-worker\.js(\?|$)/i.test(scriptURL) && !/OneSignalSDKWorker/i.test(scriptURL);
+}
+
+/**
+ * Removes the PushEngage service worker left over from before the OneSignal
+ * migration. It holds the root scope, so OneSignal's own worker can never
+ * register and no device ever subscribes — the exact "no pushes arrive"
+ * symptom. Returns the number of registrations removed.
+ */
+export async function unregisterLegacyPushWorkers(
+  sw: ServiceWorkerContainer | undefined = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined
+): Promise<number> {
+  if (!sw) return 0;
+  const regs = await sw.getRegistrations().catch(() => []);
+  let removed = 0;
+  for (const reg of regs as ReadonlyArray<ServiceWorkerRegistration>) {
+    const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
+    if (!isLegacyPushWorker(url)) continue;
+    try {
+      if (await reg.unregister()) removed += 1;
+    } catch {
+      /* ignore a registration we can't remove */
+    }
+  }
+  return removed;
+}
+
+/**
  * Reads the push config. Production truth comes from the `onesignal-send` edge
  * function (the static host has no `/api`); falls back to the dev-only Express
  * route so `npm run dev` still works.
@@ -152,13 +185,15 @@ export function permissionLabel(p: PushPermission): string {
 /**
  * Makes sure the OneSignal worker is registered at the root scope. The SDK
  * normally does this once permission is granted, but staff can trigger it
- * explicitly here so step 2 can be fixed on its own. Returns whether a root-scope
- * worker exists afterwards.
+ * explicitly here so step 2 can be fixed on its own. Any leftover PushEngage
+ * worker is removed first — otherwise it keeps the root scope and OneSignal's
+ * worker can never take over. Returns whether a root-scope worker exists after.
  */
 export async function ensureRootServiceWorker(
   sw: ServiceWorkerContainer | undefined = typeof navigator !== 'undefined' ? navigator.serviceWorker : undefined
 ): Promise<boolean> {
   if (!sw) return false;
+  await unregisterLegacyPushWorkers(sw);
   const existing = await sw.getRegistrations().catch(() => []);
   if (hasRootScopeServiceWorker(existing as unknown as Array<{ scope?: string }>)) return true;
   try {

@@ -29,6 +29,8 @@ import {
   checkPushOrigin,
   normalizeOrigin,
   supabaseSecretsBlock,
+  isLegacyPushWorker,
+  unregisterLegacyPushWorkers,
 } from './src/utils/pushSetup';
 import { PushSetupModal } from './src/components/PushSetupModal';
 
@@ -171,6 +173,73 @@ describe('ensureRootServiceWorker', () => {
     const ok = await ensureRootServiceWorker(navigator.serviceWorker);
     expect(ok).toBe(true);
     expect(register).not.toHaveBeenCalled();
+  });
+});
+
+describe('isLegacyPushWorker', () => {
+  it('matches the PushEngage worker and not the OneSignal shim', () => {
+    expect(isLegacyPushWorker('https://x/service-worker.js?v=3.0.78&appId=abc')).toBe(true);
+    expect(isLegacyPushWorker('/service-worker.js')).toBe(true);
+    expect(isLegacyPushWorker('https://x/OneSignalSDKWorker.js')).toBe(false);
+    expect(isLegacyPushWorker('https://x/service-worker.js/OneSignalSDKWorker')).toBe(false);
+    expect(isLegacyPushWorker(null)).toBe(false);
+  });
+});
+
+describe('unregisterLegacyPushWorkers', () => {
+  /** Installs a fake SW container whose registrations carry scriptURL + unregister. */
+  function installWithScripts(entries: Array<{ scriptURL: string }>) {
+    const unregister = vi.fn(async () => true);
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistrations: vi.fn(async () =>
+          entries.map((e) => ({ active: { scriptURL: e.scriptURL }, unregister }))
+        ),
+        register: vi.fn(async () => ({}) as ServiceWorkerRegistration),
+      },
+    });
+    return { unregister };
+  }
+
+  it('unregisters a leftover PushEngage worker', async () => {
+    const { unregister } = installWithScripts([
+      { scriptURL: 'https://x/service-worker.js?v=3.0.78&appId=23a65358' },
+    ]);
+    expect(await unregisterLegacyPushWorkers(navigator.serviceWorker)).toBe(1);
+    expect(unregister).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the OneSignal worker alone', async () => {
+    const { unregister } = installWithScripts([{ scriptURL: 'https://x/OneSignalSDKWorker.js' }]);
+    expect(await unregisterLegacyPushWorkers(navigator.serviceWorker)).toBe(0);
+    expect(unregister).not.toHaveBeenCalled();
+  });
+
+  it('ensureRootServiceWorker clears the legacy worker then registers OneSignal', async () => {
+    let regs: Array<{ scope: string; active: { scriptURL: string }; unregister: any }> = [];
+    const unregister = vi.fn(async () => {
+      regs = [];
+      return true;
+    });
+    regs = [
+      { scope: 'https://x/', active: { scriptURL: 'https://x/service-worker.js?v=3' }, unregister },
+    ];
+    const register = vi.fn(async () => {
+      regs = [{ scope: 'https://x/', active: { scriptURL: 'https://x/OneSignalSDKWorker.js' }, unregister }];
+      return {} as ServiceWorkerRegistration;
+    });
+    Object.defineProperty(navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        getRegistrations: vi.fn(async () => regs),
+        register,
+      },
+    });
+    const ok = await ensureRootServiceWorker(navigator.serviceWorker);
+    expect(ok).toBe(true);
+    expect(unregister).toHaveBeenCalled();
+    expect(register).toHaveBeenCalledWith('/OneSignalSDKWorker.js', { scope: '/' });
   });
 });
 

@@ -10,6 +10,7 @@
  */
 
 import { getStoredSupabaseAnonKey, getStoredSupabaseUrl } from '../supabase';
+import { unregisterLegacyPushWorkers } from './pushSetup';
 
 export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured';
 
@@ -85,6 +86,11 @@ export async function initOneSignal(): Promise<any | null> {
     const cfg = await getRuntimeConfig();
     if (!cfg.appId) return null;
     if (window.OneSignal?.User) return window.OneSignal;
+
+    // A PushEngage worker from before the OneSignal migration can still hold the
+    // root scope and block the SDK's worker, silently killing all pushes. Clear
+    // it before the SDK initialises so its own worker can register.
+    await unregisterLegacyPushWorkers().catch(() => {});
 
     // The head snippet drives init; the SDK drains OneSignalDeferred in order,
     // so a callback queued here runs only after the SDK is ready.
