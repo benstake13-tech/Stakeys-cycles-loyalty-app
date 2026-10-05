@@ -9,6 +9,7 @@ import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
 import { SHOP_SOCIAL_LINKS } from './shared/data/socialLinks';
+import AppSwitcherButton from './shared/components/AppSwitcherButton';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
@@ -168,6 +169,9 @@ function AppContent() {
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Cross-app switcher: one click to the public website and the
+                customer app, so the three apps stay linked. */}
+            <AppSwitcherButton current="staff" compact />
             <ThemeToggle showLabel={false} />
             <ServiceStatusBadge variant="header" />
 
