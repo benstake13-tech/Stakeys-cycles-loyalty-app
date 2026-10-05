@@ -233,45 +233,29 @@
 }
 
 /* ---- Virtual Stakey helper avatar ---- */
-.stakey-float {
-  transform-origin: 100px 200px;
-  animation: stakey-float 4.2s ease-in-out infinite;
+/* Image-based avatar (public/brand/stakeys-avatar.svg). The container centres
+   the artwork; the talking state gives it a subtle life-like pulse. */
+.avatar-container {
+  width: 300px;
+  height: 300px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-@keyframes stakey-float {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-6px) rotate(-0.6deg); }
+.stakeys-avatar {
+  max-width: 100%;
+  height: auto;
+  filter: drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.15));
 }
 
-/* Blink by squashing the eye group on the Y axis */
-.stakey-blink {
-  transform-origin: center;
-  animation: stakey-blink 5.4s ease-in-out infinite;
+.stakeys-avatar--talking {
+  animation: stakey-talk-bounce 0.5s ease-in-out infinite;
 }
 
-@keyframes stakey-blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95%, 97% { transform: scaleY(0.08); }
-}
-
-/* Idle mouth is a calm, small breath; talking opens and closes faster */
-.stakey-mouth {
-  transform-origin: center;
-  animation: stakey-idle-mouth 3.6s ease-in-out infinite;
-}
-
-@keyframes stakey-idle-mouth {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(0.82); }
-}
-
-.stakey-mouth--talking {
-  animation: stakey-talk 0.34s ease-in-out infinite;
-}
-
-@keyframes stakey-talk {
-  0%, 100% { transform: scaleY(0.45) scaleX(1.02); }
-  50% { transform: scaleY(1.25) scaleX(0.96); }
+@keyframes stakey-talk-bounce {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.035); }
 }
 
 /* Gentle bob for the floating helper button */

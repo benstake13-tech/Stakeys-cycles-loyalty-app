@@ -66,7 +66,7 @@ import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
-import { AvatarCreatorTab } from './AvatarCreatorTab';
+import { StakeyHelperSettingsTab } from './StakeyHelperSettingsTab';
 import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
 import { EmailSetupModal } from './EmailSetupModal';
 import { PushSetupModal } from './PushSetupModal';
@@ -353,7 +353,7 @@ export const StaffPortal: React.FC = () => {
 
   const adminTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
-    { id: 'avatar_creator', label: 'Stakey Avatar', icon: Bot, tone: 'emerald', hint: 'Design the AI helper avatar' },
+    { id: 'avatar_creator', label: 'Stakey Helper', icon: Bot, tone: 'emerald', hint: 'Set up the AI helper' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
@@ -689,8 +689,8 @@ export const StaffPortal: React.FC = () => {
       {/* VIEW 1C: Promotions Manager (Full CRUD) */}
       {staffTab === 'promotions' && <PromotionsManagerTab />}
 
-      {/* VIEW 1C-A: Virtual Stakey Avatar Creator — designs the AI helper */}
-      {staffTab === 'avatar_creator' && <AvatarCreatorTab />}
+      {/* VIEW 1C-A: Virtual Stakey Helper — configures the AI helper */}
+      {staffTab === 'avatar_creator' && <StakeyHelperSettingsTab />}
 
       {/* VIEW 1C-B: Discount Codes Manager (Full CRUD) */}
       {staffTab === 'discount_codes' && <DiscountCodesTab />}

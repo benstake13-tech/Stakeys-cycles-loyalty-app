@@ -18,10 +18,10 @@ vi.mock('./src/shared/utils/stakeyVoice', () => ({
   speak: vi.fn(async () => {}),
 }));
 
-import { AvatarCreatorTab } from './src/components/AvatarCreatorTab';
+import { StakeyHelperSettingsTab } from './src/components/StakeyHelperSettingsTab';
 import { DEFAULT_STAKEY_AVATAR } from './src/shared/data/stakeyAvatar';
 
-describe('AvatarCreatorTab', () => {
+describe('StakeyHelperSettingsTab', () => {
   beforeEach(() => {
     hoisted.updateStakeyAvatar = vi.fn();
     hoisted.state = {
@@ -30,27 +30,34 @@ describe('AvatarCreatorTab', () => {
     };
   });
 
-  it('renders the live preview and every editing section', () => {
-    render(<AvatarCreatorTab />);
-    expect(screen.getByText(/Virtual Stakey — Avatar Creator/i)).toBeTruthy();
+  it('renders the live preview and the helper settings', () => {
+    render(<StakeyHelperSettingsTab />);
+    expect(screen.getByText(/Virtual Stakey — Helper/i)).toBeTruthy();
     expect(screen.getByRole('img', { name: /Stakey/i })).toBeTruthy();
-    for (const label of ['Helper name', 'Character', 'Build', 'Hair / headwear', 'Skin tone', 'Style', 'Voice style']) {
+    for (const label of ['Helper name', 'Voice style', 'Personality & guidance (tells the AI how to behave)']) {
       expect(screen.getByText(label)).toBeTruthy();
     }
   });
 
+  it('no longer offers the old avatar-building controls', () => {
+    render(<StakeyHelperSettingsTab />);
+    for (const gone of ['Character', 'Build', 'Hair / headwear', 'Skin tone', 'Business accent']) {
+      expect(screen.queryByText(gone)).toBeNull();
+    }
+  });
+
   it('saves the edited name to the shared backend', () => {
-    render(<AvatarCreatorTab />);
+    render(<StakeyHelperSettingsTab />);
     const nameInput = screen.getByPlaceholderText('Stakey');
     fireEvent.change(nameInput, { target: { value: 'Bolt' } });
-    fireEvent.click(screen.getByRole('button', { name: /Save avatar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Save helper/i }));
     expect(hoisted.updateStakeyAvatar).toHaveBeenCalledTimes(1);
     expect(hoisted.updateStakeyAvatar.mock.calls[0][0].name).toBe('Bolt');
   });
 
-  it('reflects a species switch in the live preview label', () => {
-    render(<AvatarCreatorTab />);
-    fireEvent.click(screen.getByRole('button', { name: 'Robot' }));
-    expect(screen.getByText(/robot ·/i)).toBeTruthy();
+  it('reflects a voice style change in the preview', () => {
+    render(<StakeyHelperSettingsTab />);
+    fireEvent.click(screen.getByRole('button', { name: 'Calm & steady' }));
+    expect(screen.getByText(/calm voice/i)).toBeTruthy();
   });
 });

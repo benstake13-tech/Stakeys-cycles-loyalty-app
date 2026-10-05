@@ -1,88 +1,46 @@
 /**
- * Avatar Creator — the staff-only studio for Virtual Stakey.
+ * Stakey Helper — the staff-only settings panel for Virtual Stakey.
  *
- * Staff design the helper character here (name, look, outfit, voice and
- * personality). The saved config is what the customer app renders as the
- * animated, speaking helper. Live preview updates as you edit.
+ * The character artwork is fixed; staff choose the helper's name, how it
+ * sounds and how it behaves. The saved config is what the customer app renders
+ * as the speaking helper.
  */
 import React, { useMemo, useState } from 'react';
-import { Bot, Check, Palette, RotateCcw, Save, Sparkles, Volume2 } from 'lucide-react';
+import { Bot, Check, RotateCcw, Save, Sparkles, Volume2 } from 'lucide-react';
 import { useShop } from '../shared/context/ShopContext';
 import type { StakeyAvatarConfig } from '../shared/types/bikeShop';
 import { StakeyAvatar } from './StakeyAvatar';
 import {
-  AVATAR_BODY_OPTIONS,
-  AVATAR_HAIR_COLOR_OPTIONS,
-  AVATAR_HAIR_STYLE_OPTIONS,
-  AVATAR_OUTFIT_COLOR_OPTIONS,
-  AVATAR_OUTFIT_OPTIONS,
-  AVATAR_SKIN_OPTIONS,
-  AVATAR_SPECIES_OPTIONS,
   AVATAR_VOICE_STYLE_OPTIONS,
-  DEFAULT_ACCENT,
   DEFAULT_STAKEY_AVATAR,
-  HAIR_COLOR_HEX,
-  OUTFIT_COLOR_HEX,
-  SKIN_HEX,
 } from '../shared/data/stakeyAvatar';
 import { isSpeechSupported, primeVoices, speak } from '../shared/utils/stakeyVoice';
 import { isStakeyAiConfigured } from '../shared/utils/stakeyAssistant';
 
-interface PillProps<T extends string> {
-  options: { id: T; label: string; species?: StakeyAvatarConfig['species'][] }[];
-  value: T;
-  onChange: (v: T) => void;
-  species?: StakeyAvatarConfig['species'];
-}
-
-function OptionPills<T extends string>({ options, value, onChange, species }: PillProps<T>) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {options
-        .filter((o) => !species || !o.species || o.species.includes(species))
-        .map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => onChange(o.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-colors ${
-              value === o.id
-                ? 'bg-emerald-500 text-neutral-950 border-emerald-400'
-                : 'bg-white/5 text-neutral-300 border-white/10 hover:border-emerald-500/40'
-            }`}
-          >
-            {o.label}
-          </button>
-        ))}
-    </div>
-  );
-}
-
-function Swatch<T extends string>({
+function OptionPills<T extends string>({
   options,
   value,
   onChange,
-  colors,
 }: {
   options: { id: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
-  colors: Record<T, string>;
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
-          title={o.label}
-          aria-label={o.label}
           onClick={() => onChange(o.id)}
-          className={`w-8 h-8 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 ${
-            value === o.id ? 'border-white ring-2 ring-emerald-400/60' : 'border-white/20'
+          className={`px-3 py-1.5 rounded-full text-xs font-semibold border cursor-pointer transition-colors ${
+            value === o.id
+              ? 'bg-emerald-500 text-neutral-950 border-emerald-400'
+              : 'bg-white/5 text-neutral-300 border-white/10 hover:border-emerald-500/40'
           }`}
-          style={{ background: colors[o.id] }}
-        />
+        >
+          {o.label}
+        </button>
       ))}
     </div>
   );
@@ -100,7 +58,7 @@ function Section({ title, icon, children }: { title: string; icon?: React.ReactN
   );
 }
 
-export const AvatarCreatorTab: React.FC = () => {
+export const StakeyHelperSettingsTab: React.FC = () => {
   const { stakeyAvatar, updateStakeyAvatar } = useShop();
   const [draft, setDraft] = useState<StakeyAvatarConfig>(stakeyAvatar);
   const [saved, setSaved] = useState(false);
@@ -136,7 +94,7 @@ export const AvatarCreatorTab: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-xl font-black text-white tracking-tight flex items-center gap-2">
               <Bot className="w-5 h-5 text-emerald-400" />
-              Virtual Stakey — Avatar Creator
+              Virtual Stakey — Helper
             </h3>
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
               AI HELPER
@@ -152,8 +110,8 @@ export const AvatarCreatorTab: React.FC = () => {
             </span>
           </div>
           <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-            Design the animated helper your customers meet. He greets them, answers questions, speaks aloud and walks
-            them to the right screen. Saved to the shared backend so the customer app shows the same character.
+            Set up the helper your customers meet. It greets them, answers questions, speaks aloud and walks them to the
+            right screen. Saved to the shared backend so the customer app shows the same helper.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -170,7 +128,7 @@ export const AvatarCreatorTab: React.FC = () => {
             className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-neutral-950 hover:bg-emerald-400 cursor-pointer flex items-center gap-1.5"
           >
             {saved ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
-            {saved ? 'Saved' : 'Save avatar'}
+            {saved ? 'Saved' : 'Save helper'}
           </button>
         </div>
       </div>
@@ -182,14 +140,12 @@ export const AvatarCreatorTab: React.FC = () => {
             <div className="relative">
               <div
                 className="absolute inset-0 -z-10 rounded-full blur-2xl opacity-40"
-                style={{ background: draft.accentColor || DEFAULT_ACCENT }}
+                style={{ background: '#05C147' }}
               />
               <StakeyAvatar config={draft} size={190} talking={speaking} />
             </div>
             <p className="mt-2 text-lg font-black text-white">{draft.name || 'Stakey'}</p>
-            <p className="text-[11px] text-neutral-400 capitalize">
-              {draft.species} · {draft.outfit} · {draft.voiceStyle} voice
-            </p>
+            <p className="text-[11px] text-neutral-400 capitalize">{draft.voiceStyle} voice</p>
 
             <div className="mt-4 w-full space-y-2">
               <label className="flex items-center justify-between text-xs font-semibold text-neutral-300 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 cursor-pointer">
@@ -249,74 +205,9 @@ export const AvatarCreatorTab: React.FC = () => {
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-emerald-500/60 outline-none"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Character</label>
-              <OptionPills options={AVATAR_SPECIES_OPTIONS} value={draft.species} onChange={(v) => set('species', v)} />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Build</label>
-              <OptionPills options={AVATAR_BODY_OPTIONS} value={draft.body} onChange={(v) => set('body', v)} />
-            </div>
-          </Section>
-
-          <Section title="Head" icon={<Palette className="w-4 h-4 text-emerald-400" />}>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Hair / headwear</label>
-              <OptionPills
-                options={AVATAR_HAIR_STYLE_OPTIONS}
-                value={draft.hairStyle}
-                onChange={(v) => set('hairStyle', v)}
-                species={draft.species}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Hair colour</label>
-              <Swatch
-                options={AVATAR_HAIR_COLOR_OPTIONS}
-                value={draft.hairColor}
-                onChange={(v) => set('hairColor', v)}
-                colors={HAIR_COLOR_HEX}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Skin tone</label>
-              <Swatch
-                options={AVATAR_SKIN_OPTIONS}
-                value={draft.skin}
-                onChange={(v) => set('skin', v)}
-                colors={SKIN_HEX}
-              />
-            </div>
-          </Section>
-
-          <Section title="Outfit" icon={<Palette className="w-4 h-4 text-emerald-400" />}>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Style</label>
-              <OptionPills options={AVATAR_OUTFIT_OPTIONS} value={draft.outfit} onChange={(v) => set('outfit', v)} />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Colour</label>
-              <Swatch
-                options={AVATAR_OUTFIT_COLOR_OPTIONS}
-                value={draft.outfitColor}
-                onChange={(v) => set('outfitColor', v)}
-                colors={Object.fromEntries(
-                  Object.entries(OUTFIT_COLOR_HEX).map(([k, v]) => [k, v.base])
-                ) as Record<StakeyAvatarConfig['outfitColor'], string>}
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-neutral-400 mb-1">Business accent</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={draft.accentColor || DEFAULT_ACCENT}
-                  onChange={(e) => set('accentColor', e.target.value)}
-                  className="w-10 h-8 rounded-lg bg-transparent border border-white/10 cursor-pointer"
-                />
-                <span className="text-xs font-mono text-neutral-400">{draft.accentColor || DEFAULT_ACCENT}</span>
-              </div>
-            </div>
+            <p className="text-[11px] text-neutral-500">
+              The helper uses the workshop's illustrated character, so there is nothing else to build here.
+            </p>
           </Section>
 
           <Section title="Voice & personality" icon={<Volume2 className="w-4 h-4 text-emerald-400" />}>

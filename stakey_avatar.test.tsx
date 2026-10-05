@@ -35,15 +35,12 @@ describe('normalizeStakeyAvatarConfig', () => {
   it('keeps valid fields and drops unknown option values', () => {
     const cfg = normalizeStakeyAvatarConfig({
       name: 'Bolt',
-      species: 'robot',
-      hairStyle: 'wizard', // invalid -> falls back to default
+      voiceStyle: 'nonsense', // invalid -> falls back to default
       voiceEnabled: true,
-      outfitColor: 'coral',
+      species: 'robot', // legacy field from the old builder -> ignored
     });
     expect(cfg.name).toBe('Bolt');
-    expect(cfg.species).toBe('robot');
-    expect(cfg.hairStyle).toBe(DEFAULT_STAKEY_AVATAR.hairStyle);
-    expect(cfg.outfitColor).toBe('coral');
+    expect(cfg.voiceStyle).toBe(DEFAULT_STAKEY_AVATAR.voiceStyle);
     expect(cfg.voiceEnabled).toBe(true);
   });
 
@@ -55,20 +52,19 @@ describe('normalizeStakeyAvatarConfig', () => {
 });
 
 describe('StakeyAvatar', () => {
-  it('renders an accessible figure and applies the accent + talking mouth', () => {
-    const { container } = render(
-      <StakeyAvatar config={{ ...DEFAULT_STAKEY_AVATAR, name: 'Stakey', accentColor: '#05C147' }} talking />
-    );
-    expect(screen.getByRole('img', { name: /Stakey/ })).toBeTruthy();
-    // The talking mouth class drives the CSS mouth animation.
-    expect(container.querySelector('.stakey-mouth--talking')).toBeTruthy();
-    // Accent is used for the chest badge.
-    expect(container.innerHTML).toContain('#05C147');
+  it('renders the image avatar and applies the talking animation', () => {
+    const { container } = render(<StakeyAvatar config={{ ...DEFAULT_STAKEY_AVATAR, name: 'Stakey' }} talking />);
+    const img = screen.getByRole('img', { name: /Stakey/ }) as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe('/brand/stakeys-avatar.svg');
+    // The talking class drives the CSS pulse animation.
+    expect(container.querySelector('.stakeys-avatar--talking')).toBeTruthy();
+    // The provided frame class wraps the artwork.
+    expect(container.querySelector('.avatar-container')).toBeTruthy();
   });
 
-  it('renders the robot antenna only for the robot species', () => {
-    const robot = render(<StakeyAvatar config={{ ...DEFAULT_STAKEY_AVATAR, species: 'robot', hairStyle: 'antenna' }} />);
-    expect(robot.container.querySelector('line')).toBeTruthy();
+  it('does not animate when idle', () => {
+    const { container } = render(<StakeyAvatar config={DEFAULT_STAKEY_AVATAR} />);
+    expect(container.querySelector('.stakeys-avatar--talking')).toBeNull();
   });
 });
 
