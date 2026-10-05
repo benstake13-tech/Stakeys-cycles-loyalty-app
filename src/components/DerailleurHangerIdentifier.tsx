@@ -14,9 +14,9 @@ import {
   SlidersHorizontal,
   ExternalLink,
 } from 'lucide-react';
-import { DERAILLEUR_HANGERS_DATABASE } from '../data/derailleurHangerData';
-import { DerailleurHangerItem } from '../types/bikeShop';
-import { useShop } from '../context/ShopContext';
+import { DERAILLEUR_HANGERS_DATABASE } from '../shared/data/derailleurHangerData';
+import { DerailleurHangerItem } from '../shared/types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
 
 export const DerailleurHangerIdentifier: React.FC = () => {
   const { theme } = useShop();

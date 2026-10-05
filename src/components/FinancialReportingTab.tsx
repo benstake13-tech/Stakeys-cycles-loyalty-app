@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import { FileText, Download, Calendar, TrendingUp, AlertCircle } from 'lucide-react';
-import { ServiceBooking } from '../types/bikeShop';
+import { ServiceBooking } from '../shared/types/bikeShop';
 
 export const FinancialReportingTab: React.FC = () => {
   const { bookings } = useShop();

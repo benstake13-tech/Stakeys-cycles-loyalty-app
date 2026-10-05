@@ -1,0 +1,45 @@
+[functions.send-email]
+# The browser client calls this with the anon key; Supabase's default JWT
+# verification is fine (the anon key is a valid JWT). Set to false only if you
+# want to allow completely unauthenticated calls.
+verify_jwt = true
+
+[functions.notify-booking]
+# Called only by the `service_bookings` Database Webhook, which authenticates
+# with the service_role key. Keep JWT verification on; the function additionally
+# rejects any caller whose role is not `service_role`.
+verify_jwt = true
+
+[functions.booking-email-notification]
+# Fires from the `service_bookings` AFTER INSERT trigger. Authenticates with the
+# shared `x-booking-webhook-secret` header (Vault `booking_webhook_secret`), so
+# JWT verification stays off — same as the deployed function.
+verify_jwt = false
+
+[functions.booking-push-notification]
+# Fires from the `service_bookings` AFTER INSERT trigger, authenticated with the
+# same `x-booking-webhook-secret` header. Sends the staff push via OneSignal.
+verify_jwt = false
+
+[functions.spin-wheel]
+# Server-side weighted prize-wheel spin; validates the caller's Supabase Auth JWT.
+verify_jwt = true
+
+[functions.gbp-performance]
+# Google Business Profile performance proxy (staff-only).
+verify_jwt = true
+
+[functions.stamp-log]
+# Webhook on `stamp_transactions` INSERT that mirrors rows into `stamp_logs`.
+verify_jwt = true
+
+[functions.onesignal-notification]
+# Webhook on `notifications` INSERT that pushes to the target user via OneSignal.
+verify_jwt = false
+
+[functions.onesignal-send]
+# Server-to-server OneSignal send so booking alerts reach a phone with the app
+# closed. The browser calls it with the anon key (a valid JWT), so keep JWT
+# verification on. Holds ONESIGNAL_API_KEY server-side.
+verify_jwt = true
+

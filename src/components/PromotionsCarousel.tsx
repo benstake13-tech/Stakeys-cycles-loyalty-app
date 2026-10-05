@@ -15,8 +15,8 @@ import {
   Zap,
   Info,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { ShopPromotion } from '../types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
+import { ShopPromotion } from '../shared/types/bikeShop';
 
 interface PromotionsCarouselProps {
   onSelectPromoCode?: (code: string) => void;

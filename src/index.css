@@ -60,6 +60,176 @@
       0 8px 16px -4px rgba(15, 23, 42, 0.1),
       0 0 0 1px rgba(5, 193, 71, 0.5);
   }
+
+  /* ---- Motion primitives ---- */
+  .animate-fade-in {
+    animation: fade-in 0.35s ease-out both;
+  }
+
+  .animate-rise {
+    animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+
+  .animate-slide-down {
+    animation: slide-down 0.3s ease-out both;
+  }
+
+  .animate-pop {
+    animation: pop 0.25s ease-out both;
+  }
+
+  /* Animated highlight that sweeps across the repair progress bar */
+  .progress-shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .progress-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+    transform: translateX(-100%);
+    animation: shimmer 2.2s ease-in-out infinite;
+  }
+
+  /* Soft, continuous glow for the live "active" repair stage */
+  .animate-live-pulse {
+    animation: live-pulse 1.8s ease-in-out infinite;
+  }
+
+  /* Pulsing halo for the current stage / "you are here" marker */
+  .tracker-glow {
+    animation: tracker-glow 2s ease-in-out infinite;
+  }
+
+  /* Stronger halo for the "you are here" pin */
+  .tracker-glow-strong {
+    animation: tracker-glow-strong 1.6s ease-in-out infinite;
+  }
+
+  /* Three bouncing dots that lead the progress fill to the current stage */
+  .tracker-dot {
+    display: inline-block;
+    border-radius: 9999px;
+    animation: tracker-dot-bounce 1s ease-in-out infinite;
+  }
+  .tracker-dot:nth-child(2) { animation-delay: 0.16s; }
+  .tracker-dot:nth-child(3) { animation-delay: 0.32s; }
+  .tracker-dot--bright {
+    width: 6px;
+    height: 6px;
+    background: #d1fae5;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.95);
+  }
+  .tracker-dot--dark {
+    width: 4px;
+    height: 4px;
+    background: #052e16;
+  }
+
+  /* Slow breathing glow so the active marker feels alive, not flickery */
+  .tracker-breathe {
+    animation: tracker-breathe 2.4s ease-in-out infinite;
+  }
+
+  /* Motion primitives honour reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    .progress-shimmer::after,
+    .animate-live-pulse,
+    .tracker-glow,
+    .tracker-glow-strong,
+    .tracker-dot,
+    .tracker-breathe {
+      animation: none !important;
+    }
+  }
+
+  /* Staggered list entrances */
+  .stagger > * {
+    animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .stagger > *:nth-child(2) { animation-delay: 0.06s; }
+  .stagger > *:nth-child(3) { animation-delay: 0.1s; }
+  .stagger > *:nth-child(4) { animation-delay: 0.14s; }
+  .stagger > *:nth-child(5) { animation-delay: 0.18s; }
+  .stagger > *:nth-child(6) { animation-delay: 0.22s; }
+
+  /* Hide scrollbars on horizontal tab strips while keeping scroll */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Pressable feedback shared by nav pills and cards */
+  .pressable {
+    transition: transform 0.18s ease, background-color 0.2s ease, color 0.2s ease,
+      border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .pressable:active {
+    transform: scale(0.97);
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  60%, 100% { transform: translateX(100%); }
+}
+
+@keyframes live-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(5, 193, 71, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(5, 193, 71, 0); }
+}
+
+@keyframes tracker-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(5, 193, 71, 0.45), 0 0 14px 1px rgba(5, 193, 71, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(5, 193, 71, 0.8), 0 0 30px 6px rgba(5, 193, 71, 0.6);
+  }
+}
+
+@keyframes tracker-glow-strong {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65), 0 0 16px 2px rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(16, 185, 129, 0), 0 0 34px 8px rgba(16, 185, 129, 0.75);
+  }
+}
+
+@keyframes tracker-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.55; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes tracker-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; }
 }
 
 /* Custom subtle scrollbar */
@@ -69,7 +239,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #090b0e;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -79,5 +249,32 @@
 
 ::-webkit-scrollbar-thumb:hover {
   background: #2e3846;
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Visible, consistent keyboard focus everywhere */
+:focus-visible {
+  outline: 2px solid #05c147;
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

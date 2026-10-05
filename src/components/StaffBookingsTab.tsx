@@ -22,14 +22,20 @@ import {
   VolumeX,
   Bell,
   FileText,
+  AlertTriangle,
+  Trash2,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
+import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../shared/types/bikeShop';
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
-import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import { ALL_BIKE_ISSUES_MAP } from '../shared/data/bikeIssuesCatalog';
+import { dispatchTestEmail, buildBookingApprovalSms, createBookingApprovalSmsUrl, normalizePhoneForSms } from '../shared/utils/notificationService';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
+import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
+import { ClearBookingsModal } from './ClearBookingsModal';
+import { PhoneBookingPanel } from './PhoneBookingPanel';
 
 export const StaffBookingsTab: React.FC = () => {
   const {
@@ -37,6 +43,9 @@ export const StaffBookingsTab: React.FC = () => {
     approveBooking,
     declineBooking,
     updateBookingStatus,
+    setRepairStage,
+    setRepairEstimate,
+    addRepairProgressNote,
     updateBookingQuote,
     saveRepairInvoice,
     updateInvoicePaymentStatus,
@@ -53,6 +62,7 @@ export const StaffBookingsTab: React.FC = () => {
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('all');
+  const [bookingView, setBookingView] = useState<'queue' | 'phone'>('queue');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
 
   // Invoice & Repair Completion Modal States
@@ -62,6 +72,9 @@ export const StaffBookingsTab: React.FC = () => {
   // Approval / Decline Modal States
   const [approvingBooking, setApprovingBooking] = useState<ServiceBooking | null>(null);
   const [approvalNote, setApprovalNote] = useState('');
+  const [estimatePrice, setEstimatePrice] = useState('');
+  const [estimateNote, setEstimateNote] = useState('');
+  const [approveError, setApproveError] = useState<string | null>(null);
   const [isApproving, setIsApproving] = useState(false);
 
   const [decliningBooking, setDecliningBooking] = useState<ServiceBooking | null>(null);
@@ -74,9 +87,12 @@ export const StaffBookingsTab: React.FC = () => {
   const [quoteNote, setQuoteNote] = useState('');
   const [isQuoting, setIsQuoting] = useState(false);
 
+  // Launch prep: wipe the whole booking list
+  const [isClearBookingsOpen, setIsClearBookingsOpen] = useState(false);
+
   // Action toast / feedback
   const [actionFeedback, setActionFeedback] = useState<{
-    type: 'success' | 'danger';
+    type: 'success' | 'warning' | 'danger';
     message: string;
   } | null>(null);
 
@@ -87,6 +103,7 @@ export const StaffBookingsTab: React.FC = () => {
   const [emailAlerts, setEmailAlerts] = useState(ownerConfig.emailAlertsEnabled);
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [testAlertSent, setTestAlertSent] = useState(false);
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   // Filter Bookings
   const filteredBookings = bookings.filter((b) => {
@@ -101,29 +118,49 @@ export const StaffBookingsTab: React.FC = () => {
 
   const handleOpenApprove = (b: ServiceBooking) => {
     setApprovingBooking(b);
-    setApprovalNote(
-      `Your service appointment on ${b.preferredDate} (${b.preferredTimeSlot}) is approved. Please bring your vehicle to our workshop intake bay.`
+    setApprovalNote('');
+    setEstimatePrice(b.quotedPrice != null ? b.quotedPrice.toString() : '');
+    setEstimateNote(
+      b.quoteNote ||
+        `Estimated cost to complete the ${b.serviceTitle} on your ${b.vehicleModel}. This is an estimate only — the final price is confirmed once we inspect the bike.`
     );
+    setApproveError(null);
   };
 
-  const handleConfirmApprove = async () => {
-    if (!approvingBooking) return;
+  const handleConfirmApprove = async (): Promise<boolean> => {
+    if (!approvingBooking) return false;
+
+    // The estimate is mandatory: it is what the customer sees in the
+    // confirmation email, so approval must not go out without it.
+    const price = parseFloat(estimatePrice);
+    if (!Number.isFinite(price) || price < 0) {
+      setApproveError('Enter an estimated quote before approving — it is included in the customer confirmation.');
+      return false;
+    }
+
+    setApproveError(null);
     setIsApproving(true);
     try {
-      const res = await approveBooking(approvingBooking.id, approvalNote.trim());
+      const res = await approveBooking(approvingBooking.id, approvalNote.trim(), {
+        quotedPrice: price,
+        quoteNote: estimateNote.trim(),
+      });
+      const emailWarned = /NOT sent|not sent|failed/i.test(res.message || '');
       setActionFeedback({
-        type: 'success',
+        type: emailWarned ? 'warning' : 'success',
         message:
           res.message ||
-          `Booking #${approvingBooking.id} approved! Confirmation email delivered to ${approvingBooking.customerEmail}.`,
+          `Booking #${approvingBooking.id} approved! Confirmation with the £${price.toFixed(2)} estimate delivered to ${approvingBooking.customerEmail}.`,
       });
       setApprovingBooking(null);
       setTimeout(() => setActionFeedback(null), 5000);
+      return res.success;
     } catch (err: any) {
       setActionFeedback({
         type: 'danger',
         message: err.message || 'Failed to approve booking.',
       });
+      return false;
     } finally {
       setIsApproving(false);
     }
@@ -170,15 +207,27 @@ export const StaffBookingsTab: React.FC = () => {
 
   const handleConfirmQuote = async () => {
     if (!quotingBooking) return;
+    const price = parseFloat(quotedPrice);
+    if (!Number.isFinite(price) || price < 0) {
+      setActionFeedback({ type: 'danger', message: 'Enter a valid quote amount before saving.' });
+      return;
+    }
     setIsQuoting(true);
     try {
-      await updateBookingQuote(quotingBooking.id, {
-        quotedPrice: parseFloat(quotedPrice),
+      const res = await updateBookingQuote(quotingBooking.id, {
+        quotedPrice: price,
         quoteNote,
       });
+      if (!res.success) {
+        setActionFeedback({
+          type: 'danger',
+          message: res.message || 'Failed to save the quote.',
+        });
+        return;
+      }
       setActionFeedback({
         type: 'success',
-        message: `Quote for booking #${quotingBooking.id} updated!`,
+        message: res.message || `Quote for booking #${quotingBooking.id} saved!`,
       });
       setQuotingBooking(null);
       setTimeout(() => setActionFeedback(null), 5000);
@@ -205,9 +254,15 @@ export const StaffBookingsTab: React.FC = () => {
     setIsEditingSettings(false);
   };
 
-  const handleSendTestAlert = () => {
+  const handleSendTestAlert = async () => {
+    setIsSendingTest(true);
+    const result = await dispatchTestEmail(ownerConfig);
+    setIsSendingTest(false);
     setTestAlertSent(true);
-    setTimeout(() => setTestAlertSent(false), 3500);
+    setTimeout(() => setTestAlertSent(false), 4000);
+    if (!result.success && result.message) {
+      alert(result.message);
+    }
   };
 
   const getStatusBadge = (status: BookingStatus) => {
@@ -259,6 +314,33 @@ export const StaffBookingsTab: React.FC = () => {
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* View switcher: online/workshop queue vs staff-logged phone bookings */}
+      <div className="inline-flex p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold">
+        <button
+          type="button"
+          onClick={() => setBookingView('queue')}
+          className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer ${
+            bookingView === 'queue' ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          Workshop Queue
+        </button>
+        <button
+          type="button"
+          onClick={() => setBookingView('phone')}
+          className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            bookingView === 'phone' ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm' : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Phone className="w-3.5 h-3.5" />
+          Phone Bookings
+        </button>
+      </div>
+
+      {bookingView === 'phone' && <PhoneBookingPanel />}
+
+      {bookingView === 'queue' && (
+      <>
       {/* Top Banner: Notifications Settings & Status */}
       <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -281,6 +363,16 @@ export const StaffBookingsTab: React.FC = () => {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
+              onClick={() => setIsClearBookingsOpen(true)}
+              disabled={bookings.length === 0}
+              className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-rose-950/70 disabled:opacity-40 disabled:cursor-not-allowed text-rose-300 hover:text-white text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-rose-900/70"
+              title="Permanently remove every booking (launch prep)"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Clear Bookings{bookings.length > 0 ? ` (${bookings.length})` : ''}</span>
+            </button>
+
+            <button
               onClick={() => setIsEditingSettings(!isEditingSettings)}
               className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-neutral-700"
             >
@@ -290,10 +382,11 @@ export const StaffBookingsTab: React.FC = () => {
 
             <button
               onClick={handleSendTestAlert}
-              className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
+              disabled={isSendingTest}
+              className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-wait text-neutral-950 text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
             >
               <Send className="w-4 h-4" />
-              <span>Send Test Email</span>
+              <span>{isSendingTest ? 'Sending…' : 'Send Test Email'}</span>
             </button>
           </div>
         </div>
@@ -311,18 +404,18 @@ export const StaffBookingsTab: React.FC = () => {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-white uppercase tracking-wider">
-                  Workshop Loud Booking Ping
+                  Workshop Booking Chime
                 </span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                   isStaffBookingSoundEnabled
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 }`}>
-                  {isStaffBookingSoundEnabled ? '🔔 LOUD PING ARMED' : '🔕 MUTED'}
+                  {isStaffBookingSoundEnabled ? '🔔 CHIME ARMED' : '🔕 MUTED'}
                 </span>
               </div>
               <p className="text-[11px] text-neutral-400 mt-0.5">
-                Staff terminals ping loudly as soon as a customer submits a repair booking. Customers never hear it.
+                Staff terminals play a cheerful booking chime as soon as a customer submits a repair booking. Customers never hear it.
               </p>
             </div>
           </div>
@@ -343,10 +436,10 @@ export const StaffBookingsTab: React.FC = () => {
               type="button"
               onClick={playStaffBookingAlertPing}
               className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 hover:text-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-emerald-500/40 shadow-sm"
-              title="Test the loud workshop alert ping sound"
+              title="Test the workshop booking chime"
             >
               <Bell className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Test Loud Ping</span>
+              <span>Test Chime</span>
             </button>
 
             <button
@@ -454,12 +547,16 @@ export const StaffBookingsTab: React.FC = () => {
           className={`p-4 rounded-2xl border text-xs flex items-center justify-between gap-3 animate-fade-in ${
             actionFeedback.type === 'success'
               ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-200'
+              : actionFeedback.type === 'warning'
+              ? 'bg-amber-950/80 border-amber-500/50 text-amber-200'
               : 'bg-rose-950/80 border-rose-500/50 text-rose-200'
           }`}
         >
           <div className="flex items-center gap-2">
             {actionFeedback.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            ) : actionFeedback.type === 'warning' ? (
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
             ) : (
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             )}
@@ -697,7 +794,7 @@ export const StaffBookingsTab: React.FC = () => {
                       <Wrench className="w-3.5 h-3.5 text-[#05C147]" />
                       Reported Bike Issues Checklist ({b.selectedIssues.length})
                     </span>
-                    <span className="text-[10px] text-neutral-400 font-normal normal-case">Cytech intake inspection</span>
+                    <span className="text-[10px] text-neutral-400 font-normal normal-case">workshop intake inspection</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {b.selectedIssues.map((id) => {
@@ -741,7 +838,7 @@ export const StaffBookingsTab: React.FC = () => {
                   </div>
 
                   <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                    Customer provided name (<strong>{b.customerName}</strong>) and phone (<strong>{b.customerPhone}</strong>). Granting approval will automatically deliver an official confirmation email to <strong>{b.customerEmail}</strong>. If declined, a respectful explanation will be emailed.
+                    Customer provided name (<strong>{b.customerName}</strong>) and phone (<strong>{b.customerPhone}</strong>). Approving asks you to confirm the estimated quote, which is included in the official confirmation email sent to <strong>{b.customerEmail}</strong>. If declined, a respectful explanation will be emailed.
                   </p>
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -867,6 +964,18 @@ export const StaffBookingsTab: React.FC = () => {
                 </div>
               </div>
 
+              {/* LIVE CUSTOMER REPAIR PROGRESS TRACKER */}
+              {b.status !== 'declined' && b.status !== 'cancelled' && (
+                <StaffRepairProgressPanel
+                  booking={b}
+                  onSetStage={(stage, options) => setRepairStage(b.id, stage, options)}
+                  onSetEstimate={(estimateReadyAt, options) =>
+                    setRepairEstimate(b.id, estimateReadyAt, options)
+                  }
+                  onAddNote={(note) => addRepairProgressNote(b.id, note)}
+                />
+              )}
+
               {/* Action Toolbar */}
               <div className="pt-2 border-t border-neutral-800 flex flex-wrap items-center justify-between gap-3 text-xs">
                 {/* Status Switcher (for approved / active bookings) */}
@@ -963,6 +1072,36 @@ export const StaffBookingsTab: React.FC = () => {
               </div>
             </div>
 
+            {/* Mandatory estimate — this is what the customer's confirmation shows */}
+            <div className="p-3.5 rounded-2xl bg-emerald-950/30 border border-emerald-700/50 space-y-3">
+              <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold">
+                <FileText className="w-4 h-4" />
+                <span>Estimated Quote (included in the customer confirmation)</span>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">Estimated Price (£)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={estimatePrice}
+                  onChange={(e) => setEstimatePrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5">Estimate Note</label>
+                <textarea
+                  rows={3}
+                  value={estimateNote}
+                  onChange={(e) => setEstimateNote(e.target.value)}
+                  placeholder="Explain what the estimate covers..."
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+            </div>
+
             {/* Workshop Mechanic Drop-Off Instructions / SMS Note */}
             <div>
               <label className="block text-xs font-semibold text-neutral-300 mb-1.5">
@@ -976,9 +1115,60 @@ export const StaffBookingsTab: React.FC = () => {
                 className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-[#05C147]"
               />
               <span className="text-[11px] text-neutral-400 mt-1 block">
-                This note will be formatted prominently in the official approval SMS delivered to {approvingBooking.customerPhone}.
+                Optional extra line shown to the customer in the confirmation SMS sent to {approvingBooking.customerPhone}.
               </span>
             </div>
+
+            {/* Live preview of the exact SMS the customer will receive */}
+            <div className="p-3.5 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold">
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Confirmation SMS Preview</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const body = buildBookingApprovalSms(
+                      {
+                        ...approvingBooking,
+                        quotedPrice: estimatePrice.trim() ? parseFloat(estimatePrice) : undefined,
+                      },
+                      ownerConfig,
+                      approvalNote.trim()
+                    );
+                    navigator.clipboard?.writeText(body);
+                  }}
+                  className="text-[11px] text-neutral-400 hover:text-white cursor-pointer"
+                >
+                  Copy
+                </button>
+              </div>
+              <div className="text-[11px] text-neutral-400">
+                To:{' '}
+                <span className="font-mono text-neutral-200">
+                  {normalizePhoneForSms(approvingBooking.customerPhone) || 'No number on file'}
+                </span>{' '}
+                ({approvingBooking.customerName})
+              </div>
+              <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-neutral-200 bg-black/40 rounded-lg p-3 border border-neutral-800/80">
+                {buildBookingApprovalSms(
+                  {
+                    ...approvingBooking,
+                    quotedPrice: estimatePrice.trim() ? parseFloat(estimatePrice) : undefined,
+                  },
+                  ownerConfig,
+                  approvalNote.trim()
+                )}
+              </pre>
+            </div>
+
+            {approveError && (
+              <div className="p-3 rounded-xl bg-rose-950/70 border border-rose-800 text-rose-200 text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{approveError}</span>
+              </div>
+            )}
 
             <div className="pt-2 flex items-center justify-end gap-2.5">
               <button
@@ -993,11 +1183,15 @@ export const StaffBookingsTab: React.FC = () => {
                 type="button"
                 disabled={isApproving}
                 onClick={async () => {
-                  await handleConfirmApprove(); // Triggers existing approval/email logic
-                  const smsLink = `sms:${approvingBooking.customerPhone.replace(/\s+/g, '')}?body=${encodeURIComponent(
-                    `Hi ${approvingBooking.customerName}! Your booking #${approvingBooking.id} is approved. ${approvalNote.trim() ? `Note: ${approvalNote.trim()}` : ''} See you at Stakey's!`
-                  )}`;
-                  window.location.href = smsLink; // Redirects to device SMS app
+                  const approved = await handleConfirmApprove(); // Dispatch email with the estimate
+                  if (!approved) return; // Estimate missing/invalid — do not open SMS
+                  const estimate = parseFloat(estimatePrice);
+                  const smsLink = createBookingApprovalSmsUrl(
+                    { ...approvingBooking, quotedPrice: estimate, quoteNote: estimateNote.trim() },
+                    ownerConfig,
+                    approvalNote.trim()
+                  );
+                  window.location.href = smsLink; // Opens the device SMS app, pre-addressed & pre-filled
                 }}
                 className="px-5 py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
               >
@@ -1189,7 +1383,7 @@ export const StaffBookingsTab: React.FC = () => {
             setViewingInvoice({ invoice, booking: completingBooking });
             setCompletingBooking(null);
           }}
-          currentStaffName={currentUser?.displayName || 'Ben Stake - Cytech Master'}
+          currentStaffName={currentUser?.displayName || 'Ben Stake - Lead Mechanic'}
         />
       )}
 
@@ -1208,6 +1402,13 @@ export const StaffBookingsTab: React.FC = () => {
           }}
           isStaff={true}
         />
+      )}
+
+      {/* Launch prep: clear every booking */}
+      {isClearBookingsOpen && (
+        <ClearBookingsModal onClose={() => setIsClearBookingsOpen(false)} />
+      )}
+      </>
       )}
     </div>
   );

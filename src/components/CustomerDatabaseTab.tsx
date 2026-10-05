@@ -28,9 +28,9 @@ import {
   Trash2,
   Minus,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { UserProfile, StampLog } from '../types/bikeShop';
-import { canCustomerReceiveStampToday } from '../api/firebaseService';
+import { useShop } from '../shared/context/ShopContext';
+import { UserProfile, StampLog } from '../shared/types/bikeShop';
+import { canCustomerReceiveStampToday } from '../shared/api/firebaseService';
 import { StakeysLogo } from './StakeysLogo';
 
 interface CustomerDatabaseTabProps {
@@ -45,7 +45,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
     users,
     stampLogs,
     addStamp,
-    updateCustomerMerits,
+    updateCustomerPoints,
     createCustomerByStaff,
     deleteCustomerAccount,
     adjustCustomerStamps,
@@ -54,7 +54,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'reward_ready' | 'has_tickets' | 'has_bikes' | 'eligible_today'>('all');
-  const [sortBy, setSortBy] = useState<'name' | 'stamps_desc' | 'tickets_desc' | 'merits_desc' | 'membership'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'stamps_desc' | 'tickets_desc' | 'points_desc' | 'membership'>('name');
 
   // Modals
   const [editingCustomer, setEditingCustomer] = useState<UserProfile | null>(null);
@@ -79,7 +79,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
   // Total metrics
   const totalStamps = customers.reduce((sum, c) => sum + (c.stamps || 0), 0);
   const totalTickets = customers.reduce((sum, c) => sum + (c.tickets || 0), 0);
-  const totalMerits = customers.reduce((sum, c) => sum + (c.merits || 0), 0);
+  const totalPoints = customers.reduce((sum, c) => sum + (c.points || 0), 0);
   const rewardReadyCount = customers.filter((c) => (c.stamps || 0) >= 10).length;
 
   // Filter & Search Logic
@@ -123,8 +123,8 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
       if (sortBy === 'tickets_desc') {
         return (b.tickets || 0) - (a.tickets || 0);
       }
-      if (sortBy === 'merits_desc') {
-        return (b.merits || 0) - (a.merits || 0);
+      if (sortBy === 'points_desc') {
+        return (b.points || 0) - (a.points || 0);
       }
       if (sortBy === 'membership') {
         return a.membershipNumber.localeCompare(b.membershipNumber);
@@ -148,7 +148,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
   };
 
   const handleQuickAddTicket = async (cust: UserProfile) => {
-    const res = await updateCustomerMerits(cust.uid, staffId, {
+    const res = await updateCustomerPoints(cust.uid, staffId, {
       tickets: (cust.tickets || 0) + 1,
       staffNote: 'Quick +1 Prize Draw ticket awarded by staff',
     });
@@ -187,13 +187,13 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
             <Users className="w-4 h-4 text-[#05C147]" />
             <span className="font-semibold tracking-wider uppercase">Staff Till &amp; Directory</span>
             <span aria-hidden="true" className="text-neutral-600">·</span>
-            <span>Manual Merit Controls</span>
+            <span>Manual Point Controls</span>
           </div>
           <h2 className="font-display text-2xl font-bold text-white tracking-tight">
-            Customer Directory &amp; Merits Database
+            Customer Directory &amp; Points Database
           </h2>
           <p className="text-xs text-neutral-400 mt-1 max-w-xl">
-            Locate registered customer records, inspect loyalty cards, and manually adjust visit stamps, prize draw tickets, and store merits.
+            Locate registered customer records, inspect loyalty cards, and manually adjust visit stamps, prize draw tickets, and store points.
           </p>
         </div>
 
@@ -321,7 +321,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
                 <option value="name" className="bg-neutral-900">Sort by Name</option>
                 <option value="stamps_desc" className="bg-neutral-900">Most Stamps</option>
                 <option value="tickets_desc" className="bg-neutral-900">Most Tickets</option>
-                <option value="merits_desc" className="bg-neutral-900">Most Merits</option>
+                <option value="points_desc" className="bg-neutral-900">Most Points</option>
                 <option value="membership" className="bg-neutral-900">Member ID</option>
               </select>
             </div>
@@ -371,7 +371,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
             const rateStatus = canCustomerReceiveStampToday(cust);
             const stamps = cust.stamps || 0;
             const tickets = cust.tickets || 0;
-            const merits = cust.merits || 0;
+            const points = cust.points || 0;
             const bikes = cust.bikes || [];
 
             return (
@@ -439,7 +439,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
                   </div>
                 </div>
 
-                {/* Middle: Merits & Loyalty Balances */}
+                {/* Middle: Points & Loyalty Balances */}
                 <div className="flex flex-wrap items-center gap-4 bg-neutral-950/80 p-3.5 rounded-xl border border-neutral-800/80">
                   {/* Stamps Metric */}
                   <div className="text-left min-w-[100px]">
@@ -490,14 +490,14 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
 
                   <div className="w-px h-8 bg-neutral-800 hidden sm:block" />
 
-                  {/* Store Merits */}
+                  {/* Store Points */}
                   <div className="text-left min-w-[80px]">
                     <div className="text-[10px] uppercase font-mono text-neutral-400 tracking-wider flex items-center gap-1">
                       <Sparkles className="w-3 h-3 text-emerald-400" />
-                      <span>Merits</span>
+                      <span>Points</span>
                     </div>
                     <div className="font-mono text-lg font-bold text-emerald-400 tabular-nums mt-0.5">
-                      {merits}
+                      {points}
                     </div>
                     <div className="text-[10px] text-neutral-500">Loyalty pts</div>
                   </div>
@@ -527,14 +527,14 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
 
                 {/* Right: Actions */}
                 <div className="flex flex-wrap items-center gap-2 self-end lg:self-center shrink-0">
-                  {/* Manual Merit & Profile Editor */}
+                  {/* Manual Point & Profile Editor */}
                   <button
                     type="button"
                     onClick={() => setEditingCustomer(cust)}
                     className="px-3 py-2 rounded-xl bg-neutral-850 hover:bg-neutral-800 border border-neutral-700/80 hover:border-emerald-500/50 text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Edit Merits</span>
+                    <span>Edit Points</span>
                   </button>
 
                   {/* Quick +1 Stamp */}
@@ -597,9 +597,9 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
         </div>
       )}
 
-      {/* Manual Merits Editor Modal */}
+      {/* Manual Points Editor Modal */}
       {editingCustomer && (
-        <EditMeritsModal
+        <EditPointsModal
           customer={editingCustomer}
           staffId={staffId}
           onClose={() => setEditingCustomer(null)}
@@ -629,7 +629,7 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
 /* ========================================================================= */
 /* EDIT MERITS & PROFILE MODAL                                               */
 /* ========================================================================= */
-interface EditMeritsModalProps {
+interface EditPointsModalProps {
   customer: UserProfile;
   staffId: string;
   onClose: () => void;
@@ -637,19 +637,19 @@ interface EditMeritsModalProps {
   customerAuditLogs: StampLog[];
 }
 
-const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
+const EditPointsModal: React.FC<EditPointsModalProps> = ({
   customer,
   staffId,
   onClose,
   onSuccess,
   customerAuditLogs,
 }) => {
-  const { updateCustomerMerits } = useShop();
+  const { updateCustomerPoints } = useShop();
 
   // Form State
   const [stamps, setStamps] = useState<number>(customer.stamps || 0);
   const [tickets, setTickets] = useState<number>(customer.tickets || 0);
-  const [merits, setMerits] = useState<number>(customer.merits || 0);
+  const [points, setPoints] = useState<number>(customer.points || 0);
 
   const [displayName, setDisplayName] = useState(customer.displayName);
   const [email, setEmail] = useState(customer.email);
@@ -674,17 +674,17 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
       setError('Prize tickets cannot be negative.');
       return;
     }
-    if (merits < 0) {
-      setError('Store merits cannot be negative.');
+    if (points < 0) {
+      setError('Store points cannot be negative.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await updateCustomerMerits(customer.uid, staffId, {
+      const res = await updateCustomerPoints(customer.uid, staffId, {
         stamps,
         tickets,
-        merits,
+        points,
         displayName: displayName.trim(),
         email: email.trim(),
         phoneNumber: phoneNumber.trim(),
@@ -696,10 +696,10 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
       if (res.success && res.customer) {
         onSuccess(res.customer, res.message);
       } else {
-        setError(res.message || 'Failed to update merits.');
+        setError(res.message || 'Failed to update points.');
       }
     } catch (err: any) {
-      setError(err.message || 'Error updating merits.');
+      setError(err.message || 'Error updating points.');
     } finally {
       setIsSubmitting(false);
     }
@@ -716,7 +716,7 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
-                <span>Manual Merit Adjustment</span>
+                <span>Manual Point Adjustment</span>
                 <span className="font-mono text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">
                   {customer.membershipNumber}
                 </span>
@@ -744,11 +744,11 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
             </div>
           )}
 
-          {/* Section 1: Merits & Loyalty Balances */}
+          {/* Section 1: Points & Loyalty Balances */}
           <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-4 sm:p-5 space-y-5">
             <h4 className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5" />
-              <span>Loyalty Merits &amp; Balances</span>
+              <span>Loyalty Points &amp; Balances</span>
             </h4>
 
             {/* Visit Stamps (0 - 10) */}
@@ -869,7 +869,7 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-semibold text-neutral-200 flex items-center gap-1.5">
                   <Ticket className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Prize Draw Tickets / Merits</span>
+                  <span>Prize Draw Tickets / Points</span>
                 </label>
                 <span className="font-mono text-xs text-amber-400 tabular-nums">
                   {tickets} Tickets
@@ -925,15 +925,15 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
               </div>
             </div>
 
-            {/* Store Loyalty Merits / Points */}
+            {/* Store Loyalty Points / Points */}
             <div className="pt-2 border-t border-neutral-850">
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-semibold text-neutral-200 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Store Loyalty Merits (Bonus Points)</span>
+                  <span>Store Loyalty Points (Bonus Points)</span>
                 </label>
                 <span className="font-mono text-xs text-emerald-400 tabular-nums">
-                  {merits} pts
+                  {points} pts
                 </span>
               </div>
 
@@ -941,23 +941,23 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
                 <input
                   type="number"
                   min="0"
-                  value={merits}
-                  onChange={(e) => setMerits(Math.max(0, parseInt(e.target.value) || 0))}
+                  value={points}
+                  onChange={(e) => setPoints(Math.max(0, parseInt(e.target.value) || 0))}
                   className="w-24 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-1.5 text-white font-mono text-xs font-bold focus:outline-none focus:border-emerald-500"
                 />
                 <button
                   type="button"
-                  onClick={() => setMerits((prev) => prev + 50)}
+                  onClick={() => setPoints((prev) => prev + 50)}
                   className="px-2.5 py-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold cursor-pointer"
                 >
-                  +50 Merits
+                  +50 Points
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMerits((prev) => prev + 100)}
+                  onClick={() => setPoints((prev) => prev + 100)}
                   className="px-2.5 py-1.5 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 text-[11px] font-semibold cursor-pointer"
                 >
-                  +100 Merits
+                  +100 Points
                 </button>
               </div>
             </div>
@@ -1104,7 +1104,7 @@ const EditMeritsModal: React.FC<EditMeritsModalProps> = ({
               disabled={isSubmitting}
               className="px-5 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 text-xs font-bold transition-all shadow-md shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
             >
-              {isSubmitting ? 'Saving Changes...' : 'Save Merit Changes'}
+              {isSubmitting ? 'Saving Changes...' : 'Save Point Changes'}
             </button>
           </div>
         </form>
@@ -1134,7 +1134,7 @@ const NewCustomerModal: React.FC<NewCustomerModalProps> = ({
   const [phoneNumber, setPhoneNumber] = useState('');
   const [initialStamps, setInitialStamps] = useState<number>(1);
   const [initialTickets, setInitialTickets] = useState<number>(0);
-  const [initialMerits, setInitialMerits] = useState<number>(50);
+  const [initialPoints, setInitialPoints] = useState<number>(50);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1157,7 +1157,7 @@ const NewCustomerModal: React.FC<NewCustomerModalProps> = ({
           phoneNumber: phoneNumber.trim() || undefined,
           stamps: initialStamps,
           tickets: initialTickets,
-          merits: initialMerits,
+          points: initialPoints,
         },
         staffId
       );
@@ -1275,13 +1275,13 @@ const NewCustomerModal: React.FC<NewCustomerModalProps> = ({
 
             <div>
               <label className="block text-[10px] font-mono uppercase text-neutral-400 mb-1">
-                Start Merits
+                Start Points
               </label>
               <input
                 type="number"
                 min="0"
-                value={initialMerits}
-                onChange={(e) => setInitialMerits(parseInt(e.target.value) || 0)}
+                value={initialPoints}
+                onChange={(e) => setInitialPoints(parseInt(e.target.value) || 0)}
                 className="w-full bg-neutral-950 border border-neutral-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
               />
             </div>

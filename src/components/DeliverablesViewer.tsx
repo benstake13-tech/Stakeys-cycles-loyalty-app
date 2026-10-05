@@ -11,8 +11,8 @@ import {
   Server,
   Terminal,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { DEFAULT_SUPABASE_URL } from '../supabase';
+import { useShop } from '../shared/context/ShopContext';
+import { DEFAULT_SUPABASE_URL } from '../shared/supabase';
 
 export const DeliverablesViewer: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'rls' | 'service' | 'schema' | 'guide'>('rls');

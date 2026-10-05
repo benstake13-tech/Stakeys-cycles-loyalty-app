@@ -20,9 +20,9 @@ import {
   Check,
   ArrowRight,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { VehicleCategory, BikeComponentSpec, BikeScrapeResult, UserProfile } from '../types/bikeShop';
-import { scrapeBikeStockSpecs, analyzeUpgrade, KNOWN_BIKE_DATABASE } from '../utils/bikeScraperService';
+import { useShop } from '../shared/context/ShopContext';
+import { VehicleCategory, BikeComponentSpec, BikeScrapeResult, UserProfile } from '../shared/types/bikeShop';
+import { scrapeBikeStockSpecs, analyzeUpgrade, KNOWN_BIKE_DATABASE } from '../shared/utils/bikeScraperService';
 
 interface BikeScraperTabProps {
   initialCustomer?: UserProfile | null;

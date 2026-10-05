@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { X, Sparkles, Trophy, RotateCcw } from 'lucide-react';
-import { PrizeWheel, PrizeWheelSegment } from '../types/bikeShop';
+import { PrizeWheel, PrizeWheelSegment } from '../shared/types/bikeShop';
 
 interface PrizeWheelModalProps {
   wheel: PrizeWheel;

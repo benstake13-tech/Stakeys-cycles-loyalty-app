@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Mail, X, CheckCircle2, Wrench, User, Calendar, Clock } from 'lucide-react';
-import { ServiceBooking, OwnerNotificationConfig } from '../types/bikeShop';
+import { ServiceBooking, OwnerNotificationConfig } from '../shared/types/bikeShop';
 import { StakeysLogo } from './StakeysLogo';
 
 interface NotificationPreviewModalProps {
@@ -269,7 +269,7 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
                     <div className="font-bold text-white">Workshop Drop-Off Location:</div>
                     <div>Stakey's Cycles &amp; Scooter Workshop Bay, Main Street</div>
                     <div className="text-neutral-400 text-[11px]">
-                      Drop off your vehicle during your selected time window. Our Cytech mechanic will conduct a safety check on arrival.
+                      Drop off your vehicle during your selected time window. Our workshop mechanic will conduct a safety check on arrival.
                     </div>
                   </div>
 

@@ -19,17 +19,17 @@ import {
   Key,
   Code2,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import {
   checkSupabaseHealth,
   SupabaseHealthStatus,
   SUPABASE_SQL_SETUP,
-} from '../api/supabaseService';
+} from '../shared/api/supabaseService';
 import {
   getStoredSupabaseUrl,
   getStoredSupabaseAnonKey,
   saveSupabaseConfig,
-} from '../supabase';
+} from '../shared/supabase';
 
 interface ServiceStatusBadgeProps {
   variant?: 'compact' | 'full' | 'header';
@@ -124,6 +124,8 @@ export const ServiceStatusBadge: React.FC<ServiceStatusBadgeProps> = ({ variant 
 
   const isPbOnline = serviceStatus.isOnline;
   const isSupaOnline = supabaseStatus.isOnline;
+  const schemaDriftCount =
+    (supabaseStatus.schemaMissingColumns || 0) + (supabaseStatus.schemaMissingTables || 0);
 
   // Header compact badge
   if (variant === 'header') {
@@ -297,7 +299,9 @@ export const ServiceStatusBadge: React.FC<ServiceStatusBadgeProps> = ({ variant 
                     )}
                     <span className="font-bold text-sm">
                       {isSupaOnline
-                        ? `Supabase Connected & Healthy (${supabaseStatus.latencyMs}ms)`
+                        ? schemaDriftCount > 0
+                          ? `Supabase Connected — ${schemaDriftCount} schema issue${schemaDriftCount === 1 ? '' : 's'} found`
+                          : `Supabase Connected & Healthy (${supabaseStatus.latencyMs}ms)`
                         : supabaseStatus.hasAnonKey
                         ? supabaseStatus.error || 'Connection offline'
                         : 'Supabase Project Linked — Please enter your Anon API Key'}
@@ -317,6 +321,20 @@ export const ServiceStatusBadge: React.FC<ServiceStatusBadgeProps> = ({ variant 
                   Endpoint: {supabaseUrlInput}
                 </div>
               </div>
+
+              {isSupaOnline && schemaDriftCount > 0 && (
+                <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-600/40 text-amber-200 text-xs flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-white">
+                      {schemaDriftCount} schema issue{schemaDriftCount === 1 ? '' : 's'} detected.
+                    </span>{' '}
+                    The live project is missing {supabaseStatus.schemaMissingTables || 0} table(s) and{' '}
+                    {supabaseStatus.schemaMissingColumns || 0} column(s) the app writes. Use{' '}
+                    <strong>Fix Database Schema</strong> in the staff command bar to generate the sync SQL.
+                  </div>
+                </div>
+              )}
 
               {/* Supabase Key Form */}
               <form onSubmit={handleSaveSupabase} className="space-y-4 bg-[#0a0d11] p-4 rounded-2xl border border-neutral-800">

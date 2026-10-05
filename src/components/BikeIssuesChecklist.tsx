@@ -20,14 +20,16 @@ import {
   BikeIssueCategory,
   BikeIssueItem,
   ALL_BIKE_ISSUES_MAP,
-} from '../data/bikeIssuesCatalog';
+  issueCategoriesForVehicle,
+} from '../shared/data/bikeIssuesCatalog';
+import type { VehicleCategory } from '../shared/types/bikeShop';
 
 interface BikeIssuesChecklistProps {
   selectedIssueIds: string[];
   onChange: (issueIds: string[]) => void;
   otherNotes: string;
   onOtherNotesChange: (notes: string) => void;
-  vehicleCategory?: string;
+  vehicleCategory?: VehicleCategory;
 }
 
 export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
@@ -38,17 +40,20 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
   vehicleCategory = 'cycle',
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  
+
+  // Only the issue categories/items that apply to this vehicle type. This is
+  // what stops bike-specific choices (gears, saddle, suspension) appearing for
+  // an e-scooter, and scooter-only faults appearing for a pedal cycle.
+  const applicableCategories = useMemo(
+    () => issueCategoriesForVehicle(vehicleCategory),
+    [vehicleCategory]
+  );
+
   // Track open/collapsed state of categories (open by default as in <details open>)
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     BIKE_ISSUES_CATEGORIES.forEach((cat) => {
-      // Open all by default (<details open>), except E-Bike only if not e-bike vehicle
-      if (cat.id === 'cat-ebike') {
-        initial[cat.id] = vehicleCategory === 'ebike' || vehicleCategory === 'electric_scooter';
-      } else {
-        initial[cat.id] = true;
-      }
+      initial[cat.id] = true;
     });
     return initial;
   });
@@ -88,9 +93,9 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
   // Filter items if searching
   const filteredCategories = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return BIKE_ISSUES_CATEGORIES;
+    if (!q) return applicableCategories;
 
-    return BIKE_ISSUES_CATEGORIES.map((cat) => {
+    return applicableCategories.map((cat) => {
       const matchingItems = cat.items.filter(
         (item) =>
           item.label.toLowerCase().includes(q) ||
@@ -102,7 +107,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
         items: matchingItems,
       };
     }).filter((cat) => cat.items.length > 0);
-  }, [searchQuery]);
+  }, [searchQuery, applicableCategories]);
 
   const getCategoryIcon = (key: string) => {
     switch (key) {
@@ -118,6 +123,8 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
         return <Wrench className="w-4 h-4 text-emerald-400" />;
       case 'ebike':
         return <Zap className="w-4 h-4 text-yellow-400" />;
+      case 'scooter':
+        return <Zap className="w-4 h-4 text-cyan-400" />;
       case 'general':
       default:
         return <Sparkles className="w-4 h-4 text-teal-400" />;
@@ -136,7 +143,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
             </span>
           </legend>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Check every symptom or issue you’re experiencing. Our Cytech certified mechanics will inspect each one during workshop intake.
+            Check every symptom or issue you’re experiencing. Our workshop certified mechanics will inspect each one during workshop intake.
           </p>
         </div>
 

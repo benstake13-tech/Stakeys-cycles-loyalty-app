@@ -28,11 +28,12 @@ import {
   Sliders,
   Save,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { UserProfile, CustomerBike, ServiceBooking, VehicleCategory } from '../types/bikeShop';
-import { canCustomerReceiveStampToday } from '../api/firebaseService';
-import { wheelAudio } from '../utils/wheelAudio';
-import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
+import { useShop } from '../shared/context/ShopContext';
+import { UserProfile, CustomerBike, ServiceBooking, VehicleCategory } from '../shared/types/bikeShop';
+import { canCustomerReceiveStampToday } from '../shared/api/firebaseService';
+import { wheelAudio } from '../shared/utils/wheelAudio';
+import { BIKE_CATEGORY_OPTIONS } from '../shared/data/bikeCatalog';
+import { AiBikeIdentifier } from './AiBikeIdentifier';
 
 interface CustomerAccountDossierProps {
   customer: UserProfile;
@@ -54,8 +55,8 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     stampLogs,
     addStamp,
     redeemReward,
-    updateCustomerMerits,
-    addCustomerBike,
+    updateCustomerPoints,
+    addCustomerBikeForUser,
     updateBookingStatus,
   } = useShop();
 
@@ -70,6 +71,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
 
   // Add bike modal state
   const [isAddBikeOpen, setIsAddBikeOpen] = useState(false);
+  const [isAiBikeOpen, setIsAiBikeOpen] = useState(false);
   const [newBikeCategory, setNewBikeCategory] = useState<VehicleCategory>('cycle');
   const [newBikeBrand, setNewBikeBrand] = useState('Trek');
   const [newBikeModel, setNewBikeModel] = useState('');
@@ -93,7 +95,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
   const rateLimitStatus = canCustomerReceiveStampToday(currentCustomer);
   const stamps = currentCustomer.stamps || 0;
   const tickets = currentCustomer.tickets || 0;
-  const merits = currentCustomer.merits || 0;
+  const points = currentCustomer.points || 0;
   const bikes = currentCustomer.bikes || [];
   const isRewardReady = stamps >= 10;
 
@@ -127,7 +129,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     const res = await redeemReward(
       currentCustomer.uid,
       staffId,
-      '£40 Full Workshop Service Voucher (Cytech Labour Credit)'
+      '£40 Full Workshop Service Voucher (Labour Credit)'
     );
     setFeedback({ success: res.success, message: res.message });
 
@@ -145,7 +147,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
 
   // Award Ticket Action
   const handleAwardTicket = async () => {
-    const res = await updateCustomerMerits(currentCustomer.uid, staffId, {
+    const res = await updateCustomerPoints(currentCustomer.uid, staffId, {
       tickets: tickets + 1,
       staffNote: 'Prize draw ticket awarded at front till',
     });
@@ -156,7 +158,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
   const handleSaveStaffNote = async () => {
     setIsSavingNote(true);
     try {
-      const res = await updateCustomerMerits(currentCustomer.uid, staffId, {
+      const res = await updateCustomerPoints(currentCustomer.uid, staffId, {
         staffNote: staffNote.trim(),
       });
       setFeedback({ success: res.success, message: 'Customer workshop notes saved.' });
@@ -173,7 +175,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     setIsSavingBike(true);
     try {
       const catObj = BIKE_CATEGORY_OPTIONS.find((c) => c.id === newBikeCategory);
-      await addCustomerBike({
+      await addCustomerBikeForUser(currentCustomer.uid, {
         category: newBikeCategory,
         categoryLabel: catObj ? catObj.title.split(' ')[0] : 'Bicycle',
         brand: newBikeBrand,
@@ -494,14 +496,24 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
               <Bike className="w-4 h-4 text-emerald-400" />
               <span>Customer's Garage &amp; Registered Rides</span>
             </h3>
-            <button
-              type="button"
-              onClick={() => setIsAddBikeOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Add Vehicle</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAiBikeOpen(true)}
+                className="pressable px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Identify with AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAddBikeOpen(true)}
+                className="pressable px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Add Vehicle</span>
+              </button>
+            </div>
           </div>
 
           {bikes.length === 0 ? (
@@ -868,6 +880,20 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
           </div>
         </div>
       )}
+
+      {/* AI Bike Identifier — adds straight to this customer's garage */}
+      <AiBikeIdentifier
+        user={currentCustomer}
+        isOpen={isAiBikeOpen}
+        onClose={() => setIsAiBikeOpen(false)}
+        addBike={(bike: CustomerBike) => addCustomerBikeForUser(currentCustomer.uid, bike)}
+        onAdded={(bike: CustomerBike) =>
+          setFeedback({
+            success: true,
+            message: `AI identified and registered ${bike.brand} ${bike.model} to ${currentCustomer.displayName}'s garage.`,
+          })
+        }
+      />
     </div>
   );
 };

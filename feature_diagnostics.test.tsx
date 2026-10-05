@@ -1,0 +1,82 @@
+import React from 'react';
+import { render, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const hoisted = vi.hoisted(() => ({
+  shop: {} as any,
+}));
+
+vi.mock('./src/shared/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
+vi.mock('./src/shared/utils/notificationService', () => ({ dispatchTestEmail: vi.fn(async () => ({ success: true })) }));
+vi.mock('./src/shared/utils/pushNotifications', () => ({ sendPushToUser: vi.fn(async () => ({ ok: true, via: 'local' })) }));
+
+import { FEATURE_TESTS, runFeatureTests, summarize, AREA_LABELS } from './src/shared/utils/featureDiagnostics';
+import { StaffDiagnosticsTab } from './src/components/StaffDiagnosticsTab';
+
+beforeEach(() => {
+  hoisted.shop = {
+    ownerConfig: { ownerEmail: 'workshop@stakeyscycles.co.uk', emailAlertsEnabled: true },
+    checkServiceHealth: vi.fn(async () => ({ isOnline: true, latencyMs: 12 })),
+    isStaffBookingSoundEnabled: true,
+    playStaffBookingAlertPing: vi.fn(),
+    requestPushNotificationPermission: vi.fn(async () => 'granted'),
+    refreshDatabaseState: vi.fn(async () => {}),
+  };
+});
+
+describe('feature diagnostics engine', () => {
+  it('exposes a test for every staff feature area', () => {
+    const areas = new Set(FEATURE_TESTS.map((t) => t.area));
+    for (const area of Object.keys(AREA_LABELS)) {
+      expect(areas.has(area as any)).toBe(true);
+    }
+    expect(FEATURE_TESTS.length).toBeGreaterThanOrEqual(20);
+    for (const t of FEATURE_TESTS) {
+      expect(t.id).toBeTruthy();
+      expect(t.label).toBeTruthy();
+      expect(typeof t.run).toBe('function');
+    }
+  });
+
+  it('runs the offline logic tests for real and they pass', async () => {
+    const logicIds = FEATURE_TESTS.filter((t) => t.area === 'logic').map((t) => t.id);
+    const results = await runFeatureTests(undefined, logicIds);
+    expect(results).toHaveLength(logicIds.length);
+    expect(results.every((r) => r.status === 'pass')).toBe(true);
+    const s = summarize(results);
+    expect(s.pass).toBe(logicIds.length);
+    expect(s.fail).toBe(0);
+  });
+
+  it('reports progress for each test as it completes', async () => {
+    const seen: string[] = [];
+    const ids = FEATURE_TESTS.filter((t) => t.area === 'logic').map((t) => t.id);
+    await runFeatureTests((r) => seen.push(r.id), ids);
+    expect(seen.sort()).toEqual([...ids].sort());
+  });
+});
+
+describe('StaffDiagnosticsTab', () => {
+  it('renders the test bench with a Run All control', () => {
+    const { container } = render(<StaffDiagnosticsTab />);
+    expect(container.textContent).toContain('Feature Test Bench');
+    expect(container.textContent).toContain('Run All Tests');
+    // every feature area is listed
+    for (const label of Object.values(AREA_LABELS)) {
+      expect(container.textContent).toContain(label);
+    }
+  });
+
+  it('runs an area on demand and shows pass results', async () => {
+    const { container, getAllByText } = render(<StaffDiagnosticsTab />);
+    const areaButtons = getAllByText('Test this area');
+    // Logic is the last area in the panel order.
+    fireEvent.click(areaButtons[areaButtons.length - 1]);
+    await waitFor(() => {
+      expect(container.textContent).toContain('Discount maths');
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain('Working');
+    });
+  });
+});

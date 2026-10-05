@@ -18,7 +18,7 @@ import {
   Flame,
   Activity,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 
 export type NavTabId =
   | 'customer'
@@ -100,7 +100,7 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
     {
       id: 'booking',
       title: 'Workshop Repair Booking',
-      badge: pendingBookingsCount > 0 ? `${pendingBookingsCount} In Review` : 'Cytech Certified',
+      badge: pendingBookingsCount > 0 ? `${pendingBookingsCount} In Review` : 'Workshop Certified',
       badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
       subtitle: 'Schedule repairs, services & safety tune-ups with optional guest booking flow.',
       icon: <Wrench className="w-5 h-5 text-emerald-400" />,
@@ -110,7 +110,8 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
       microTitle: 'Intake & Approval Policy',
       microPoints: [
         'Guests can book with just name & phone (no login needed).',
-        'All repair bookings undergo Cytech workshop mechanic review.',
+        'All repair bookings undergo workshop mechanic review.',
+        'Seasonal tune-up packages: Winterization Check, Pre-Summer Safety Tune & e-scooter battery/brake audit.',
         'Automated email notification sent immediately when approved or declined.',
       ],
       microFootnote: 'Drop-off slots 09:00 - 17:30 Monday to Saturday.',
@@ -131,7 +132,7 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
         'View real-time itemized parts fitted, labour hours & auto-calculated invoice.',
         'Look up by Booking ID (#bk-...), customer phone number, or email address.',
       ],
-      microFootnote: 'Updated live by Cytech mechanics as work progresses.',
+      microFootnote: 'Updated live by workshop mechanics as work progresses.',
     },
     {
       id: 'promotions',
@@ -167,7 +168,7 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
         'Recommendations are based solely on component durability and British weather.',
         'Features verified parts standards with replaceable derailleur hangers.',
       ],
-      microFootnote: 'Independent maintenance & repair workshop atelier.',
+      microFootnote: 'Independent maintenance & repair workshop.',
     },
     {
       id: 'hangers',
@@ -196,7 +197,7 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
         : isStaff
         ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
         : 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-      subtitle: isStaff ? 'Roster CRUD, Promotions CRUD, Wheel Slices CRUD, Member Manager & Intake.' : 'Master Cytech terminal with full workshop CRUD tools. Requires security PIN.',
+      subtitle: isStaff ? 'Roster CRUD, Promotions CRUD, Wheel Slices CRUD, Member Manager & Intake.' : 'Master workshop terminal with full workshop CRUD tools. Requires security PIN.',
       icon: <ShieldCheck className="w-5 h-5 text-emerald-400" />,
       accentColor: '#05C147',
       bgGlow: 'from-emerald-500/10 via-transparent to-transparent',
@@ -207,7 +208,7 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
         'Promotions & Draws: Full CRUD for promotions, wheels & prize draws.',
         'Loyalty Member Manager: Manual search, +1 stamp, -1 stamp & account deletion.',
       ],
-      microFootnote: 'Cytech workshop operations and till audit logging.',
+      microFootnote: 'workshop operations and till audit logging.',
     },
   ];
 

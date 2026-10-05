@@ -17,9 +17,9 @@ import {
   AlertCircle,
   ExternalLink,
 } from 'lucide-react';
-import { RepairInvoice, ServiceBooking } from '../types/bikeShop';
+import { RepairInvoice, ServiceBooking } from '../shared/types/bikeShop';
 import { StakeysLogo } from './StakeysLogo';
-import { createInvoiceMailtoUrl } from '../utils/invoiceService';
+import { createInvoiceMailtoUrl } from '../shared/utils/invoiceService';
 import toast from 'react-hot-toast';
 
 interface RepairInvoiceModalProps {
@@ -119,7 +119,7 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
                 </button>
               </div>
               <p className="text-[11px] text-neutral-400">
-                Official itemized Cytech repair receipt for {invoice.customerName}
+                Official itemized repair receipt for {invoice.customerName}
               </p>
             </div>
           </div>
@@ -171,7 +171,7 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
                     Stakey's Cycles
                   </h1>
                   <span className="text-[11px] font-mono text-neutral-500 uppercase tracking-widest block">
-                    Bicycle Atelier &amp; Certified Workshop
+                    Bicycle Workshop &amp; Certified Repairs
                   </span>
                 </div>
               </div>
@@ -179,7 +179,7 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
               <div className="text-xs text-neutral-600 mt-3 space-y-0.5 font-mono">
                 <div>14 High Street, Bideford, Devon EX39 2AA</div>
                 <div>Tel: +44 7911 882910 · workshop@stakeyscycles.co.uk</div>
-                <div>VAT Reg: GB 892 1049 82 · Cytech Master Bench #412</div>
+                <div>VAT Reg: GB 892 1049 82 · Master Bench #412</div>
               </div>
             </div>
 
@@ -199,7 +199,7 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
                   <strong className="text-neutral-800">Booking Ref:</strong> #{invoice.bookingId}
                 </div>
                 <div>
-                  <strong className="text-neutral-800">Cytech Mechanic:</strong> {invoice.leadMechanic}
+                  <strong className="text-neutral-800">Mechanic:</strong> {invoice.leadMechanic}
                 </div>
               </div>
             </div>
@@ -231,6 +231,14 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
               <div className="text-neutral-600 uppercase font-mono text-[11px]">
                 Type: {invoice.vehicleCategory.replace('_', ' ')}
               </div>
+              {invoice.serviceTitle && (
+                <div className="text-neutral-600 text-[11px]">
+                  Service Booked: <span className="font-semibold">{invoice.serviceTitle}</span>
+                </div>
+              )}
+              {invoice.vehicleDetails && invoice.vehicleDetails !== invoice.vehicleModel && (
+                <div className="text-neutral-500 text-[11px] font-mono">{invoice.vehicleDetails}</div>
+              )}
               <div className="text-neutral-500 text-[11px]">
                 Workshop Intake Completed: {new Date(invoice.completedAt || Date.now()).toLocaleDateString('en-GB')}
               </div>
@@ -299,10 +307,10 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
 
           {/* FINANCIAL TOTALS SUMMARY */}
           <div className="flex flex-col sm:flex-row justify-between gap-6 pt-2">
-            {/* Cytech Quality Sign-off Badges */}
+            {/* Quality Sign-off Badges */}
             <div className="sm:max-w-md space-y-2 text-xs">
               <span className="font-mono text-[10px] uppercase font-bold text-neutral-500 tracking-wider block">
-                Cytech Inspection &amp; Safety Sign-Off Checklist:
+                Inspection &amp; Safety Sign-Off Checklist:
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-neutral-700">
                 {invoice.checklistSignoff
@@ -335,6 +343,14 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
                 <span>Subtotal (Net):</span>
                 <span className="font-mono">£{invoice.subtotal.toFixed(2)}</span>
               </div>
+
+              {typeof invoice.quotedAmount === 'number' &&
+                Math.abs(invoice.quotedAmount - invoice.grandTotal) > 0.001 && (
+                  <div className="flex justify-between text-neutral-600">
+                    <span>Agreed quote:</span>
+                    <span className="font-mono">£{invoice.quotedAmount.toFixed(2)}</span>
+                  </div>
+                )}
 
               {invoice.vatAmount > 0 && (
                 <div className="flex justify-between text-neutral-600">
@@ -370,12 +386,12 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
             </div>
 
             <div className="sm:text-right space-y-1">
-              <div className="font-mono text-[10px] uppercase text-neutral-400">Authorized Cytech Lead Mechanic</div>
+              <div className="font-mono text-[10px] uppercase text-neutral-400">Authorized Lead Mechanic</div>
               <div className="font-bold text-neutral-900 font-display text-sm">
                 {invoice.leadMechanic}
               </div>
               <div className="text-[10px] text-emerald-700 font-semibold">
-                Cytech Master Certified Technician · Stamp Verified
+                Master Certified Technician · Stamp Verified
               </div>
             </div>
           </div>

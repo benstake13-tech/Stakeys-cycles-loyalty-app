@@ -1,4 +1,7 @@
 {
+  "exclude": [
+    "supabase/functions"
+  ],
   "compilerOptions": {
     "target": "ES2022",
     "experimentalDecorators": true,
@@ -19,6 +22,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@shared": [
+        "./src/shared/index.ts"
+      ],
+      "@shared/*": [
+        "./src/shared/*"
       ]
     },
     "allowImportingTsExtensions": true,

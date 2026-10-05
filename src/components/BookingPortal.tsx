@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -12,35 +12,43 @@ import {
   Bike,
   Zap,
   ChevronDown,
-  Sparkles,
   Award,
-  MessageSquare,
   ShieldCheck,
-  Activity,
+  CircleDot,
+  MessageCircle,
+  Scale,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { VehicleCategory } from '../types/bikeShop';
-import {
-  BIKE_CATEGORY_OPTIONS,
-  POPULAR_BIKE_BRANDS,
-  BRAND_MODELS_MAP,
-  FRIENDLY_SERVICE_OPTIONS,
-} from '../data/bikeCatalog';
+import { useShop } from '../shared/context/ShopContext';
+import { VehicleCategory, BikeDetails } from '../shared/types/bikeShop';
+import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../shared/data/bikeCatalog';
+import { MaintenancePackage, findMaintenancePackage } from '../shared/data/maintenancePackages';
 import { StakeysLogo } from './StakeysLogo';
+import { LegalDisclaimerSections } from './LegalDisclaimers';
+import { MaintenancePackagesPanel } from './MaintenancePackagesPanel';
 import { BikeIssuesChecklist } from './BikeIssuesChecklist';
-import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import {
+  BikeIdentityFields,
+  BikeIdentityValue,
+  EMPTY_BIKE_IDENTITY,
+  toBikeDetails,
+  resolveModel,
+  isEbike,
+} from './BikeIdentityFields';
+import { ALL_BIKE_ISSUES_MAP, issueAppliesToVehicle } from '../shared/data/bikeIssuesCatalog';
+import { buildWhatsAppUrl, buildBookingQuoteMessage } from '../shared/utils/whatsapp';
 import {
   createBookingMailtoUrl,
   createCustomerMailtoUrl,
-} from '../utils/notificationService';
+} from '../shared/utils/notificationService';
 import confetti from 'canvas-confetti';
 
 interface BookingPortalProps {
   initialBikeId?: string;
   onGoToMyBikes?: () => void;
+  onGoToBookings?: () => void;
 }
 
-export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes }) => {
+export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes, onGoToBookings }) => {
   const { currentUser, createBooking, redeemServiceVoucher, ownerConfig } = useShop();
 
   // If user has saved bikes in profile, check if initialBikeId is set
@@ -52,25 +60,48 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     initialBike ? initialBike.category : 'cycle'
   );
 
-  // Selected Brand & Model dropdowns
-  const [selectedBrand, setSelectedBrand] = useState<string>(
-    initialBike ? initialBike.brand : 'Trek'
-  );
-  const [selectedModel, setSelectedModel] = useState<string>(
-    initialBike ? initialBike.model : 'Marlin (Mountain)'
-  );
-  const [customModelText, setCustomModelText] = useState<string>('');
-  const [bikeColour, setBikeColour] = useState<string>(initialBike?.colour || '');
+  // Structured bike identity (brand, model, year, colour, e-bike conversion…).
+  const [bikeIdentity, setBikeIdentity] = useState<BikeIdentityValue>(() => ({
+    ...EMPTY_BIKE_IDENTITY,
+    category: initialBike ? initialBike.category : 'cycle',
+    brand: initialBike ? initialBike.brand : 'Trek',
+    model: initialBike ? initialBike.model : 'FX 1 / 2 / 3 (Hybrid Commuter)',
+    colour: initialBike?.colour || '',
+    year: initialBike?.year ? String(initialBike.year) : '',
+    frameSize: initialBike?.frameSizeOrNotes || '',
+    serialNumber: initialBike?.serialNumber || '',
+    ebikeStatus: initialBike?.bikeDetails?.ebikeStatus || '',
+    conversionSystem: initialBike?.bikeDetails?.conversionSystem || '',
+    batteryPosition: initialBike?.bikeDetails?.batteryPosition || '',
+    systemVoltage: initialBike?.bikeDetails?.systemVoltage || '',
+    driveType: initialBike?.bikeDetails?.driveType || '',
+    motorDetails: initialBike?.bikeDetails?.motorDetails || '',
+  }));
+
+  const patchBike = (patch: Partial<BikeIdentityValue>) =>
+    setBikeIdentity((prev) => ({ ...prev, ...patch }));
+
+  // Keep the category cards (step 01) and the identity object in lock-step.
+  const chooseCategory = (category: VehicleCategory) => {
+    setSelectedCategory(category);
+    patchBike({ category });
+    // Drop any selected symptoms that don't apply to the new vehicle type, so a
+    // bike-specific fault can't linger on an e-scooter booking (and vice versa).
+    setSelectedIssueIds((prev) => prev.filter((id) => issueAppliesToVehicle(id, category)));
+  };
 
   // Structured Problem Checklist State (Choose all that apply)
   const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([
     'brakes-squeaky',
   ]);
   const [problemNotes, setProblemNotes] = useState<string>('');
-  const [problemSelectionMode, setProblemSelectionMode] = useState<'checklist' | 'packages'>('checklist');
+  const [problemSelectionMode, setProblemSelectionMode] = useState<'checklist' | 'packages' | 'maintenance'>('checklist');
 
   // Selected Friendly Problem / Service
   const [selectedProblemId, setSelectedProblemId] = useState<string>('opt-general-tune');
+
+  // Selected seasonal maintenance package (preventative tune-ups)
+  const [selectedMaintenanceId, setSelectedMaintenanceId] = useState<string>('');
 
   // Available service vouchers (e.g. £40 service voucher for full stamps)
   const availableServiceVouchers = (currentUser?.serviceVouchers || []).filter(
@@ -87,7 +118,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     d.setDate(d.getDate() + 2);
     return d.toISOString().split('T')[0];
   });
-  const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>('Morning (09:00 - 12:00)');
+  const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>(TIME_SLOT_OPTIONS[0]);
   const [notes, setNotes] = useState<string>('');
 
   // Submission State
@@ -95,24 +126,96 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const [submittedBooking, setSubmittedBooking] = useState<any | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Available models for currently chosen brand
-  const brandModels = BRAND_MODELS_MAP[selectedBrand] || [
-    'Standard Model',
-    'Other Model',
-    'I Don’t Know My Model',
-  ];
+  // Collapsible step sections so the (long) form is quicker to scan on mobile.
+  const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({
+    vehicle: true,
+    issues: true,
+    schedule: true,
+    contact: true,
+  });
+  const toggleStep = (id: string) =>
+    setOpenSteps((prev) => ({ ...prev, [id]: !prev[id] }));
+  const goToStep = (id: string) => {
+    setOpenSteps((prev) => ({ ...prev, [id]: true }));
+    requestAnimationFrame(() => {
+      document.getElementById(`booking-step-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const resolvedModelName = resolveModel(bikeIdentity);
+
+  // Puncture / flat-tyre jobs need the wheel size confirmed at booking so the
+  // workshop can prep the right tube before the rider arrives.
+  const isPunctureJob = useMemo(() => {
+    if (problemSelectionMode === 'packages') {
+      const p = FRIENDLY_SERVICE_OPTIONS.find((opt) => opt.id === selectedProblemId);
+      return p?.serviceId === 'cycle-puncture' || p?.serviceId === 'scooter-tire';
+    }
+    return selectedIssueIds.includes('wheels-flat-puncture');
+  }, [problemSelectionMode, selectedProblemId, selectedIssueIds]);
+  const [wheelSize, setWheelSize] = useState<string>('');
+
+  const bikeStepComplete = Boolean(bikeIdentity.brand && resolvedModelName);
+  const issuesStepComplete = problemSelectionMode === 'maintenance'
+    ? Boolean(selectedMaintenanceId)
+    : problemSelectionMode === 'packages'
+    ? Boolean(selectedProblemId)
+    : selectedIssueIds.length > 0 || problemNotes.trim().length > 0;
+  const scheduleStepComplete = Boolean(preferredDate && preferredTimeSlot);
+  const contactStepComplete = Boolean(customerName.trim() && customerPhone.trim());
+  const wheelSizeStepComplete = !isPunctureJob || wheelSize.trim().length > 0;
+  const bookingProgress = [bikeStepComplete, issuesStepComplete, scheduleStepComplete, contactStepComplete].filter(Boolean).length;
 
   // Pick an existing bike from profile garage
   const handleSelectSavedBike = (bikeId: string) => {
     const found = savedBikes.find((b) => b.id === bikeId);
     if (!found) return;
     setSelectedCategory(found.category);
-    setSelectedBrand(found.brand);
-    setSelectedModel(found.model);
-    setBikeColour(found.colour || '');
+    setBikeIdentity((prev) => ({
+      ...prev,
+      category: found.category,
+      brand: found.brand,
+      model: found.model,
+      colour: found.colour || '',
+      year: found.year ? String(found.year) : '',
+      frameSize: found.frameSizeOrNotes || '',
+      serialNumber: found.serialNumber || '',
+      ebikeStatus: found.bikeDetails?.ebikeStatus || prev.ebikeStatus,
+      conversionSystem: found.bikeDetails?.conversionSystem || '',
+      batteryPosition: found.bikeDetails?.batteryPosition || '',
+      systemVoltage: found.bikeDetails?.systemVoltage || '',
+      driveType: found.bikeDetails?.driveType || '',
+      motorDetails: found.bikeDetails?.motorDetails || '',
+    }));
   };
 
+  // Friendly quick-pick dates (today / tomorrow / +2 / +7) plus the native picker.
+  const quickDates = useMemo(() => {
+    const make = (offset: number) => {
+      const d = new Date();
+      d.setDate(d.getDate() + offset);
+      return d.toISOString().split('T')[0];
+    };
+    return [
+      { label: 'Today', value: make(0) },
+      { label: 'Tomorrow', value: make(1) },
+      { label: 'In 2 days', value: make(2) },
+      { label: 'Next week', value: make(7) },
+    ];
+  }, []);
+
   const computedService = React.useMemo(() => {
+    if (problemSelectionMode === 'maintenance') {
+      const pkg = findMaintenancePackage(selectedMaintenanceId);
+      return {
+        serviceId: pkg?.serviceId || 'cycle-tune',
+        headline: pkg ? pkg.headline : 'Seasonal Tune-Up (choose a package)',
+        estimatedPrice: 0,
+        pricingLabel: 'Ask for a quote',
+        duration: pkg?.duration || '45 mins',
+      };
+    }
+
     if (problemSelectionMode === 'packages') {
       const p =
         FRIENDLY_SERVICE_OPTIONS.find((opt) => opt.id === selectedProblemId) ||
@@ -174,7 +277,61 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       pricingLabel: 'Ask for a quote',
       duration: '45-60 mins',
     };
-  }, [problemSelectionMode, selectedProblemId, selectedIssueIds, problemNotes]);
+  }, [problemSelectionMode, selectedProblemId, selectedMaintenanceId, selectedIssueIds, problemNotes]);
+
+  // Mechanic notes are mandatory and pre-populated from the selected job. The
+  // prefill only overwrites notes the rider has not edited, so their own words
+  // are never lost when they change the service selection.
+  const notesPrefill = useMemo(() => {
+    const lines: string[] = [computedService.headline];
+    if (problemSelectionMode === 'maintenance') {
+      const pkg = findMaintenancePackage(selectedMaintenanceId);
+      if (pkg) {
+        lines.push(`Seasonal package: ${pkg.name} (${pkg.seasonLabel})`);
+        const checks = pkg.checks
+          .filter((c) => c.appliesTo.includes(bikeIdentity.category))
+          .map((c) => `• ${c.label}`);
+        if (checks.length > 0) lines.push('Included checks:', ...checks);
+      }
+    }
+    const symptoms = problemSelectionMode === 'maintenance'
+      ? []
+      : selectedIssueIds
+          .map((id) => ALL_BIKE_ISSUES_MAP.get(id))
+          .filter(Boolean)
+          .map((it) => `• [${it!.category}] ${it!.label}`);
+    if (symptoms.length > 0) {
+      lines.push('Reported symptoms:', ...symptoms);
+    }
+    if (problemNotes.trim()) {
+      lines.push(`Rider description: ${problemNotes.trim()}`);
+    }
+    if (wheelSize.trim()) {
+      lines.push(`Wheel size: ${wheelSize.trim()}`);
+    }
+    return lines.join('\n');
+  }, [computedService.headline, problemSelectionMode, selectedMaintenanceId, bikeIdentity.category, selectedIssueIds, problemNotes, wheelSize]);
+
+  const notesEditedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!notesEditedRef.current) {
+      setNotes(notesPrefill);
+    }
+  }, [notesPrefill]);
+
+  // Pre-filled WhatsApp link for bespoke jobs / custom quotes.
+  const whatsappQuoteUrl = useMemo(
+    () =>
+      buildWhatsAppUrl(
+        buildBookingQuoteMessage({
+          vehicle: `${bikeIdentity.brand} ${resolvedModelName}`.trim(),
+          service: computedService.headline,
+          preferredDate,
+          preferredTimeSlot,
+        })
+      ),
+    [bikeIdentity.brand, resolvedModelName, computedService.headline, preferredDate, preferredTimeSlot]
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -206,13 +363,24 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       return;
     }
 
-    // Determine final model string
-    const finalModel =
-      selectedModel.includes('Other')
-        ? customModelText.trim() || `${selectedBrand} (Model to be verified in shop)`
-        : selectedModel;
+    if (isPunctureJob && !wheelSize.trim()) {
+      setFormError('Please confirm your wheel size — puncture repairs need the correct inner tube.');
+      return;
+    }
 
-    const formattedVehicleName = `${selectedBrand} - ${finalModel}${bikeColour ? ` (${bikeColour})` : ''}`;
+    if (!notes.trim()) {
+      setFormError('Please add mechanic notes describing the job (these are pre-filled from your selection).');
+      return;
+    }
+
+    // Determine final model string
+    const finalModel = resolveModel(bikeIdentity);
+
+    const formattedVehicleName = `${bikeIdentity.brand} - ${finalModel}${
+      bikeIdentity.colour ? ` (${bikeIdentity.colour})` : ''
+    }`;
+
+    const bikeDetails: BikeDetails | undefined = toBikeDetails(bikeIdentity);
 
     const selectedVoucher =
       applyVoucher && availableServiceVouchers.length > 0 ? availableServiceVouchers[0] : null;
@@ -234,12 +402,39 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             issueItems.map((it) => `• [${it?.category}] ${it?.label}`).join('\n')
           : '';
 
+      const ebikeLabel =
+        bikeIdentity.ebikeStatus === 'factory'
+          ? 'Factory e-bike'
+          : bikeIdentity.ebikeStatus === 'converted'
+          ? 'CONVERTED to e-bike (aftermarket kit)'
+          : bikeIdentity.ebikeStatus === 'not_ebike'
+          ? 'Not an e-bike'
+          : bikeIdentity.ebikeStatus === 'unsure'
+          ? 'E-bike status to be confirmed'
+          : '';
+
+      const bikeBlock = [
+        `Bike: ${formattedVehicleName}`,
+        bikeIdentity.year ? `Year: ${bikeIdentity.year}` : '',
+        bikeIdentity.frameSize ? `Frame size: ${bikeIdentity.frameSize}` : '',
+        bikeIdentity.serialNumber ? `Serial: ${bikeIdentity.serialNumber}` : '',
+        ebikeLabel ? `E-Bike: ${ebikeLabel}` : '',
+        bikeIdentity.conversionSystem ? `Motor/system: ${bikeIdentity.conversionSystem}` : '',
+        bikeIdentity.batteryPosition ? `Battery: ${bikeIdentity.batteryPosition}` : '',
+        bikeIdentity.systemVoltage ? `Voltage: ${bikeIdentity.systemVoltage}` : '',
+        bikeIdentity.driveType ? `Drive: ${bikeIdentity.driveType}` : '',
+        bikeIdentity.motorDetails ? `Motor notes: ${bikeIdentity.motorDetails}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
       const finalNotes = [
+        bikeBlock,
         issuesBlock,
+        isPunctureJob && wheelSize.trim() ? `Wheel size (confirmed): ${wheelSize.trim()}` : '',
         problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
         notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
         voucherNote,
-        bikeColour ? `Colour: ${bikeColour}` : '',
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -254,8 +449,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         customerPhone: customerPhone.trim(),
         customerId: currentUser?.uid,
         membershipNumber: currentUser?.membershipNumber,
-        vehicleCategory: selectedCategory,
+        vehicleCategory: bikeIdentity.category,
         vehicleModel: formattedVehicleName,
+        bikeDetails,
         serviceId: computedService.serviceId,
         serviceTitle: selectedVoucher
           ? `${computedService.headline} (£40 Voucher Applied)`
@@ -293,7 +489,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
   const handleBookAnother = () => {
     setSubmittedBooking(null);
-    setNotes('');
+    notesEditedRef.current = false;
+    setWheelSize('');
+    setNotes(notesPrefill);
   };
 
   // SUCCESS CONFIRMATION VOUCHER
@@ -328,6 +526,27 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <span className="text-neutral-400">Bike / Vehicle:</span>
               <span className="font-semibold text-white">{submittedBooking.vehicleModel}</span>
             </div>
+            {submittedBooking.bikeDetails && (
+              <div className="flex justify-between py-1 gap-3">
+                <span className="text-neutral-400 shrink-0">Bike Details:</span>
+                <span className="text-neutral-200 text-right">
+                  {[
+                    submittedBooking.bikeDetails.ebikeStatus === 'factory'
+                      ? 'Factory e-bike'
+                      : submittedBooking.bikeDetails.ebikeStatus === 'converted'
+                      ? 'Converted e-bike'
+                      : submittedBooking.bikeDetails.ebikeStatus === 'not_ebike'
+                      ? 'Not an e-bike'
+                      : '',
+                    submittedBooking.bikeDetails.year && `Year ${submittedBooking.bikeDetails.year}`,
+                    submittedBooking.bikeDetails.frameSize && `Frame ${submittedBooking.bikeDetails.frameSize}`,
+                    submittedBooking.bikeDetails.conversionSystem,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ') || 'Captured at booking'}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between py-1">
               <span className="text-neutral-400">Service Package:</span>
               <span className="font-semibold text-emerald-400">{submittedBooking.serviceTitle}</span>
@@ -450,10 +669,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           {/* What to do next */}
           <div className="py-5 text-xs text-neutral-400 space-y-2">
             <div className="text-neutral-200 font-medium mb-1">Drop-off instructions:</div>
-            <div>Bring your bike to Stakey's Cycles during your selected time window. Our Cytech mechanic will perform a safety check with you before beginning repairs.</div>
+            <div>Bring your bike to Stakey's Cycles during your selected time window. Our workshop mechanic will perform a safety check with you before beginning repairs.</div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 flex-wrap">
             {onGoToMyBikes && (
               <button
                 type="button"
@@ -463,6 +682,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 View in My Garage
               </button>
             )}
+            {onGoToBookings && (
+              <button
+                type="button"
+                onClick={onGoToBookings}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-emerald-500/40 text-emerald-300 font-medium text-xs cursor-pointer transition-colors"
+              >
+                Track This Booking
+              </button>
+            )}
             <button
               type="button"
               onClick={handleBookAnother}
@@ -470,6 +698,16 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             >
               Book Another Service
             </button>
+            <a
+              href="#customer"
+              onClick={(e) => {
+                e.preventDefault();
+                (onGoToMyBikes ?? onGoToBookings)?.();
+              }}
+              className="w-full sm:w-auto px-5 py-2.5 rounded-lg text-neutral-400 hover:text-white font-medium text-xs cursor-pointer transition-colors text-center"
+            >
+              Back to Stakey&rsquo;s App
+            </a>
           </div>
         </div>
       </div>
@@ -478,7 +716,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* Atelier Hero Banner with High-Resolution Photography */}
+      {/* Workshop Hero Banner with High-Resolution Photography */}
       <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
         <div className="absolute inset-0 z-0">
           <img
@@ -493,10 +731,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         <div className="relative z-10 p-6 sm:p-8 md:p-10">
           <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
             <span className="text-emerald-400 font-semibold tracking-wider uppercase">
-              Workshop Atelier
+              Workshop
             </span>
             <span aria-hidden="true" className="text-neutral-600">·</span>
-            <span>Cytech Certified Mechanics</span>
+            <span>Workshop Mechanics</span>
             <span aria-hidden="true" className="text-neutral-600">·</span>
             <span>Genuine Parts Guarantee</span>
           </div>
@@ -527,7 +765,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 type="button"
                 onClick={() => handleSelectSavedBike(b.id)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium border flex items-center gap-2 transition-colors cursor-pointer ${
-                  selectedBrand === b.brand && selectedModel === b.model
+                  bikeIdentity.brand === b.brand && bikeIdentity.model === b.model
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
                     : 'bg-neutral-900 hover:bg-neutral-800 text-neutral-300 border-neutral-800'
                 }`}
@@ -543,162 +781,179 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
       {/* Booking Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* STEP 1: What type of ride do you have? */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              01
-            </div>
-            <div>
-              <h3 className="font-display text-base font-bold text-white">Select Vehicle Type</h3>
-              <p className="text-xs text-neutral-400">Choose the category matching your bike or scooter.</p>
-            </div>
-          </div>
+        {/* Live summary — sticks to the top while the form scrolls. */}
+        <div className="sticky top-2 z-20 bg-[#0d1015]/95 backdrop-blur border border-neutral-800 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs shadow-lg">
+          <span className="flex items-center gap-1.5 text-white font-semibold">
+            <Bike className="w-3.5 h-3.5 text-emerald-400" />
+            {bikeIdentity.brand} {resolveModel(bikeIdentity) || '—'}
+          </span>
+          {isEbike(bikeIdentity) && (
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
+              <Zap className="w-3 h-3" />
+              {bikeIdentity.ebikeStatus === 'converted' ? 'Converted E-Bike' : 'E-Bike'}
+            </span>
+          )}
+          <span className="text-neutral-500 hidden sm:inline">•</span>
+          <span className="text-neutral-300 truncate max-w-[220px]">{computedService.headline}</span>
+          <span className="text-neutral-500 hidden sm:inline">•</span>
+          <span className="text-neutral-400">
+            {preferredDate} · {preferredTimeSlot}
+          </span>
+          <span className="ml-auto text-emerald-400 font-semibold">Ask for a quote</span>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2">
-            {BIKE_CATEGORY_OPTIONS.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  selectedCategory === cat.id
-                    ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
-                    : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700 text-neutral-400'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    {cat.id === 'electric_scooter' || cat.id === 'ebike' ? (
-                      <Zap className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
-                    ) : (
-                      <Bike className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
-                    )}
-                    {selectedCategory === cat.id && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                    )}
-                  </div>
-                  <div className={`text-xs font-semibold ${selectedCategory === cat.id ? 'text-white' : 'text-neutral-300'}`}>
-                    {cat.title}
-                  </div>
-                  <div className="text-[11px] text-neutral-400 mt-1 leading-snug">
-                    {cat.subtitle}
-                  </div>
-                </div>
-              </button>
+        {/* Step progress — tap a step to jump to it. */}
+        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl px-3 sm:px-5 py-3.5">
+          <div className="flex items-center justify-between gap-2">
+            {[
+              { id: 'vehicle', n: '01', label: 'Your Bike', done: bikeStepComplete },
+              { id: 'issues', n: '02', label: 'Issues', done: issuesStepComplete },
+              { id: 'schedule', n: '03', label: 'Drop-off', done: scheduleStepComplete },
+              { id: 'contact', n: '04', label: 'Contact', done: contactStepComplete },
+            ].map((step, i, arr) => (
+              <React.Fragment key={step.id}>
+                <button
+                  type="button"
+                  onClick={() => goToStep(step.id)}
+                  className="flex flex-col items-center gap-1.5 flex-1 min-w-0 cursor-pointer group"
+                  aria-label={`Go to step ${step.n}: ${step.label}`}
+                >
+                  <span
+                    className={`w-7 h-7 rounded-full border flex items-center justify-center text-[11px] font-bold font-mono shrink-0 transition-colors ${
+                      step.done
+                        ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                        : 'bg-neutral-900 border-neutral-700 text-neutral-400 group-hover:border-emerald-500/50'
+                    }`}
+                  >
+                    {step.done ? <CheckCircle2 className="w-4 h-4" /> : step.n}
+                  </span>
+                  <span
+                    className={`text-[10px] sm:text-[11px] font-medium truncate max-w-full ${
+                      step.done ? 'text-emerald-300' : 'text-neutral-400 group-hover:text-neutral-200'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </button>
+                {i < arr.length - 1 && (
+                  <div
+                    className={`h-0.5 flex-1 rounded-full self-start mt-3.5 ${
+                      step.done ? 'bg-emerald-500/60' : 'bg-neutral-800'
+                    }`}
+                    aria-hidden="true"
+                  />
+                )}
+              </React.Fragment>
             ))}
+          </div>
+          <div className="mt-2.5 flex items-center justify-between text-[11px] text-neutral-500">
+            <span>
+              {bookingProgress} of 4 steps ready
+            </span>
+            <span className="font-mono">{Math.round((bookingProgress / 4) * 100)}%</span>
           </div>
         </div>
 
-        {/* STEP 2: Brand and Model Dropdowns */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              02
+        {/* STEP 1: Your bike (category + identity + e-bike conversion) */}
+        <div id="booking-step-vehicle" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+          <button
+            type="button"
+            onClick={() => toggleStep('vehicle')}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
+            <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+              bikeStepComplete
+                ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                : 'bg-neutral-900 border-neutral-800 text-emerald-400'
+            }`}>
+              {bikeStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '01'}
             </div>
-            <div>
-              <h3 className="font-display text-base font-bold text-white">Brand &amp; Model</h3>
-              <p className="text-xs text-neutral-400">Select your bike's maker and model, or pick "I Don't Know" and we'll check it in store.</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-display text-base font-bold text-white">Your Bike</h3>
+              <p className="text-xs text-neutral-400">
+                {bikeStepComplete
+                  ? `${bikeIdentity.brand} ${resolvedModelName}${isEbike(bikeIdentity) ? ' · e-bike' : ''}`
+                  : 'Type, brand, model, year and e-bike conversion details.'}
+              </p>
             </div>
-          </div>
+            <ChevronDown
+              className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform ${
+                openSteps.vehicle ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {/* Brand Dropdown */}
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Manufacturer / Brand
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedBrand}
-                  onChange={(e) => {
-                    const newBrand = e.target.value;
-                    setSelectedBrand(newBrand);
-                    const models = BRAND_MODELS_MAP[newBrand];
-                    if (models && models.length > 0) {
-                      setSelectedModel(models[0]);
-                    } else {
-                      setSelectedModel('Standard Model');
-                    }
-                  }}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
-                >
-                  {POPULAR_BIKE_BRANDS.map((brand) => (
-                    <option key={brand} value={brand} className="bg-neutral-950 text-white">
-                      {brand}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          {openSteps.vehicle && (
+            <div className="space-y-5 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {BIKE_CATEGORY_OPTIONS.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => chooseCategory(cat.id)}
+                    className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                      selectedCategory === cat.id
+                        ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
+                        : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700 text-neutral-400'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        {cat.id === 'electric_scooter' || cat.id === 'ebike' ? (
+                          <Zap className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                        ) : (
+                          <Bike className={`w-4 h-4 ${selectedCategory === cat.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                        )}
+                        {selectedCategory === cat.id && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        )}
+                      </div>
+                      <div className={`text-xs font-semibold ${selectedCategory === cat.id ? 'text-white' : 'text-neutral-300'}`}>
+                        {cat.title}
+                      </div>
+                      <div className="text-[11px] text-neutral-400 mt-1 leading-snug">
+                        {cat.subtitle}
+                      </div>
+                    </div>
+                  </button>
+                ))}
               </div>
-            </div>
 
-            {/* Model Dropdown */}
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Model (or Closest Match)
-              </label>
-              <div className="relative">
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
-                >
-                  {brandModels.map((m) => (
-                    <option key={m} value={m} className="bg-neutral-950 text-white">
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
-          </div>
-
-          {/* Custom model text */}
-          {(selectedModel.includes('Other') || selectedBrand === 'Other / Not Listed') && (
-            <div className="pt-2">
-              <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Specify Model (Optional)
-              </label>
-              <input
-                type="text"
-                value={customModelText}
-                onChange={(e) => setCustomModelText(e.target.value)}
-                placeholder="e.g. Vintage Sprint, Dual Hardtail"
-                className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              <BikeIdentityFields
+                value={bikeIdentity}
+                onChange={patchBike}
+                showCategory={false}
+                idPrefix="booking-bike"
               />
             </div>
           )}
-
-          {/* Bike Colour */}
-          <div className="pt-2">
-            <label className="block text-xs font-medium text-neutral-300 mb-1.5 flex items-center justify-between">
-              <span>Bike Colour (Optional)</span>
-              <span className="text-[11px] text-neutral-500">Assists our technicians at drop-off</span>
-            </label>
-            <input
-              type="text"
-              value={bikeColour}
-              onChange={(e) => setBikeColour(e.target.value)}
-              placeholder="e.g. Matte Black, Deep Blue, Emerald Green"
-              className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
         </div>
 
-        {/* STEP 3: Problem Identification & Services */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6">
+        {/* STEP 2: Problem Identification & Services */}
+        <div id="booking-step-issues" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-                03
+            <button
+              type="button"
+              onClick={() => toggleStep('issues')}
+              className="flex items-center gap-3 text-left cursor-pointer flex-1 min-w-0"
+            >
+              <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+                issuesStepComplete
+                  ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                  : 'bg-neutral-900 border-neutral-800 text-emerald-400'
+              }`}>
+                {issuesStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '02'}
               </div>
-              <div>
-                <h3 className="font-display text-base font-bold text-white">Identify Bike Issues &amp; Service</h3>
-                <p className="text-xs text-neutral-400">Select specific symptoms or choose an all-inclusive service package.</p>
+              <div className="min-w-0">
+                <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
+                  Identify Bike Issues &amp; Service
+                  <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform ${openSteps.issues ? 'rotate-180' : ''}`} />
+                </h3>
+                <p className="text-xs text-neutral-400 truncate">
+                  {issuesStepComplete ? computedService.headline : 'Select specific symptoms or choose an all-inclusive service package.'}
+                </p>
               </div>
-            </div>
+            </button>
 
             {/* Mode Switcher Tabs */}
             <div className="inline-flex p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
@@ -729,9 +984,22 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               >
                 <span>Fixed Packages</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setProblemSelectionMode('maintenance')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  problemSelectionMode === 'maintenance'
+                    ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <span>Seasonal Tune-Ups</span>
+              </button>
             </div>
           </div>
 
+          {openSteps.issues && (
+          <>
           {/* Mode 1: Multi-Select Issues Checklist */}
           {problemSelectionMode === 'checklist' ? (
             <div className="space-y-4 pt-1">
@@ -741,6 +1009,18 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 otherNotes={problemNotes}
                 onOtherNotesChange={setProblemNotes}
                 vehicleCategory={selectedCategory}
+              />
+            </div>
+          ) : problemSelectionMode === 'maintenance' ? (
+            /* Mode 3: Seasonal Preventative-Maintenance Packages */
+            <div className="pt-2">
+              <MaintenancePackagesPanel
+                vehicleCategory={bikeIdentity.category}
+                selectedPackageId={selectedMaintenanceId}
+                onSelect={(pkg: MaintenancePackage) => {
+                  setSelectedMaintenanceId(pkg.id);
+                  setProblemNotes('');
+                }}
               />
             </div>
           ) : (
@@ -801,25 +1081,87 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </div>
             </div>
           </div>
+
+          {/* Mandatory wheel size for puncture / flat-tyre jobs */}
+          {isPunctureJob && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3 animate-fade-in">
+              <div className="flex items-start gap-2.5">
+                <CircleDot className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <label htmlFor="booking-wheel-size" className="block text-xs font-bold text-white">
+                    Confirm your wheel size <span className="text-rose-400">*</span>
+                  </label>
+                  <p className="text-[11px] text-amber-200/80 mt-0.5">
+                    Puncture repairs need the correct tube. The size is printed on the tyre sidewall
+                    (e.g. 26", 27.5", 29", 700c, or a scooter size like 8.5"). Leave a note if you’re unsure.
+                  </p>
+                </div>
+              </div>
+              <input
+                id="booking-wheel-size"
+                type="text"
+                required
+                value={wheelSize}
+                onChange={(e) => setWheelSize(e.target.value)}
+                placeholder='e.g. 27.5" x 2.10, 700x38c, or 8.5" scooter tyre'
+                className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          )}
+          </>
+          )}
         </div>
 
-        {/* STEP 4: Choose Date, Time & Contact Info */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
-              04
+        {/* STEP 3: Choose Date, Time & Contact Info */}
+        <div id="booking-step-schedule" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+          <button
+            type="button"
+            onClick={() => toggleStep('schedule')}
+            className="w-full flex items-center gap-3 text-left cursor-pointer"
+          >
+            <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
+              scheduleStepComplete
+                ? 'bg-emerald-500 border-emerald-400 text-neutral-950'
+                : 'bg-neutral-900 border-neutral-800 text-emerald-400'
+            }`}>
+              {scheduleStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '03'}
             </div>
-            <div>
-              <h3 className="font-display text-base font-bold text-white">Drop-Off Window &amp; Contact</h3>
-              <p className="text-xs text-neutral-400">Choose your preferred date, time slot, and notification phone number.</p>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-display text-base font-bold text-white">Drop-Off Window</h3>
+              <p className="text-xs text-neutral-400">
+                {scheduleStepComplete ? `${preferredDate} · ${preferredTimeSlot}` : 'Choose your preferred drop-off date and time slot.'}
+              </p>
             </div>
-          </div>
+            <ChevronDown
+              className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform ${
+                openSteps.schedule ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
 
+          {openSteps.schedule && (
+          <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
                 Preferred Drop-off Date
               </label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {quickDates.map((q) => (
+                  <button
+                    key={q.value}
+                    type="button"
+                    onClick={() => setPreferredDate(q.value)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-medium border cursor-pointer transition-colors ${
+                      preferredDate === q.value
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                        : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+                    }`}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
               <div className="relative">
                 <Calendar className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
@@ -843,13 +1185,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   onChange={(e) => setPreferredTimeSlot(e.target.value)}
                   className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
                 >
-                  <option value="Morning (09:00 - 12:00)">Morning (09:00 - 12:00)</option>
-                  <option value="Midday (12:00 - 15:00)">Midday (12:00 - 15:00)</option>
-                  <option value="Afternoon (15:00 - 18:00)">Afternoon (15:00 - 18:00)</option>
-                  <option value="Saturday Morning (09:30 - 13:00)">Saturday Morning (09:30 - 13:00)</option>
+                  {TIME_SLOT_OPTIONS.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))}
                 </select>
                 <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
+              <p className="text-[11px] text-neutral-500 mt-1">
+                Booked drop-offs run from 2:00 PM onwards. Workshop open Mon–Fri 09:00–18:00, Sat 09:30–13:00.
+              </p>
             </div>
           </div>
 
@@ -915,17 +1261,26 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-              Mechanic Notes (Optional)
+            <label className="block text-xs font-medium text-neutral-300 mb-1.5 flex items-center justify-between">
+              <span>
+                Mechanic Notes <span className="text-rose-400">*</span>
+              </span>
+              <span className="text-[10px] text-neutral-500 font-normal">Pre-filled from your selection — edit if needed</span>
             </label>
             <textarea
-              rows={2}
+              rows={4}
+              required
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => {
+                notesEditedRef.current = true;
+                setNotes(e.target.value);
+              }}
               placeholder="e.g. Rear brake feels spongy, or need back before Friday commute"
               className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
             />
           </div>
+          </>
+          )}
         </div>
 
         {/* Voucher Redemption Option */}
@@ -970,7 +1325,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         )}
 
         {/* Submit Action */}
-        <div className="pt-2">
+        <div className="pt-2 space-y-3">
           <button
             type="submit"
             disabled={isSubmitting}
@@ -981,13 +1336,33 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             ) : (
               <>
                 <Wrench className="w-4 h-4" />
-                <span>Book Workshop Service · Ask for a Quote</span>
+                <span>Book Workshop Service</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
-          <div className="text-center text-xs text-neutral-400 mt-2">
-            No upfront payment required. Our Cytech mechanic will evaluate your bike upon drop-off, complete repairs, and provide an itemized quote/invoice.
+
+          <a
+            href={whatsappQuoteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5a] text-neutral-950 font-bold text-sm shadow-xl shadow-emerald-500/15 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Request a Quote on WhatsApp</span>
+          </a>
+
+          <div className="text-center text-xs text-neutral-400">
+            No upfront payment required. Book online and our mechanic will evaluate your vehicle on drop-off, or send bespoke job details/photos straight to the workshop on WhatsApp for a quote.
+          </div>
+
+          {/* Legal disclaimers — mobile call-out, repairs, e-scooter use & storage */}
+          <div className="pt-3 mt-1 border-t border-neutral-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Scale className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-semibold text-white">Legal Disclaimers &amp; Service Terms</span>
+            </div>
+            <LegalDisclaimerSections variant="accordion" idPrefix="booking-legal" />
           </div>
         </div>
       </form>

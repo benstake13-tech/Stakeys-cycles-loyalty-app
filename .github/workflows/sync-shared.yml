@@ -1,0 +1,77 @@
+name: Sync shared code
+
+# The customer app (branch `fix/booking-approval-signup-notifications`) and the
+# staff terminal (branch `staff-only-terminal`) are two builds of one codebase.
+# They share `src/shared/`. Left alone, the two copies drift apart.
+#
+# This workflow treats the customer branch as the source of truth: whenever a
+# change lands under `src/shared/`, it copies the folder onto the staff branch
+# and pushes it, so the two builds always compile against the same shared code.
+# A separate check fails any pull request that would leave the two copies
+# different.
+on:
+  push:
+    branches: [fix/booking-approval-signup-notifications]
+    paths:
+      - 'src/shared/**'
+  pull_request:
+    branches: [fix/booking-approval-signup-notifications, staff-only-terminal]
+    paths:
+      - 'src/shared/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    name: Check shared code is in sync
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compare src/shared against the staff branch
+        run: |
+          set -euo pipefail
+          git fetch origin staff-only-terminal:refs/remotes/origin/staff-only-terminal
+          if git diff --quiet origin/staff-only-terminal -- src/shared; then
+            echo "src/shared is identical on both branches."
+          else
+            echo "::error::src/shared differs between this branch and staff-only-terminal. The 'Sync shared code' workflow will mirror it automatically once this branch is pushed."
+            git --no-pager diff --stat origin/staff-only-terminal -- src/shared
+            exit 1
+          fi
+
+  sync:
+    name: Mirror src/shared onto staff-only-terminal
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/booking-approval-signup-notifications
+
+      - name: Copy src/shared onto the staff branch
+        run: |
+          set -euo pipefail
+          git config user.name "stakeys-sync-bot"
+          git config user.email "sync-bot@users.noreply.github.com"
+
+          git fetch origin staff-only-terminal
+          git checkout staff-only-terminal
+
+          rm -rf src/shared
+          git checkout fix/booking-approval-signup-notifications -- src/shared
+          git add src/shared
+
+          if git diff --cached --quiet -- src/shared; then
+            echo "Nothing to sync — the staff branch already matches."
+            exit 0
+          fi
+
+          git commit -m "chore(shared): mirror src/shared from the customer app"
+          git push origin staff-only-terminal
+          echo "staff-only-terminal now matches src/shared."
