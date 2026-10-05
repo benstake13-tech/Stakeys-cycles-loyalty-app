@@ -23,7 +23,9 @@ import {
   SalePaymentMethod,
   RepairStageId,
   RepairProgressEvent,
+  StakeyAvatarConfig,
 } from '../types/bikeShop';
+import { DEFAULT_STAKEY_AVATAR, normalizeStakeyAvatarConfig } from '../data/stakeyAvatar';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
   makeRepairEvent,
@@ -115,6 +117,8 @@ interface ShopContextType {
   ownerConfig: OwnerNotificationConfig;
   latestDispatchedBooking: ServiceBooking | null;
   clearLatestDispatchedBooking: () => void;
+  // Virtual Stakey — the animated AI helper avatar (authored by staff, shown to customers)
+  stakeyAvatar: StakeyAvatarConfig;
   // Database Synchronization Status
   refreshDatabaseState: () => Promise<void>;
   isDatabaseSyncing: boolean;
@@ -315,6 +319,7 @@ interface ShopContextType {
     paymentStatus: 'unpaid' | 'paid_card' | 'paid_cash' | 'paid_online'
   ) => Promise<void>;
   updateOwnerConfig: (config: Partial<OwnerNotificationConfig>) => void;
+  updateStakeyAvatar: (config: Partial<StakeyAvatarConfig>) => void;
   resetAllDemoData: () => void;
   hardResetApp: () => void;
   // Staff loud booking alert & push notifications
@@ -1216,6 +1221,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           businessName: remoteSettings.businessName ?? prev.businessName,
         })
       );
+      if (remoteSettings.stakeyAvatar) {
+        setStakeyAvatar((prev) => keepIfEqual(prev, remoteSettings.stakeyAvatar!));
+      }
     }
 
     if (currentUser) {
@@ -1284,6 +1292,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (typeof settings.automatedRemindersEnabled === 'boolean') {
           setAutomatedRemindersEnabled(settings.automatedRemindersEnabled);
         }
+        if (settings.stakeyAvatar) setStakeyAvatar(settings.stakeyAvatar);
       }
     }).catch(() => {});
 
@@ -1393,6 +1402,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ownerPhone: '',
     emailAlertsEnabled: false,
     businessName: 'Stakey\'s Cycles',
+  });
+
+  // Virtual Stakey — the staff-authored helper avatar shown to customers.
+  const [stakeyAvatar, setStakeyAvatar] = useState<StakeyAvatarConfig>(() => {
+    try {
+      const cached = localStorage.getItem('stakeys_stakey_avatar');
+      if (cached) return normalizeStakeyAvatarConfig(JSON.parse(cached));
+    } catch {
+      /* ignore malformed cache */
+    }
+    return { ...DEFAULT_STAKEY_AVATAR };
   });
 
   // Track the most recently placed booking for live modal notification preview
@@ -3271,6 +3291,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
+  const updateStakeyAvatar = (config: Partial<StakeyAvatarConfig>) => {
+    setStakeyAvatar((prev) => {
+      const next = normalizeStakeyAvatarConfig({ ...prev, ...config });
+      try {
+        localStorage.setItem('stakeys_stakey_avatar', JSON.stringify(next));
+      } catch {
+        /* storage unavailable — the in-memory state still applies */
+      }
+      upsertAppSettingsToDb({ stakeyAvatar: next }).catch((e) =>
+        console.warn('[DB SYNC] updateStakeyAvatar persist failed:', e)
+      );
+      return next;
+    });
+  };
+
   const resetAllDemoData = () => {
     localStorage.clear();
     window.location.reload();
@@ -3374,6 +3409,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ownerConfig,
         latestDispatchedBooking,
         clearLatestDispatchedBooking,
+        stakeyAvatar,
+        updateStakeyAvatar,
         refreshDatabaseState,
         isDatabaseSyncing,
         serviceStatus,

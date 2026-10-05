@@ -517,3 +517,37 @@ export interface OwnerNotificationConfig {
   businessName: string;
 }
 
+/* ------------------------------------------------------------------ *
+ * Virtual Stakey — the animated AI helper avatar
+ * ------------------------------------------------------------------ */
+
+export type StakeyAvatarSpecies = 'human' | 'robot';
+export type StakeyAvatarBody = 'slim' | 'regular' | 'stocky';
+export type StakeyAvatarHairStyle = 'short' | 'cap' | 'bun' | 'spiky' | 'bald' | 'beanie' | 'helmet' | 'antenna';
+export type StakeyAvatarHairColor = 'black' | 'brown' | 'blonde' | 'ginger' | 'grey' | 'green' | 'teal' | 'pink';
+export type StakeyAvatarSkin = 'light' | 'tan' | 'medium' | 'deep';
+export type StakeyAvatarOutfit = 'overalls' | 'tee' | 'hoodie' | 'polo';
+export type StakeyAvatarOutfitColor = 'emerald' | 'navy' | 'coral' | 'charcoal' | 'mustard';
+export type StakeyAvatarVoiceStyle = 'warm' | 'bright' | 'calm' | 'energetic';
+
+/** A staff-authored, customer-facing helper character ("Virtual Stakey"). */
+export interface StakeyAvatarConfig {
+  enabled: boolean;
+  name: string;
+  species: StakeyAvatarSpecies;
+  body: StakeyAvatarBody;
+  hairStyle: StakeyAvatarHairStyle;
+  hairColor: StakeyAvatarHairColor;
+  skin: StakeyAvatarSkin;
+  outfit: StakeyAvatarOutfit;
+  outfitColor: StakeyAvatarOutfitColor;
+  /** Optional business accent override; when empty the theme's #05C147 is used. */
+  accentColor: string;
+  voiceStyle: StakeyAvatarVoiceStyle;
+  /** Opt-in: speak answers aloud via the browser speech engine. */
+  voiceEnabled: boolean;
+  /** Staff guidance layered on top of the built-in knowledge. */
+  persona: string;
+}
+
+

@@ -13,6 +13,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { LegalDisclaimersButton } from './components/LegalDisclaimers';
+import { StakeyHelper } from './components/StakeyHelper';
 import { Toaster } from 'react-hot-toast';
 import { initOneSignal, linkUser, relinkUser, unlinkUser } from './shared/utils/pushNotifications';
 
@@ -26,7 +27,7 @@ import { initOneSignal, linkUser, relinkUser, unlinkUser } from './shared/utils/
  * terminal. The customer-facing app lives in a separate deployment.
  */
 function AppContent() {
-  const { currentUser, logoutUser, theme, bookings, seasonalTheme } = useShop();
+  const { currentUser, logoutUser, theme, bookings, seasonalTheme, stakeyAvatar } = useShop();
   const isDark = theme === 'dark';
   const [activeTab, setActiveTab] = useState<NavTabId>('staff');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -297,6 +298,9 @@ function AppContent() {
         </div>
       </footer>
       </div>
+
+      {/* Virtual Stakey — staff-authored AI helper (same character the customer app shows) */}
+      <StakeyHelper config={stakeyAvatar} onNavigate={(target) => { if (target === 'contact') setActiveTab('deliverables'); }} />
     </div>
   );
 }

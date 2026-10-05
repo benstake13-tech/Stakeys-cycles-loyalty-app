@@ -10,6 +10,7 @@ const hoisted = vi.hoisted(() => ({
     bookings: [] as any[],
     theme: 'dark',
     seasonalTheme: 'none',
+    stakeyAvatar: { enabled: false, name: 'Stakey' } as any,
   },
 }));
 

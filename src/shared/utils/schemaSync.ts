@@ -303,6 +303,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'sms_alerts_enabled', type: 'boolean', default: 'false' },
       { name: 'business_name', type: 'text' },
       { name: 'automated_reminders_enabled', type: 'boolean', default: 'true' },
+      { name: 'stakey_avatar', type: 'jsonb' },
       { name: 'updated_at', type: 'timestamptz', default: NOW },
     ],
   },

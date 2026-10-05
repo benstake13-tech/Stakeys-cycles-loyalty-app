@@ -232,6 +232,58 @@
   50% { transform: scale(1.06); opacity: 1; }
 }
 
+/* ---- Virtual Stakey helper avatar ---- */
+.stakey-float {
+  transform-origin: 100px 200px;
+  animation: stakey-float 4.2s ease-in-out infinite;
+}
+
+@keyframes stakey-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(-0.6deg); }
+}
+
+/* Blink by squashing the eye group on the Y axis */
+.stakey-blink {
+  transform-origin: center;
+  animation: stakey-blink 5.4s ease-in-out infinite;
+}
+
+@keyframes stakey-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%, 97% { transform: scaleY(0.08); }
+}
+
+/* Idle mouth is a calm, small breath; talking opens and closes faster */
+.stakey-mouth {
+  transform-origin: center;
+  animation: stakey-idle-mouth 3.6s ease-in-out infinite;
+}
+
+@keyframes stakey-idle-mouth {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.82); }
+}
+
+.stakey-mouth--talking {
+  animation: stakey-talk 0.34s ease-in-out infinite;
+}
+
+@keyframes stakey-talk {
+  0%, 100% { transform: scaleY(0.45) scaleX(1.02); }
+  50% { transform: scaleY(1.25) scaleX(0.96); }
+}
+
+/* Gentle bob for the floating helper button */
+.stakey-launcher-bob {
+  animation: stakey-launcher-bob 3s ease-in-out infinite;
+}
+
+@keyframes stakey-launcher-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
 /* Custom subtle scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
