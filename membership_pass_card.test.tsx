@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import type { UserProfile } from './src/types/bikeShop';
+import type { UserProfile } from './src/shared/types/bikeShop';
 
 // jsbarcode draws to a real SVG; stub it so the test only asserts the payload.
 const hoisted = vi.hoisted(() => ({ barcodePayloads: [] as string[] }));

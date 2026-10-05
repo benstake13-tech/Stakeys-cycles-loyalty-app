@@ -50,7 +50,7 @@ vi.mock('html5-qrcode', () => ({
 }));
 
 const shop = vi.hoisted(() => ({ current: {} as any }));
-vi.mock('./src/context/ShopContext', () => ({ useShop: () => shop.current }));
+vi.mock('./src/shared/context/ShopContext', () => ({ useShop: () => shop.current }));
 
 import { QRCodeScannerModal } from './src/components/QRCodeScannerModal';
 

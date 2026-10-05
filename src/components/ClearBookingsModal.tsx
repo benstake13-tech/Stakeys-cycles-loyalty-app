@@ -7,7 +7,7 @@ import {
   CalendarDays,
   ShieldAlert,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 
 /**
  * Launch prep tool: lets staff wipe the whole service-bookings list in one go.

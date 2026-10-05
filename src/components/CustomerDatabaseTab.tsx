@@ -28,9 +28,9 @@ import {
   Trash2,
   Minus,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { UserProfile, StampLog } from '../types/bikeShop';
-import { canCustomerReceiveStampToday } from '../api/firebaseService';
+import { useShop } from '../shared/context/ShopContext';
+import { UserProfile, StampLog } from '../shared/types/bikeShop';
+import { canCustomerReceiveStampToday } from '../shared/api/firebaseService';
 import { StakeysLogo } from './StakeysLogo';
 
 interface CustomerDatabaseTabProps {

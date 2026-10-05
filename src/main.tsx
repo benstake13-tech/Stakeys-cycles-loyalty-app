@@ -2,9 +2,9 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
-import { handleOAuthCallbackPage } from './utils/oauthService';
-import { unregisterLegacyPushWorkers } from './utils/pushSetup';
-import { staffBookingAudio } from './utils/staffAlertAudio';
+import { handleOAuthCallbackPage } from './shared/utils/oauthService';
+import { unregisterLegacyPushWorkers } from './shared/utils/pushSetup';
+import { staffBookingAudio } from './shared/utils/staffAlertAudio';
 import './index.css';
 
 // Remove the PushEngage service worker left over from the pre-OneSignal push

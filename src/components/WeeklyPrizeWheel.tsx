@@ -21,10 +21,10 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { PrizeWheelSegment, CollectedVoucher } from '../types/bikeShop';
-import { checkSpinEligibility, pickWinningSegmentIndex } from '../utils/prizeWheelHelper';
-import { wheelAudio } from '../utils/wheelAudio';
+import { useShop } from '../shared/context/ShopContext';
+import { PrizeWheelSegment, CollectedVoucher } from '../shared/types/bikeShop';
+import { checkSpinEligibility, pickWinningSegmentIndex } from '../shared/utils/prizeWheelHelper';
+import { wheelAudio } from '../shared/utils/wheelAudio';
 import { StakeysLogo } from './StakeysLogo';
 
 interface WeeklyPrizeWheelProps {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, Mail, Eye, EyeOff, Shield, ShieldCheck, AlertCircle, KeyRound } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import { StakeysLogo } from './StakeysLogo';
 import { ThemeToggle } from './ThemeToggle';
 

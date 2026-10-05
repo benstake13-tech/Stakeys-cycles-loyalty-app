@@ -9,7 +9,7 @@ import {
   EV_LEGAL_NOTES,
   EV_BATTERY_SAFETY,
   EvBrandSpec,
-} from '../data/evReference';
+} from '../shared/data/evReference';
 
 const cardClass = 'rounded-xl border border-neutral-800 bg-neutral-950/60 overflow-hidden';
 const thClass =

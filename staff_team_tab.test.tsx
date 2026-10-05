@@ -14,7 +14,7 @@ const hoisted = vi.hoisted(() => ({
   role: 'admin',
 }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({
     staffMembers: [
       {

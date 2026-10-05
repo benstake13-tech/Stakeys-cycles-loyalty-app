@@ -12,9 +12,9 @@ import {
   Sparkles,
   Filter,
 } from 'lucide-react';
-import { TRUSTED_BIKES_RECOMMENDATIONS } from '../data/trustedBikesData';
-import { TrustedBikeRecommendation } from '../types/bikeShop';
-import { useShop } from '../context/ShopContext';
+import { TRUSTED_BIKES_RECOMMENDATIONS } from '../shared/data/trustedBikesData';
+import { TrustedBikeRecommendation } from '../shared/types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
 
 export const BikesWeTrustSection: React.FC = () => {
   const { theme } = useShop();

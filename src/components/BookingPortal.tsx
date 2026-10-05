@@ -18,10 +18,10 @@ import {
   MessageCircle,
   Scale,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { VehicleCategory, BikeDetails } from '../types/bikeShop';
-import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
-import { MaintenancePackage, findMaintenancePackage } from '../data/maintenancePackages';
+import { useShop } from '../shared/context/ShopContext';
+import { VehicleCategory, BikeDetails } from '../shared/types/bikeShop';
+import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../shared/data/bikeCatalog';
+import { MaintenancePackage, findMaintenancePackage } from '../shared/data/maintenancePackages';
 import { StakeysLogo } from './StakeysLogo';
 import { LegalDisclaimerSections } from './LegalDisclaimers';
 import { MaintenancePackagesPanel } from './MaintenancePackagesPanel';
@@ -34,12 +34,12 @@ import {
   resolveModel,
   isEbike,
 } from './BikeIdentityFields';
-import { ALL_BIKE_ISSUES_MAP, issueAppliesToVehicle } from '../data/bikeIssuesCatalog';
-import { buildWhatsAppUrl, buildBookingQuoteMessage } from '../utils/whatsapp';
+import { ALL_BIKE_ISSUES_MAP, issueAppliesToVehicle } from '../shared/data/bikeIssuesCatalog';
+import { buildWhatsAppUrl, buildBookingQuoteMessage } from '../shared/utils/whatsapp';
 import {
   createBookingMailtoUrl,
   createCustomerMailtoUrl,
-} from '../utils/notificationService';
+} from '../shared/utils/notificationService';
 import confetti from 'canvas-confetti';
 
 interface BookingPortalProps {

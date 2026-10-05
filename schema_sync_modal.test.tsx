@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({ refreshDatabaseState: vi.fn(async () => {}) }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({ refreshDatabaseState: hoisted.refreshDatabaseState }),
 }));
 

@@ -21,9 +21,9 @@ import {
   Crown,
   Wrench,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { StaffMember, StaffRole, StaffWorkStatus } from '../types/bikeShop';
-import type { StaffAccountRole } from '../api/backendDataService';
+import { useShop } from '../shared/context/ShopContext';
+import { StaffMember, StaffRole, StaffWorkStatus } from '../shared/types/bikeShop';
+import type { StaffAccountRole } from '../shared/api/backendDataService';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 

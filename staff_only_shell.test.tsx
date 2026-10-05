@@ -13,7 +13,7 @@ const hoisted = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   ShopProvider: ({ children }: any) => children,
   useShop: () => hoisted.state,
 }));
@@ -27,9 +27,9 @@ vi.mock('./src/components/SeasonalThemeCanvas', () => ({ SeasonalThemeCanvas: ()
 vi.mock('./src/components/ServiceStatusBadge', () => ({ ServiceStatusBadge: () => null }));
 vi.mock('./src/components/ThemeToggle', () => ({ ThemeToggle: () => null }));
 vi.mock('./src/components/StakeysLogo', () => ({ StakeysLogo: () => null }));
-vi.mock('./src/data/socialLinks', () => ({ SHOP_SOCIAL_LINKS: [] }));
+vi.mock('./src/shared/data/socialLinks', () => ({ SHOP_SOCIAL_LINKS: [] }));
 vi.mock('./src/components/LegalDisclaimers', () => ({ LegalDisclaimersButton: () => null }));
-vi.mock('./src/utils/pushNotifications', () => ({
+vi.mock('./src/shared/utils/pushNotifications', () => ({
   initOneSignal: vi.fn(),
   linkUser: vi.fn(),
   relinkUser: vi.fn(),

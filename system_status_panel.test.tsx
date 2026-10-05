@@ -2,17 +2,17 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('./src/supabase', () => ({
+vi.mock('./src/shared/supabase', () => ({
   getStoredSupabaseUrl: () => 'https://lhojocpygcnkxvkrcuxh.supabase.co',
   getStoredSupabaseAnonKey: () => 'anon',
   getSupabaseClient: () => null,
 }));
-vi.mock('./src/utils/pushNotifications', () => ({ getPushPermission: async () => 'granted' }));
-vi.mock('./src/utils/pushSetup', () => ({ fetchPushConfig: async () => ({ appId: 'a', serverPush: true }) }));
+vi.mock('./src/shared/utils/pushNotifications', () => ({ getPushPermission: async () => 'granted' }));
+vi.mock('./src/shared/utils/pushSetup', () => ({ fetchPushConfig: async () => ({ appId: 'a', serverPush: true }) }));
 
 const runSystem = vi.fn();
-vi.mock('./src/utils/notificationDiagnostics', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./src/utils/notificationDiagnostics')>();
+vi.mock('./src/shared/utils/notificationDiagnostics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./src/shared/utils/notificationDiagnostics')>();
   return {
     ...actual,
     runNotificationSystemTests: (...args: unknown[]) => runSystem(...args),

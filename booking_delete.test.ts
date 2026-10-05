@@ -7,7 +7,7 @@ const hoisted = vi.hoisted(() => ({
   error: null as { message: string } | null,
 }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     from: (name: string) => ({
       delete: () => {
@@ -27,7 +27,7 @@ vi.mock('./src/lib/supabase', () => ({
 import {
   deleteServiceBookingFromDb,
   deleteAllServiceBookingsFromDb,
-} from './src/api/backendDataService';
+} from './src/shared/api/backendDataService';
 
 beforeEach(() => {
   hoisted.deletes = [];

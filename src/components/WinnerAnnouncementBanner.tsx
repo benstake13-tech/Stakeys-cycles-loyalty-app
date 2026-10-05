@@ -1,6 +1,6 @@
 import React from 'react';
 import { Trophy, Sparkles, X } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import confetti from 'canvas-confetti';
 
 export const WinnerAnnouncementBanner: React.FC = () => {

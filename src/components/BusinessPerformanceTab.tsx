@@ -19,8 +19,8 @@ import {
   isTokenExpired,
   disconnectProvider,
   startOAuthPopup,
-} from '../utils/oauthService';
-import { fetchInsights, BusinessInsights } from '../utils/businessInsights';
+} from '../shared/utils/oauthService';
+import { fetchInsights, BusinessInsights } from '../shared/utils/businessInsights';
 
 interface ProviderState {
   insights: BusinessInsights | null;

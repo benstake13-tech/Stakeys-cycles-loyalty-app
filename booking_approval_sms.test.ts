@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildBookingApprovalSms, normalizePhoneForSms, createBookingApprovalSmsUrl } from './src/utils/notificationService';
-import { ServiceBooking, OwnerNotificationConfig } from './src/types/bikeShop';
+import { buildBookingApprovalSms, normalizePhoneForSms, createBookingApprovalSmsUrl } from './src/shared/utils/notificationService';
+import { ServiceBooking, OwnerNotificationConfig } from './src/shared/types/bikeShop';
 
 const config: OwnerNotificationConfig = {
   ownerEmail: 'workshop@stakeyscycles.com',

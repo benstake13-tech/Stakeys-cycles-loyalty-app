@@ -59,7 +59,7 @@ afterEach(() => {
 describe('staffAlertAudio booking chime', () => {
   it('schedules a warm 4-note ascending arpeggio (A-major) with bell partials', async () => {
     const oscillators = installAudioRecorder();
-    const { staffBookingAudio } = await import('./src/utils/staffAlertAudio');
+    const { staffBookingAudio } = await import('./src/shared/utils/staffAlertAudio');
 
     expect(() => staffBookingAudio.playLoudBookingPing()).not.toThrow();
 
@@ -79,7 +79,7 @@ describe('staffAlertAudio booking chime', () => {
 
   it('does not schedule anything when the chime is muted', async () => {
     const oscillators = installAudioRecorder();
-    const { staffBookingAudio } = await import('./src/utils/staffAlertAudio');
+    const { staffBookingAudio } = await import('./src/shared/utils/staffAlertAudio');
     staffBookingAudio.setSoundEnabled(false);
     staffBookingAudio.playLoudBookingPing();
     expect(oscillators).toHaveLength(0);
@@ -100,7 +100,7 @@ describe('staffAlertAudio booking chime', () => {
       }
     }
     vi.stubGlobal('Audio', FakeAudio as any);
-    const { staffBookingAudio } = await import('./src/utils/staffAlertAudio');
+    const { staffBookingAudio } = await import('./src/shared/utils/staffAlertAudio');
 
     staffBookingAudio.playBookingAlert();
     await Promise.resolve();
@@ -121,7 +121,7 @@ describe('staffAlertAudio booking chime', () => {
       }
     }
     vi.stubGlobal('Audio', FakeAudio as any);
-    const { staffBookingAudio } = await import('./src/utils/staffAlertAudio');
+    const { staffBookingAudio } = await import('./src/shared/utils/staffAlertAudio');
 
     staffBookingAudio.playBookingAlert();
     await new Promise((r) => setTimeout(r, 0));

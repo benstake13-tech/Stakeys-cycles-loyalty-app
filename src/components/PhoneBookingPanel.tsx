@@ -15,10 +15,10 @@ import {
   ArrowRight,
   RefreshCw,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { VehicleCategory, BikeDetails, UserProfile } from '../types/bikeShop';
-import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
-import { MAINTENANCE_PACKAGES } from '../data/maintenancePackages';
+import { useShop } from '../shared/context/ShopContext';
+import { VehicleCategory, BikeDetails, UserProfile } from '../shared/types/bikeShop';
+import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../shared/data/bikeCatalog';
+import { MAINTENANCE_PACKAGES } from '../shared/data/maintenancePackages';
 import {
   BikeIdentityFields,
   BikeIdentityValue,
@@ -26,7 +26,7 @@ import {
   toBikeDetails,
   resolveModel,
 } from './BikeIdentityFields';
-import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import { ALL_BIKE_ISSUES_MAP } from '../shared/data/bikeIssuesCatalog';
 
 /** The call-handling script a staff member reads from while booking on the phone. */
 const CALL_SCRIPT: { title: string; lines: string[] }[] = [

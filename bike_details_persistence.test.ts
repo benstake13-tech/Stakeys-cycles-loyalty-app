@@ -11,7 +11,7 @@ const hoisted = vi.hoisted(() => ({
   failedTables: new Set<string>(),
 }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     from: (name: string) => ({
       insert: (payload: any) => {
@@ -36,7 +36,7 @@ import {
   insertServiceBookingToDb,
   insertCustomerBikeToDb,
   updateServiceBookingInDb,
-} from './src/api/backendDataService';
+} from './src/shared/api/backendDataService';
 
 beforeEach(() => {
   hoisted.inserts = [];

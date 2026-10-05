@@ -22,26 +22,26 @@ import {
   RepairChecklistItem,
   RepairInvoice,
   SaleDiscountState,
-} from '../types/bikeShop';
+} from '../shared/types/bikeShop';
 import {
   DEFAULT_REPAIR_CHECKLIST_ITEMS,
   COMMON_REPAIR_PRESETS,
   PresetRepairItem,
-} from '../data/repairChecklistCatalog';
-import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
-import { calculateInvoiceTotals } from '../utils/invoiceService';
+} from '../shared/data/repairChecklistCatalog';
+import { ALL_BIKE_ISSUES_MAP } from '../shared/data/bikeIssuesCatalog';
+import { calculateInvoiceTotals } from '../shared/utils/invoiceService';
 import {
   buildInvoiceLineItemsFromBooking,
   reconcileInvoiceWithBooking,
   applyBookingContextToInvoice,
-} from '../utils/invoiceReconciliation';
+} from '../shared/utils/invoiceReconciliation';
 import {
   validateDiscountCode,
   findDiscountCode,
   describeDiscountValue,
   roundMoney,
-} from '../utils/discountService';
-import { useShop } from '../context/ShopContext';
+} from '../shared/utils/discountService';
+import { useShop } from '../shared/context/ShopContext';
 import toast from 'react-hot-toast';
 
 interface RepairCompletionModalProps {

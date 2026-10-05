@@ -10,11 +10,11 @@ const hoisted = vi.hoisted(() => ({
   sendPushToUser: vi.fn(async () => ({ ok: true, via: 'server' as const })),
 }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({ ownerConfig: hoisted.ownerConfig }),
 }));
 
-vi.mock('./src/utils/pushNotifications', () => ({
+vi.mock('./src/shared/utils/pushNotifications', () => ({
   getPushPermission: hoisted.getPushPermission,
   requestPushPermission: hoisted.requestPushPermission,
   getSubscriptionId: hoisted.getSubscriptionId,
@@ -31,7 +31,7 @@ import {
   supabaseSecretsBlock,
   isLegacyPushWorker,
   unregisterLegacyPushWorkers,
-} from './src/utils/pushSetup';
+} from './src/shared/utils/pushSetup';
 import { PushSetupModal } from './src/components/PushSetupModal';
 
 /** Installs a fake service worker container on navigator for jsdom. */

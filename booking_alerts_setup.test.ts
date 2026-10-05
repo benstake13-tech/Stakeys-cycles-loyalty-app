@@ -12,7 +12,7 @@ import {
   NO_JWT_FUNCTIONS,
   RESEND_KEYS_URL,
   ONESIGNAL_DASHBOARD_URL,
-} from './src/utils/bookingAlertsSetup';
+} from './src/shared/utils/bookingAlertsSetup';
 
 describe('webhookTriggerSql', () => {
   const sql = webhookTriggerSql('https://lhojocpygcnkxvkrcuxh.supabase.co');

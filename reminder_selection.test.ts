@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { selectDueReminderBookings } from './src/utils/notificationService';
-import type { ServiceBooking } from './src/types/bikeShop';
+import { selectDueReminderBookings } from './src/shared/utils/notificationService';
+import type { ServiceBooking } from './src/shared/types/bikeShop';
 
 /** A booking `days` from now at 09:00, so it sits inside the 24h reminder window. */
 function booking(over: Partial<ServiceBooking> & { id: string }): ServiceBooking {

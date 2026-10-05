@@ -13,13 +13,13 @@ import {
   ChevronDown,
   ShieldCheck,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import {
   auditLiveSchema,
   generateSchemaSyncSql,
   SchemaAuditReport,
-} from '../utils/schemaSync';
-import { getStoredSupabaseUrl } from '../supabase';
+} from '../shared/utils/schemaSync';
+import { getStoredSupabaseUrl } from '../shared/supabase';
 
 type Toast = { kind: 'ok' | 'err'; text: string } | null;
 

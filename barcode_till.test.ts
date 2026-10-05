@@ -6,8 +6,8 @@ import {
   membershipBalance,
   normalizeScannedCode,
   resolveCustomer,
-} from './src/utils/membershipCode';
-import type { UserProfile } from './src/types/bikeShop';
+} from './src/shared/utils/membershipCode';
+import type { UserProfile } from './src/shared/types/bikeShop';
 
 function customer(over: Partial<UserProfile>): UserProfile {
   return {

@@ -4,7 +4,7 @@ import {
   useShop,
   SeasonalThemeId,
   SEASONAL_THEME_LABELS,
-} from '../context/ShopContext';
+} from '../shared/context/ShopContext';
 
 const SWATCHES: Record<SeasonalThemeId, string> = {
   none: 'from-neutral-700 to-neutral-900',

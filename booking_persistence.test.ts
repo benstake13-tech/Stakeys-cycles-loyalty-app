@@ -6,7 +6,7 @@ const hoisted = vi.hoisted(() => ({
   updates: [] as any[],
 }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     from: (name: string) => ({
       update: (payload: any) => {
@@ -22,7 +22,7 @@ vi.mock('./src/lib/supabase', () => ({
   }),
 }));
 
-import { updateServiceBookingInDb } from './src/api/backendDataService';
+import { updateServiceBookingInDb } from './src/shared/api/backendDataService';
 
 beforeEach(() => {
   hoisted.updates = [];

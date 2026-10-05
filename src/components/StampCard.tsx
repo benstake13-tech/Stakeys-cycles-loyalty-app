@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Bike, Award, Sparkles, Check, Clock, Lock, ArrowRight, CheckCircle2, Wrench, Flame } from 'lucide-react';
-import { UserProfile, CollectedVoucher } from '../types/bikeShop';
-import { useShop } from '../context/ShopContext';
-import { STAMPS_PER_CARD, stampEligibility, canStampToday } from '../utils/loyaltyCard';
+import { UserProfile, CollectedVoucher } from '../shared/types/bikeShop';
+import { useShop } from '../shared/context/ShopContext';
+import { STAMPS_PER_CARD, stampEligibility, canStampToday } from '../shared/utils/loyaltyCard';
 import confetti from 'canvas-confetti';
 
 interface StampCardProps {

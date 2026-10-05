@@ -6,7 +6,7 @@ const hoisted = vi.hoisted(() => ({
   createBooking: vi.fn(async (_data: any) => ({ id: 'bk-7777', customerName: 'Sam Carter' })),
 }));
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({ users: [], createBooking: hoisted.createBooking }),
 }));
 

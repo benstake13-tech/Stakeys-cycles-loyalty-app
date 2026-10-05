@@ -25,9 +25,9 @@ import {
   Loader2,
   User,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { ServiceBooking, BookingStatus } from '../types/bikeShop';
-import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import { useShop } from '../shared/context/ShopContext';
+import { ServiceBooking, BookingStatus } from '../shared/types/bikeShop';
+import { ALL_BIKE_ISSUES_MAP } from '../shared/data/bikeIssuesCatalog';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import {
   REPAIR_STAGES,
@@ -36,7 +36,7 @@ import {
   matchesRepairQuery,
   repairProgressPercent,
   repairStageIndex,
-} from '../utils/repairProgress';
+} from '../shared/utils/repairProgress';
 
 interface CustomerRepairTrackerProps {
   initialBookingId?: string;

@@ -11,8 +11,8 @@ import {
   EV_SYSTEM_VOLTAGE_OPTIONS,
   evSpecForBrand,
   allEvVoltages,
-} from './src/data/evReference';
-import { BIKE_BRAND_PROFILES, brandProfileFor, modelsForBrand } from './src/data/bikeBrands';
+} from './src/shared/data/evReference';
+import { BIKE_BRAND_PROFILES, brandProfileFor, modelsForBrand } from './src/shared/data/bikeBrands';
 
 const names = (list: { name: string }[]) => list.map((b) => b.name);
 

@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { CalendarClock, CheckCircle2, ChevronDown, Leaf, Snowflake, Zap } from 'lucide-react';
-import { VehicleCategory } from '../types/bikeShop';
+import { VehicleCategory } from '../shared/types/bikeShop';
 import {
   MAINTENANCE_PACKAGES,
   MaintenancePackage,
   MaintenanceSeason,
-} from '../data/maintenancePackages';
+} from '../shared/data/maintenancePackages';
 
 interface Props {
   /** Only packages that apply to this vehicle type are offered. */

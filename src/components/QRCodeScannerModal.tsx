@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Scan, X, AlertCircle, Keyboard, Camera, CheckCircle, Upload, SwitchCamera, Award, Ticket, Sparkles, UserCheck } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { UserProfile, DiscountCode } from '../types/bikeShop';
-import { wheelAudio } from '../utils/wheelAudio';
-import { resolveCustomer, normalizeScannedCode, parseMembershipPayload, MembershipBalance } from '../utils/membershipCode';
-import { findDiscountCode } from '../utils/discountService';
+import { useShop } from '../shared/context/ShopContext';
+import { UserProfile, DiscountCode } from '../shared/types/bikeShop';
+import { wheelAudio } from '../shared/utils/wheelAudio';
+import { resolveCustomer, normalizeScannedCode, parseMembershipPayload, MembershipBalance } from '../shared/utils/membershipCode';
+import { findDiscountCode } from '../shared/utils/discountService';
 import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
 
 interface QRCodeScannerModalProps {

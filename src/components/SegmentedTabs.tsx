@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 
 export type TabTone = 'emerald' | 'amber' | 'neutral' | 'rose' | 'sky';
 

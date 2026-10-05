@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Scale, X, ShieldAlert, ChevronDown } from 'lucide-react';
-import { LEGAL_DISCLAIMER_SECTIONS, LEGAL_DISCLAIMER_UPDATED } from '../data/legalDisclaimers';
+import { LEGAL_DISCLAIMER_SECTIONS, LEGAL_DISCLAIMER_UPDATED } from '../shared/data/legalDisclaimers';
 
 interface SectionsProps {
   /** 'accordion' collapses each section (inline); 'plain' lists everything (modal). */

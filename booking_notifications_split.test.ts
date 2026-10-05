@@ -7,7 +7,7 @@ const hoisted = vi.hoisted(() => ({
   fail: false,
 }));
 
-vi.mock('./src/lib/supabase', () => ({
+vi.mock('./src/shared/lib/supabase', () => ({
   getSupabaseClient: () => ({
     functions: {
       invoke: (name: string, opts: any) => {
@@ -20,8 +20,8 @@ vi.mock('./src/lib/supabase', () => ({
   }),
 }));
 
-import { dispatchBookingNotifications } from './src/utils/notificationService';
-import type { ServiceBooking, OwnerNotificationConfig } from './src/types/bikeShop';
+import { dispatchBookingNotifications } from './src/shared/utils/notificationService';
+import type { ServiceBooking, OwnerNotificationConfig } from './src/shared/types/bikeShop';
 
 const config: OwnerNotificationConfig = {
   ownerEmail: 'workshop@stakeyscycles.com',

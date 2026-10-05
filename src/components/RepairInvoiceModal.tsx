@@ -17,9 +17,9 @@ import {
   AlertCircle,
   ExternalLink,
 } from 'lucide-react';
-import { RepairInvoice, ServiceBooking } from '../types/bikeShop';
+import { RepairInvoice, ServiceBooking } from '../shared/types/bikeShop';
 import { StakeysLogo } from './StakeysLogo';
-import { createInvoiceMailtoUrl } from '../utils/invoiceService';
+import { createInvoiceMailtoUrl } from '../shared/utils/invoiceService';
 import toast from 'react-hot-toast';
 
 interface RepairInvoiceModalProps {

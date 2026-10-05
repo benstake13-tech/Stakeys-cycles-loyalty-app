@@ -10,7 +10,7 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('canvas-confetti', () => ({ default: vi.fn() }));
-vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
+vi.mock('./src/shared/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
 
 import { WeeklyPrizeWheel } from './src/components/WeeklyPrizeWheel';
 

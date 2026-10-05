@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   MAINTENANCE_PACKAGES,
   findMaintenancePackage,
-} from './src/data/maintenancePackages';
+} from './src/shared/data/maintenancePackages';
 
 describe('maintenance packages', () => {
   it('defines the three standardised seasonal packages', () => {

@@ -11,7 +11,7 @@ const sampleBookings = [
   { id: 'bk-2', status: 'confirmed', approvalStatus: 'approved' },
 ];
 
-vi.mock('./src/context/ShopContext', () => ({
+vi.mock('./src/shared/context/ShopContext', () => ({
   useShop: () => ({
     bookings: sampleBookings,
     clearAllBookings: hoisted.clearAllBookings,

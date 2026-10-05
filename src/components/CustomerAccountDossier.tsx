@@ -28,11 +28,11 @@ import {
   Sliders,
   Save,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
-import { UserProfile, CustomerBike, ServiceBooking, VehicleCategory } from '../types/bikeShop';
-import { canCustomerReceiveStampToday } from '../api/firebaseService';
-import { wheelAudio } from '../utils/wheelAudio';
-import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
+import { useShop } from '../shared/context/ShopContext';
+import { UserProfile, CustomerBike, ServiceBooking, VehicleCategory } from '../shared/types/bikeShop';
+import { canCustomerReceiveStampToday } from '../shared/api/firebaseService';
+import { wheelAudio } from '../shared/utils/wheelAudio';
+import { BIKE_CATEGORY_OPTIONS } from '../shared/data/bikeCatalog';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 
 interface CustomerAccountDossierProps {

@@ -14,7 +14,7 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
-import { ServiceBooking, RepairStageId } from '../types/bikeShop';
+import { ServiceBooking, RepairStageId } from '../shared/types/bikeShop';
 import {
   REPAIR_STAGES,
   deriveRepairStage,
@@ -22,7 +22,7 @@ import {
   nextRepairStage,
   repairProgressPercent,
   repairStageIndex,
-} from '../utils/repairProgress';
+} from '../shared/utils/repairProgress';
 
 interface StaffRepairProgressPanelProps {
   booking: ServiceBooking;

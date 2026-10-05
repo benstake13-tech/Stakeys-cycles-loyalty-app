@@ -20,7 +20,7 @@ import {
   CreditCard,
   Send,
 } from 'lucide-react';
-import { useShop } from '../context/ShopContext';
+import { useShop } from '../shared/context/ShopContext';
 import {
   UserProfile,
   DiscountCode,
@@ -29,7 +29,7 @@ import {
   SalePaymentMethod,
   SaleTransaction,
   CollectedVoucher,
-} from '../types/bikeShop';
+} from '../shared/types/bikeShop';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import {
   validateDiscountCode,
@@ -38,8 +38,8 @@ import {
   findDiscountCode,
   voucherToDiscountState,
   describeDiscountValue,
-} from '../utils/discountService';
-import { normalizeScannedCode, resolveCustomer, membershipBalance, MembershipBalance } from '../utils/membershipCode';
+} from '../shared/utils/discountService';
+import { normalizeScannedCode, resolveCustomer, membershipBalance, MembershipBalance } from '../shared/utils/membershipCode';
 
 const QUICK_ITEMS: Omit<SaleLineItem, 'id'>[] = [
   { description: 'Standard Workshop Labour (30 min)', category: 'Labour', quantity: 1, unitPrice: 30 },

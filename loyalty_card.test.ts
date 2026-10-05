@@ -9,7 +9,7 @@ import {
   adjustStamps,
   collectFullCard,
   buildServiceVoucher,
-} from './src/utils/loyaltyCard';
+} from './src/shared/utils/loyaltyCard';
 
 describe('toDate', () => {
   it('passes Date through and parses ISO strings', () => {

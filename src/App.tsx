@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { LogOut, Scan, Layers, Menu, X, ShieldCheck, AlertCircle } from 'lucide-react';
-import { ShopProvider, useShop } from './context/ShopContext';
+import { ShopProvider, useShop } from './shared/context/ShopContext';
 import { StaffLoginScreen } from './components/StaffLoginScreen';
 import { StaffPortal } from './components/StaffPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
@@ -8,13 +8,13 @@ import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner'
 import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
-import { SHOP_SOCIAL_LINKS } from './data/socialLinks';
+import { SHOP_SOCIAL_LINKS } from './shared/data/socialLinks';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { LegalDisclaimersButton } from './components/LegalDisclaimers';
 import { Toaster } from 'react-hot-toast';
-import { initOneSignal, linkUser, relinkUser, unlinkUser } from './utils/pushNotifications';
+import { initOneSignal, linkUser, relinkUser, unlinkUser } from './shared/utils/pushNotifications';
 
 /**
  * Staff-only build of the Stakey's Cycles app.
