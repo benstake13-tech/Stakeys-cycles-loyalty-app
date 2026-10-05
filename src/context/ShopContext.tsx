@@ -45,6 +45,7 @@ import {
 } from '../utils/notificationService';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { requestPushPermission, getOneSignalInitError } from '../utils/pushNotifications';
+import { keepIfEqual } from '../utils/structuralEqual';
 import { generateMembershipNumber } from '../api/firebaseService';
 import {
   STAMPS_PER_CARD,
@@ -1056,7 +1057,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isInitialBookingsLoadRef.current) {
       incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
       isInitialBookingsLoadRef.current = false;
-      setBookings(incomingBookings);
+      setBookings((prev) => keepIfEqual(prev, incomingBookings));
       return;
     }
 
@@ -1064,7 +1065,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const brandNewBookings = incomingBookings.filter((b) => !knownBookingIdsRef.current.has(b.id));
 
     incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
-    setBookings(incomingBookings);
+    setBookings((prev) => keepIfEqual(prev, incomingBookings));
 
     // ONLY staff receives the loud audio chime. The push itself is sent once,
     // server-side, by the `service_bookings` INSERT trigger — not here — so a
@@ -1140,9 +1141,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : user.serviceVouchers,
       };
 
-      setCurrentUser(updatedUser);
+      setCurrentUser((prev) => (prev ? keepIfEqual(prev, updatedUser) : updatedUser));
       if (allProfiles && allProfiles.length > 0) {
-        setUsers(allProfiles);
+        setUsers((prev) => keepIfEqual(prev, allProfiles));
       } else {
         setUsers((prev) => prev.map((u) => (u.uid === user.uid ? updatedUser : u)));
       }
@@ -1151,7 +1152,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateBookingsWithStaffAlert(remoteBookings);
       }
       if (remoteLogs && remoteLogs.length > 0) {
-        setStampLogs(remoteLogs);
+        setStampLogs((prev) => keepIfEqual(prev, remoteLogs));
       }
       console.log(`[DB SYNC] ✅ Synchronized user "${updatedUser.displayName}" with backend database`);
     } catch (err) {
@@ -1172,42 +1173,48 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fetchPromotionsFromDb(),
       fetchAppSettingsFromDb(),
     ]);
+    // Every setter below keeps the previous reference when the freshly-fetched
+    // value is structurally identical. Without this, the 4s poll hands the
+    // provider a brand-new array/object every cycle even when nothing changed,
+    // re-rendering every context consumer (the whole app) on a timer.
     if (allProfiles && allProfiles.length > 0) {
-      setUsers(allProfiles);
+      setUsers((prev) => keepIfEqual(prev, allProfiles));
       if (currentUser) {
         const freshCurrent = allProfiles.find((u) => u.uid === currentUser.uid || u.membershipNumber === currentUser.membershipNumber);
         if (freshCurrent) {
-          setCurrentUser((prev) => prev ? { ...prev, ...freshCurrent } : freshCurrent);
+          setCurrentUser((prev) => (prev ? keepIfEqual(prev, { ...prev, ...freshCurrent }) : freshCurrent));
         }
       }
     }
     if (remoteWheels && remoteWheels.length > 0) {
-      setPrizeWheels(remoteWheels);
+      setPrizeWheels((prev) => keepIfEqual(prev, remoteWheels));
     }
     if (remoteDraws && remoteDraws.length > 0) {
-      setDraws(remoteDraws);
+      setDraws((prev) => keepIfEqual(prev, remoteDraws));
     }
     if (remoteCodes && remoteCodes.length > 0) {
-      setDiscountCodes(remoteCodes);
+      setDiscountCodes((prev) => keepIfEqual(prev, remoteCodes));
     }
     if (remoteSales && remoteSales.length > 0) {
-      setSales(remoteSales);
+      setSales((prev) => keepIfEqual(prev, remoteSales));
     }
     if (remoteStaff && remoteStaff.length > 0) {
-      setStaffMembers(remoteStaff);
+      setStaffMembers((prev) => keepIfEqual(prev, remoteStaff));
     }
     if (remotePromos && remotePromos.length > 0) {
-      setPromotions(remotePromos);
+      setPromotions((prev) => keepIfEqual(prev, remotePromos));
     }
     if (remoteSettings) {
-      setOwnerConfig((prev) => ({
-        ...prev,
-        ownerEmail: remoteSettings.ownerEmail ?? prev.ownerEmail,
-        ownerPhone: remoteSettings.ownerPhone ?? prev.ownerPhone,
-        emailAlertsEnabled: remoteSettings.emailAlertsEnabled ?? prev.emailAlertsEnabled,
-        smsAlertsEnabled: remoteSettings.smsAlertsEnabled ?? prev.smsAlertsEnabled,
-        businessName: remoteSettings.businessName ?? prev.businessName,
-      }));
+      setOwnerConfig((prev) =>
+        keepIfEqual(prev, {
+          ...prev,
+          ownerEmail: remoteSettings.ownerEmail ?? prev.ownerEmail,
+          ownerPhone: remoteSettings.ownerPhone ?? prev.ownerPhone,
+          emailAlertsEnabled: remoteSettings.emailAlertsEnabled ?? prev.emailAlertsEnabled,
+          smsAlertsEnabled: remoteSettings.smsAlertsEnabled ?? prev.smsAlertsEnabled,
+          businessName: remoteSettings.businessName ?? prev.businessName,
+        })
+      );
     }
 
     if (currentUser) {
