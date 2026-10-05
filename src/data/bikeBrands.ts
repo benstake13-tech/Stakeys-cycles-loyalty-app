@@ -1010,11 +1010,12 @@ export const BIKE_YEAR_OPTIONS: string[] = (() => {
   return years;
 })();
 
+// Drop-off windows. The workshop only accepts booked drop-offs from 2:00 PM
+// onwards, so no morning slots are offered.
 export const TIME_SLOT_OPTIONS: string[] = [
-  'Morning (09:00 - 12:00)',
-  'Midday (12:00 - 15:00)',
-  'Afternoon (15:00 - 18:00)',
-  'Saturday Morning (09:30 - 13:00)',
+  'Afternoon (14:00 - 15:30)',
+  'Late Afternoon (15:30 - 17:00)',
+  'Evening (17:00 - 18:00)',
 ];
 
 // ---------------------------------------------------------------------------

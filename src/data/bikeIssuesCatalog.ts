@@ -1,3 +1,5 @@
+import type { VehicleCategory } from '../types/bikeShop';
+
 export interface BikeIssueItem {
   id: string;
   label: string;
@@ -9,9 +11,11 @@ export interface BikeIssueItem {
 export interface BikeIssueCategory {
   id: string;
   title: string;
-  categoryKey: 'brakes' | 'drivetrain' | 'wheels' | 'noise' | 'frame' | 'ebike' | 'general';
+  categoryKey: 'brakes' | 'drivetrain' | 'wheels' | 'noise' | 'frame' | 'ebike' | 'general' | 'scooter';
   description: string;
   isEbikeOnly?: boolean;
+  /** Vehicle types this category applies to. Empty/undefined = every type. */
+  vehicleCategories?: VehicleCategory[];
   items: BikeIssueItem[];
 }
 
@@ -89,11 +93,28 @@ export const BIKE_ISSUES_CATEGORIES: BikeIssueCategory[] = [
     categoryKey: 'ebike',
     description: 'Electric motors, battery range, console codes, and pedal assist sensors',
     isEbikeOnly: true,
+    vehicleCategories: ['ebike'],
     items: [
       { id: 'ebike-motor-cutout', label: 'Motor cut-outs / intermittent power', category: 'E-Bike Specifics' },
       { id: 'ebike-battery-range', label: 'Battery not holding charge / reduced range', category: 'E-Bike Specifics' },
       { id: 'ebike-error-code', label: 'Display console showing error code', category: 'E-Bike Specifics' },
       { id: 'ebike-sensor-disconnect', label: 'Sensor misaligned or disconnected', category: 'E-Bike Specifics' },
+    ],
+  },
+  {
+    id: 'cat-scooter',
+    title: 'E-Scooter Specifics',
+    categoryKey: 'scooter',
+    description: 'Motors, batteries, throttle, controller, stem and folding mechanism',
+    vehicleCategories: ['electric_scooter'],
+    items: [
+      { id: 'scooter-motor-cutout', label: 'Motor cuts out / intermittent power', category: 'E-Scooter Specifics' },
+      { id: 'scooter-battery-range', label: 'Battery not holding charge / reduced range', category: 'E-Scooter Specifics' },
+      { id: 'scooter-error-code', label: 'Display showing an error code', category: 'E-Scooter Specifics' },
+      { id: 'scooter-throttle', label: 'Throttle unresponsive or sticking', category: 'E-Scooter Specifics' },
+      { id: 'scooter-charging', label: "Won't charge / charging port issue", category: 'E-Scooter Specifics' },
+      { id: 'scooter-stem-folding', label: 'Stem or folding latch loose / rattling', category: 'E-Scooter Specifics' },
+      { id: 'scooter-controller', label: 'Controller overheating or burning smell', category: 'E-Scooter Specifics' },
     ],
   },
   {
@@ -107,6 +128,50 @@ export const BIKE_ISSUES_CATEGORIES: BikeIssueCategory[] = [
     ],
   },
 ];
+
+/**
+ * Issues that do not apply to a given vehicle type. E-scooters have no pedal
+ * drivetrain, saddle, or suspension, so those bike-specific symptoms are hidden
+ * for them (and vice versa: scooter-only faults stay off pedal cycles).
+ */
+const ISSUE_EXCLUSIONS: Partial<Record<VehicleCategory, string[]>> = {
+  electric_scooter: [
+    'gears-slipping',
+    'gears-chain-drop',
+    'gears-noisy-grinding',
+    'gears-unresponsive',
+    'gears-chain-stuck',
+    'gears-pedals-stiff',
+    'noise-bottom-bracket',
+    'frame-saddle-uncomfortable',
+    'frame-dropper-post',
+    'frame-suspension-leak',
+  ],
+};
+
+const SCOOTER_ONLY_ISSUE_IDS = new Set(
+  (BIKE_ISSUES_CATEGORIES.find((c) => c.id === 'cat-scooter')?.items || []).map((i) => i.id)
+);
+
+/** True when an issue should be offered for the given vehicle type. */
+export function issueAppliesToVehicle(issueId: string, vehicleCategory?: VehicleCategory): boolean {
+  if (!vehicleCategory) return true;
+  if ((ISSUE_EXCLUSIONS[vehicleCategory] || []).includes(issueId)) return false;
+  if (vehicleCategory !== 'electric_scooter' && SCOOTER_ONLY_ISSUE_IDS.has(issueId)) return false;
+  return true;
+}
+
+/** The issue categories offered for a vehicle type (items pre-filtered). */
+export function issueCategoriesForVehicle(vehicleCategory?: VehicleCategory): BikeIssueCategory[] {
+  return BIKE_ISSUES_CATEGORIES.filter(
+    (cat) => !cat.vehicleCategories || cat.vehicleCategories.includes(vehicleCategory!)
+  )
+    .map((cat) => ({
+      ...cat,
+      items: cat.items.filter((item) => issueAppliesToVehicle(item.id, vehicleCategory)),
+    }))
+    .filter((cat) => cat.items.length > 0);
+}
 
 export const ALL_BIKE_ISSUES_MAP = new Map<string, BikeIssueItem>();
 BIKE_ISSUES_CATEGORIES.forEach((cat) => {

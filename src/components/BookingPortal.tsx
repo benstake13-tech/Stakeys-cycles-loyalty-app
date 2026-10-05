@@ -14,6 +14,8 @@ import {
   ChevronDown,
   Award,
   ShieldCheck,
+  CircleDot,
+  MessageCircle,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
@@ -28,7 +30,8 @@ import {
   resolveModel,
   isEbike,
 } from './BikeIdentityFields';
-import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import { ALL_BIKE_ISSUES_MAP, issueAppliesToVehicle } from '../data/bikeIssuesCatalog';
+import { buildWhatsAppUrl, buildBookingQuoteMessage } from '../utils/whatsapp';
 import {
   createBookingMailtoUrl,
   createCustomerMailtoUrl,
@@ -77,6 +80,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const chooseCategory = (category: VehicleCategory) => {
     setSelectedCategory(category);
     patchBike({ category });
+    // Drop any selected symptoms that don't apply to the new vehicle type, so a
+    // bike-specific fault can't linger on an e-scooter booking (and vice versa).
+    setSelectedIssueIds((prev) => prev.filter((id) => issueAppliesToVehicle(id, category)));
   };
 
   // Structured Problem Checklist State (Choose all that apply)
@@ -129,12 +135,25 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   };
 
   const resolvedModelName = resolveModel(bikeIdentity);
+
+  // Puncture / flat-tyre jobs need the wheel size confirmed at booking so the
+  // workshop can prep the right tube before the rider arrives.
+  const isPunctureJob = useMemo(() => {
+    if (problemSelectionMode === 'packages') {
+      const p = FRIENDLY_SERVICE_OPTIONS.find((opt) => opt.id === selectedProblemId);
+      return p?.serviceId === 'cycle-puncture' || p?.serviceId === 'scooter-tire';
+    }
+    return selectedIssueIds.includes('wheels-flat-puncture');
+  }, [problemSelectionMode, selectedProblemId, selectedIssueIds]);
+  const [wheelSize, setWheelSize] = useState<string>('');
+
   const bikeStepComplete = Boolean(bikeIdentity.brand && resolvedModelName);
   const issuesStepComplete = problemSelectionMode === 'packages'
     ? Boolean(selectedProblemId)
     : selectedIssueIds.length > 0 || problemNotes.trim().length > 0;
   const scheduleStepComplete = Boolean(preferredDate && preferredTimeSlot);
   const contactStepComplete = Boolean(customerName.trim() && customerPhone.trim());
+  const wheelSizeStepComplete = !isPunctureJob || wheelSize.trim().length > 0;
   const bookingProgress = [bikeStepComplete, issuesStepComplete, scheduleStepComplete, contactStepComplete].filter(Boolean).length;
 
   // Pick an existing bike from profile garage
@@ -238,6 +257,48 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     };
   }, [problemSelectionMode, selectedProblemId, selectedIssueIds, problemNotes]);
 
+  // Mechanic notes are mandatory and pre-populated from the selected job. The
+  // prefill only overwrites notes the rider has not edited, so their own words
+  // are never lost when they change the service selection.
+  const notesPrefill = useMemo(() => {
+    const lines: string[] = [computedService.headline];
+    const symptoms = selectedIssueIds
+      .map((id) => ALL_BIKE_ISSUES_MAP.get(id))
+      .filter(Boolean)
+      .map((it) => `• [${it!.category}] ${it!.label}`);
+    if (symptoms.length > 0) {
+      lines.push('Reported symptoms:', ...symptoms);
+    }
+    if (problemNotes.trim()) {
+      lines.push(`Rider description: ${problemNotes.trim()}`);
+    }
+    if (wheelSize.trim()) {
+      lines.push(`Wheel size: ${wheelSize.trim()}`);
+    }
+    return lines.join('\n');
+  }, [computedService.headline, selectedIssueIds, problemNotes, wheelSize]);
+
+  const notesEditedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!notesEditedRef.current) {
+      setNotes(notesPrefill);
+    }
+  }, [notesPrefill]);
+
+  // Pre-filled WhatsApp link for bespoke jobs / custom quotes.
+  const whatsappQuoteUrl = useMemo(
+    () =>
+      buildWhatsAppUrl(
+        buildBookingQuoteMessage({
+          vehicle: `${bikeIdentity.brand} ${resolvedModelName}`.trim(),
+          service: computedService.headline,
+          preferredDate,
+          preferredTimeSlot,
+        })
+      ),
+    [bikeIdentity.brand, resolvedModelName, computedService.headline, preferredDate, preferredTimeSlot]
+  );
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -265,6 +326,16 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       !problemNotes.trim()
     ) {
       setFormError('Please select at least one problem symptom or describe your issue.');
+      return;
+    }
+
+    if (isPunctureJob && !wheelSize.trim()) {
+      setFormError('Please confirm your wheel size — puncture repairs need the correct inner tube.');
+      return;
+    }
+
+    if (!notes.trim()) {
+      setFormError('Please add mechanic notes describing the job (these are pre-filled from your selection).');
       return;
     }
 
@@ -325,6 +396,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       const finalNotes = [
         bikeBlock,
         issuesBlock,
+        isPunctureJob && wheelSize.trim() ? `Wheel size (confirmed): ${wheelSize.trim()}` : '',
         problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
         notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
         voucherNote,
@@ -382,7 +454,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
   const handleBookAnother = () => {
     setSubmittedBooking(null);
-    setNotes('');
+    notesEditedRef.current = false;
+    setWheelSize('');
+    setNotes(notesPrefill);
   };
 
   // SUCCESS CONFIRMATION VOUCHER
@@ -949,6 +1023,33 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </div>
             </div>
           </div>
+
+          {/* Mandatory wheel size for puncture / flat-tyre jobs */}
+          {isPunctureJob && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3 animate-fade-in">
+              <div className="flex items-start gap-2.5">
+                <CircleDot className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <label htmlFor="booking-wheel-size" className="block text-xs font-bold text-white">
+                    Confirm your wheel size <span className="text-rose-400">*</span>
+                  </label>
+                  <p className="text-[11px] text-amber-200/80 mt-0.5">
+                    Puncture repairs need the correct tube. The size is printed on the tyre sidewall
+                    (e.g. 26", 27.5", 29", 700c, or a scooter size like 8.5"). Leave a note if you’re unsure.
+                  </p>
+                </div>
+              </div>
+              <input
+                id="booking-wheel-size"
+                type="text"
+                required
+                value={wheelSize}
+                onChange={(e) => setWheelSize(e.target.value)}
+                placeholder='e.g. 27.5" x 2.10, 700x38c, or 8.5" scooter tyre'
+                className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          )}
           </>
           )}
         </div>
@@ -1035,7 +1136,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
               <p className="text-[11px] text-neutral-500 mt-1">
-                Workshop hours Mon–Fri 09:00–18:00, Sat 09:30–13:00.
+                Booked drop-offs run from 2:00 PM onwards. Workshop open Mon–Fri 09:00–18:00, Sat 09:30–13:00.
               </p>
             </div>
           </div>
@@ -1102,13 +1203,20 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-              Mechanic Notes (Optional)
+            <label className="block text-xs font-medium text-neutral-300 mb-1.5 flex items-center justify-between">
+              <span>
+                Mechanic Notes <span className="text-rose-400">*</span>
+              </span>
+              <span className="text-[10px] text-neutral-500 font-normal">Pre-filled from your selection — edit if needed</span>
             </label>
             <textarea
-              rows={2}
+              rows={4}
+              required
               value={notes}
-              onChange={(e) => setNotes(e.target.value)}
+              onChange={(e) => {
+                notesEditedRef.current = true;
+                setNotes(e.target.value);
+              }}
               placeholder="e.g. Rear brake feels spongy, or need back before Friday commute"
               className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
             />
@@ -1159,7 +1267,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         )}
 
         {/* Submit Action */}
-        <div className="pt-2">
+        <div className="pt-2 space-y-3">
           <button
             type="submit"
             disabled={isSubmitting}
@@ -1170,13 +1278,24 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             ) : (
               <>
                 <Wrench className="w-4 h-4" />
-                <span>Book Workshop Service · Ask for a Quote</span>
+                <span>Book Workshop Service</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
-          <div className="text-center text-xs text-neutral-400 mt-2">
-            No upfront payment required. Our workshop mechanic will evaluate your bike upon drop-off, complete repairs, and provide an itemized quote/invoice.
+
+          <a
+            href={whatsappQuoteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5a] text-neutral-950 font-bold text-sm shadow-xl shadow-emerald-500/15 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Request a Quote on WhatsApp</span>
+          </a>
+
+          <div className="text-center text-xs text-neutral-400">
+            No upfront payment required. Book online and our mechanic will evaluate your vehicle on drop-off, or send bespoke job details/photos straight to the workshop on WhatsApp for a quote.
           </div>
         </div>
       </form>

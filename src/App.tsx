@@ -164,9 +164,10 @@ function AppContent() {
       hint: 'Workshop terminal',
     });
     navTabs.push({ id: 'deliverables', label: 'Config', icon: Layers, tone: 'neutral', hint: 'Architecture & deliverables' });
-  } else {
-    navTabs.push({ id: 'staff', label: 'Staff Station', icon: Shield, tone: 'amber', hint: 'Secure staff sign-in' });
   }
+  // No "Staff Station" entry for customers: the workshop terminal is an
+  // administrative view and must not be advertised in the public interface.
+  // Staff still sign in from the login screen's Staff Station tab.
 
   // 1. FIRST SCREEN: If user is not authenticated, show LoginScreen or Guest Booking
   if (!currentUser) {

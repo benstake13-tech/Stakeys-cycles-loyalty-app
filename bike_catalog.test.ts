@@ -75,8 +75,13 @@ describe('bike catalogue integrity', () => {
     expect(EBIKE_DRIVE_TYPES.length).toBeGreaterThan(2);
   });
 
-  it('offers enough time slots and recent years', () => {
-    expect(TIME_SLOT_OPTIONS.length).toBeGreaterThanOrEqual(4);
+  it('offers time slots from 2pm onwards and recent years', () => {
+    // The workshop only accepts booked drop-offs from 2:00 PM onwards.
+    expect(TIME_SLOT_OPTIONS.length).toBeGreaterThanOrEqual(2);
+    TIME_SLOT_OPTIONS.forEach((slot) => {
+      const startHour = Number(slot.match(/(\d{2}):\d{2}/)?.[1]);
+      expect(startHour, `${slot} starts before 2pm`).toBeGreaterThanOrEqual(14);
+    });
     expect(BIKE_YEAR_OPTIONS).toContain(String(new Date().getFullYear()));
     expect(BIKE_YEAR_OPTIONS).toContain('Don’t Know');
   });
