@@ -18,6 +18,7 @@ import {
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails, UserProfile } from '../types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
+import { MAINTENANCE_PACKAGES } from '../data/maintenancePackages';
 import {
   BikeIdentityFields,
   BikeIdentityValue,
@@ -93,6 +94,29 @@ export const PhoneBookingPanel: React.FC = () => {
   const [serviceId, setServiceId] = useState<string>(FRIENDLY_SERVICE_OPTIONS[0].id);
   const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([]);
   const [problemNotes, setProblemNotes] = useState('');
+
+  // Symptom-based services plus the standardised seasonal tune-up packages, so
+  // the call handler can book either from the same picker. Seasonal packages
+  // are filtered to the vehicle type being booked.
+  const serviceOptions = useMemo(
+    () => [
+      ...FRIENDLY_SERVICE_OPTIONS.map((o) => ({
+        id: o.id,
+        serviceId: o.serviceId,
+        headline: o.headline,
+        duration: o.duration,
+        symptom: o.symptom,
+      })),
+      ...MAINTENANCE_PACKAGES.filter((p) => p.appliesTo.includes(bikeIdentity.category)).map((p) => ({
+        id: p.id,
+        serviceId: p.serviceId,
+        headline: p.headline,
+        duration: p.duration,
+        symptom: p.tagline,
+      })),
+    ],
+    [bikeIdentity.category]
+  );
 
   // Schedule
   const [preferredDate, setPreferredDate] = useState<string>(() => {
@@ -187,7 +211,7 @@ export const PhoneBookingPanel: React.FC = () => {
       bikeIdentity.colour ? ` (${bikeIdentity.colour})` : ''
     }`;
     const bikeDetails: BikeDetails | undefined = toBikeDetails(bikeIdentity);
-    const service = FRIENDLY_SERVICE_OPTIONS.find((o) => o.id === serviceId) || FRIENDLY_SERVICE_OPTIONS[0];
+    const service = serviceOptions.find((o) => o.id === serviceId) || serviceOptions[0];
 
     const bikeBlock = [
       `Bike: ${formattedVehicleName}`,
@@ -460,7 +484,7 @@ export const PhoneBookingPanel: React.FC = () => {
             <ClipboardList className="w-4 h-4 text-emerald-400" /> Service needed
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {FRIENDLY_SERVICE_OPTIONS.map((opt) => (
+            {serviceOptions.map((opt) => (
               <button
                 key={opt.id}
                 type="button"

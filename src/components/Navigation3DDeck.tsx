@@ -111,6 +111,7 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
       microPoints: [
         'Guests can book with just name & phone (no login needed).',
         'All repair bookings undergo workshop mechanic review.',
+        'Seasonal tune-up packages: Winterization Check, Pre-Summer Safety Tune & e-scooter battery/brake audit.',
         'Automated email notification sent immediately when approved or declined.',
       ],
       microFootnote: 'Drop-off slots 09:00 - 17:30 Monday to Saturday.',

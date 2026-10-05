@@ -30,7 +30,7 @@ import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '.
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
-import { dispatchTestEmail } from '../utils/notificationService';
+import { dispatchTestEmail, buildBookingApprovalSms, createBookingApprovalSmsUrl, normalizePhoneForSms } from '../utils/notificationService';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
@@ -118,9 +118,7 @@ export const StaffBookingsTab: React.FC = () => {
 
   const handleOpenApprove = (b: ServiceBooking) => {
     setApprovingBooking(b);
-    setApprovalNote(
-      `Your service appointment on ${b.preferredDate} (${b.preferredTimeSlot}) is approved. Please bring your vehicle to our workshop intake bay.`
-    );
+    setApprovalNote('');
     setEstimatePrice(b.quotedPrice != null ? b.quotedPrice.toString() : '');
     setEstimateNote(
       b.quoteNote ||
@@ -1117,8 +1115,52 @@ export const StaffBookingsTab: React.FC = () => {
                 className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-[#05C147]"
               />
               <span className="text-[11px] text-neutral-400 mt-1 block">
-                This note will be formatted prominently in the official approval SMS delivered to {approvingBooking.customerPhone}.
+                Optional extra line shown to the customer in the confirmation SMS sent to {approvingBooking.customerPhone}.
               </span>
+            </div>
+
+            {/* Live preview of the exact SMS the customer will receive */}
+            <div className="p-3.5 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-300 text-xs font-bold">
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Confirmation SMS Preview</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const body = buildBookingApprovalSms(
+                      {
+                        ...approvingBooking,
+                        quotedPrice: estimatePrice.trim() ? parseFloat(estimatePrice) : undefined,
+                      },
+                      ownerConfig,
+                      approvalNote.trim()
+                    );
+                    navigator.clipboard?.writeText(body);
+                  }}
+                  className="text-[11px] text-neutral-400 hover:text-white cursor-pointer"
+                >
+                  Copy
+                </button>
+              </div>
+              <div className="text-[11px] text-neutral-400">
+                To:{' '}
+                <span className="font-mono text-neutral-200">
+                  {normalizePhoneForSms(approvingBooking.customerPhone) || 'No number on file'}
+                </span>{' '}
+                ({approvingBooking.customerName})
+              </div>
+              <pre className="whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-neutral-200 bg-black/40 rounded-lg p-3 border border-neutral-800/80">
+                {buildBookingApprovalSms(
+                  {
+                    ...approvingBooking,
+                    quotedPrice: estimatePrice.trim() ? parseFloat(estimatePrice) : undefined,
+                  },
+                  ownerConfig,
+                  approvalNote.trim()
+                )}
+              </pre>
             </div>
 
             {approveError && (
@@ -1144,10 +1186,12 @@ export const StaffBookingsTab: React.FC = () => {
                   const approved = await handleConfirmApprove(); // Dispatch email with the estimate
                   if (!approved) return; // Estimate missing/invalid — do not open SMS
                   const estimate = parseFloat(estimatePrice);
-                  const smsLink = `sms:${approvingBooking.customerPhone.replace(/\s+/g, '')}?body=${encodeURIComponent(
-                    `Hi ${approvingBooking.customerName}! Your booking #${approvingBooking.id} is approved. Estimated quote: £${estimate.toFixed(2)}. ${approvalNote.trim() ? `Note: ${approvalNote.trim()} ` : ''}See you at Stakey's!`
-                  )}`;
-                  window.location.href = smsLink; // Redirects to device SMS app
+                  const smsLink = createBookingApprovalSmsUrl(
+                    { ...approvingBooking, quotedPrice: estimate, quoteNote: estimateNote.trim() },
+                    ownerConfig,
+                    approvalNote.trim()
+                  );
+                  window.location.href = smsLink; // Opens the device SMS app, pre-addressed & pre-filled
                 }}
                 className="px-5 py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 disabled:opacity-50"
               >

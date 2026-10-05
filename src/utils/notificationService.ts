@@ -1,4 +1,5 @@
 import { ServiceBooking, OwnerNotificationConfig, BookingNotificationLog } from '../types/bikeShop';
+import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { getSupabaseClient } from '../lib/supabase';
 
 export interface DispatchResult {
@@ -32,6 +33,7 @@ function brandFooter(note: string, supportEmail: string, supportPhone: string): 
       <td style="background-color: #090a0b; padding: 18px 24px; text-align: center; border-top: 1px solid #27272a; color: #9ca3af; font-size: 11px; line-height: 1.7;">
         Stakey's Cycles &amp; Scooter · Workshop Service<br/>
         Questions? <a href="mailto:${supportEmail}" style="color: #05C147; text-decoration: none;">${supportEmail}</a> · <a href="tel:${supportPhone}" style="color: #05C147; text-decoration: none;">${supportPhone}</a><br/>
+        Follow us: <a href="https://www.instagram.com/stakeyscycles22" style="color: #05C147; text-decoration: none;">Instagram</a> · <a href="https://www.facebook.com/p/Stakeys-cycles-100088457832581" style="color: #05C147; text-decoration: none;">Facebook</a><br/>
         <span style="color: #6b7280;">${note}</span>
       </td>
     </tr>`;
@@ -428,6 +430,96 @@ export function createCustomerMailtoUrl(booking: ServiceBooking): string {
     `Hi ${booking.customerName},\n\nRegarding your ${booking.serviceTitle} appointment scheduled for ${booking.preferredDate} (${booking.preferredTimeSlot})...\n\nBest regards,\nStakey's Cycles Workshop Team`
   );
   return `mailto:${booking.customerEmail}?subject=${subject}&body=${body}`;
+}
+
+/** "2026-10-07" -> "Tue 7 Oct 2026" (falls back to the raw value if unparseable). */
+function formatSmsDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/** Strip a "Morning (09:00 - 12:00)" slot down to just "09:00–12:00". */
+function formatSmsTimeSlot(slot: string): string {
+  const match = slot.match(/\(([^)]+)\)/);
+  return (match ? match[1] : slot).replace(/\s*-\s*/, '–');
+}
+
+/** The list of checks/symptoms the customer actually requested, for the SMS. */
+function requestedItemsForSms(booking: ServiceBooking): string[] {
+  const fromIssues = (booking.selectedIssues || [])
+    .map((id) => ALL_BIKE_ISSUES_MAP.get(id)?.label)
+    .filter((label): label is string => Boolean(label));
+  if (fromIssues.length > 0) return fromIssues;
+  return booking.serviceTitle ? [booking.serviceTitle] : [];
+}
+
+/**
+ * Builds the professional, customer-facing approval SMS. Lists the checks the
+ * rider requested so they can confirm exactly what is being booked in, plus the
+ * estimate, drop-off slot and workshop contact details.
+ */
+export function buildBookingApprovalSms(
+  booking: ServiceBooking,
+  config?: OwnerNotificationConfig,
+  staffNote?: string
+): string {
+  const shopPhone = config?.ownerPhone || '+44 7700 900821';
+  const name = (booking.customerName || '').trim().split(/\s+/)[0] || 'there';
+  const items = requestedItemsForSms(booking);
+  const itemLines = items.map((label) => `  • ${label}`).join('\n');
+  const estimate = booking.quotedPrice != null ? `£${booking.quotedPrice.toFixed(2)} (estimated)` : 'To be confirmed on inspection';
+  const note = (staffNote || '').trim();
+
+  return [
+    `STAKEY'S CYCLES & SCOOTER`,
+    `Booking Confirmed — Ref #${booking.id}`,
+    ``,
+    `Hi ${name}, your workshop booking has been approved.`,
+    ``,
+    `You asked us to look at:`,
+    itemLines,
+    ``,
+    `Drop-off: ${formatSmsDate(booking.preferredDate)}, ${formatSmsTimeSlot(booking.preferredTimeSlot)}`,
+    `Vehicle: ${booking.vehicleModel}`,
+    `Estimate: ${estimate}`,
+    ...(note ? [``, `Note from the workshop: ${note}`] : []),
+    ``,
+    `Please bring your vehicle to the workshop intake bay within your booked window. For e-bikes and e-scooters, bring the battery key and charger.`,
+    ``,
+    `Questions? Call ${shopPhone} and quote ref #${booking.id}.`,
+    ``,
+    `— The Stakey's Cycles Workshop Team`,
+  ].join('\n');
+}
+
+/**
+ * Normalises a UK phone number to E.164 (+44…) so `sms:` / `tel:` links reach
+ * the right handset regardless of how the number was typed or stored
+ * (e.g. "07309103782", "0730 910 3782", "+44 7309 103782", "0044…").
+ */
+export function normalizePhoneForSms(raw: string): string {
+  const trimmed = (raw || '').trim();
+  if (!trimmed) return '';
+  const hadPlus = trimmed.startsWith('+');
+  const digits = trimmed.replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  if (hadPlus) return `+${digits}`;
+  if (digits.startsWith('00')) return `+${digits.slice(2)}`;
+  if (digits.startsWith('0')) return `+44${digits.slice(1)}`;
+  if (digits.startsWith('44')) return `+${digits}`;
+  if (digits.length === 10) return `+44${digits}`;
+  return `+${digits}`;
+}
+
+/** Builds the full `sms:` deep link for the approval confirmation. */
+export function createBookingApprovalSmsUrl(
+  booking: ServiceBooking,
+  config?: OwnerNotificationConfig,
+  staffNote?: string
+): string {
+  const body = buildBookingApprovalSms(booking, config, staffNote);
+  return `sms:${normalizePhoneForSms(booking.customerPhone)}?body=${encodeURIComponent(body)}`;
 }
 
 /**

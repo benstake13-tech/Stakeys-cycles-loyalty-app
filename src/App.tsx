@@ -28,6 +28,7 @@ import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner'
 import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
+import { SHOP_SOCIAL_LINKS } from './data/socialLinks';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
@@ -415,12 +416,28 @@ function AppContent() {
             <span className="hidden sm:inline">• Workshop Repairs &amp; Customer Loyalty</span>
           </div>
           <div className="flex items-center gap-4 text-[11px]">
-            <span>Fast Turnaround</span>
-            <span aria-hidden="true">•</span>
-            <span>Expert Mechanics</span>
-            <span aria-hidden="true">•</span>
-            <span>Digital Stamp Rewards</span>
-            <span aria-hidden="true">•</span>
+            <div className="flex items-center gap-2">
+              {SHOP_SOCIAL_LINKS.map(({ id, label, handle, url, icon: Icon }) => (
+                <a
+                  key={id}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${label} — ${handle}`}
+                  title={`${label}: ${handle}`}
+                  className={`p-1.5 rounded-lg border transition-colors ${isDark ? 'border-neutral-800 text-neutral-400 hover:text-white hover:border-emerald-500/50' : 'border-neutral-200 text-neutral-500 hover:text-neutral-900 hover:border-emerald-500/50'}`}
+                >
+                  <Icon className="w-4 h-4" />
+                </a>
+              ))}
+            </div>
+            <span aria-hidden="true" className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Fast Turnaround</span>
+            <span aria-hidden="true" className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Expert Mechanics</span>
+            <span aria-hidden="true" className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Digital Stamp Rewards</span>
+            <span aria-hidden="true" className="hidden sm:inline">•</span>
             <LegalDisclaimersButton isDark={isDark} />
           </div>
         </div>

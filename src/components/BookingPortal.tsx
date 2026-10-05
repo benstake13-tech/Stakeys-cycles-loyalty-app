@@ -21,8 +21,10 @@ import {
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
+import { MaintenancePackage, findMaintenancePackage } from '../data/maintenancePackages';
 import { StakeysLogo } from './StakeysLogo';
 import { LegalDisclaimerSections } from './LegalDisclaimers';
+import { MaintenancePackagesPanel } from './MaintenancePackagesPanel';
 import { BikeIssuesChecklist } from './BikeIssuesChecklist';
 import {
   BikeIdentityFields,
@@ -93,10 +95,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     'brakes-squeaky',
   ]);
   const [problemNotes, setProblemNotes] = useState<string>('');
-  const [problemSelectionMode, setProblemSelectionMode] = useState<'checklist' | 'packages'>('checklist');
+  const [problemSelectionMode, setProblemSelectionMode] = useState<'checklist' | 'packages' | 'maintenance'>('checklist');
 
   // Selected Friendly Problem / Service
   const [selectedProblemId, setSelectedProblemId] = useState<string>('opt-general-tune');
+
+  // Selected seasonal maintenance package (preventative tune-ups)
+  const [selectedMaintenanceId, setSelectedMaintenanceId] = useState<string>('');
 
   // Available service vouchers (e.g. £40 service voucher for full stamps)
   const availableServiceVouchers = (currentUser?.serviceVouchers || []).filter(
@@ -151,7 +156,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const [wheelSize, setWheelSize] = useState<string>('');
 
   const bikeStepComplete = Boolean(bikeIdentity.brand && resolvedModelName);
-  const issuesStepComplete = problemSelectionMode === 'packages'
+  const issuesStepComplete = problemSelectionMode === 'maintenance'
+    ? Boolean(selectedMaintenanceId)
+    : problemSelectionMode === 'packages'
     ? Boolean(selectedProblemId)
     : selectedIssueIds.length > 0 || problemNotes.trim().length > 0;
   const scheduleStepComplete = Boolean(preferredDate && preferredTimeSlot);
@@ -198,6 +205,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   }, []);
 
   const computedService = React.useMemo(() => {
+    if (problemSelectionMode === 'maintenance') {
+      const pkg = findMaintenancePackage(selectedMaintenanceId);
+      return {
+        serviceId: pkg?.serviceId || 'cycle-tune',
+        headline: pkg ? pkg.headline : 'Seasonal Tune-Up (choose a package)',
+        estimatedPrice: 0,
+        pricingLabel: 'Ask for a quote',
+        duration: pkg?.duration || '45 mins',
+      };
+    }
+
     if (problemSelectionMode === 'packages') {
       const p =
         FRIENDLY_SERVICE_OPTIONS.find((opt) => opt.id === selectedProblemId) ||
@@ -259,17 +277,29 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       pricingLabel: 'Ask for a quote',
       duration: '45-60 mins',
     };
-  }, [problemSelectionMode, selectedProblemId, selectedIssueIds, problemNotes]);
+  }, [problemSelectionMode, selectedProblemId, selectedMaintenanceId, selectedIssueIds, problemNotes]);
 
   // Mechanic notes are mandatory and pre-populated from the selected job. The
   // prefill only overwrites notes the rider has not edited, so their own words
   // are never lost when they change the service selection.
   const notesPrefill = useMemo(() => {
     const lines: string[] = [computedService.headline];
-    const symptoms = selectedIssueIds
-      .map((id) => ALL_BIKE_ISSUES_MAP.get(id))
-      .filter(Boolean)
-      .map((it) => `• [${it!.category}] ${it!.label}`);
+    if (problemSelectionMode === 'maintenance') {
+      const pkg = findMaintenancePackage(selectedMaintenanceId);
+      if (pkg) {
+        lines.push(`Seasonal package: ${pkg.name} (${pkg.seasonLabel})`);
+        const checks = pkg.checks
+          .filter((c) => c.appliesTo.includes(bikeIdentity.category))
+          .map((c) => `• ${c.label}`);
+        if (checks.length > 0) lines.push('Included checks:', ...checks);
+      }
+    }
+    const symptoms = problemSelectionMode === 'maintenance'
+      ? []
+      : selectedIssueIds
+          .map((id) => ALL_BIKE_ISSUES_MAP.get(id))
+          .filter(Boolean)
+          .map((it) => `• [${it!.category}] ${it!.label}`);
     if (symptoms.length > 0) {
       lines.push('Reported symptoms:', ...symptoms);
     }
@@ -280,7 +310,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       lines.push(`Wheel size: ${wheelSize.trim()}`);
     }
     return lines.join('\n');
-  }, [computedService.headline, selectedIssueIds, problemNotes, wheelSize]);
+  }, [computedService.headline, problemSelectionMode, selectedMaintenanceId, bikeIdentity.category, selectedIssueIds, problemNotes, wheelSize]);
 
   const notesEditedRef = React.useRef(false);
   React.useEffect(() => {
@@ -954,6 +984,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               >
                 <span>Fixed Packages</span>
               </button>
+              <button
+                type="button"
+                onClick={() => setProblemSelectionMode('maintenance')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  problemSelectionMode === 'maintenance'
+                    ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <span>Seasonal Tune-Ups</span>
+              </button>
             </div>
           </div>
 
@@ -968,6 +1009,18 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 otherNotes={problemNotes}
                 onOtherNotesChange={setProblemNotes}
                 vehicleCategory={selectedCategory}
+              />
+            </div>
+          ) : problemSelectionMode === 'maintenance' ? (
+            /* Mode 3: Seasonal Preventative-Maintenance Packages */
+            <div className="pt-2">
+              <MaintenancePackagesPanel
+                vehicleCategory={bikeIdentity.category}
+                selectedPackageId={selectedMaintenanceId}
+                onSelect={(pkg: MaintenancePackage) => {
+                  setSelectedMaintenanceId(pkg.id);
+                  setProblemNotes('');
+                }}
               />
             </div>
           ) : (
