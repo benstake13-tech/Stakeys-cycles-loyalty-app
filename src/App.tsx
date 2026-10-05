@@ -254,44 +254,12 @@ function AppContent() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 pb-28 md:pb-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 pb-8 space-y-8">
         <div key={activeTab} className="animate-fade-in">
           {activeTab === 'staff' && <StaffPortal />}
           {activeTab === 'deliverables' && <DeliverablesViewer />}
         </div>
       </main>
-
-      {/* Mobile bottom navigation */}
-      <nav
-        className={`md:hidden fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-xl ${
-          isDark ? 'bg-[#090b0e]/95 border-neutral-800' : 'bg-white/95 border-neutral-200'
-        }`}
-        aria-label="Quick navigation"
-      >
-        <div className="grid grid-cols-2">
-          {navTabs.map((tab) => {
-            const Icon = tab.icon!;
-            const isActive = tab.id === activeTab;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`pressable relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold cursor-pointer ${
-                  isActive ? 'text-emerald-400' : isDark ? 'text-neutral-500' : 'text-neutral-500'
-                }`}
-              >
-                {isActive && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-emerald-400" />}
-                <Icon className="w-5 h-5" />
-                <span className="truncate max-w-full px-1">{tab.label.split(' ')[0]}</span>
-                {tab.badge !== undefined && (
-                  <span className="absolute top-1.5 right-1/4 w-1.5 h-1.5 rounded-full bg-amber-400" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
 
       {/* Footer */}
       <footer className={`border-t py-6 text-center text-xs ${isDark ? 'border-neutral-900 bg-neutral-950 text-neutral-500' : 'border-neutral-200 bg-white text-neutral-500'}`}>

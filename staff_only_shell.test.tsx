@@ -86,6 +86,28 @@ describe('Staff-only app shell', () => {
     expect(screen.queryByText(/Workshop Staff Access/i)).toBeNull();
   });
 
+  it('uses the top hamburger for navigation and ships no mobile bottom bar', () => {
+    hoisted.state.currentUser = {
+      uid: 'staff-1',
+      role: 'staff',
+      displayName: 'Workshop Admin',
+      email: 'admin@stakeyscycles.com',
+    };
+    render(<App />);
+
+    // The fixed bottom quick-navigation bar must be gone.
+    expect(screen.queryByRole('navigation', { name: /quick navigation/i })).toBeNull();
+
+    // The top hamburger opens the mobile navigation sheet (revealing the
+    // staff destinations) instead.
+    const burger = screen.getByRole('button', { name: /open menu/i });
+    expect(burger.getAttribute('aria-expanded')).toBe('false');
+    const before = screen.getAllByText('Staff Terminal').length;
+    fireEvent.click(burger);
+    expect(burger.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByText('Staff Terminal').length).toBeGreaterThan(before);
+  });
+
   it('blocks a signed-in customer from the terminal', () => {
     hoisted.state.currentUser = {
       uid: 'cust-1',
