@@ -31,6 +31,11 @@ import {
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { calculateInvoiceTotals } from '../utils/invoiceService';
 import {
+  buildInvoiceLineItemsFromBooking,
+  reconcileInvoiceWithBooking,
+  applyBookingContextToInvoice,
+} from '../utils/invoiceReconciliation';
+import {
   validateDiscountCode,
   findDiscountCode,
   describeDiscountValue,
@@ -75,17 +80,10 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
     if (existingInvoice && existingInvoice.items.length > 0) {
       return existingInvoice.items;
     }
-    // Default initial labour item
-    return [
-      {
-        id: `item-${Date.now()}-1`,
-        description: `${booking.serviceTitle || 'Workshop Service & Inspection'} (Labour)`,
-        category: 'Labour',
-        quantity: 1,
-        unitPrice: 35.0,
-        total: 35.0,
-      },
-    ];
+    // Seed the bill from the booking itself: the exact symptoms the customer
+    // ticked (or the seasonal package's included checks), so the invoice always
+    // corresponds to the work that was actually booked.
+    return buildInvoiceLineItemsFromBooking(booking);
   });
 
   // 3. Tax, Vouchers & Mechanic Info
@@ -113,6 +111,18 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
   const totals = useMemo(() => {
     return calculateInvoiceTotals(lineItems, vatRate, combinedDiscount);
   }, [lineItems, vatRate, combinedDiscount]);
+
+  // Reconciliation against the booking: keep the invoice honest about the work
+  // the customer actually booked and the quote they were given.
+  const reconciliation = useMemo(
+    () =>
+      reconcileInvoiceWithBooking(
+        { items: lineItems, grandTotal: totals.grandTotal },
+        booking
+      ),
+    [lineItems, totals.grandTotal, booking]
+  );
+  const [useQuotedTotal, setUseQuotedTotal] = useState(false);
 
   const applyInvoiceDiscount = (raw: string) => {
     const code = findDiscountCode(raw, discountCodes || []);
@@ -238,43 +248,52 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
     setIsSubmitting(true);
     try {
       const invoiceNumber = existingInvoice?.invoiceNumber || `INV-2026-${Date.now().toString().slice(-4)}`;
-      const completedInvoice: RepairInvoice = {
-        id: existingInvoice?.id || `inv-${Date.now()}`,
-        invoiceNumber,
-        bookingId: booking.id,
-        issuedAt: existingInvoice?.issuedAt || new Date().toISOString(),
-        completedAt: new Date().toISOString(),
-        leadMechanic: leadMechanic.trim() || 'Ben Stake - Lead Mechanic',
-        mechanicCertification: 'Master Bench',
-        customerName: booking.customerName,
-        customerEmail: booking.customerEmail,
-        customerPhone: booking.customerPhone,
-        membershipNumber: booking.membershipNumber,
-        vehicleModel: booking.vehicleModel,
-        vehicleCategory: booking.vehicleCategory,
-        items: lineItems,
-        checklistSignoff: checklist,
-        labourSubtotal: totals.labourSubtotal,
-        partsSubtotal: totals.partsSubtotal,
-        subtotal: totals.subtotal,
-        vatRate,
-        vatAmount: totals.vatAmount,
-        voucherDiscount: totals.voucherDiscount,
-        voucherCode: voucherDiscount > 0 ? 'LOYALTY-VOUCHER-£40' : undefined,
-        discountCode: appliedDiscount?.code,
-        discountLabel: appliedDiscount?.label,
-        grandTotal: totals.grandTotal,
-        paymentStatus,
-        paymentDate: paymentStatus !== 'unpaid' ? new Date().toISOString() : undefined,
-        mechanicNotes: mechanicNotes.trim(),
-        warrantyPeriod: '30-Day Stakey Workshop Warranty',
-      };
+      // When the bill matches the agreed quote, force the grand total to that
+      // quoted figure so the customer is charged exactly what they agreed.
+      const reconciledGrandTotal =
+        useQuotedTotal && reconciliation.quoteAmount !== undefined
+          ? reconciliation.quoteAmount
+          : totals.grandTotal;
+      const completedInvoice: RepairInvoice = applyBookingContextToInvoice(
+        {
+          id: existingInvoice?.id || `inv-${Date.now()}`,
+          invoiceNumber,
+          bookingId: booking.id,
+          issuedAt: existingInvoice?.issuedAt || new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          leadMechanic: leadMechanic.trim() || 'Ben Stake - Lead Mechanic',
+          mechanicCertification: 'Master Bench',
+          customerName: booking.customerName,
+          customerEmail: booking.customerEmail,
+          customerPhone: booking.customerPhone,
+          membershipNumber: booking.membershipNumber,
+          vehicleModel: booking.vehicleModel,
+          vehicleCategory: booking.vehicleCategory,
+          items: lineItems,
+          checklistSignoff: checklist,
+          labourSubtotal: totals.labourSubtotal,
+          partsSubtotal: totals.partsSubtotal,
+          subtotal: totals.subtotal,
+          vatRate,
+          vatAmount: totals.vatAmount,
+          voucherDiscount: totals.voucherDiscount,
+          voucherCode: voucherDiscount > 0 ? 'LOYALTY-VOUCHER-£40' : undefined,
+          discountCode: appliedDiscount?.code,
+          discountLabel: appliedDiscount?.label,
+          grandTotal: reconciledGrandTotal,
+          paymentStatus,
+          paymentDate: paymentStatus !== 'unpaid' ? new Date().toISOString() : undefined,
+          mechanicNotes: mechanicNotes.trim(),
+          warrantyPeriod: '30-Day Stakey Workshop Warranty',
+        },
+        booking
+      );
 
       await onSaveInvoice(completedInvoice);
       if (appliedDiscount?.discountCodeId) {
         await recordDiscountUsage(appliedDiscount.discountCodeId);
       }
-      toast.success(`Invoice ${invoiceNumber} generated! Total: £${totals.grandTotal.toFixed(2)}`);
+      toast.success(`Invoice ${invoiceNumber} generated! Total: £${reconciledGrandTotal.toFixed(2)}`);
       onClose();
     } catch (err: any) {
       toast.error(err.message || 'Failed to save repair invoice.');
@@ -372,6 +391,75 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* BOOKING ↔ INVOICE RECONCILIATION */}
+          <div className="p-3.5 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-3">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span className="font-mono text-[11px] font-bold text-neutral-300 uppercase tracking-wider">
+                Reconciliation with Booking #{booking.id}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="p-2.5 rounded-xl bg-neutral-900/60 border border-neutral-800">
+                <span className="text-neutral-500 text-[10px] block">Service Booked</span>
+                <span className="font-bold text-white">{booking.serviceTitle}</span>
+                <div className="text-[11px] text-neutral-400 mt-0.5">
+                  {reconciliation.requestedWork.length} requested item
+                  {reconciliation.requestedWork.length === 1 ? '' : 's'} · Vehicle:{' '}
+                  {booking.vehicleModel}
+                </div>
+              </div>
+              <div className="p-2.5 rounded-xl bg-neutral-900/60 border border-neutral-800">
+                <span className="text-neutral-500 text-[10px] block">Agreed Quote</span>
+                {reconciliation.quoteAmount !== undefined ? (
+                  <>
+                    <span className="font-bold text-white font-mono">
+                      £{reconciliation.quoteAmount.toFixed(2)}
+                    </span>
+                    <div className="text-[11px] text-neutral-400 mt-0.5">
+                      vs invoice total £{totals.grandTotal.toFixed(2)}
+                      {reconciliation.quoteMatches ? (
+                        <span className="text-emerald-400 font-semibold"> · matches</span>
+                      ) : (
+                        <span className="text-amber-400 font-semibold">
+                          {' '}
+                          · {reconciliation.quoteDelta! > 0 ? '+' : '−'}£
+                          {Math.abs(reconciliation.quoteDelta!).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-neutral-400 text-[11px]">
+                    No quote recorded on this booking.
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {reconciliation.unbilledWork.length > 0 && (
+              <div className="p-2.5 rounded-xl bg-amber-950/30 border border-amber-800/40 text-[11px] text-amber-300">
+                <strong>Not yet itemised:</strong>{' '}
+                {reconciliation.unbilledWork.map((w) => w.label).join(', ')}. Add a line so the
+                bill matches what the customer asked for.
+              </div>
+            )}
+
+            {reconciliation.quoteAmount !== undefined && !reconciliation.quoteMatches && (
+              <label className="flex items-center gap-2 text-[11px] text-neutral-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={useQuotedTotal}
+                  onChange={(e) => setUseQuotedTotal(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#05C147] bg-neutral-900 border-neutral-700 cursor-pointer accent-[#05C147]"
+                />
+                Charge exactly the agreed quote (£{reconciliation.quoteAmount.toFixed(2)}) as the
+                invoice total
+              </label>
+            )}
+          </div>
 
           {/* SECTION 1: Repair Completion & Safety Checklist */}
           <div className="space-y-3">

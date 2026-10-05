@@ -51,7 +51,7 @@ export function formatInvoiceEmailBody(invoice: RepairInvoice, ownerConfig?: Own
 =====================================================
 Invoice Reference: ${invoice.invoiceNumber}
 Booking Reference: #${invoice.bookingId}
-Date Completed:    ${new Date(invoice.completedAt).toLocaleDateString('en-GB')}
+${invoice.serviceTitle ? `Service Booked:    ${invoice.serviceTitle}\n` : ''}Date Completed:    ${new Date(invoice.completedAt).toLocaleDateString('en-GB')}
 Lead Workshop Mech:  ${invoice.leadMechanic} (${invoice.mechanicCertification || 'Workshop Certified'})
 -----------------------------------------------------
 BILLED TO:
@@ -59,7 +59,7 @@ Customer:          ${invoice.customerName}
 Phone:             ${invoice.customerPhone}
 Email:             ${invoice.customerEmail}
 Vehicle / Asset:   ${invoice.vehicleModel} (${invoice.vehicleCategory.toUpperCase()})
------------------------------------------------------
+${invoice.vehicleDetails ? `Vehicle Identity:  ${invoice.vehicleDetails}\n` : ''}${invoice.requestedWork && invoice.requestedWork.length > 0 ? `Requested Work:\n${invoice.requestedWork.map((w) => `  • ${w}`).join('\n')}\n` : ''}-----------------------------------------------------
 SAFETY SIGN-OFF & QUALITY AUDIT:
 ${checklistText || '  ✓ Standard M-Check & Safety Inspection Passed'}
 
@@ -72,7 +72,7 @@ Parts & Consumables:         £${invoice.partsSubtotal.toFixed(2)}
 Subtotal:                    £${invoice.subtotal.toFixed(2)}
 ${invoice.vatAmount > 0 ? `VAT (${(invoice.vatRate * 100).toFixed(0)}%):                   £${invoice.vatAmount.toFixed(2)}\n` : ''}${(invoice.voucherDiscount > 0 || invoice.discountCode) ? `Discounts Applied:           -£${invoice.voucherDiscount.toFixed(2)}${invoice.voucherCode ? ` (${invoice.voucherCode})` : ''}${invoice.discountCode ? ` (Code ${invoice.discountCode})` : ''}\n` : ''}-----------------------------------------------------
 TOTAL AMOUNT DUE:            £${invoice.grandTotal.toFixed(2)}
-PAYMENT STATUS:              ${invoice.paymentStatus.toUpperCase().replace('_', ' ')}
+${typeof invoice.quotedAmount === 'number' && Math.abs(invoice.quotedAmount - invoice.grandTotal) > 0.001 ? `(Agreed quote at booking:    £${invoice.quotedAmount.toFixed(2)})\n` : ''}PAYMENT STATUS:              ${invoice.paymentStatus.toUpperCase().replace('_', ' ')}
 -----------------------------------------------------
 WARRANTY & ASSURANCE:
 ${invoice.warrantyPeriod} on all fitted genuine components and adjustments.

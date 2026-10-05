@@ -455,6 +455,13 @@ export interface RepairInvoice {
   paymentDate?: any;
   mechanicNotes?: string;
   warrantyPeriod: string; // e.g. '30-Day Stakey Workshop Warranty'
+  /** Booking context snapshot so the invoice stays self-describing. */
+  serviceTitle?: string;
+  /** The price the customer agreed at booking (the quote). */
+  quotedAmount?: number;
+  quoteNote?: string;
+  vehicleDetails?: string;
+  requestedWork?: string[];
 }
 
 export interface ServiceBooking {

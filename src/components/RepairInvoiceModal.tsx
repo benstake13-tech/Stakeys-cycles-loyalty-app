@@ -231,6 +231,14 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
               <div className="text-neutral-600 uppercase font-mono text-[11px]">
                 Type: {invoice.vehicleCategory.replace('_', ' ')}
               </div>
+              {invoice.serviceTitle && (
+                <div className="text-neutral-600 text-[11px]">
+                  Service Booked: <span className="font-semibold">{invoice.serviceTitle}</span>
+                </div>
+              )}
+              {invoice.vehicleDetails && invoice.vehicleDetails !== invoice.vehicleModel && (
+                <div className="text-neutral-500 text-[11px] font-mono">{invoice.vehicleDetails}</div>
+              )}
               <div className="text-neutral-500 text-[11px]">
                 Workshop Intake Completed: {new Date(invoice.completedAt || Date.now()).toLocaleDateString('en-GB')}
               </div>
@@ -335,6 +343,14 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
                 <span>Subtotal (Net):</span>
                 <span className="font-mono">£{invoice.subtotal.toFixed(2)}</span>
               </div>
+
+              {typeof invoice.quotedAmount === 'number' &&
+                Math.abs(invoice.quotedAmount - invoice.grandTotal) > 0.001 && (
+                  <div className="flex justify-between text-neutral-600">
+                    <span>Agreed quote:</span>
+                    <span className="font-mono">£{invoice.quotedAmount.toFixed(2)}</span>
+                  </div>
+                )}
 
               {invoice.vatAmount > 0 && (
                 <div className="flex justify-between text-neutral-600">

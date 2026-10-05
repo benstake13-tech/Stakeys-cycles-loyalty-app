@@ -254,7 +254,9 @@ function AppContent() {
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle showLabel={false} />
-            <ServiceStatusBadge variant="header" />
+            {/* Backend/Supabase diagnostics are an operator concern — only show
+                the status chip in the staff terminal, not to customers. */}
+            {isStaff && <ServiceStatusBadge variant="header" />}
 
             <div className={`hidden lg:flex items-center gap-2 text-xs ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
               <span className={`font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{currentUser.displayName}</span>

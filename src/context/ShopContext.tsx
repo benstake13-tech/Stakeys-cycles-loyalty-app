@@ -3167,7 +3167,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...target,
       status: 'ready_for_pickup',
       servicePrice: invoice.grandTotal,
-      quotedPrice: invoice.grandTotal,
+      // Keep the price the customer actually agreed at booking; the final
+      // charged total lives on servicePrice and the invoice snapshot.
+      quotedPrice: target.quotedPrice ?? invoice.quotedAmount ?? invoice.grandTotal,
       invoice,
       notifications: [notificationLog, ...(target.notifications || [])],
     };
@@ -3177,6 +3179,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateServiceBookingInDb(bookingId, {
       status: 'ready_for_pickup',
       servicePrice: invoice.grandTotal,
+      invoice,
     }).catch((e) => console.warn('[DB SYNC] Error saving invoice in DB:', e));
 
     setLatestSmsAlert({

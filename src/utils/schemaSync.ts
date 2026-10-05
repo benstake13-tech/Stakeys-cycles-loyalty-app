@@ -148,6 +148,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'repair_stage', type: 'text' },
       { name: 'progress_events', type: 'jsonb', default: `'[]'::jsonb` },
       { name: 'estimate_ready_at', type: 'timestamptz' },
+      { name: 'invoice', type: 'jsonb' },
       { name: 'created_at', type: 'timestamptz', default: NOW },
     ],
   },
