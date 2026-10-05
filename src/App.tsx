@@ -3,6 +3,7 @@ import {
   User,
   Shield,
   Layers,
+  Globe,
   LogOut,
   Scan,
   Wrench,
@@ -22,6 +23,7 @@ import { ShopProvider, useShop } from './context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
 import { CustomerPortal } from './components/CustomerPortal';
 import { StaffPortal } from './components/StaffPortal';
+import { WebsiteReplica } from './components/WebsiteReplica';
 import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
 import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner';
@@ -124,6 +126,16 @@ function AppContent() {
     setActiveTab(tab);
   };
 
+  // Website CTA: guests open the guest booking flow; signed-in usersjump to the Booking tab.
+
+  const handleWebsiteBookService = () => {
+    if (!currentUser) {
+      setShowGuestBooking(true);
+    } else {
+      setActiveTab('booking');
+    }
+  };
+
   // Primary destinations, shared by the desktop nav, mobile sheet and bottom bar
   const navTabs: SegmentedTab<NavTabId>[] = [
     {
@@ -134,6 +146,7 @@ function AppContent() {
       hint: 'Your bikes, loyalty pass and bookings',
     },
     { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
+    { id: 'website', label: 'Website', icon: Globe, tone: 'sky', hint: 'Marketing site — Stakey\'s Cycles, recreated from Square, managed from the Staff Station' },
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', hint: 'Current offers and rewards' },
   ];
 
@@ -328,6 +341,7 @@ function AppContent() {
         <div key={activeTab} className="animate-fade-in">
           {activeTab === 'customer' && <CustomerPortal />}
           {activeTab === 'booking' && <BookingPortal />}
+          {activeTab === 'website' && <WebsiteReplica onBookService={handleWebsiteBookService} />}
           {activeTab === 'promotions' && <PromotionsCarousel />}
           {activeTab === 'staff' &&
             (isStaff ? (

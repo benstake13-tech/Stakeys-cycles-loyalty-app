@@ -27,6 +27,7 @@ export type NavTabId =
   | 'promotions'
   | 'bikes_we_trust'
   | 'hangers'
+  | 'website'
   | 'staff'
   | 'deliverables';
 
