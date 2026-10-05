@@ -98,6 +98,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
   const currentStageIndex = repairStageIndex(currentStage);
   const progressPercent = repairProgressPercent(currentStage);
   const isPaused = currentStage === 'awaiting_approval' || currentStage === 'parts_ordered';
+  const isComplete = currentStageIndex >= REPAIR_STAGES.length - 1;
 
   // Calculate ETA based on current stage
   const etaMessage = useMemo(() => {
@@ -231,8 +232,18 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
         <div className="space-y-8">
           {/* Main Status Spotlight Card */}
           <div className="bg-[#0d1015] border border-neutral-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl relative overflow-hidden">
+            {/* Ambient glow that follows the live stage colour */}
+            <div
+              className={`absolute -top-24 left-1/2 -translate-x-1/2 w-2/3 h-40 rounded-full blur-3xl pointer-events-none opacity-40 tracker-breathe ${
+                isComplete
+                  ? 'bg-emerald-500/40'
+                  : isPaused
+                  ? 'bg-amber-500/30'
+                  : 'bg-purple-500/30'
+              }`}
+            />
             {/* Top Info Bar */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-neutral-800">
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-neutral-800">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-neutral-950 border border-neutral-800 flex items-center justify-center text-[#05C147] shrink-0 font-black">
                   {activeBooking.vehicleCategory === 'electric_scooter' ? (
@@ -280,7 +291,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
             </div>
 
             {/* LIVE WORKSHOP PROGRESS TIMELINE */}
-            <div className="space-y-4 pt-2">
+            <div className="relative space-y-4 pt-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-neutral-400 font-mono">
                 <span>
                   Workshop Progress: Stage {currentStageIndex + 1} of {REPAIR_STAGES.length} ·{' '}
@@ -293,11 +304,34 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
               </div>
 
               {/* Progress bar background */}
-              <div className="relative w-full h-2.5 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 p-0.5">
+              <div className="relative w-full h-2.5 bg-neutral-900 rounded-full overflow-visible border border-neutral-800 p-0.5">
                 <div
-                  className="h-full bg-gradient-to-r from-emerald-500 to-[#05C147] rounded-full transition-all duration-700 ease-out shadow-[0_0_12px_rgba(5,193,71,0.5)] progress-shimmer"
+                  className={`h-full rounded-full transition-all duration-700 ease-out progress-shimmer ${
+                    isPaused
+                      ? 'bg-gradient-to-r from-amber-500 to-amber-300 shadow-[0_0_16px_rgba(245,158,11,0.6)]'
+                      : 'bg-gradient-to-r from-emerald-500 to-[#05C147] shadow-[0_0_16px_rgba(5,193,71,0.65)]'
+                  }`}
                   style={{ width: `${progressPercent}%` }}
                 />
+                {/* "You are here" marker with three bouncing dots leading the fill */}
+                {!isComplete && (
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-950/80 border border-emerald-400/70 tracker-glow"
+                    style={{ left: `${progressPercent}%` }}
+                  >
+                    <span className="tracker-dot tracker-dot--bright" />
+                    <span className="tracker-dot tracker-dot--bright" />
+                    <span className="tracker-dot tracker-dot--bright" />
+                  </div>
+                )}
+                {isComplete && (
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 w-5 h-5 rounded-full bg-[#05C147] text-neutral-950 flex items-center justify-center tracker-glow-strong"
+                    style={{ left: '100%' }}
+                  >
+                    <Check className="w-3 h-3" strokeWidth={3} />
+                  </div>
+                )}
               </div>
 
               {/* Timeline Step Cards */}
@@ -311,12 +345,23 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                       key={stg.id}
                       className={`p-3.5 rounded-2xl border transition-all flex flex-col justify-between space-y-2 relative animate-rise ${
                         isCurrent
-                          ? 'bg-emerald-950/30 border-emerald-500/60 shadow-lg shadow-emerald-500/10 animate-live-pulse'
+                          ? 'bg-emerald-950/40 border-emerald-400/80 shadow-xl shadow-emerald-500/20 tracker-glow-strong scale-[1.02]'
                           : isDone
                           ? 'bg-neutral-950/70 border-neutral-800/90 text-neutral-300'
                           : 'bg-neutral-950/40 border-neutral-900 text-neutral-500 opacity-60'
                       }`}
+                      style={{ animationDelay: `${idx * 0.05}s` }}
                     >
+                      {/* "You are here" flag on the live stage */}
+                      {isCurrent && (
+                        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500 text-neutral-950 text-[9px] font-black uppercase tracking-wider shadow-lg shadow-emerald-500/40 whitespace-nowrap">
+                          <span className="tracker-dot tracker-dot--dark" />
+                          <span className="tracker-dot tracker-dot--dark" />
+                          <span className="tracker-dot tracker-dot--dark" />
+                          You are here
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between">
                         <div
                           className={`w-7 h-7 rounded-xl flex items-center justify-center font-bold text-xs ${
@@ -331,7 +376,10 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                         </div>
 
                         {isCurrent && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="relative flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400" />
+                          </span>
                         )}
                       </div>
 
@@ -346,7 +394,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
 
                       <div className="pt-1.5 border-t border-neutral-800/80 font-mono text-[9px] text-neutral-500 flex items-center justify-between">
                         <span>{stg.estimate}</span>
-                        {isCurrent && <span className="text-emerald-400 font-bold">ACTIVE</span>}
+                        {isCurrent && <span className="text-emerald-400 font-bold animate-pulse">● ACTIVE</span>}
                         {isDone && <span className="text-emerald-500">DONE</span>}
                       </div>
                     </div>
@@ -356,7 +404,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
             </div>
 
             {/* ASK THE WORKSHOP — customers can message the bench at any time */}
-            <div className="p-4 rounded-2xl bg-sky-500/5 border border-sky-500/30 space-y-3">
+            <div className="relative p-4 rounded-2xl bg-sky-500/5 border border-sky-500/30 space-y-3">
               <div className="flex items-center gap-2 text-sky-200 font-bold text-sm">
                 <MessageSquarePlus className="w-4 h-4" />
                 Ask the Workshop
@@ -393,7 +441,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
 
             {/* WORKSHOP TIMELINE — notes & updates from the bench and you */}
             {activeBooking.progressEvents && activeBooking.progressEvents.length > 0 && (
-              <div className="space-y-2 pt-2">
+              <div className="relative space-y-2 pt-2">
                 <div className="font-mono text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <Activity className="w-3.5 h-3.5 text-emerald-400" />
                   Workshop Updates ({activeBooking.progressEvents.length})
@@ -456,12 +504,12 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
             )}
 
             {/* Stage Callout Box */}
-            <div className={`p-4 rounded-2xl border flex items-start gap-3.5 text-xs ${
+            <div className={`relative p-4 rounded-2xl border flex items-start gap-3.5 text-xs ${
               currentStage === 'ready_for_pickup' || currentStage === 'collected'
-                ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200'
+                ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-200 tracker-glow'
                 : isPaused
-                ? 'bg-amber-950/30 border-amber-500/40 text-amber-200'
-                : 'bg-purple-950/30 border-purple-500/40 text-purple-200'
+                ? 'bg-amber-950/30 border-amber-500/40 text-amber-200 tracker-breathe'
+                : 'bg-purple-950/30 border-purple-500/40 text-purple-200 tracker-breathe'
             }`}>
               <div className="p-2 rounded-xl bg-neutral-900/90 shrink-0 text-emerald-400 mt-0.5">
                 <Sparkles className="w-4 h-4" />

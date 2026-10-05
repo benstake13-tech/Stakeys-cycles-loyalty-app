@@ -97,6 +97,53 @@
     animation: live-pulse 1.8s ease-in-out infinite;
   }
 
+  /* Pulsing halo for the current stage / "you are here" marker */
+  .tracker-glow {
+    animation: tracker-glow 2s ease-in-out infinite;
+  }
+
+  /* Stronger halo for the "you are here" pin */
+  .tracker-glow-strong {
+    animation: tracker-glow-strong 1.6s ease-in-out infinite;
+  }
+
+  /* Three bouncing dots that lead the progress fill to the current stage */
+  .tracker-dot {
+    display: inline-block;
+    border-radius: 9999px;
+    animation: tracker-dot-bounce 1s ease-in-out infinite;
+  }
+  .tracker-dot:nth-child(2) { animation-delay: 0.16s; }
+  .tracker-dot:nth-child(3) { animation-delay: 0.32s; }
+  .tracker-dot--bright {
+    width: 6px;
+    height: 6px;
+    background: #d1fae5;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.95);
+  }
+  .tracker-dot--dark {
+    width: 4px;
+    height: 4px;
+    background: #052e16;
+  }
+
+  /* Slow breathing glow so the active marker feels alive, not flickery */
+  .tracker-breathe {
+    animation: tracker-breathe 2.4s ease-in-out infinite;
+  }
+
+  /* Motion primitives honour reduced-motion */
+  @media (prefers-reduced-motion: reduce) {
+    .progress-shimmer::after,
+    .animate-live-pulse,
+    .tracker-glow,
+    .tracker-glow-strong,
+    .tracker-dot,
+    .tracker-breathe {
+      animation: none !important;
+    }
+  }
+
   /* Staggered list entrances */
   .stagger > * {
     animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
@@ -155,6 +202,34 @@
 @keyframes live-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(5, 193, 71, 0.35); }
   50% { box-shadow: 0 0 0 8px rgba(5, 193, 71, 0); }
+}
+
+@keyframes tracker-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(5, 193, 71, 0.45), 0 0 14px 1px rgba(5, 193, 71, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(5, 193, 71, 0.8), 0 0 30px 6px rgba(5, 193, 71, 0.6);
+  }
+}
+
+@keyframes tracker-glow-strong {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65), 0 0 16px 2px rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(16, 185, 129, 0), 0 0 34px 8px rgba(16, 185, 129, 0.75);
+  }
+}
+
+@keyframes tracker-dot-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.55; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+
+@keyframes tracker-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.06); opacity: 1; }
 }
 
 /* Custom subtle scrollbar */

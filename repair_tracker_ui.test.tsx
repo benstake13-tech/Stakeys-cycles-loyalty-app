@@ -138,6 +138,14 @@ describe('CustomerRepairTracker', () => {
     expect(screen.getAllByText(/Diagnostics & Safety Check/i).length).toBeGreaterThan(0);
   });
 
+  it('marks the live stage with a "You are here" flag and leading dots', () => {
+    setup([makeBooking()], null);
+    const { container } = render(<CustomerRepairTracker initialBookingId="bk-2001" />);
+    // on_the_bench is the 5th stage -> the marker flag is shown exactly once.
+    expect(screen.getByText(/You are here/i)).toBeTruthy();
+    expect(container.querySelectorAll('.tracker-dot').length).toBeGreaterThanOrEqual(3);
+  });
+
   it('never leaks another customer\'s repair to a guest with no match', () => {
     setup([makeBooking()], null);
     render(<CustomerRepairTracker />);
