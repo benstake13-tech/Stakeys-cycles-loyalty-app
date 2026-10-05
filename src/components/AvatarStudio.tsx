@@ -1,51 +1,76 @@
-import React, { useState } from 'react';
-import { Shuffle, Check, Save } from 'lucide-react';
-import { AvatarModel } from './AvatarModel';
+import React, { useRef, useState } from 'react';
 import {
+  Bike,
+  Check,
+  Code,
+  Download,
+  Glasses,
+  Save,
+  Shirt,
+  Shuffle,
+  Sliders,
+  Smile,
+  User,
+} from 'lucide-react';
+import { AvatarSVG } from './AvatarSVG';
+import {
+  ACCESSORIES,
   AvatarConfig,
-  BACKGROUNDS,
+  BIKE_COLORS,
+  CLOTHING_COLORS,
+  CLOTHING_STYLES,
   DEFAULT_AVATAR,
-  EYES,
+  EXPRESSIONS,
+  EYE_SHAPES,
   FACIAL_HAIR,
-  GLASSES,
   HAIR_COLORS,
   HAIR_STYLES,
-  HEADWEAR,
-  MOUTHS,
+  PROP_BIKES,
   SKIN_TONES,
-  TOP_COLORS,
   randomAvatar,
 } from '../shared/types/avatar';
 
-type SwatchGroup = {
-  label: string;
-  options: { id: string; label: string; hex: string }[];
-  /** Which AvatarConfig field this group edits. */
-  key: 'hairColor' | 'headwearColor' | 'topColor' | 'background';
-};
+export interface AvatarStudioProps {
+  value?: AvatarConfig | null;
+  onSave: (config: AvatarConfig) => Promise<void> | void;
+  saving?: boolean;
+}
+
+type TabId = 'hair' | 'face' | 'apparel' | 'gear' | 'bikes';
+
+const TABS: { id: TabId; label: string; icon: React.FC<{ className?: string }> }[] = [
+  { id: 'hair', label: 'Hair & Beard', icon: User },
+  { id: 'face', label: 'Face & Vibe', icon: Smile },
+  { id: 'apparel', label: 'Apparel', icon: Shirt },
+  { id: 'gear', label: 'Gear & Specs', icon: Glasses },
+  { id: 'bikes', label: 'Rides & Bikes', icon: Bike },
+];
 
 const SwatchRow: React.FC<{
   label: string;
   options: { id: string; label: string; hex: string }[];
   value: string;
   onPick: (v: string) => void;
-}> = ({ label, options, value, onPick }) => (
+  size?: 'sm' | 'md';
+}> = ({ label, options, value, onPick, size = 'md' }) => (
   <div>
-    <div className="text-xs font-medium text-neutral-300 mb-1.5">{label}</div>
-    <div className="flex flex-wrap gap-2">
+    <div className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">{label}</div>
+    <div className="flex flex-wrap gap-3">
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           title={o.label}
           aria-label={`${label}: ${o.label}`}
-          aria-pressed={value === o.id}
-          onClick={() => onPick(o.id)}
-          className={`w-8 h-8 rounded-full border-2 cursor-pointer transition-transform hover:scale-110 ${
-            value === o.id ? 'border-emerald-400 ring-2 ring-emerald-400/40' : 'border-neutral-700'
-          }`}
+          aria-pressed={value === o.hex}
+          onClick={() => onPick(o.hex)}
           style={{ backgroundColor: o.hex }}
-        />
+          className={`${size === 'sm' ? 'w-8 h-8' : 'w-9 h-9'} rounded-full border-2 flex items-center justify-center transition-transform cursor-pointer ${
+            value === o.hex ? 'scale-110 border-emerald-400 ring-2 ring-emerald-500/30' : 'border-neutral-700'
+          }`}
+        >
+          {value === o.hex && <Check className="w-4 h-4 text-white drop-shadow" />}
+        </button>
       ))}
     </div>
   </div>
@@ -56,20 +81,21 @@ const ChoiceRow: React.FC<{
   options: { id: string; label: string }[];
   value: string;
   onPick: (v: string) => void;
-}> = ({ label, options, value, onPick }) => (
+  cols?: string;
+}> = ({ label, options, value, onPick, cols = 'grid-cols-2 sm:grid-cols-4' }) => (
   <div>
-    <div className="text-xs font-medium text-neutral-300 mb-1.5">{label}</div>
-    <div className="flex flex-wrap gap-1.5">
+    <div className="text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">{label}</div>
+    <div className={`grid ${cols} gap-3`}>
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           aria-pressed={value === o.id}
           onClick={() => onPick(o.id)}
-          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border cursor-pointer transition-colors ${
+          className={`p-3 rounded-xl border text-xs font-medium text-left cursor-pointer transition-colors ${
             value === o.id
-              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-              : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
+              ? 'border-emerald-400 bg-emerald-500/10 text-white font-bold'
+              : 'border-neutral-800 bg-neutral-900/60 text-neutral-400 hover:border-neutral-700'
           }`}
         >
           {o.label}
@@ -79,38 +105,76 @@ const ChoiceRow: React.FC<{
   </div>
 );
 
-export interface AvatarStudioProps {
-  value?: AvatarConfig | null;
-  onSave: (config: AvatarConfig) => Promise<void> | void;
-  saving?: boolean;
+function downloadBlob(href: string, filename: string) {
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/** Serialises the SVG, paints it onto a canvas and downloads a high-res PNG. */
+function exportPng(svg: SVGSVGElement) {
+  const data = new XMLSerializer().serializeToString(svg);
+  const blob = new Blob([data], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const image = new Image();
+  image.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1000;
+    canvas.height = 1200;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#090D16';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      downloadBlob(canvas.toDataURL('image/png'), `stakeys-avatar-${Date.now()}.png`);
+    }
+    URL.revokeObjectURL(url);
+  };
+  image.src = url;
 }
 
 /**
- * Bitmoji-style avatar editor: live preview plus pickers for every part. The
- * parent owns persistence; this only produces a valid AvatarConfig.
+ * Stakeys avatar editor: live SVG preview plus tabbed pickers for every part.
+ * The parent owns persistence; this only produces a valid AvatarConfig and
+ * offers PNG / SVG / JSON export of the current look.
  */
 export const AvatarStudio: React.FC<AvatarStudioProps> = ({ value, onSave, saving }) => {
   const [draft, setDraft] = useState<AvatarConfig>(value || DEFAULT_AVATAR);
+  const [tab, setTab] = useState<TabId>('hair');
+  const [copied, setCopied] = useState(false);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const patch = (p: Partial<AvatarConfig>) => setDraft((d) => ({ ...d, ...p }));
 
-  const swatchGroups: SwatchGroup[] = [
-    { label: 'Hair colour', options: HAIR_COLORS, key: 'hairColor' },
-    { label: 'Jersey colour', options: TOP_COLORS, key: 'topColor' },
-    { label: 'Headwear colour', options: TOP_COLORS, key: 'headwearColor' },
-    { label: 'Backdrop', options: BACKGROUNDS, key: 'background' },
-  ];
+  const copySvg = () => {
+    if (!svgRef.current) return;
+    navigator.clipboard?.writeText(new XMLSerializer().serializeToString(svgRef.current));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
+  const saveConfig = () => {
+    downloadBlob(
+      'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(draft, null, 2)),
+      'stakeys-avatar-config.json'
+    );
+  };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
-      {/* Preview */}
+    <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+      {/* Live preview */}
       <div className="space-y-3">
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-4 flex flex-col items-center gap-3 sticky top-20">
-          <AvatarModel config={draft} size={180} title="Your avatar preview" className="rounded-2xl" />
+        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-4 flex flex-col items-center gap-3 lg:sticky lg:top-20">
+          <div className="w-full max-w-[300px] aspect-[5/6] flex items-center justify-center">
+            <AvatarSVG config={draft} svgRef={svgRef} className="w-full h-full drop-shadow-2xl" />
+          </div>
           <div className="flex w-full gap-2">
             <button
               type="button"
               onClick={() => setDraft(randomAvatar())}
-              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-300 text-xs font-semibold hover:text-white cursor-pointer"
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-800 bg-neutral-900 text-emerald-400 text-xs font-semibold hover:bg-neutral-800 cursor-pointer"
             >
               <Shuffle className="w-3.5 h-3.5" /> Surprise me
             </button>
@@ -120,6 +184,30 @@ export const AvatarStudio: React.FC<AvatarStudioProps> = ({ value, onSave, savin
               className="px-3 py-2 rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-400 text-xs font-semibold hover:text-white cursor-pointer"
             >
               Reset
+            </button>
+          </div>
+          <div className="flex w-full gap-2 text-xs">
+            <button
+              type="button"
+              onClick={() => svgRef.current && exportPng(svgRef.current)}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-300 font-medium hover:text-white cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-400" /> PNG
+            </button>
+            <button
+              type="button"
+              onClick={copySvg}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-300 font-medium hover:text-white cursor-pointer"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Code className="w-3.5 h-3.5 text-emerald-400" />}
+              {copied ? 'Copied!' : 'SVG'}
+            </button>
+            <button
+              type="button"
+              onClick={saveConfig}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-800 bg-neutral-900 text-neutral-300 font-medium hover:text-white cursor-pointer"
+            >
+              <Sliders className="w-3.5 h-3.5 text-emerald-400" /> JSON
             </button>
           </div>
           <button
@@ -135,77 +223,150 @@ export const AvatarStudio: React.FC<AvatarStudioProps> = ({ value, onSave, savin
       </div>
 
       {/* Controls */}
-      <div className="space-y-5">
-        <SwatchRow
-          label="Skin tone"
-          options={SKIN_TONES}
-          value={draft.skinTone}
-          onPick={(v) => patch({ skinTone: v as AvatarConfig['skinTone'] })}
-        />
-        <ChoiceRow
-          label="Hair style"
-          options={HAIR_STYLES}
-          value={draft.hairStyle}
-          onPick={(v) => patch({ hairStyle: v as AvatarConfig['hairStyle'] })}
-        />
-        <ChoiceRow
-          label="Facial hair"
-          options={FACIAL_HAIR}
-          value={draft.facialHair}
-          onPick={(v) => patch({ facialHair: v as AvatarConfig['facialHair'] })}
-        />
-        <ChoiceRow
-          label="Glasses"
-          options={GLASSES}
-          value={draft.glasses}
-          onPick={(v) => patch({ glasses: v as AvatarConfig['glasses'] })}
-        />
-        <ChoiceRow
-          label="Headwear"
-          options={HEADWEAR}
-          value={draft.headwear}
-          onPick={(v) => patch({ headwear: v as AvatarConfig['headwear'] })}
-        />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <ChoiceRow
-            label="Eyes"
-            options={EYES}
-            value={draft.eyes}
-            onPick={(v) => patch({ eyes: v as AvatarConfig['eyes'] })}
-          />
-          <ChoiceRow
-            label="Mouth"
-            options={MOUTHS}
-            value={draft.mouth}
-            onPick={(v) => patch({ mouth: v as AvatarConfig['mouth'] })}
-          />
-        </div>
+      <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] overflow-hidden">
+        <nav className="flex items-center border-b border-neutral-800 bg-[#090b0e]/50 overflow-x-auto">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                aria-pressed={active}
+                className={`flex items-center gap-2 px-4 py-3.5 text-xs font-bold whitespace-nowrap border-b-2 cursor-pointer transition-colors ${
+                  active
+                    ? 'border-emerald-400 text-emerald-400 bg-emerald-500/5'
+                    : 'border-transparent text-neutral-400 hover:text-white hover:bg-neutral-800/30'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {t.label}
+              </button>
+            );
+          })}
+        </nav>
 
-        <div>
-          <label className="block text-xs font-medium text-neutral-300 mb-1.5" htmlFor="avatar-jersey">
-            Jersey number (optional)
-          </label>
-          <input
-            id="avatar-jersey"
-            type="text"
-            inputMode="numeric"
-            maxLength={3}
-            value={draft.jerseyNumber}
-            onChange={(e) => patch({ jerseyNumber: e.target.value.replace(/[^0-9]/g, '') })}
-            placeholder="e.g. 07"
-            className="w-32 bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
-          />
-        </div>
+        <div className="p-6 space-y-6">
+          {tab === 'hair' && (
+            <>
+              <ChoiceRow
+                label="Hairstyle"
+                options={HAIR_STYLES}
+                value={draft.hairStyle}
+                onPick={(v) => patch({ hairStyle: v as AvatarConfig['hairStyle'] })}
+              />
+              <SwatchRow
+                label="Hair Colour"
+                options={HAIR_COLORS}
+                value={draft.hairColor}
+                onPick={(v) => patch({ hairColor: v })}
+              />
+              <div className="pt-4 border-t border-neutral-800 space-y-6">
+                <ChoiceRow
+                  label="Beard & Facial Hair"
+                  options={FACIAL_HAIR}
+                  value={draft.facialHair}
+                  onPick={(v) => patch({ facialHair: v as AvatarConfig['facialHair'] })}
+                />
+                {draft.facialHair !== 'none' && (
+                  <SwatchRow
+                    label="Facial Hair Colour"
+                    options={HAIR_COLORS}
+                    value={draft.facialHairColor}
+                    onPick={(v) => patch({ facialHairColor: v })}
+                    size="sm"
+                  />
+                )}
+              </div>
+            </>
+          )}
 
-        {swatchGroups.map((g) => (
-          <SwatchRow
-            key={g.key}
-            label={g.label}
-            options={g.options}
-            value={draft[g.key]}
-            onPick={(v) => patch({ [g.key]: v } as Partial<AvatarConfig>)}
-          />
-        ))}
+          {tab === 'face' && (
+            <>
+              <SwatchRow
+                label="Skin Tone"
+                options={SKIN_TONES}
+                value={draft.skinTone}
+                onPick={(v) => patch({ skinTone: v })}
+              />
+              <div className="pt-4 border-t border-neutral-800">
+                <ChoiceRow
+                  label="Facial Expression"
+                  options={EXPRESSIONS}
+                  value={draft.expression}
+                  onPick={(v) => patch({ expression: v as AvatarConfig['expression'] })}
+                  cols="grid-cols-1 sm:grid-cols-3"
+                />
+              </div>
+              <div className="pt-4 border-t border-neutral-800 space-y-6">
+                <ChoiceRow
+                  label="Eye Shape"
+                  options={EYE_SHAPES}
+                  value={draft.eyeShape}
+                  onPick={(v) => patch({ eyeShape: v as AvatarConfig['eyeShape'] })}
+                  cols="grid-cols-3"
+                />
+                <SwatchRow
+                  label="Eye Colour"
+                  options={HAIR_COLORS}
+                  value={draft.eyeColor}
+                  onPick={(v) => patch({ eyeColor: v })}
+                  size="sm"
+                />
+              </div>
+            </>
+          )}
+
+          {tab === 'apparel' && (
+            <>
+              <ChoiceRow
+                label="Apparel Style"
+                options={CLOTHING_STYLES}
+                value={draft.clothingStyle}
+                onPick={(v) => patch({ clothingStyle: v as AvatarConfig['clothingStyle'] })}
+                cols="grid-cols-2"
+              />
+              <div className="pt-4 border-t border-neutral-800">
+                <SwatchRow
+                  label="Apparel Colour Palette"
+                  options={CLOTHING_COLORS}
+                  value={draft.clothingColor}
+                  onPick={(v) => patch({ clothingColor: v })}
+                />
+              </div>
+            </>
+          )}
+
+          {tab === 'gear' && (
+            <ChoiceRow
+              label="Headwear & Glasses"
+              options={ACCESSORIES}
+              value={draft.accessory}
+              onPick={(v) => patch({ accessory: v as AvatarConfig['accessory'] })}
+            />
+          )}
+
+          {tab === 'bikes' && (
+            <>
+              <ChoiceRow
+                label="Select Your Bike / Ride"
+                options={PROP_BIKES}
+                value={draft.propBike}
+                onPick={(v) => patch({ propBike: v as AvatarConfig['propBike'] })}
+                cols="grid-cols-2 sm:grid-cols-4"
+              />
+              <div className="pt-4 border-t border-neutral-800">
+                <SwatchRow
+                  label="Frame Colour"
+                  options={BIKE_COLORS}
+                  value={draft.bikeColor}
+                  onPick={(v) => patch({ bikeColor: v })}
+                />
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

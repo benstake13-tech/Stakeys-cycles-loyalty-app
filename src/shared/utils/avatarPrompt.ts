@@ -6,76 +6,53 @@
  * the prompt can be unit-tested without touching the network.
  */
 
-import {
-  type AvatarConfig,
-  backgroundHex,
-  hairHex,
-  skinHex,
-  topHex,
-} from '../types/avatar';
-
-const SKIN_DESCRIPTORS: Record<AvatarConfig['skinTone'], string> = {
-  porcelain: 'very fair porcelain skin with a cool pink undertone',
-  fair: 'fair skin with a soft warm undertone',
-  light: 'light skin with a warm golden undertone',
-  tan: 'light-tan sun-kissed skin',
-  olive: 'warm olive skin with golden undertones',
-  bronze: 'bronze skin with rich warm undertones',
-  brown: 'deep brown skin with warm undertones',
-  deep: 'rich deep-brown skin with cool undertones',
-};
+import { type AvatarConfig, bikeHex, clothingHex, hairHex, skinHex } from '../types/avatar';
 
 const HAIR_DESCRIPTORS: Record<AvatarConfig['hairStyle'], string> = {
-  bald: 'clean-shaven bald head with a natural scalp sheen',
-  buzz: 'close-cropped buzz cut',
-  short: 'neatly styled short hair',
-  fade: 'crisp faded sides with slightly longer textured top',
-  curly: 'springy defined curls',
-  afro: 'full rounded afro with natural coily texture',
-  bun: 'hair pulled up into a tidy top bun',
-  ponytail: 'hair swept into a smooth ponytail',
-  long: 'long flowing hair falling past the shoulders',
-  bob: 'chin-length blunt bob',
-  mohawk: 'short shaved sides with a raised sculpted mohawk crest',
+  messyShort: 'modern textured, swept messy-short hair',
+  fadeCut: 'a clean taper fade with slightly longer textured top',
+  quiff: 'a voluminous combed-back quiff',
+  buzz: 'a close-cropped buzz cut',
 };
 
 const FACIAL_HAIR_DESCRIPTORS: Record<AvatarConfig['facialHair'], string> = {
-  none: 'clean-shaven face',
-  stubble: 'light even stubble',
-  moustache: 'neatly trimmed moustache',
-  goatee: 'defined goatee',
-  full_beard: 'full well-groomed beard',
+  none: 'a clean-shaven face',
+  trimmedBeard: 'a neatly trimmed scruff beard and moustache',
+  fullBeard: 'a full well-groomed beard',
+  mustache: 'a classic trimmed moustache',
 };
 
-const GLASSES_DESCRIPTORS: Record<AvatarConfig['glasses'], string> = {
+const EYE_SHAPE_DESCRIPTORS: Record<AvatarConfig['eyeShape'], string> = {
+  friendly: 'bright friendly eyes',
+  expressive: 'wide expressive eyes',
+  relaxed: 'relaxed half-lidded eyes',
+};
+
+const EXPRESSION_DESCRIPTORS: Record<AvatarConfig['expression'], string> = {
+  customerSmile: 'a warm welcoming customer smile with visible teeth',
+  broadSmile: 'a broad cheerful smile',
+  coolMirk: 'a confident, cool smirk',
+};
+
+const CLOTHING_DESCRIPTORS: Record<AvatarConfig['clothingStyle'], string> = {
+  nikeHoodie: 'a streetwear hoodie',
+  stakeysJersey: 'a pro-team cycling jersey with "STAKEYS CYCLES" across the chest',
+  tshirt: 'a casual crew-neck mechanic tee',
+  jacket: 'an all-weather riding jacket',
+};
+
+const ACCESSORY_DESCRIPTORS: Record<AvatarConfig['accessory'], string> = {
   none: '',
-  round: 'wearing round thin-frame glasses',
-  square: 'wearing square acetate glasses',
-  sport: 'wearing sporty wrap-around cycling glasses',
-  sunglasses: 'wearing stylish sunglasses',
+  cyclingGlasses: 'wearing sleek wraparound cycling sunglasses',
+  helmet: 'wearing a modern aero cycling helmet',
+  beanie: 'wearing a snug knitted Stakeys beanie',
 };
 
-const HEADWEAR_DESCRIPTORS: Record<AvatarConfig['headwear'], string> = {
+const PROP_DESCRIPTORS: Record<AvatarConfig['propBike'], string> = {
   none: '',
-  cap: 'wearing a casual cap',
-  helmet: 'wearing a sleek modern cycling helmet',
-  beanie: 'wearing a snug knitted beanie',
-  visor: 'wearing a sporty sun visor',
-};
-
-const EYES_DESCRIPTORS: Record<AvatarConfig['eyes'], string> = {
-  happy: 'bright friendly eyes with a warm crinkled smile',
-  wide: 'wide expressive eyes',
-  sleepy: 'relaxed half-lidded eyes',
-  wink: 'one eye playfully winking',
-};
-
-const MOUTH_DESCRIPTORS: Record<AvatarConfig['mouth'], string> = {
-  smile: 'a gentle confident smile',
-  grin: 'a broad cheerful grin',
-  neutral: 'a calm neutral expression',
-  smirk: 'a subtle knowing smirk',
-  open: 'a happy open-mouthed laugh',
+  roadBike: 'with a lightweight aero road bike',
+  mountainBike: 'with a rugged mountain bike',
+  eScooter: 'with an urban e-scooter',
 };
 
 export interface AvatarPromptInput {
@@ -106,9 +83,8 @@ export const AVATAR_FRAMING_CLAUSE =
 export function buildAvatarPrompt({ config, brief }: AvatarPromptInput): string {
   const skin = skinHex(config.skinTone);
   const hair = hairHex(config.hairColor);
-  const top = topHex(config.topColor);
-  const headwear = topHex(config.headwearColor);
-  const bg = backgroundHex(config.background);
+  const clothing = clothingHex(config.clothingColor);
+  const bike = bikeHex(config.bikeColor);
 
   const lines: string[] = [];
   lines.push(AVATAR_STYLE_PREAMBLE);
@@ -118,27 +94,27 @@ export function buildAvatarPrompt({ config, brief }: AvatarPromptInput): string 
   }
 
   const parts: string[] = [];
-  parts.push(SKIN_DESCRIPTORS[config.skinTone]);
+  parts.push(`skin tone ${skin}`);
   parts.push(HAIR_DESCRIPTORS[config.hairStyle]);
   parts.push(FACIAL_HAIR_DESCRIPTORS[config.facialHair]);
-  parts.push(`${EYES_DESCRIPTORS[config.eyes]} and ${MOUTH_DESCRIPTORS[config.mouth]}`);
-  const glasses = GLASSES_DESCRIPTORS[config.glasses];
-  if (glasses) parts.push(glasses);
-  const headwearDesc = HEADWEAR_DESCRIPTORS[config.headwear];
-  if (headwearDesc) parts.push(headwearDesc);
+  parts.push(
+    `${EYE_SHAPE_DESCRIPTORS[config.eyeShape]} and ${EXPRESSION_DESCRIPTORS[config.expression]}`
+  );
+  const accessory = ACCESSORY_DESCRIPTORS[config.accessory];
+  if (accessory) parts.push(accessory);
   lines.push(`Character: ${parts.join(', ')}.`);
 
-  const outfit = config.jerseyNumber
-    ? `Smart-casual cycling jersey in ${top} with the number "${config.jerseyNumber}" printed on the chest`
-    : `Smart-casual top in ${top}`;
-  lines.push(`Outfit & vibe: ${outfit}, modern and approachable.`);
-
   lines.push(
-    `Palette: skin ${skin}, hair ${hair}, top ${top}${
-      headwearDesc ? `, headwear ${headwear}` : ''
-    }.`
+    `Outfit & vibe: ${CLOTHING_DESCRIPTORS[config.clothingStyle]} in ${clothing}, modern and approachable.`
   );
-  lines.push(`Background: clean minimalist gradient background centred on ${bg}, soft and uncluttered.`);
+
+  const prop = PROP_DESCRIPTORS[config.propBike];
+  if (prop) {
+    lines.push(`Props: ${prop} in ${bike}, kept in the background so the face stays the focus.`);
+  }
+
+  lines.push(`Palette: skin ${skin}, hair ${hair}, outfit ${clothing}${prop ? `, ride ${bike}` : ''}.`);
+  lines.push('Background: clean minimalist gradient backdrop, soft emerald ambient glow, uncluttered.');
   lines.push(AVATAR_FRAMING_CLAUSE);
 
   return lines.join('\n');
@@ -148,9 +124,9 @@ export function buildAvatarPrompt({ config, brief }: AvatarPromptInput): string 
 export function describeAvatarConfig(config: AvatarConfig): string {
   const bits = [
     config.hairStyle,
-    `${config.skinTone} skin`,
-    config.headwear !== 'none' ? config.headwear : '',
-    config.glasses !== 'none' ? config.glasses : '',
+    config.clothingStyle,
+    config.accessory !== 'none' ? config.accessory : '',
+    config.propBike !== 'none' ? config.propBike : '',
   ].filter(Boolean);
   return bits.join(', ');
 }

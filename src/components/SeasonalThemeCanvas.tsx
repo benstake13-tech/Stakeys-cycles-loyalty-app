@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { type AvatarConfig, skinHex, hairHex, topHex } from '../shared/types/avatar';
+import { type AvatarConfig, skinHex, hairHex, clothingHex } from '../shared/types/avatar';
 
 /**
  * Seasonal 3D atmosphere layer.
@@ -810,7 +810,10 @@ export interface RiderLook {
     | 'ponytail'
     | 'long'
     | 'bob'
-    | 'mohawk';
+    | 'mohawk'
+    | 'messyShort'
+    | 'fadeCut'
+    | 'quiff';
   /** Which item rides on the head: a bike helmet, beanie, cap or nothing. */
   headwear: 'helmet' | 'beanie' | 'cap' | 'none';
 }
@@ -862,24 +865,18 @@ export function riderLook(
  */
 export function avatarToLook(config: AvatarConfig): RiderLook {
   const headwear: RiderLook['headwear'] =
-    config.headwear === 'helmet'
-      ? 'helmet'
-      : config.headwear === 'beanie'
-        ? 'beanie'
-        : config.headwear === 'cap' || config.headwear === 'visor'
-          ? 'cap'
-          : 'none';
+    config.accessory === 'helmet' ? 'helmet' : config.accessory === 'beanie' ? 'beanie' : 'none';
   // Fold the face choices into the seed so two configs with the same hair and
-  // colours still diverge when glasses or facial hair differ.
+  // colours still diverge when expression or eyes differ.
   let seed = 2166136261;
-  const s = `${config.glasses}|${config.facialHair}|${config.eyes}|${config.mouth}`;
+  const s = `${config.eyeShape}|${config.expression}|${config.facialHair}|${config.eyeColor}`;
   for (let i = 0; i < s.length; i++) {
     seed ^= s.charCodeAt(i);
     seed = Math.imul(seed, 16777619);
   }
   return riderLook(seed >>> 0, {
     skin: skinHex(config.skinTone),
-    jersey: topHex(config.topColor),
+    jersey: clothingHex(config.clothingColor),
     hair: hairHex(config.hairColor),
     hairStyle: config.hairStyle,
     headwear,
@@ -985,15 +982,18 @@ export function buildBitmojiRider(look: RiderLook, t: number): Geo {
       ] as const) {
         merge(g, sphere(1.0, hair, 1, 8, 5), { pos: v3(1.0 + ox, capBase + 1.4, oz) });
       }
-    } else if (hairStyle === 'fade') {
+    } else if (hairStyle === 'fade' || hairStyle === 'fadeCut') {
       dome(2.7, 0.95);
       merge(g, box(1.2, 1.6, 4.0, darken(hair, 0.15)), { pos: v3(-1.3, capBase - 0.6, 0) });
     } else if (hairStyle === 'buzz') {
       merge(g, sphereCap(2.72, hair, { phiEnd: Math.PI / 2.15, squash: 0.9, seg: 12, rings: 3 }), {
         pos: v3(1.0, capBase, 0),
       });
+    } else if (hairStyle === 'quiff') {
+      dome(2.9, 1);
+      merge(g, box(3.0, 1.8, 4.2, hair), { pos: v3(0.2, capBase + 1.2, 0), rotZ: 0.22 });
     } else {
-      // short / default
+      // short / messyShort / default
       dome(2.85, 0.98);
     }
   }

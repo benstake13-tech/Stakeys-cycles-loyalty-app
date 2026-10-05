@@ -593,7 +593,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               <div>
                 <h3 className="font-display text-lg font-bold text-white">Build your rider character</h3>
                 <p className="text-xs text-neutral-400 mt-0.5">
-                  Pick a face, hair, helmet and jersey — your avatar shows on your profile and loyalty pass.
+                  Pick a face, hair, gear and ride — your avatar shows on your profile and loyalty pass. Export it any time as a PNG.
                 </p>
               </div>
             </div>

@@ -2,15 +2,12 @@ import React from 'react';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { AvatarStudio } from './src/components/AvatarStudio';
-import { AvatarModel, buildStandingBitmoji, fitCamera } from './src/components/AvatarModel';
+import { AvatarModel } from './src/components/AvatarModel';
+import { AvatarSVG } from './src/components/AvatarSVG';
 import {
   buildBitmojiRider,
   avatarToLook,
-  emptyGeo,
-  merge,
-  project,
   riderLook,
-  v3,
 } from './src/components/SeasonalThemeCanvas';
 import {
   DEFAULT_AVATAR,
@@ -20,7 +17,7 @@ import {
   randomAvatar,
   skinHex,
   hairHex,
-  topHex,
+  clothingHex,
   SKIN_TONES,
   HAIR_STYLES,
   HAIR_COLORS,
@@ -30,10 +27,10 @@ import { AvatarLikenessStudio } from './src/components/AvatarLikenessStudio';
 
 describe('avatar model', () => {
   it('normalizes a corrupt blob back to a valid config', () => {
-    const a = normalizeAvatar({ skinTone: 'nonsense', hairStyle: 42, eyes: null });
+    const a = normalizeAvatar({ skinTone: 42, hairStyle: 'nonsense', expression: null });
     expect(a.skinTone).toBe(DEFAULT_AVATAR.skinTone);
     expect(a.hairStyle).toBe(DEFAULT_AVATAR.hairStyle);
-    expect(a.eyes).toBe(DEFAULT_AVATAR.eyes);
+    expect(a.expression).toBe(DEFAULT_AVATAR.expression);
   });
 
   it('returns the default when given nothing', () => {
@@ -42,30 +39,26 @@ describe('avatar model', () => {
   });
 
   it('keeps valid choices and free-form colours', () => {
-    const a = normalizeAvatar({ skinTone: 'deep', hairColor: '#123456', jerseyNumber: '9' });
-    expect(a.skinTone).toBe('deep');
+    const a = normalizeAvatar({ skinTone: '#101010', hairColor: '#123456', clothingStyle: 'jacket' });
+    expect(a.skinTone).toBe('#101010');
     expect(a.hairColor).toBe('#123456');
-    expect(a.jerseyNumber).toBe('9');
-  });
-
-  it('clamps the jersey number to three characters', () => {
-    expect(normalizeAvatar({ jerseyNumber: '12345' }).jerseyNumber).toBe('123');
+    expect(a.clothingStyle).toBe('jacket');
   });
 
   it('generates valid random avatars', () => {
     for (let i = 0; i < 25; i++) {
       const a = randomAvatar();
-      expect(SKIN_TONES.some((s) => s.id === a.skinTone)).toBe(true);
+      expect(SKIN_TONES.some((s) => s.hex === a.skinTone)).toBe(true);
       expect(HAIR_STYLES.some((h) => h.id === a.hairStyle)).toBe(true);
-      expect(HAIR_COLORS.some((c) => c.id === a.hairColor)).toBe(true);
+      expect(HAIR_COLORS.some((c) => c.hex === a.hairColor)).toBe(true);
       expect(normalizeAvatar(a)).toEqual(a);
     }
   });
 
-  it('resolves named colours to hex and passes raw hex through', () => {
-    expect(skinHex('deep')).toMatch(/^#/);
-    expect(hairHex('ginger')).toMatch(/^#/);
-    expect(topHex('#ABCDEF')).toBe('#ABCDEF');
+  it('resolves named catalogue ids to hex and passes raw hex through', () => {
+    expect(skinHex(SKIN_TONES[3].id)).toBe(SKIN_TONES[3].hex);
+    expect(hairHex(HAIR_COLORS[1].id)).toBe(HAIR_COLORS[1].hex);
+    expect(clothingHex('#ABCDEF')).toBe('#ABCDEF');
   });
 });
 
@@ -81,21 +74,55 @@ describe('AvatarStudio', () => {
   it('reflects a picked hair style in the saved config', () => {
     const onSave = vi.fn();
     render(<AvatarStudio value={DEFAULT_AVATAR} onSave={onSave} />);
-    fireEvent.click(screen.getByText('Mohawk'));
+    fireEvent.click(screen.getByText('Taper Fade'));
     fireEvent.click(screen.getByText('Save avatar'));
-    expect(onSave.mock.calls[0][0].hairStyle).toBe('mohawk');
+    expect(onSave.mock.calls[0][0].hairStyle).toBe('fadeCut');
+  });
+
+  it('switches tabs and reflects an apparel choice', () => {
+    const onSave = vi.fn();
+    render(<AvatarStudio value={DEFAULT_AVATAR} onSave={onSave} />);
+    fireEvent.click(screen.getByText('Apparel'));
+    fireEvent.click(screen.getByText('All-Weather Riding Jacket'));
+    fireEvent.click(screen.getByText('Save avatar'));
+    expect(onSave.mock.calls[0][0].clothingStyle).toBe('jacket');
   });
 
   it('resets back to the default config', () => {
     const onSave = vi.fn();
-    render(<AvatarStudio value={{ ...DEFAULT_AVATAR, hairStyle: 'afro' }} onSave={onSave} />);
+    render(<AvatarStudio value={{ ...DEFAULT_AVATAR, hairStyle: 'quiff' }} onSave={onSave} />);
     fireEvent.click(screen.getByText('Reset'));
     fireEvent.click(screen.getByText('Save avatar'));
     expect(onSave.mock.calls[0][0].hairStyle).toBe(DEFAULT_AVATAR.hairStyle);
   });
 });
 
-describe('bitmoji 3D models', () => {
+describe('Stakeys SVG avatar', () => {
+  it('renders an SVG honouring the chosen colours', () => {
+    const { container } = render(
+      <AvatarSVG config={{ ...DEFAULT_AVATAR, hairColor: '#10B981', propBike: 'none' }} />
+    );
+    const svg = container.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg!.getAttribute('viewBox')).toBe('0 0 500 600');
+    expect(container.innerHTML).toContain('#10B981');
+  });
+
+  it('renders each bike prop', () => {
+    for (const propBike of ['roadBike', 'mountainBike', 'eScooter'] as const) {
+      const { container } = render(<AvatarSVG config={{ ...DEFAULT_AVATAR, propBike }} />);
+      expect(container.querySelector('svg')).not.toBeNull();
+    }
+  });
+
+  it('renders the avatar model wrapper around the SVG', () => {
+    render(<AvatarModel config={{ ...DEFAULT_AVATAR, skinTone: SKIN_TONES[5].hex }} size={80} />);
+    const el = screen.getByTestId('avatar-model');
+    expect(el.querySelector('svg')).not.toBeNull();
+  });
+});
+
+describe('bitmoji 3D riders (themes)', () => {
   it('builds a rounded rider with geometry and a head above the bike', () => {
     const look = riderLook(1234);
     const g = buildBitmojiRider(look, 1.2);
@@ -118,41 +145,14 @@ describe('bitmoji 3D models', () => {
     expect(look.jersey).toBe('#ABCDEF');
   });
 
-  it('builds a standing character with a raised waving arm', () => {
-    const g = buildStandingBitmoji(riderLook(9), 0);
-    expect(g.verts.length).toBeGreaterThan(100);
-    const maxY = Math.max(...g.verts.map((v) => v.y));
-    expect(maxY).toBeGreaterThan(20); // hand raised well above the head
-  });
-
-  it('renders the avatar model to a canvas', () => {
-    render(<AvatarModel config={{ ...DEFAULT_AVATAR, skinTone: 'deep' }} size={80} />);
-    const canvas = screen.getByTestId('avatar-model');
-    expect(canvas.tagName.toLowerCase()).toBe('canvas');
-    expect((canvas as HTMLCanvasElement).width).toBe(80);
-  });
-
   it('maps a saved avatar config onto a rider look for the themes', () => {
-    const look = avatarToLook({ ...DEFAULT_AVATAR, skinTone: 'deep', topColor: 'red' });
-    expect(look.skin).toBe(skinHex('deep'));
-    expect(look.jersey).toBe(topHex('red'));
-  });
-
-  it('frames the whole standing figure inside the portrait canvas', () => {
-    const body = buildStandingBitmoji(riderLook(5), 0);
-    const rotated = emptyGeo();
-    merge(rotated, body, { pos: v3(0, 0, 0), rotY: Math.PI / 2 });
-    const w = 96;
-    const h = 110;
-    const cam = fitCamera(rotated, w, h);
-    for (const v of rotated.verts) {
-      const p = project(v, w, h, cam);
-      expect(p).not.toBeNull();
-      expect(p!.x).toBeGreaterThanOrEqual(-1);
-      expect(p!.x).toBeLessThanOrEqual(w + 1);
-      expect(p!.y).toBeGreaterThanOrEqual(-1);
-      expect(p!.y).toBeLessThanOrEqual(h + 1);
-    }
+    const look = avatarToLook({
+      ...DEFAULT_AVATAR,
+      skinTone: SKIN_TONES[4].hex,
+      clothingColor: '#DC2626',
+    });
+    expect(look.skin).toBe(SKIN_TONES[4].hex);
+    expect(look.jersey).toBe('#DC2626');
   });
 });
 
@@ -185,13 +185,18 @@ describe('avatar prompt', () => {
     expect(prompt).toContain('Centered bust-up portrait');
   });
 
-  it('reflects the chosen hair, skin and top colours', () => {
+  it('reflects the chosen hair, skin and clothing colours', () => {
     const prompt = buildAvatarPrompt({
-      config: { ...DEFAULT_AVATAR, hairStyle: 'afro', skinTone: 'deep', topColor: 'navy' },
+      config: {
+        ...DEFAULT_AVATAR,
+        hairStyle: 'quiff',
+        skinTone: SKIN_TONES[5].hex,
+        clothingColor: '#2563EB',
+      },
     });
-    expect(prompt).toContain('afro');
-    expect(prompt).toContain('deep-brown');
-    expect(prompt).toContain('#1E3A8A');
+    expect(prompt).toContain('quiff');
+    expect(prompt).toContain(SKIN_TONES[5].hex);
+    expect(prompt).toContain('#2563EB');
   });
 
   it('includes the customer brief when provided and omits it otherwise', () => {
@@ -201,11 +206,11 @@ describe('avatar prompt', () => {
     expect(without).not.toContain('Customer brief');
   });
 
-  it('mentions the jersey number only when set', () => {
-    const withNumber = buildAvatarPrompt({ config: { ...DEFAULT_AVATAR, jerseyNumber: '07' } });
-    expect(withNumber).toContain('"07"');
-    const without = buildAvatarPrompt({ config: { ...DEFAULT_AVATAR, jerseyNumber: '' } });
-    expect(without).not.toContain('printed on the chest');
+  it('mentions the bike prop only when one is selected', () => {
+    const withBike = buildAvatarPrompt({ config: { ...DEFAULT_AVATAR, propBike: 'roadBike' } });
+    expect(withBike).toContain('road bike');
+    const without = buildAvatarPrompt({ config: { ...DEFAULT_AVATAR, propBike: 'none' } });
+    expect(without).not.toContain('Props:');
   });
 });
 

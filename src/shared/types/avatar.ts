@@ -1,62 +1,43 @@
 /**
- * Bitmoji-style rider avatar.
+ * Stakeys rider avatar.
  *
- * Pure data — the SVG renderer (components/Avatar.tsx) draws from an
+ * Pure data — the SVG renderer (components/AvatarSVG.tsx) draws from an
  * AvatarConfig, so an avatar is just a small JSON blob we can store on the
  * profile and render identically on the customer and staff builds.
  */
 
-export type AvatarSkinTone =
-  | 'porcelain'
-  | 'fair'
-  | 'light'
-  | 'tan'
-  | 'olive'
-  | 'bronze'
-  | 'brown'
-  | 'deep';
+export type AvatarHairStyle = 'messyShort' | 'fadeCut' | 'quiff' | 'buzz';
 
-export type AvatarHairStyle =
-  | 'bald'
-  | 'buzz'
-  | 'short'
-  | 'fade'
-  | 'curly'
-  | 'afro'
-  | 'bun'
-  | 'ponytail'
-  | 'long'
-  | 'bob'
-  | 'mohawk';
+export type AvatarFacialHair = 'none' | 'trimmedBeard' | 'fullBeard' | 'mustache';
 
-export type AvatarFacialHair = 'none' | 'stubble' | 'moustache' | 'goatee' | 'full_beard';
+export type AvatarEyeShape = 'friendly' | 'expressive' | 'relaxed';
 
-export type AvatarGlasses = 'none' | 'round' | 'square' | 'sport' | 'sunglasses';
+export type AvatarExpression = 'customerSmile' | 'broadSmile' | 'coolMirk';
 
-export type AvatarHeadwear = 'none' | 'cap' | 'helmet' | 'beanie' | 'visor';
+export type AvatarClothingStyle = 'nikeHoodie' | 'stakeysJersey' | 'tshirt' | 'jacket';
 
-export type AvatarMouth = 'smile' | 'grin' | 'neutral' | 'smirk' | 'open';
+export type AvatarAccessory = 'none' | 'cyclingGlasses' | 'helmet' | 'beanie';
 
-export type AvatarEyes = 'happy' | 'wide' | 'sleepy' | 'wink';
+export type AvatarPropBike = 'none' | 'roadBike' | 'mountainBike' | 'eScooter';
 
 export interface AvatarConfig {
   /** Schema version, so a future change can migrate old avatars. */
   v: 1;
-  skinTone: AvatarSkinTone;
+  /** Skin tone as a hex colour. */
+  skinTone: string;
   hairStyle: AvatarHairStyle;
   hairColor: string;
   facialHair: AvatarFacialHair;
-  glasses: AvatarGlasses;
-  headwear: AvatarHeadwear;
-  headwearColor: string;
-  eyes: AvatarEyes;
-  mouth: AvatarMouth;
-  /** Jersey / top colour. */
-  topColor: string;
-  /** Optional race number printed on the jersey. */
-  jerseyNumber: string;
-  /** Simple backdrop colour behind the bust. */
-  background: string;
+  facialHairColor: string;
+  eyeShape: AvatarEyeShape;
+  eyeColor: string;
+  expression: AvatarExpression;
+  clothingStyle: AvatarClothingStyle;
+  clothingColor: string;
+  accessory: AvatarAccessory;
+  /** The bike the rider is shown with (or none). */
+  propBike: AvatarPropBike;
+  bikeColor: string;
 }
 
 /**
@@ -89,181 +70,177 @@ export function normalizeAvatarImage(raw: unknown): AvatarImage | undefined {
   };
 }
 
-export interface AvatarChoice<T extends string> {
+export interface SwatchOption {
+  id: string;
+  label: string;
+  hex: string;
+}
+
+export interface ChoiceOption<T extends string> {
   id: T;
   label: string;
 }
 
-export const SKIN_TONES: { id: AvatarSkinTone; label: string; hex: string }[] = [
-  { id: 'porcelain', label: 'Porcelain', hex: '#F6D9C6' },
-  { id: 'fair', label: 'Fair', hex: '#F0C9A8' },
-  { id: 'light', label: 'Light', hex: '#E4B48D' },
-  { id: 'tan', label: 'Tan', hex: '#D2A074' },
-  { id: 'olive', label: 'Olive', hex: '#B98A5E' },
-  { id: 'bronze', label: 'Bronze', hex: '#9C6B45' },
-  { id: 'brown', label: 'Brown', hex: '#7A4E2E' },
-  { id: 'deep', label: 'Deep', hex: '#5A3720' },
+export const SKIN_TONES: SwatchOption[] = [
+  { id: 'skin1', label: 'Fair Light', hex: '#FDDFD0' },
+  { id: 'skin2', label: 'Warm Peach', hex: '#F3C5A5' },
+  { id: 'skin3', label: 'Olive Golden', hex: '#D09E74' },
+  { id: 'skin4', label: 'Rich Tan', hex: '#A16E4B' },
+  { id: 'skin5', label: 'Warm Brown', hex: '#73462A' },
+  { id: 'skin6', label: 'Deep Espresso', hex: '#3D2314' },
 ];
 
-export const HAIR_STYLES: AvatarChoice<AvatarHairStyle>[] = [
-  { id: 'bald', label: 'Bald' },
-  { id: 'buzz', label: 'Buzz' },
-  { id: 'short', label: 'Short' },
-  { id: 'fade', label: 'Fade' },
-  { id: 'curly', label: 'Curly' },
-  { id: 'afro', label: 'Afro' },
-  { id: 'bun', label: 'Bun' },
-  { id: 'ponytail', label: 'Ponytail' },
-  { id: 'long', label: 'Long' },
-  { id: 'bob', label: 'Bob' },
-  { id: 'mohawk', label: 'Mohawk' },
+export const HAIR_STYLES: ChoiceOption<AvatarHairStyle>[] = [
+  { id: 'messyShort', label: 'Messy Short' },
+  { id: 'fadeCut', label: 'Taper Fade' },
+  { id: 'quiff', label: 'Voluminous Quiff' },
+  { id: 'buzz', label: 'Buzz Cut' },
 ];
 
-export const HAIR_COLORS: { id: string; label: string; hex: string }[] = [
-  { id: 'black', label: 'Black', hex: '#1C1C1E' },
-  { id: 'dark_brown', label: 'Dark brown', hex: '#3B2A20' },
-  { id: 'brown', label: 'Brown', hex: '#6B4A2E' },
-  { id: 'auburn', label: 'Auburn', hex: '#8A4B2A' },
-  { id: 'blonde', label: 'Blonde', hex: '#D8B25E' },
-  { id: 'ginger', label: 'Ginger', hex: '#C4562B' },
-  { id: 'grey', label: 'Grey', hex: '#9AA0A6' },
-  { id: 'blue', label: 'Blue', hex: '#3B6FD4' },
-  { id: 'pink', label: 'Pink', hex: '#E45BA6' },
-  { id: 'purple', label: 'Purple', hex: '#8B5CF6' },
+export const HAIR_COLORS: SwatchOption[] = [
+  { id: 'hc1', label: 'Espresso Black', hex: '#2C1B18' },
+  { id: 'hc2', label: 'Dark Chestnut', hex: '#4A3228' },
+  { id: 'hc3', label: 'Warm Amber', hex: '#82481A' },
+  { id: 'hc4', label: 'Golden Blonde', hex: '#E2A93A' },
+  { id: 'hc5', label: 'Silver Ash', hex: '#8D99AE' },
+  { id: 'hc6', label: 'Stakeys Neon Green', hex: '#10B981' },
 ];
 
-export const FACIAL_HAIR: AvatarChoice<AvatarFacialHair>[] = [
-  { id: 'none', label: 'Clean' },
-  { id: 'stubble', label: 'Stubble' },
-  { id: 'moustache', label: 'Moustache' },
-  { id: 'goatee', label: 'Goatee' },
-  { id: 'full_beard', label: 'Beard' },
+export const FACIAL_HAIR: ChoiceOption<AvatarFacialHair>[] = [
+  { id: 'trimmedBeard', label: 'Trimmed Scruff' },
+  { id: 'fullBeard', label: 'Full Beard' },
+  { id: 'mustache', label: 'Classic Stache' },
+  { id: 'none', label: 'Clean Shaven' },
 ];
 
-export const GLASSES: AvatarChoice<AvatarGlasses>[] = [
-  { id: 'none', label: 'None' },
-  { id: 'round', label: 'Round' },
-  { id: 'square', label: 'Square' },
-  { id: 'sport', label: 'Sport' },
-  { id: 'sunglasses', label: 'Sunglasses' },
+export const EYE_SHAPES: ChoiceOption<AvatarEyeShape>[] = [
+  { id: 'friendly', label: 'Friendly' },
+  { id: 'expressive', label: 'Expressive' },
+  { id: 'relaxed', label: 'Relaxed' },
 ];
 
-export const HEADWEAR: AvatarChoice<AvatarHeadwear>[] = [
-  { id: 'none', label: 'None' },
-  { id: 'cap', label: 'Cap' },
-  { id: 'helmet', label: 'Helmet' },
-  { id: 'beanie', label: 'Beanie' },
-  { id: 'visor', label: 'Visor' },
+export const EXPRESSIONS: ChoiceOption<AvatarExpression>[] = [
+  { id: 'customerSmile', label: 'Friendly Customer Smile' },
+  { id: 'broadSmile', label: 'Classic Smile' },
+  { id: 'coolMirk', label: 'Confident Smirk' },
 ];
 
-export const EYES: AvatarChoice<AvatarEyes>[] = [
-  { id: 'happy', label: 'Happy' },
-  { id: 'wide', label: 'Wide' },
-  { id: 'sleepy', label: 'Sleepy' },
-  { id: 'wink', label: 'Wink' },
+export const CLOTHING_STYLES: ChoiceOption<AvatarClothingStyle>[] = [
+  { id: 'nikeHoodie', label: 'Nike Swoosh Hoodie' },
+  { id: 'stakeysJersey', label: 'Stakeys Official Jersey' },
+  { id: 'tshirt', label: 'Casual Mechanic Tee' },
+  { id: 'jacket', label: 'All-Weather Riding Jacket' },
 ];
 
-export const MOUTHS: AvatarChoice<AvatarMouth>[] = [
-  { id: 'smile', label: 'Smile' },
-  { id: 'grin', label: 'Grin' },
-  { id: 'neutral', label: 'Neutral' },
-  { id: 'smirk', label: 'Smirk' },
-  { id: 'open', label: 'Open' },
+export const CLOTHING_COLORS: SwatchOption[] = [
+  { id: 'cc1', label: 'Stakeys Stealth Black', hex: '#18181B' },
+  { id: 'cc2', label: 'Stakeys Racing Green', hex: '#059669' },
+  { id: 'cc3', label: 'Neon Lime', hex: '#10B981' },
+  { id: 'cc4', label: 'Slate Gray', hex: '#475569' },
+  { id: 'cc5', label: 'Crisp White', hex: '#F8FAFC' },
+  { id: 'cc6', label: 'Racing Blue', hex: '#2563EB' },
 ];
 
-export const TOP_COLORS: { id: string; label: string; hex: string }[] = [
-  { id: 'emerald', label: 'Emerald', hex: '#05C147' },
-  { id: 'forest', label: 'Forest', hex: '#166534' },
-  { id: 'navy', label: 'Navy', hex: '#1E3A8A' },
-  { id: 'sky', label: 'Sky', hex: '#38BDF8' },
-  { id: 'red', label: 'Red', hex: '#DC2626' },
-  { id: 'amber', label: 'Amber', hex: '#F59E0B' },
-  { id: 'purple', label: 'Purple', hex: '#7C3AED' },
-  { id: 'charcoal', label: 'Charcoal', hex: '#334155' },
+export const ACCESSORIES: ChoiceOption<AvatarAccessory>[] = [
+  { id: 'none', label: 'No Accessory' },
+  { id: 'cyclingGlasses', label: 'Cycling Sunglasses' },
+  { id: 'helmet', label: 'Aero Helmet' },
+  { id: 'beanie', label: 'Stakeys Beanie' },
 ];
 
-export const BACKGROUNDS: { id: string; label: string; hex: string }[] = [
-  { id: 'mint', label: 'Mint', hex: '#D1FAE5' },
-  { id: 'sky', label: 'Sky', hex: '#DBEAFE' },
-  { id: 'sunset', label: 'Sunset', hex: '#FFE4C7' },
-  { id: 'lilac', label: 'Lilac', hex: '#EDE9FE' },
-  { id: 'slate', label: 'Slate', hex: '#E2E8F0' },
+export const PROP_BIKES: ChoiceOption<AvatarPropBike>[] = [
+  { id: 'none', label: 'No Ride' },
+  { id: 'roadBike', label: 'Stakeys Road Bike' },
+  { id: 'mountainBike', label: 'Stakeys MTB' },
+  { id: 'eScooter', label: 'Stakeys E-Scooter' },
 ];
 
-const SKIN_BY_ID = new Map(SKIN_TONES.map((s) => [s.id, s.hex]));
-const HAIR_HEX_BY_ID = new Map(HAIR_COLORS.map((c) => [c.id, c.hex]));
-const TOP_HEX_BY_ID = new Map(TOP_COLORS.map((c) => [c.id, c.hex]));
-const BG_HEX_BY_ID = new Map(BACKGROUNDS.map((c) => [c.id, c.hex]));
-
-export const skinHex = (id: AvatarSkinTone): string => SKIN_BY_ID.get(id) || SKIN_TONES[2].hex;
-export const hairHex = (id: string): string => HAIR_HEX_BY_ID.get(id) || id || HAIR_COLORS[2].hex;
-export const topHex = (id: string): string => TOP_HEX_BY_ID.get(id) || id || TOP_COLORS[0].hex;
-export const backgroundHex = (id: string): string => BG_HEX_BY_ID.get(id) || id || BACKGROUNDS[0].hex;
+export const BIKE_COLORS: SwatchOption[] = [
+  { id: 'bc1', label: 'Stakeys Emerald Green', hex: '#059669' },
+  { id: 'bc2', label: 'Matte Stealth Black', hex: '#27272A' },
+  { id: 'bc3', label: 'Neon Electric Green', hex: '#10B981' },
+  { id: 'bc4', label: 'Flame Red', hex: '#DC2626' },
+  { id: 'bc5', label: 'Cyber Yellow', hex: '#EAB308' },
+];
 
 export const DEFAULT_AVATAR: AvatarConfig = {
   v: 1,
-  skinTone: 'light',
-  hairStyle: 'short',
-  hairColor: 'dark_brown',
-  facialHair: 'none',
-  glasses: 'none',
-  headwear: 'none',
-  headwearColor: 'emerald',
-  eyes: 'happy',
-  mouth: 'smile',
-  topColor: 'emerald',
-  jerseyNumber: '',
-  background: 'mint',
+  skinTone: '#F3C5A5',
+  hairStyle: 'messyShort',
+  hairColor: '#4A3228',
+  facialHair: 'trimmedBeard',
+  facialHairColor: '#4A3228',
+  eyeShape: 'friendly',
+  eyeColor: '#4A3228',
+  expression: 'customerSmile',
+  clothingStyle: 'nikeHoodie',
+  clothingColor: '#18181B',
+  accessory: 'none',
+  propBike: 'roadBike',
+  bikeColor: '#059669',
 };
+
+/** Resolves a catalogue id to its hex, or passes a raw hex straight through. */
+export function swatchHex(options: SwatchOption[], id: string): string {
+  return options.find((o) => o.id === id)?.hex || id;
+}
+
+export const skinHex = (id: string): string => swatchHex(SKIN_TONES, id);
+export const hairHex = (id: string): string => swatchHex(HAIR_COLORS, id);
+export const clothingHex = (id: string): string => swatchHex(CLOTHING_COLORS, id);
+export const bikeHex = (id: string): string => swatchHex(BIKE_COLORS, id);
 
 const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 /** A random, always-valid avatar — the "Surprise me" button. */
 export function randomAvatar(): AvatarConfig {
+  const hairColor = pick(HAIR_COLORS).hex;
   return {
     v: 1,
-    skinTone: pick(SKIN_TONES).id,
+    skinTone: pick(SKIN_TONES).hex,
     hairStyle: pick(HAIR_STYLES).id,
-    hairColor: pick(HAIR_COLORS).id,
+    hairColor,
     facialHair: pick(FACIAL_HAIR).id,
-    glasses: pick(GLASSES).id,
-    headwear: pick(HEADWEAR).id,
-    headwearColor: pick(TOP_COLORS).id,
-    eyes: pick(EYES).id,
-    mouth: pick(MOUTHS).id,
-    topColor: pick(TOP_COLORS).id,
-    jerseyNumber: String(Math.floor(Math.random() * 99) + 1),
-    background: pick(BACKGROUNDS).id,
+    facialHairColor: hairColor,
+    eyeShape: pick(EYE_SHAPES).id,
+    eyeColor: pick(HAIR_COLORS).hex,
+    expression: pick(EXPRESSIONS).id,
+    clothingStyle: pick(CLOTHING_STYLES).id,
+    clothingColor: pick(CLOTHING_COLORS).hex,
+    accessory: pick(ACCESSORIES).id,
+    propBike: pick(PROP_BIKES).id,
+    bikeColor: pick(BIKE_COLORS).hex,
   };
 }
 
 const oneOf = <T extends string>(value: unknown, allowed: readonly { id: T }[], fallback: T): T =>
   allowed.some((a) => a.id === value) ? (value as T) : fallback;
 
+const str = (value: unknown, fallback: string): string =>
+  typeof value === 'string' && value ? value : fallback;
+
 /**
  * Coerce anything read back from storage into a valid AvatarConfig. A missing
- * or corrupt blob yields the default rather than a half-drawn face.
+ * or corrupt blob yields the default rather than a half-drawn face. Older
+ * avatars stored a different (named-field) schema, so any unknown value falls
+ * back to the default for that field.
  */
 export function normalizeAvatar(raw: unknown): AvatarConfig {
   const o = (raw && typeof raw === 'object' ? raw : {}) as Partial<AvatarConfig>;
   return {
     v: 1,
-    skinTone: oneOf(o.skinTone, SKIN_TONES, DEFAULT_AVATAR.skinTone),
+    skinTone: str(o.skinTone, DEFAULT_AVATAR.skinTone),
     hairStyle: oneOf(o.hairStyle, HAIR_STYLES, DEFAULT_AVATAR.hairStyle),
-    hairColor: typeof o.hairColor === 'string' && o.hairColor ? o.hairColor : DEFAULT_AVATAR.hairColor,
+    hairColor: str(o.hairColor, DEFAULT_AVATAR.hairColor),
     facialHair: oneOf(o.facialHair, FACIAL_HAIR, DEFAULT_AVATAR.facialHair),
-    glasses: oneOf(o.glasses, GLASSES, DEFAULT_AVATAR.glasses),
-    headwear: oneOf(o.headwear, HEADWEAR, DEFAULT_AVATAR.headwear),
-    headwearColor:
-      typeof o.headwearColor === 'string' && o.headwearColor
-        ? o.headwearColor
-        : DEFAULT_AVATAR.headwearColor,
-    eyes: oneOf(o.eyes, EYES, DEFAULT_AVATAR.eyes),
-    mouth: oneOf(o.mouth, MOUTHS, DEFAULT_AVATAR.mouth),
-    topColor: typeof o.topColor === 'string' && o.topColor ? o.topColor : DEFAULT_AVATAR.topColor,
-    jerseyNumber:
-      typeof o.jerseyNumber === 'string' ? o.jerseyNumber.slice(0, 3) : DEFAULT_AVATAR.jerseyNumber,
-    background:
-      typeof o.background === 'string' && o.background ? o.background : DEFAULT_AVATAR.background,
+    facialHairColor: str(o.facialHairColor, DEFAULT_AVATAR.facialHairColor),
+    eyeShape: oneOf(o.eyeShape, EYE_SHAPES, DEFAULT_AVATAR.eyeShape),
+    eyeColor: str(o.eyeColor, DEFAULT_AVATAR.eyeColor),
+    expression: oneOf(o.expression, EXPRESSIONS, DEFAULT_AVATAR.expression),
+    clothingStyle: oneOf(o.clothingStyle, CLOTHING_STYLES, DEFAULT_AVATAR.clothingStyle),
+    clothingColor: str(o.clothingColor, DEFAULT_AVATAR.clothingColor),
+    accessory: oneOf(o.accessory, ACCESSORIES, DEFAULT_AVATAR.accessory),
+    propBike: oneOf(o.propBike, PROP_BIKES, DEFAULT_AVATAR.propBike),
+    bikeColor: str(o.bikeColor, DEFAULT_AVATAR.bikeColor),
   };
 }
