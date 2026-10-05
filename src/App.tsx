@@ -33,7 +33,7 @@ import { SHOP_SOCIAL_LINKS } from './shared/data/socialLinks';
 import { ThemeToggle } from './components/ThemeToggle';
 import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
-import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
+import { SegmentedTab } from './components/SegmentedTabs';
 import { LegalDisclaimersButton } from './components/LegalDisclaimers';
 import { Toaster } from 'react-hot-toast';
 import { initOneSignal, linkUser, relinkUser, unlinkUser } from './shared/utils/pushNotifications';
@@ -252,10 +252,8 @@ function AppContent() {
             </span>
           </button>
 
-          {/* Desktop navigation */}
-          <nav className="hidden md:block">
-            <SegmentedTabs tabs={navTabs} active={activeTab} onChange={goToTab} ariaLabel="Primary navigation" />
-          </nav>
+          {/* Navigation is hamburger-only on every screen size — see the
+              toggle button and sheet below. No desktop tab strip. */}
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
@@ -289,13 +287,14 @@ function AppContent() {
               <span>Sign Out</span>
             </button>
 
-            {/* Mobile menu toggle */}
+            {/* Navigation menu toggle — the only navigation control, shown at
+                every breakpoint (desktop strip and mobile bottom bar removed). */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-expanded={mobileMenuOpen}
-              aria-label="Open menu"
-              className={`md:hidden pressable p-2 rounded-xl border cursor-pointer ${
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              className={`pressable p-2 rounded-xl border cursor-pointer ${
                 isDark ? 'bg-neutral-900 border-neutral-800 text-neutral-300' : 'bg-neutral-100 border-neutral-300 text-neutral-700'
               }`}
             >
@@ -304,10 +303,11 @@ function AppContent() {
           </div>
         </div>
 
-        {/* Mobile navigation sheet */}
+        {/* Navigation sheet — the hamburger dropdown, available at every
+            breakpoint. */}
         {mobileMenuOpen && (
-          <div className={`md:hidden animate-slide-down border-t px-3 py-3 space-y-2 ${isDark ? 'border-neutral-800/70 bg-[#090b0e]' : 'border-neutral-200 bg-white'}`}>
-            <div className="grid grid-cols-2 gap-2">
+          <div className={`animate-slide-down border-t px-3 py-3 space-y-2 ${isDark ? 'border-neutral-800/70 bg-[#090b0e]' : 'border-neutral-200 bg-white'}`}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
               {navTabs.map((tab) => {
                 const Icon = tab.icon!;
                 const isActive = tab.id === activeTab;
@@ -352,7 +352,7 @@ function AppContent() {
       </header>
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 pb-28 md:pb-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
         <div key={activeTab} className="animate-fade-in">
           {activeTab === 'customer' && <CustomerPortal />}
           {activeTab === 'booking' && <BookingPortal />}
@@ -379,41 +379,6 @@ function AppContent() {
           {activeTab === 'deliverables' && isStaff && <DeliverablesViewer />}
         </div>
       </main>
-
-      {/* Mobile bottom navigation */}
-      <nav
-        className={`md:hidden fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-xl ${
-          isDark ? 'bg-[#090b0e]/95 border-neutral-800' : 'bg-white/95 border-neutral-200'
-        }`}
-        aria-label="Quick navigation"
-      >
-        <div className="grid grid-cols-4">
-          {navTabs
-            .filter((t) => t.id !== 'deliverables')
-            .slice(0, 4)
-            .map((tab) => {
-              const Icon = tab.icon!;
-              const isActive = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => goToTab(tab.id)}
-                  className={`pressable relative flex flex-col items-center gap-1 py-2.5 text-[10px] font-semibold cursor-pointer ${
-                    isActive ? 'text-emerald-400' : isDark ? 'text-neutral-500' : 'text-neutral-500'
-                  }`}
-                >
-                  {isActive && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-emerald-400" />}
-                  <Icon className="w-5 h-5" />
-                  <span className="truncate max-w-full px-1">{tab.label.split(' ')[0]}</span>
-                  {tab.badge !== undefined && (
-                    <span className="absolute top-1.5 right-1/4 w-1.5 h-1.5 rounded-full bg-amber-400" />
-                  )}
-                </button>
-              );
-            })}
-        </div>
-      </nav>
 
       {/* Footer */}
       <footer className={`border-t py-6 text-center text-xs ${isDark ? 'border-neutral-900 bg-neutral-950 text-neutral-500' : 'border-neutral-200 bg-white text-neutral-500'}`}>
