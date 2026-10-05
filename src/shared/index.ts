@@ -22,6 +22,29 @@ export {
   type StakeyApp,
 } from './data/appLinks';
 export { ShopProvider, useShop } from './context/ShopContext';
+export * from './data/websiteCatalog';
+export {
+  fetchWebsiteProducts,
+  saveWebsiteProduct,
+  deleteWebsiteProduct,
+  setWebsiteProductPublished,
+  fetchWebsiteOrders,
+  updateWebsiteOrderStatus,
+  updateWebsiteOrderPaymentReference,
+  deleteWebsiteOrder,
+  fetchGalleryItems,
+  saveGalleryItem,
+  deleteGalleryItem,
+  uploadWebsiteImage,
+  subscribeToWebsiteShop,
+  checkWebsiteTables,
+  provisionWebsiteSchema,
+  formatMoney,
+  summariseOrderItems,
+  orderItemCount,
+  isMissingTable,
+  type WebsiteTableStatus,
+} from './api/websiteService';
 export {
   DEFAULT_SUPABASE_URL,
   DEFAULT_SUPABASE_ANON_KEY,
