@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { type AvatarConfig, skinHex, hairHex, topHex } from '../shared/types/avatar';
 
 /**
  * Seasonal 3D atmosphere layer.
@@ -20,15 +21,22 @@ import { useEffect, useRef } from 'react';
 // =============================================================================
 // 3D maths
 // =============================================================================
-type V3 = { x: number; y: number; z: number };
+export type V3 = { x: number; y: number; z: number };
 
 const TAU = Math.PI * 2;
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T,>(arr: T[]): T => arr[(Math.random() * arr.length) | 0];
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+/** Deterministic 32-bit hash, so a given rider seed always rebuilds the same look. */
+export const hashSeed = (n: number): number => {
+  let x = (n | 0) ^ 0x9e3779b9;
+  x = Math.imul(x ^ (x >>> 16), 0x85ebca6b);
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35);
+  return (x ^ (x >>> 16)) >>> 0;
+};
+export const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-const v3 = (x: number, y: number, z: number): V3 => ({ x, y, z });
+export const v3 = (x: number, y: number, z: number): V3 => ({ x, y, z });
 const sub = (a: V3, b: V3): V3 => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
 const cross = (a: V3, b: V3): V3 => ({
   x: a.y * b.z - a.z * b.y,
@@ -60,8 +68,8 @@ function shade(hex: string, amount: number) {
   const a = Math.abs(amount);
   return toHex(r + (t - r) * a, g + (t - g) * a, b + (t - b) * a);
 }
-const lighten = (hex: string, amount: number) => shade(hex, amount);
-const darken = (hex: string, amount: number) => shade(hex, -amount);
+export const lighten = (hex: string, amount: number) => shade(hex, amount);
+export const darken = (hex: string, amount: number) => shade(hex, -amount);
 function mixColor(a: string, b: string, t: number) {
   const pa = parseColor(a);
   const pb = parseColor(b);
@@ -84,12 +92,12 @@ interface Face {
   unlit?: boolean;
 }
 
-interface Geo {
+export interface Geo {
   verts: V3[];
   faces: Face[];
 }
 
-interface Transform {
+export interface Transform {
   pos: V3;
   rotX?: number;
   rotY?: number;
@@ -97,9 +105,9 @@ interface Transform {
   scale?: number | V3;
 }
 
-const emptyGeo = (): Geo => ({ verts: [], faces: [] });
+export const emptyGeo = (): Geo => ({ verts: [], faces: [] });
 
-function addFace(g: Geo, pts: V3[], color: string, opts: Partial<Face> = {}) {
+export function addFace(g: Geo, pts: V3[], color: string, opts: Partial<Face> = {}) {
   const idx: number[] = [];
   for (const p of pts) {
     g.verts.push(p);
@@ -127,7 +135,7 @@ function prism(
   return g;
 }
 
-function box(w: number, h: number, d: number, color: string, top?: string, emissive?: number): Geo {
+export function box(w: number, h: number, d: number, color: string, top?: string, emissive?: number): Geo {
   return prism(
     [
       [-w / 2, -d / 2],
@@ -167,7 +175,7 @@ function cone(radius: number, height: number, color: string, seg = 8, base = 0):
   return g;
 }
 
-function cylinder(radius: number, height: number, color: string, seg = 8, topColor?: string): Geo {
+export function cylinder(radius: number, height: number, color: string, seg = 8, topColor?: string): Geo {
   const g = emptyGeo();
   const bottom: V3[] = [];
   const top: V3[] = [];
@@ -185,7 +193,7 @@ function cylinder(radius: number, height: number, color: string, seg = 8, topCol
 }
 
 /** Low-poly sphere (squashed by `squash` on Y). */
-function sphere(radius: number, color: string, squash = 1, seg = 6, rings = 4): Geo {
+export function sphere(radius: number, color: string, squash = 1, seg = 6, rings = 4): Geo {
   const g = emptyGeo();
   const rows: V3[][] = [];
   for (let r = 0; r <= rings; r++) {
@@ -212,8 +220,48 @@ function sphere(radius: number, color: string, squash = 1, seg = 6, rings = 4): 
   return g;
 }
 
+/**
+ * Rounded cap: the top slice of a sphere. Used for Bitmoji-style hair and
+ * headwear so the silhouette reads as a smooth dome rather than faceted blocks.
+ */
+export function sphereCap(
+  radius: number,
+  color: string,
+  opts: { phiStart?: number; phiEnd?: number; squash?: number; seg?: number; rings?: number } = {}
+): Geo {
+  const g = emptyGeo();
+  const phiStart = opts.phiStart ?? 0;
+  const phiEnd = opts.phiEnd ?? Math.PI / 2;
+  const squash = opts.squash ?? 1;
+  const seg = opts.seg ?? 8;
+  const rings = opts.rings ?? 3;
+  const rows: V3[][] = [];
+  for (let r = 0; r <= rings; r++) {
+    const phi = lerp(phiStart, phiEnd, r / rings);
+    const row: V3[] = [];
+    for (let s = 0; s < seg; s++) {
+      const th = (s / seg) * TAU;
+      row.push(
+        v3(
+          Math.sin(phi) * Math.cos(th) * radius,
+          Math.cos(phi) * radius * squash,
+          Math.sin(phi) * Math.sin(th) * radius
+        )
+      );
+    }
+    rows.push(row);
+  }
+  for (let r = 0; r < rings; r++) {
+    for (let s = 0; s < seg; s++) {
+      const s2 = (s + 1) % seg;
+      addFace(g, [rows[r][s], rows[r][s2], rows[r + 1][s2], rows[r + 1][s]], color);
+    }
+  }
+  return g;
+}
+
 /** Merges `src` into `target` applying an optional transform. */
-function merge(target: Geo, src: Geo, t: Transform = { pos: v3(0, 0, 0) }) {
+export function merge(target: Geo, src: Geo, t: Transform = { pos: v3(0, 0, 0) }) {
   const base = target.verts.length;
   const s = t.scale ?? 1;
   const sx = typeof s === 'number' ? s : s.x;
@@ -403,7 +451,7 @@ function topiaryHeart(s: number): Geo {
 // =============================================================================
 type SeasonKey = 'halloween' | 'christmas' | 'easter' | 'cny' | 'valentines';
 
-interface Palette {
+export interface Palette {
   skyTop: string;
   skyHorizon: string;
   fog: string;
@@ -597,33 +645,42 @@ const SCENES: Record<SeasonKey, SeasonScene> = {
 // =============================================================================
 // Camera & projection
 // =============================================================================
-interface Projected {
+export interface Projected {
   x: number;
   y: number;
   depth: number;
   scale: number;
 }
 
-const CAM = { pos: v3(0, 55, -20), yaw: 0, pitch: 0.14, fov: 300 };
+export interface Camera {
+  pos: V3;
+  yaw: number;
+  pitch: number;
+  fov: number;
+  /** Screen-space vertical anchor (0 = top, 1 = bottom). */
+  anchorY?: number;
+}
 
-function project(p: V3, w: number, h: number): Projected | null {
-  const dx = p.x - CAM.pos.x;
-  const dy = p.y - CAM.pos.y;
-  const dz = p.z - CAM.pos.z;
-  const cy = Math.cos(-CAM.yaw);
-  const sy = Math.sin(-CAM.yaw);
+export const CAM: Camera = { pos: v3(0, 55, -20), yaw: 0, pitch: 0.14, fov: 300 };
+
+export function project(p: V3, w: number, h: number, cam: Camera = CAM): Projected | null {
+  const dx = p.x - cam.pos.x;
+  const dy = p.y - cam.pos.y;
+  const dz = p.z - cam.pos.z;
+  const cy = Math.cos(-cam.yaw);
+  const sy = Math.sin(-cam.yaw);
   const x = dx * cy + dz * sy;
   const z1 = -dx * sy + dz * cy;
-  const cp = Math.cos(-CAM.pitch);
-  const sp = Math.sin(-CAM.pitch);
+  const cp = Math.cos(-cam.pitch);
+  const sp = Math.sin(-cam.pitch);
   const y = dy * cp - z1 * sp;
   const z2 = dy * sp + z1 * cp;
   if (z2 < 6) return null;
-  const scale = CAM.fov / z2;
-  return { x: w / 2 + x * scale, y: h * 0.56 - y * scale, depth: z2, scale };
+  const scale = cam.fov / z2;
+  return { x: w / 2 + x * scale, y: h * (cam.anchorY ?? 0.56) - y * scale, depth: z2, scale };
 }
 
-interface DrawFace {
+export interface DrawFace {
   pts: { x: number; y: number }[];
   color: string;
   depth: number;
@@ -690,9 +747,16 @@ function drawRoad(ctx: CanvasRenderingContext2D, w: number, h: number, color: st
   }
 }
 
-function projectGeo(geo: Geo, w: number, h: number, pal: Palette, out: DrawFace[]) {
+export function projectGeo(
+  geo: Geo,
+  w: number,
+  h: number,
+  pal: Palette,
+  out: DrawFace[],
+  cam: Camera = CAM
+) {
   const projected: (Projected | null)[] = new Array(geo.verts.length);
-  for (let i = 0; i < geo.verts.length; i++) projected[i] = project(geo.verts[i], w, h);
+  for (let i = 0; i < geo.verts.length; i++) projected[i] = project(geo.verts[i], w, h, cam);
 
   for (const f of geo.faces) {
     const pts: { x: number; y: number }[] = [];
@@ -729,16 +793,37 @@ function projectGeo(geo: Geo, w: number, h: number, pal: Palette, out: DrawFace[
 }
 
 // =============================================================================
-// Riders — low-poly 3D cyclists
+// Riders — rounded, Bitmoji-style 3D characters on bicycles
 // =============================================================================
+export interface RiderLook {
+  skin: string;
+  jersey: string;
+  hair: string;
+  hairStyle:
+    | 'bald'
+    | 'buzz'
+    | 'short'
+    | 'fade'
+    | 'curly'
+    | 'afro'
+    | 'bun'
+    | 'ponytail'
+    | 'long'
+    | 'bob'
+    | 'mohawk';
+  /** Which item rides on the head: a bike helmet, beanie, cap or nothing. */
+  headwear: 'helmet' | 'beanie' | 'cap' | 'none';
+}
+
 interface Rider {
   x: number;
   z: number;
   dir: number;
   speed: number;
   t: number;
-  jersey: string;
-  skin: string;
+  /** Deterministic identity — the look is rebuilt from this each frame. */
+  seed: number;
+  look: RiderLook;
   scale: number;
   bike: Geo;
 }
@@ -746,8 +831,63 @@ interface Rider {
 const BIKE_FRAME = '#d3dae6';
 const BIKE_DARK = '#1c2431';
 
+export const RIDER_SKINS = ['#F6D9C6', '#F0C9A8', '#E4B48D', '#D2A074', '#B98A5E', '#9C6B45', '#7A4E2E', '#5A3720'];
+const RIDER_JERSEYS = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4', '#ec4899', '#14b8a6'];
+const RIDER_HAIR = ['#2b2118', '#4a3222', '#6b4423', '#a5673f', '#d9a066', '#1f1f1f', '#8d5524', '#e6c8a0'];
+const RIDER_HEADWEAR: RiderLook['headwear'][] = ['helmet', 'helmet', 'helmet', 'cap', 'beanie', 'none'];
+
+/** Rebuilds a rider's look deterministically from its seed. */
+export function riderLook(
+  seed: number,
+  overrides: Partial<Pick<RiderLook, 'skin' | 'jersey' | 'hair' | 'hairStyle' | 'headwear'>> = {}
+): RiderLook {
+  const h = (salt: number) => hashSeed(seed + salt * 0x9e3779b1);
+  const pickFrom = <T,>(arr: T[], salt: number): T => arr[h(salt) % arr.length];
+  const headwear = pickFrom(RIDER_HEADWEAR, 4);
+  const hairStyle = (['short', 'bun', 'mohawk', 'bald', 'short'] as RiderLook['hairStyle'][])[
+    h(5) % 5
+  ];
+  return {
+    skin: overrides.skin ?? pickFrom(RIDER_SKINS, 1),
+    jersey: overrides.jersey ?? pickFrom(RIDER_JERSEYS, 2),
+    hair: overrides.hair ?? pickFrom(RIDER_HAIR, 3),
+    headwear: overrides.headwear ?? headwear,
+    hairStyle: overrides.hairStyle ?? hairStyle,
+  };
+}
+
+/**
+ * Maps a customer's avatar config onto a 3D rider look, so the character they
+ * design in the studio is the same one that rides through the seasonal themes.
+ */
+export function avatarToLook(config: AvatarConfig): RiderLook {
+  const headwear: RiderLook['headwear'] =
+    config.headwear === 'helmet'
+      ? 'helmet'
+      : config.headwear === 'beanie'
+        ? 'beanie'
+        : config.headwear === 'cap' || config.headwear === 'visor'
+          ? 'cap'
+          : 'none';
+  // Fold the face choices into the seed so two configs with the same hair and
+  // colours still diverge when glasses or facial hair differ.
+  let seed = 2166136261;
+  const s = `${config.glasses}|${config.facialHair}|${config.eyes}|${config.mouth}`;
+  for (let i = 0; i < s.length; i++) {
+    seed ^= s.charCodeAt(i);
+    seed = Math.imul(seed, 16777619);
+  }
+  return riderLook(seed >>> 0, {
+    skin: skinHex(config.skinTone),
+    jersey: topHex(config.topColor),
+    hair: hairHex(config.hairColor),
+    hairStyle: config.hairStyle,
+    headwear,
+  });
+}
+
 /** A bicycle in the local XZ plane, facing +x, wheels resting on y = 0. */
-function buildBike(frameColor: string): Geo {
+export function buildBike(frameColor: string): Geo {
   const g = emptyGeo();
   const R = 3.2;
   const wb = 7.5;
@@ -769,18 +909,138 @@ function buildBike(frameColor: string): Geo {
   return g;
 }
 
-/** A seated, pedalling cyclist (limbs animate with `t`). */
-function buildCyclist(skin: string, jersey: string, t: number): Geo {
+/**
+ * A rounded, big-headed Bitmoji-style rider on the bike, facing +x. Arms and
+ * legs cycle with `t` so the character reads as alive at any camera distance.
+ */
+export function buildBitmojiRider(look: RiderLook, t: number): Geo {
   const g = emptyGeo();
-  const ped = Math.sin(t * 9) * 1.4;
-  const lean = 0.34;
-  merge(g, box(2.7, 5.4, 3.4, jersey, lighten(jersey, 0.14)), { pos: v3(-0.6, 9.6, 0), rotZ: lean });
-  merge(g, sphere(1.7, skin, 1), { pos: v3(1.5, 12.6, 0) });
-  merge(g, sphere(1.85, lighten(jersey, 0.3), 0.7), { pos: v3(1.6, 13.3, 0) });
-  merge(g, box(3.8, 0.8, 0.8, jersey), { pos: v3(1.3, 10.6, 1.15), rotZ: 0.5 });
-  merge(g, box(3.8, 0.8, 0.8, jersey), { pos: v3(1.3, 10.6, -1.15), rotZ: 0.5 });
-  merge(g, box(0.95, 4.4, 0.95, BIKE_DARK), { pos: v3(-0.4 + ped, 5.6, 0.95), rotZ: 0.3 });
-  merge(g, box(0.95, 4.4, 0.95, BIKE_DARK), { pos: v3(-0.4 - ped, 5.6, -0.95), rotZ: 0.3 });
+  const { skin, jersey, hair, hairStyle, headwear } = look;
+  const shirt = jersey;
+  const shirtTop = lighten(jersey, 0.18);
+  const skinShade = darken(skin, 0.1);
+
+  // Head — oversized and round, the signature Bitmoji proportion.
+  const headY = 15.4;
+  merge(g, sphere(2.75, skin, 1.04, 12, 8), { pos: v3(1.0, headY, 0) });
+  // Ears.
+  merge(g, sphere(0.6, skinShade, 1, 8, 5), { pos: v3(1.0, headY - 0.2, 2.6) });
+  merge(g, sphere(0.6, skinShade, 1, 8, 5), { pos: v3(1.0, headY - 0.2, -2.6) });
+  // Smiling mouth (a soft dark oval on the +z-facing cheek).
+  merge(g, sphere(0.5, '#3b2418', 0.55, 8, 4), { pos: v3(1.2, headY - 1.25, 2.35) });
+
+  // Hair / headwear sit as a rounded cap on top of the skull.
+  const capBase = headY + 1.55;
+  if (headwear === 'helmet') {
+    merge(g, sphereCap(2.95, '#e11d48', { phiEnd: Math.PI / 2.15, squash: 0.9, seg: 12, rings: 3 }), {
+      pos: v3(1.0, capBase, 0),
+    });
+    merge(g, box(3.0, 0.5, 0.5, lighten('#e11d48', 0.35)), { pos: v3(1.0, capBase + 0.5, 2.55), rotZ: 0.12 });
+  } else if (headwear === 'beanie') {
+    merge(g, sphereCap(2.9, shirt, { phiEnd: Math.PI / 1.75, squash: 0.95, seg: 12, rings: 3 }), {
+      pos: v3(1.0, capBase, 0),
+    });
+    merge(g, cylinder(2.0, 0.7, lighten(shirt, 0.3), 12), { pos: v3(1.0, capBase - 0.3, 0) });
+    merge(g, sphere(0.8, '#ffffff', 1, 8, 5), { pos: v3(1.0, capBase + 2.9, 0) });
+  } else if (headwear === 'cap') {
+    merge(g, sphereCap(2.9, shirtTop, { phiEnd: Math.PI / 2.1, squash: 0.9, seg: 12, rings: 3 }), {
+      pos: v3(1.0, capBase, 0),
+    });
+    merge(g, box(3.4, 0.4, 3.0, shirtTop), { pos: v3(3.2, capBase - 0.4, 0), rotZ: 0.16 });
+  } else {
+    // Hair, shaped by style.
+    const dome = (r: number, squash: number) =>
+      merge(g, sphereCap(r, hair, { phiEnd: Math.PI / 1.95, squash, seg: 12, rings: 3 }), {
+        pos: v3(1.0, capBase, 0),
+      });
+    if (hairStyle === 'bald') {
+      // nothing
+    } else if (hairStyle === 'mohawk') {
+      for (let i = -2; i <= 2; i++) {
+        merge(g, box(0.7, 1.6 - Math.abs(i) * 0.25, 1.4, hair), {
+          pos: v3(1.0, capBase + 0.6 + (2 - Math.abs(i)) * 0.2, i * 1.0),
+        });
+      }
+    } else if (hairStyle === 'bun') {
+      dome(2.85, 0.98);
+      merge(g, sphere(1.15, hair, 1, 10, 6), { pos: v3(0.2, capBase + 1.9, 0) });
+    } else if (hairStyle === 'ponytail') {
+      dome(2.85, 0.98);
+      merge(g, sphere(1.05, hair, 1.3, 10, 6), { pos: v3(-1.4, capBase - 0.4, 0), rotZ: 0.5 });
+    } else if (hairStyle === 'bob') {
+      merge(g, sphere(3.05, hair, 1.15, 12, 8), { pos: v3(1.0, capBase - 0.5, 0) });
+    } else if (hairStyle === 'long') {
+      dome(2.9, 1);
+      merge(g, box(3.4, 4.6, 4.6, hair), { pos: v3(-0.6, capBase - 2.4, 0), rotZ: 0.08 });
+    } else if (hairStyle === 'afro') {
+      merge(g, sphere(3.55, hair, 1.05, 12, 8), { pos: v3(1.0, capBase + 0.4, 0) });
+    } else if (hairStyle === 'curly') {
+      dome(2.95, 1);
+      for (const [ox, oz] of [
+        [0.2, 1.6],
+        [1.8, 0.9],
+        [1.9, -0.9],
+        [0.2, -1.6],
+        [-1.1, 0],
+      ] as const) {
+        merge(g, sphere(1.0, hair, 1, 8, 5), { pos: v3(1.0 + ox, capBase + 1.4, oz) });
+      }
+    } else if (hairStyle === 'fade') {
+      dome(2.7, 0.95);
+      merge(g, box(1.2, 1.6, 4.0, darken(hair, 0.15)), { pos: v3(-1.3, capBase - 0.6, 0) });
+    } else if (hairStyle === 'buzz') {
+      merge(g, sphereCap(2.72, hair, { phiEnd: Math.PI / 2.15, squash: 0.9, seg: 12, rings: 3 }), {
+        pos: v3(1.0, capBase, 0),
+      });
+    } else {
+      // short / default
+      dome(2.85, 0.98);
+    }
+  }
+
+  // Neck.
+  merge(g, cylinder(0.85, 1.4, skinShade, 10), { pos: v3(0.9, 12.9, 0) });
+  // Torso — rounded, leaning forward from the saddle.
+  merge(g, sphere(2.15, shirt, 1.25, 12, 7), { pos: v3(0.15, 11.2, 0) });
+  merge(g, sphere(2.0, shirtTop, 1.1, 12, 6), { pos: v3(1.0, 12.1, 0) });
+  // Jersey number hint (a light panel).
+  merge(g, box(1.9, 1.3, 0.2, lighten(shirt, 0.45)), { pos: v3(0.4, 11.4, 2.05) });
+
+  // Arms reaching for the handlebars, pedalling counterphase.
+  const arm = (z: number) => {
+    const sx = 1.0;
+    const sy = 12.1;
+    const hx = 6.1;
+    const hy = 10.6;
+    const len = Math.hypot(hx - sx, hy - sy);
+    const ang = Math.atan2(hy - sy, hx - sx);
+    merge(g, box(len, 0.85, 0.85, skin), { pos: v3((sx + hx) / 2, (sy + hy) / 2, z * 1.15), rotZ: ang });
+    merge(g, sphere(0.55, skinShade, 1, 8, 5), { pos: v3(hx, hy, z * 1.15) });
+  };
+  arm(1);
+  arm(-1);
+
+  // Legs — rounded thighs and shins driving the pedals.
+  const ped = Math.sin(t * 9) * 1.5;
+  const leg = (z: number, phase: number) => {
+    const hipX = -0.6;
+    const hipY = 9.9;
+    const kneeX = 0.4 + phase * 0.9;
+    const kneeY = 7.4;
+    const footX = -0.3 + phase;
+    const footY = 4.6;
+    const seg = (x1: number, y1: number, x2: number, y2: number, r: number, c: string) => {
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      merge(g, box(len, r, r, c), { pos: v3((x1 + x2) / 2, (y1 + y2) / 2, z * 0.95), rotZ: ang });
+    };
+    seg(hipX, hipY, kneeX, kneeY, 1.15, BIKE_DARK);
+    seg(kneeX, kneeY, footX, footY, 0.95, BIKE_DARK);
+    merge(g, sphere(0.7, skin, 1, 8, 5), { pos: v3(footX, footY, z * 0.95) });
+  };
+  leg(1, ped);
+  leg(-1, -ped);
+
   return g;
 }
 
@@ -890,13 +1150,24 @@ function drawParticle(ctx: CanvasRenderingContext2D, p: Particle, spec: WeatherS
 // =============================================================================
 // Component
 // =============================================================================
-export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
+export const SeasonalThemeCanvas = ({
+  theme,
+  avatar,
+}: {
+  theme?: string;
+  avatar?: AvatarConfig | null;
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const themeRef = useRef<string | undefined>(theme);
+  const avatarRef = useRef<AvatarConfig | null | undefined>(avatar);
 
   useEffect(() => {
     themeRef.current = theme;
   }, [theme]);
+
+  useEffect(() => {
+    avatarRef.current = avatar;
+  }, [avatar]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -914,13 +1185,30 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
     let stars: Star[] = [];
     let riders: Rider[] = [];
     let lastKey: string | undefined = '__init__';
+    let lastAvatarKey: string | undefined;
     const faces: DrawFace[] = [];
 
     const spawnRiders = (n: number) => {
-      const jerseys = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4'];
-      const skins = ['#f6c9a0', '#d9a066', '#8d5524', '#f1d2b6'];
-      riders = Array.from({ length: n }, () => {
-        const jersey = pick(jerseys);
+      const heroLook = avatarRef.current ? avatarToLook(avatarRef.current) : null;
+      riders = Array.from({ length: n }, (_, i) => {
+        // The customer's own avatar leads the pack, so the character they built
+        // is the one riding through the theme.
+        if (i === 0 && heroLook) {
+          const z = rand(150, 520);
+          return {
+            x: rand(-0.5, 0.5) * z,
+            z,
+            dir: 1,
+            speed: rand(1.8, 2.6),
+            t: rand(0, 100),
+            seed: 1,
+            look: heroLook,
+            scale: 1.15,
+            bike: buildBike(heroLook.jersey),
+          };
+        }
+        const seed = (Math.random() * 0x7fffffff) | 0;
+        const look = riderLook(seed);
         const z = rand(150, 520);
         return {
           x: rand(-0.7, 0.7) * z,
@@ -928,10 +1216,10 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
           dir: Math.random() < 0.5 ? 1 : -1,
           speed: rand(1.8, 3.6),
           t: rand(0, 100),
-          jersey,
-          skin: pick(skins),
+          seed,
+          look,
           scale: rand(0.95, 1.3),
-          bike: buildBike(jersey),
+          bike: buildBike(look.jersey),
         };
       });
     };
@@ -946,6 +1234,7 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
         ctx.clearRect(0, 0, w, h);
         return;
       }
+      lastAvatarKey = JSON.stringify(avatarRef.current ?? null);
       scene = [...buildRidges(s.ridges), ...s.build(w)];
       const spec = WEATHER[key];
       particles = Array.from({ length: spec.count }, () => makeParticle(spec, w, h));
@@ -974,6 +1263,13 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
     const draw = () => {
       const key = themeRef.current as SeasonKey;
       const s = SCENES[key];
+      // The customer's avatar can change while the canvas is mounted; refresh
+      // the cast so the hero rider always matches what they saved.
+      const avatarKey = JSON.stringify(avatarRef.current ?? null);
+      if (avatarKey !== lastAvatarKey) {
+        lastAvatarKey = avatarKey;
+        if (s) spawnRiders(s.riders);
+      }
       if (key !== lastKey) {
         lastKey = key;
         reset();
@@ -1043,7 +1339,7 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
         const bob = Math.abs(Math.sin(r.t * 4)) * 0.5;
         const rg = emptyGeo();
         merge(rg, r.bike, { pos: v3(0, 0, 0) });
-        merge(rg, buildCyclist(r.skin, r.jersey, r.t), { pos: v3(0, 0, 0) });
+        merge(rg, buildBitmojiRider(r.look, r.t), { pos: v3(0, 0, 0) });
         const placed = emptyGeo();
         merge(placed, rg, {
           pos: v3(r.x, bob, r.z),

@@ -1,8 +1,17 @@
 import React from 'react';
 import { render, fireEvent, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { Avatar } from './src/components/Avatar';
 import { AvatarStudio } from './src/components/AvatarStudio';
+import { AvatarModel, buildStandingBitmoji, fitCamera } from './src/components/AvatarModel';
+import {
+  buildBitmojiRider,
+  avatarToLook,
+  emptyGeo,
+  merge,
+  project,
+  riderLook,
+  v3,
+} from './src/components/SeasonalThemeCanvas';
 import {
   DEFAULT_AVATAR,
   normalizeAvatar,
@@ -56,27 +65,6 @@ describe('avatar model', () => {
   });
 });
 
-describe('Avatar', () => {
-  it('renders an SVG using the configured skin and jersey colours', () => {
-    render(<Avatar config={{ ...DEFAULT_AVATAR, skinTone: 'deep', topColor: 'red' }} size={80} />);
-    const svg = screen.getByTestId('rider-avatar');
-    expect(svg.tagName.toLowerCase()).toBe('svg');
-    const html = svg.outerHTML;
-    expect(html).toContain(skinHex('deep'));
-    expect(html).toContain(topHex('red'));
-  });
-
-  it('renders the jersey number when set', () => {
-    render(<Avatar config={{ ...DEFAULT_AVATAR, jerseyNumber: '07' }} />);
-    expect(screen.getByText('07')).toBeTruthy();
-  });
-
-  it('falls back to the default avatar when config is missing', () => {
-    render(<Avatar config={null} />);
-    expect(screen.getByTestId('rider-avatar')).toBeTruthy();
-  });
-});
-
 describe('AvatarStudio', () => {
   it('saves the current draft when Save is clicked', () => {
     const onSave = vi.fn();
@@ -102,3 +90,65 @@ describe('AvatarStudio', () => {
     expect(onSave.mock.calls[0][0].hairStyle).toBe(DEFAULT_AVATAR.hairStyle);
   });
 });
+
+describe('bitmoji 3D models', () => {
+  it('builds a rounded rider with geometry and a head above the bike', () => {
+    const look = riderLook(1234);
+    const g = buildBitmojiRider(look, 1.2);
+    expect(g.verts.length).toBeGreaterThan(80);
+    expect(g.faces.length).toBeGreaterThan(20);
+    const maxY = Math.max(...g.verts.map((v) => v.y));
+    expect(maxY).toBeGreaterThan(15); // oversized head sits high on the bike
+  });
+
+  it('gives each seed a stable, deterministic look', () => {
+    const a = riderLook(42);
+    const b = riderLook(42);
+    expect(a).toEqual(b);
+    expect(riderLook(43).skin).toBeDefined();
+  });
+
+  it('honours skin and jersey overrides for a customer config', () => {
+    const look = riderLook(7, { skin: '#5A3720', jersey: '#ABCDEF' });
+    expect(look.skin).toBe('#5A3720');
+    expect(look.jersey).toBe('#ABCDEF');
+  });
+
+  it('builds a standing character with a raised waving arm', () => {
+    const g = buildStandingBitmoji(riderLook(9), 0);
+    expect(g.verts.length).toBeGreaterThan(100);
+    const maxY = Math.max(...g.verts.map((v) => v.y));
+    expect(maxY).toBeGreaterThan(20); // hand raised well above the head
+  });
+
+  it('renders the avatar model to a canvas', () => {
+    render(<AvatarModel config={{ ...DEFAULT_AVATAR, skinTone: 'deep' }} size={80} />);
+    const canvas = screen.getByTestId('avatar-model');
+    expect(canvas.tagName.toLowerCase()).toBe('canvas');
+    expect((canvas as HTMLCanvasElement).width).toBe(80);
+  });
+
+  it('maps a saved avatar config onto a rider look for the themes', () => {
+    const look = avatarToLook({ ...DEFAULT_AVATAR, skinTone: 'deep', topColor: 'red' });
+    expect(look.skin).toBe(skinHex('deep'));
+    expect(look.jersey).toBe(topHex('red'));
+  });
+
+  it('frames the whole standing figure inside the portrait canvas', () => {
+    const body = buildStandingBitmoji(riderLook(5), 0);
+    const rotated = emptyGeo();
+    merge(rotated, body, { pos: v3(0, 0, 0), rotY: Math.PI / 2 });
+    const w = 96;
+    const h = 110;
+    const cam = fitCamera(rotated, w, h);
+    for (const v of rotated.verts) {
+      const p = project(v, w, h, cam);
+      expect(p).not.toBeNull();
+      expect(p!.x).toBeGreaterThanOrEqual(-1);
+      expect(p!.x).toBeLessThanOrEqual(w + 1);
+      expect(p!.y).toBeGreaterThanOrEqual(-1);
+      expect(p!.y).toBeLessThanOrEqual(h + 1);
+    }
+  });
+});
+

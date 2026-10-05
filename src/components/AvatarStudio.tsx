@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Shuffle, Check, Save } from 'lucide-react';
-import { Avatar } from './Avatar';
+import { AvatarModel } from './AvatarModel';
 import {
   AvatarConfig,
   BACKGROUNDS,
@@ -105,7 +105,7 @@ export const AvatarStudio: React.FC<AvatarStudioProps> = ({ value, onSave, savin
       {/* Preview */}
       <div className="space-y-3">
         <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-4 flex flex-col items-center gap-3 sticky top-20">
-          <Avatar config={draft} size={180} title="Your avatar preview" />
+          <AvatarModel config={draft} size={180} title="Your avatar preview" className="rounded-2xl" />
           <div className="flex w-full gap-2">
             <button
               type="button"

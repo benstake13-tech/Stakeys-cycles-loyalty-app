@@ -31,7 +31,7 @@ import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
 import { AvatarStudio } from './AvatarStudio';
-import { Avatar } from './Avatar';
+import { AvatarModel } from './AvatarModel';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../shared/types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS } from '../shared/data/bikeCatalog';
 import {
@@ -586,7 +586,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         <div className="space-y-6">
           <div className="p-5 rounded-2xl bg-[#0d1015] border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Avatar config={currentUser.avatar} size={64} title="Your current avatar" />
+              <AvatarModel config={currentUser.avatar} size={64} title="Your current avatar" className="rounded-2xl shrink-0" />
               <div>
                 <h3 className="font-display text-lg font-bold text-white">Build your rider character</h3>
                 <p className="text-xs text-neutral-400 mt-0.5">

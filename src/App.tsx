@@ -22,7 +22,7 @@ import { ShopProvider, useShop } from './shared/context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
 import { ResetPasswordPage } from './components/ResetPasswordPage';
 import { CustomerPortal } from './components/CustomerPortal';
-import { Avatar } from './components/Avatar';
+import { AvatarModel } from './components/AvatarModel';
 import { StaffPortal } from './components/StaffPortal';
 import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
@@ -222,8 +222,9 @@ function AppContent() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-      {/* Seasonal characters ride across the background of every screen */}
-      <SeasonalThemeCanvas theme={seasonalTheme} />
+      {/* Seasonal characters ride across the background of every screen. The
+          customer's own avatar leads the pack. */}
+      <SeasonalThemeCanvas theme={seasonalTheme} avatar={currentUser?.avatar} />
 
       {/* Page content sits above the seasonal canvas (z-0) so the characters
           ride across the background of every screen, behind the UI. */}
@@ -264,7 +265,7 @@ function AppContent() {
             {isStaff && <ServiceStatusBadge variant="header" />}
 
             <div className={`hidden lg:flex items-center gap-2 text-xs ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-              {!isStaff && <Avatar config={currentUser.avatar} size={28} title={`${currentUser.displayName}'s avatar`} className="rounded-full shrink-0" />}
+              {!isStaff && <AvatarModel config={currentUser.avatar} size={28} title={`${currentUser.displayName}'s avatar`} className="rounded-full shrink-0 overflow-hidden" />}
               <span className={`font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{currentUser.displayName}</span>
               {isStaff ? (
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/50">
