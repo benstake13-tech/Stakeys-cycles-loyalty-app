@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   UserProfile,
@@ -20,6 +20,13 @@ import {
   RepairInvoice,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
+import {
+  fetchPromotionsFromDb,
+  upsertPromotionToDb,
+  deletePromotionFromDb,
+  syncPromotionsToDb,
+  subscribeToPromotionChanges,
+} from '../api/promotionService';
 import {
   dispatchBookingNotifications,
   dispatch24hReminderNotification,
@@ -337,12 +344,52 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // 3. Promotions State & Expiry Monitor
   const [promotions, setPromotions] = useState<ShopPromotion[]>([]);
+  const promotionsMutationRef = useRef(false);
 
   useEffect(() => {
     try {
       localStorage.setItem(`${STORAGE_KEY}_promotions`, JSON.stringify(promotions));
     } catch {}
   }, [promotions]);
+
+  // Cloud sync: the public website reads the shared `promotions` table, so the
+  // database is the source of truth and staff edits publish themselves.
+  useEffect(() => {
+    let active = true;
+
+    const hydrate = async () => {
+      let remote = await fetchPromotionsFromDb();
+      if (!active) return;
+
+      // First run after upgrade: publish promotions that only lived in localStorage.
+      if (remote.length === 0) {
+        let local: ShopPromotion[] = [];
+        try {
+          const raw = localStorage.getItem(`${STORAGE_KEY}_promotions`);
+          local = raw ? JSON.parse(raw) : [];
+        } catch {}
+        if (Array.isArray(local) && local.length > 0) {
+          await syncPromotionsToDb(local);
+          remote = local;
+        }
+      }
+
+      if (active) setPromotions(remote);
+    };
+
+    hydrate().catch(() => {});
+
+    const unsubscribe = subscribeToPromotionChanges(async () => {
+      if (promotionsMutationRef.current) return;
+      const remote = await fetchPromotionsFromDb();
+      if (active) setPromotions(remote);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
 
   // Automatic background expiration monitor every 60s
   useEffect(() => {
@@ -362,6 +409,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: `promo-${Date.now().toString().slice(-4)}`,
     };
     setPromotions((prev) => [newPromo, ...prev]);
+    promotionsMutationRef.current = true;
+    try {
+      await upsertPromotionToDb(newPromo);
+    } finally {
+      promotionsMutationRef.current = false;
+    }
     return newPromo;
   };
 
@@ -377,11 +430,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
     if (!updatedPromo) throw new Error('Promotion not found');
+    promotionsMutationRef.current = true;
+    try {
+      await upsertPromotionToDb(updatedPromo);
+    } finally {
+      promotionsMutationRef.current = false;
+    }
     return updatedPromo;
   };
 
   const deletePromotion = async (id: string): Promise<boolean> => {
     setPromotions((prev) => prev.filter((p) => p.id !== id));
+    promotionsMutationRef.current = true;
+    try {
+      await deletePromotionFromDb(id);
+    } finally {
+      promotionsMutationRef.current = false;
+    }
     return true;
   };
 
