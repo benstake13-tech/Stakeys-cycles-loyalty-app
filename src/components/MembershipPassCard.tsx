@@ -65,7 +65,15 @@ export const MembershipPassCard: React.FC<MembershipPassCardProps> = ({ user }) 
             Stakey's Cycles &amp; Scooter
           </div>
           <div className="flex items-center justify-center sm:justify-start gap-2 mt-0.5">
-            <AvatarModel config={user.avatar} size={36} title={`${user.displayName}'s avatar`} className="rounded-full shrink-0 overflow-hidden ring-1 ring-neutral-200" />
+            {user.avatarImage ? (
+              <img
+                src={user.avatarImage.dataUrl}
+                alt={`${user.displayName}'s avatar`}
+                className="w-9 h-9 rounded-full shrink-0 object-cover ring-1 ring-neutral-200"
+              />
+            ) : (
+              <AvatarModel config={user.avatar} size={36} title={`${user.displayName}'s avatar`} className="rounded-full shrink-0 overflow-hidden ring-1 ring-neutral-200" />
+            )}
             <span className="font-display text-xl font-extrabold text-neutral-950">
               {user.displayName}
             </span>

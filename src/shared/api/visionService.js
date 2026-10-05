@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { GEMINI_TEXT_MODEL } from "./geminiModels";
 
-const MODEL = "gemini-2.5-flash";
+const MODEL = GEMINI_TEXT_MODEL;
 
 const getApiKey = () =>
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || "";

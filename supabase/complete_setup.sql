@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   last_spin_date TEXT,
   last_stamped_at TIMESTAMPTZ,
   avatar_config JSONB,
+  avatar_image JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -234,6 +235,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spun_at TIMESTAMPTZ;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spin_date TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_stamped_at TIMESTAMPTZ;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_config JSONB;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_image JSONB;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 -- The app creates a profile at login, before a membership code exists.

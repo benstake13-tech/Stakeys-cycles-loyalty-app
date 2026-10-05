@@ -2,7 +2,7 @@
  * Stakey's Cycles - Data Models and Type Definitions
  */
 
-import type { AvatarConfig } from './avatar';
+import type { AvatarConfig, AvatarImage } from './avatar';
 
 export type ThemeMode = 'dark' | 'light';
 
@@ -193,6 +193,8 @@ export interface UserProfile {
   serviceVouchers?: CollectedVoucher[]; // Collected rewards such as £40 service voucher
   /** Bitmoji-style rider avatar (see shared/types/avatar.ts). */
   avatar?: AvatarConfig;
+  /** Generated HD likeness portrait layered over the vector avatar. */
+  avatarImage?: AvatarImage;
 }
 
 export interface PrizeWheelSegment {

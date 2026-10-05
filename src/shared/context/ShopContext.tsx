@@ -24,7 +24,7 @@ import {
   RepairStageId,
   RepairProgressEvent,
 } from '../types/bikeShop';
-import { normalizeAvatar, type AvatarConfig } from '../types/avatar';
+import { normalizeAvatar, normalizeAvatarImage, type AvatarConfig, type AvatarImage } from '../types/avatar';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
   makeRepairEvent,
@@ -299,6 +299,10 @@ interface ShopContextType {
   resolveScannedMember: (rawCode: string) => Promise<UserProfile | null>;
   /** Save the signed-in customer's Bitmoji-style avatar. */
   saveMyAvatar: (config: AvatarConfig) => Promise<{ success: boolean; message?: string }>;
+  /** Save (or clear) the generated HD likeness portrait. */
+  saveMyAvatarImage: (
+    image: AvatarImage | null
+  ) => Promise<{ success: boolean; message?: string }>;
   addRepairProgressNote: (
     bookingId: string,
     note: string,
@@ -1140,6 +1144,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         displayName: remoteProfile?.displayName || user.displayName,
         phoneNumber: remoteProfile?.phoneNumber || user.phoneNumber,
         avatar: remoteProfile?.avatar || user.avatar,
+        avatarImage: remoteProfile?.avatarImage || user.avatarImage,
         serviceVouchers:
           remoteVouchers && remoteVouchers.length > 0
             ? remoteVouchers
@@ -1871,6 +1876,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
     return { success: true, message: 'Avatar saved.' };
+  };
+
+  // Generated HD likeness portrait (customer self-service)
+  const saveMyAvatarImage = async (
+    image: AvatarImage | null
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = currentUser;
+    if (!target) {
+      return { success: false, message: 'You need to be signed in to save an avatar.' };
+    }
+
+    const avatarImage = image ? normalizeAvatarImage(image) : undefined;
+    if (image && !avatarImage) {
+      return { success: false, message: 'That image was too large or in an unsupported format.' };
+    }
+
+    const updatedUser: UserProfile = { ...target, avatarImage };
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.uid === target.uid ? updatedUser : u)));
+
+    const ok = await updateUserProfileInDb(target.uid, target.membershipNumber, { avatarImage });
+    if (!ok) {
+      return {
+        success: false,
+        message: 'Saved on this device, but the cloud sync failed — try again once you are online.',
+      };
+    }
+    return { success: true, message: avatarImage ? 'Portrait saved.' : 'Portrait removed.' };
   };
 
   // Manual Customer Point & Balance Adjustment for Staff Database
@@ -3480,6 +3513,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRepairEstimate,
         resolveScannedMember,
         saveMyAvatar,
+        saveMyAvatarImage,
         addRepairProgressNote,
         updateBookingQuote,
         deleteBooking,

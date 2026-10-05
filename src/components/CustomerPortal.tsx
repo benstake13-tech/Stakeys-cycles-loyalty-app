@@ -31,7 +31,9 @@ import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
 import { AvatarStudio } from './AvatarStudio';
+import { AvatarLikenessStudio } from './AvatarLikenessStudio';
 import { AvatarModel } from './AvatarModel';
+import { DEFAULT_AVATAR } from '../shared/types/avatar';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../shared/types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS } from '../shared/data/bikeCatalog';
 import {
@@ -55,6 +57,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     removeCustomerBike,
     saveBikeScrapedSpecs,
     saveMyAvatar,
+    saveMyAvatarImage,
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'avatar'>('garage');
@@ -601,6 +604,15 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               const res = await saveMyAvatar(config);
               if (res.success) toast.success(res.message || 'Avatar saved.');
               else toast.error(res.message || 'Could not save your avatar.');
+            }}
+          />
+          <AvatarLikenessStudio
+            config={currentUser.avatar || DEFAULT_AVATAR}
+            image={currentUser.avatarImage}
+            onSave={async (image) => {
+              const res = await saveMyAvatarImage(image);
+              if (res.success) toast.success(res.message || 'Portrait saved.');
+              else toast.error(res.message || 'Could not save your portrait.');
             }}
           />
         </div>

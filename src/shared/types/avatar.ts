@@ -59,6 +59,36 @@ export interface AvatarConfig {
   background: string;
 }
 
+/**
+ * A generated HD portrait layered over the vector avatar — the "AI likeness"
+ * of the customer. Produced by the image-generation pipeline in
+ * `shared/api/avatarImageService.ts` and stored as a base64 data URL on the
+ * profile so it renders offline and never needs a public bucket.
+ */
+export interface AvatarImage {
+  /** base64 data URL (image/png) */
+  dataUrl: string;
+  prompt: string;
+  model: string;
+  createdAt: string;
+}
+
+/** Guard against oversized payloads bloating the profiles row. */
+export const MAX_AVATAR_IMAGE_CHARS = 2_500_000;
+
+export function normalizeAvatarImage(raw: unknown): AvatarImage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const o = raw as Partial<AvatarImage>;
+  if (typeof o.dataUrl !== 'string' || !o.dataUrl.startsWith('data:image')) return undefined;
+  if (o.dataUrl.length > MAX_AVATAR_IMAGE_CHARS) return undefined;
+  return {
+    dataUrl: o.dataUrl,
+    prompt: typeof o.prompt === 'string' ? o.prompt : '',
+    model: typeof o.model === 'string' ? o.model : '',
+    createdAt: typeof o.createdAt === 'string' ? o.createdAt : new Date(0).toISOString(),
+  };
+}
+
 export interface AvatarChoice<T extends string> {
   id: T;
   label: string;

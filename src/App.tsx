@@ -265,7 +265,11 @@ function AppContent() {
             {isStaff && <ServiceStatusBadge variant="header" />}
 
             <div className={`hidden lg:flex items-center gap-2 text-xs ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-              {!isStaff && <AvatarModel config={currentUser.avatar} size={28} title={`${currentUser.displayName}'s avatar`} className="rounded-full shrink-0 overflow-hidden" />}
+              {!isStaff && (currentUser.avatarImage ? (
+                <img src={currentUser.avatarImage.dataUrl} alt={`${currentUser.displayName}'s avatar`} className="w-7 h-7 rounded-full shrink-0 object-cover" />
+              ) : (
+                <AvatarModel config={currentUser.avatar} size={28} title={`${currentUser.displayName}'s avatar`} className="rounded-full shrink-0 overflow-hidden" />
+              ))}
               <span className={`font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{currentUser.displayName}</span>
               {isStaff ? (
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-700/50">

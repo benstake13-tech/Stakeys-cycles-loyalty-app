@@ -15,6 +15,8 @@ import {
 import {
   DEFAULT_AVATAR,
   normalizeAvatar,
+  normalizeAvatarImage,
+  MAX_AVATAR_IMAGE_CHARS,
   randomAvatar,
   skinHex,
   hairHex,
@@ -23,6 +25,8 @@ import {
   HAIR_STYLES,
   HAIR_COLORS,
 } from './src/shared/types/avatar';
+import { buildAvatarPrompt, AVATAR_STYLE_PREAMBLE } from './src/shared/utils/avatarPrompt';
+import { AvatarLikenessStudio } from './src/components/AvatarLikenessStudio';
 
 describe('avatar model', () => {
   it('normalizes a corrupt blob back to a valid config', () => {
@@ -149,6 +153,86 @@ describe('bitmoji 3D models', () => {
       expect(p!.y).toBeGreaterThanOrEqual(-1);
       expect(p!.y).toBeLessThanOrEqual(h + 1);
     }
+  });
+});
+
+describe('avatar image (HD likeness portrait)', () => {
+  it('accepts a well-formed data URL and drops junk', () => {
+    const ok = normalizeAvatarImage({
+      dataUrl: 'data:image/png;base64,AAAA',
+      prompt: 'p',
+      model: 'm',
+      createdAt: '2026-10-04T00:00:00.000Z',
+    });
+    expect(ok?.dataUrl).toBe('data:image/png;base64,AAAA');
+    expect(ok?.model).toBe('m');
+
+    expect(normalizeAvatarImage(null)).toBeUndefined();
+    expect(normalizeAvatarImage({ dataUrl: 'https://example.com/x.png' })).toBeUndefined();
+    expect(normalizeAvatarImage({ dataUrl: 123 })).toBeUndefined();
+  });
+
+  it('rejects payloads over the size cap', () => {
+    const huge = `data:image/png;base64,${'A'.repeat(MAX_AVATAR_IMAGE_CHARS)}`;
+    expect(normalizeAvatarImage({ dataUrl: huge })).toBeUndefined();
+  });
+});
+
+describe('avatar prompt', () => {
+  it('includes the house style preamble and framing clause', () => {
+    const prompt = buildAvatarPrompt({ config: DEFAULT_AVATAR });
+    expect(prompt).toContain(AVATAR_STYLE_PREAMBLE);
+    expect(prompt).toContain('Centered bust-up portrait');
+  });
+
+  it('reflects the chosen hair, skin and top colours', () => {
+    const prompt = buildAvatarPrompt({
+      config: { ...DEFAULT_AVATAR, hairStyle: 'afro', skinTone: 'deep', topColor: 'navy' },
+    });
+    expect(prompt).toContain('afro');
+    expect(prompt).toContain('deep-brown');
+    expect(prompt).toContain('#1E3A8A');
+  });
+
+  it('includes the customer brief when provided and omits it otherwise', () => {
+    const withBrief = buildAvatarPrompt({ config: DEFAULT_AVATAR, brief: 'female, late 20s' });
+    expect(withBrief).toContain('female, late 20s');
+    const without = buildAvatarPrompt({ config: DEFAULT_AVATAR, brief: '   ' });
+    expect(without).not.toContain('Customer brief');
+  });
+
+  it('mentions the jersey number only when set', () => {
+    const withNumber = buildAvatarPrompt({ config: { ...DEFAULT_AVATAR, jerseyNumber: '07' } });
+    expect(withNumber).toContain('"07"');
+    const without = buildAvatarPrompt({ config: { ...DEFAULT_AVATAR, jerseyNumber: '' } });
+    expect(without).not.toContain('printed on the chest');
+  });
+});
+
+describe('avatar likeness studio', () => {
+  it('shows a saved portrait and offers to remove it', () => {
+    const onSave = vi.fn();
+    render(
+      <AvatarLikenessStudio
+        config={DEFAULT_AVATAR}
+        image={{
+          dataUrl: 'data:image/png;base64,AAAA',
+          prompt: 'p',
+          model: 'm',
+          createdAt: '2026-10-04T00:00:00.000Z',
+        }}
+        onSave={onSave}
+      />
+    );
+    expect(screen.getByAltText('Generated avatar portrait')).toBeTruthy();
+    fireEvent.click(screen.getByText('Remove'));
+    expect(onSave).toHaveBeenCalledWith(null);
+  });
+
+  it('renders the vector fallback when no portrait exists', () => {
+    render(<AvatarLikenessStudio config={DEFAULT_AVATAR} image={null} onSave={vi.fn()} />);
+    expect(screen.queryByAltText('Generated avatar portrait')).toBeNull();
+    expect(screen.getByTestId('avatar-model')).toBeTruthy();
   });
 });
 
