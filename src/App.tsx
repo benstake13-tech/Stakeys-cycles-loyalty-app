@@ -34,6 +34,7 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
+import { AvatarPreviewStage } from './components/AvatarPreviewStage';
 import { Toaster } from 'react-hot-toast';
 import { initPushEngage, linkUser, unlinkUser } from './utils/pushNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
@@ -66,6 +67,15 @@ function AppContent() {
   const freshBookingsCount = isStaff
     ? bookings.filter((b) => b.status === 'pending' || b.approvalStatus === 'pending_approval').length
     : 0;
+
+  // QA/preview: `?avatar=1` mounts the avatar creator for this session only.
+  const isAvatarPreview = React.useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('avatar') === '1';
+    } catch {
+      return false;
+    }
+  }, []);
 
   // Keep activeTab in sync with user role changes without violating Hook rules
   useEffect(() => {
@@ -181,6 +191,19 @@ function AppContent() {
   // ── Surface builds ────────────────────────────────────────────────────────
   // Each domain ships its own bundle. The website build is fully public (guest
   // bookings only, no login); the staff and customer builds are signed-in only.
+
+  // Session-only avatar preview: `?avatar=1` shows the real avatar system
+  // without a login and without touching any profile. Available on every
+  // surface so the creator can be reviewed before it ships.
+  if (isAvatarPreview) {
+    return (
+      <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+        <ThemeStage theme={seasonalTheme} />
+        <AvatarPreviewStage />
+      </div>
+    );
+  }
+
   if (isWebsiteSurface) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
