@@ -264,6 +264,11 @@ async function startServer() {
     }
   });
 
+  // Static surface previews (website / staff / customer) built with
+  // VITE_SURFACE + a /preview/<surface>/ base, so all three can be reviewed
+  // side by side from this single dev port.
+  app.use('/preview', express.static(path.join(__dirname, 'preview'), { extensions: ['html'] }));
+
   // Vite dev middleware is registered LAST so the /api/* routes above take
   // precedence over the SPA history fallback.
   const vite = await createServer({

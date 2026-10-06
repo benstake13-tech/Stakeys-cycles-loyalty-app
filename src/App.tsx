@@ -36,6 +36,7 @@ import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { Toaster } from 'react-hot-toast';
 import { initPushEngage, linkUser, unlinkUser } from './utils/pushNotifications';
+import { APP_SURFACE, isFullSurface, isWebsiteSurface } from './config/surface';
 
 function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
@@ -163,6 +164,56 @@ function AppContent() {
     navTabs.push({ id: 'deliverables', label: 'Config', icon: Layers, tone: 'neutral', hint: 'Architecture & deliverables' });
   } else {
     navTabs.push({ id: 'staff', label: 'Staff Station', icon: Shield, tone: 'amber', hint: 'Secure staff sign-in' });
+  }
+
+  // ── Surface builds ────────────────────────────────────────────────────────
+  // Each domain ships its own bundle. The website build is fully public (guest
+  // bookings only, no login); the staff and customer builds are signed-in only.
+  if (isWebsiteSurface) {
+    return (
+      <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+        <SeasonalThemeCanvas theme={seasonalTheme} />
+        <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
+                <StakeysLogo className="w-9 h-9" />
+              </div>
+              <div>
+                <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
+                  STAKEYS
+                  <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">Cycles &amp; Scooter</span>
+                </span>
+                <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Repairs · Parts · Salford</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle showLabel={false} />
+              <button
+                onClick={() => setShowGuestBooking(true)}
+                className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-xs font-black uppercase tracking-wider text-neutral-950 shadow cursor-pointer"
+              >
+                <Wrench className="w-3.5 h-3.5" /> Book a repair
+              </button>
+            </div>
+          </div>
+        </header>
+        <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {showGuestBooking ? <BookingPortal /> : <WebsiteReplica onBookService={() => setShowGuestBooking(true)} />}
+        </main>
+      </div>
+    );
+  }
+
+  if (!isFullSurface && !currentUser) {
+    return (
+      <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+        <SeasonalThemeCanvas theme={seasonalTheme} />
+        <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <LoginScreen onGoToBooking={APP_SURFACE === 'customer' ? () => setShowGuestBooking(true) : undefined} />
+        </main>
+      </div>
+    );
   }
 
   // 1. FIRST SCREEN: If user is not authenticated, show LoginScreen or Guest Booking
