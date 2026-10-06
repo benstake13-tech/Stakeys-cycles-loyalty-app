@@ -25,8 +25,9 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContent = {
   mobileTitle: 'Mobile Services Only',
   mobileBody:
     'We\u2019ve gone fully mobile! Skip the travel and let us come to you. All services are now handled via call-outs at your preferred location. Book your appointment today and we\u2019ll handle the rest.',
-  locationImage:
-    'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/1759138090411_1759138520.jpg?width=2400&optimize=medium',
+  // Left blank on purpose: the old carried-over location photo was poor quality.
+  // Staff add a replacement in Staff Station -> Website -> Location.
+  locationImage: '',
   faqs: [
     { id: 'faq-1', section: 'repairs', q: 'Do you offer repair services?', a: 'Yes, absolutely! We provide comprehensive repair and maintenance services for a wide range of bicycles and other wheeled vehicles.' },
     { id: 'faq-2', section: 'repairs', q: 'What is the typical turnaround time for repairs?', a: 'Most minor repairs are completed within a couple of hours. However,the exact turnaround time depends on the complexity of the job,the current volume of work in the shop,and the availability of any necessary parts. We will provide you with a more precise time estimate when you drop off your bike.' },
@@ -122,11 +123,9 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContent = {
   // storefront starts empty on purpose so the shop only ever shows real items
   // the workshop has actually put on the shelf.
   products: [],
-  galleryImages: [
-    { id: 'gallery-1', url: 'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/1759137166109_1759137252.jpg?width=2400&optimize=medium&height=480&fit=cover&dpr=1' },
-    { id: 'gallery-2', url: 'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/1759129006118_1759129156.jpg?width=2400&optimize=medium' },
-    { id: 'gallery-3', url: 'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/17591178550001_1759129155.jpg?width=2400&optimize=medium' },
-  ],
+  // Cleared on purpose: the old carried-over gallery photos were poor quality.
+  // Staff add replacement photos in Staff Station -> Website -> Gallery.
+  galleryImages: [],
   joinTitle: "Join the Stakey's Cycles Team",
   joinBody:
     'Turn Your Skills into a Mobile Business. Ready to ditch the workshop? We\u2019re looking for independent mechanics to join our city-wide call-out team. We handle the marketing,and booking;you provide the expert on-site service.',

@@ -16,14 +16,29 @@ import { WebsiteContent } from '../types/websiteContent';
  * run DDL,so we never create it. If the column exists,we upsert it on save
  * so edits follow staff across devices; otherwise we stay local-only.
  */
-const STORAGE_KEY = 'stakeys.website_content.v2';
+const STORAGE_KEY = 'stakeys.website_content.v3';
 
 /**
- * Earlier drafts live under v1 and still carry the seeded demo stock. Bumping
- * the key drops that stale shelf on the next load; we also actively remove the
- * old key so it can never be resurrected by a downgrade or a second tab.
+ * Earlier drafts live under v1/v2 and still carry the poor-quality gallery and
+ * location photos imported from the old site. Bumping the key drops that stale
+ * content on the next load; we also actively remove the old keys so it can
+ * never be resurrected by a downgrade or a second tab.
  */
-const LEGACY_STORAGE_KEYS = ['stakeys.website_content.v1'];
+const LEGACY_STORAGE_KEYS = [
+  'stakeys.website_content.v1',
+  'stakeys.website_content.v2',
+];
+
+/**
+ * The old marketing site's CDN. Images carried over from it were low quality
+ * and staff have asked for them gone, so a saved draft is scrubbed of them on
+ * load rather than only resetting fresh installs.
+ */
+const LEGACY_IMAGE_HOST = 'cdn6.editmysite.com';
+
+function isCarriedImage(url: string | undefined): boolean {
+  return typeof url === 'string' && url.includes(LEGACY_IMAGE_HOST);
+}
 
 let cached: WebsiteContent | null = null;
 const listeners = new Set<() => void>();
@@ -58,6 +73,10 @@ export function getWebsiteContent(): WebsiteContent {
         // defaults so the checkout never renders an empty notice area.
         merged.shopDisclaimers = merged.shopDisclaimers ?? clone(DEFAULT_WEBSITE_CONTENT).shopDisclaimers;
         merged.siteAnnouncements = merged.siteAnnouncements ?? clone(DEFAULT_WEBSITE_CONTENT).siteAnnouncements;
+        // Drop the poor-quality photos carried over from the old site so a
+        // returning visitor's saved draft is cleaned, not just new installs.
+        if (isCarriedImage(merged.locationImage)) merged.locationImage = '';
+        merged.galleryImages = (merged.galleryImages ?? []).filter((g) => !isCarriedImage(g.url));
         cached = merged;
         return cached!;
       }
