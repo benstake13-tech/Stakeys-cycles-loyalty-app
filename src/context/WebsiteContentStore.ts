@@ -40,6 +40,10 @@ export function getWebsiteContent(): WebsiteContent {
         // Saved drafts predate stock tracking; default it so the shop never
         // renders "undefined in stock" or lets the basket exceed inventory.
         merged.products = merged.products.map((p) => ({ ...p, stock: p.stock ?? 1 }));
+        // Saved drafts also predate the shop disclaimers; fall back to the
+        // defaults so the checkout never renders an empty notice area.
+        merged.shopDisclaimers = merged.shopDisclaimers ?? clone(DEFAULT_WEBSITE_CONTENT).shopDisclaimers;
+        merged.siteAnnouncements = merged.siteAnnouncements ?? clone(DEFAULT_WEBSITE_CONTENT).siteAnnouncements;
         cached = merged;
         return cached!;
       }

@@ -27,12 +27,18 @@ interface LoginScreenProps {
   onGoToBooking?: () => void;
 /** Returns to the public marketing website (logged-out visitors). */
   onBackToWebsite?: () => void;
+  /**
+   * Which sign-in this surface offers. The customer app must never show the
+   * staff station and the staff terminal must never show customer sign-in, so
+   * each surface renders only its own door.
+   */
+  audience?: 'customer' | 'staff' | 'both';
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackToWebsite }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackToWebsite, audience = 'customer' }) => {
   const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, addCustomerBike } = useShop();
 
-  const [mode, setMode] = useState<'signin' | 'register' | 'staff'>('signin');
+  const [mode, setMode] = useState<'signin' | 'register' | 'staff'>(audience === 'staff' ? 'staff' : 'signin');
   const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
 
@@ -338,54 +344,68 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
               </p>
             </div>
 
-            {/* Dedicated 3-Mode Switcher: Customer Sign In | Create Account | Staff Terminal */}
-            <div className="grid grid-cols-3 bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('signin');
-                  setError(null);
-                }}
-                className={`py-2 rounded-lg transition-all cursor-pointer text-center ${
-                  mode === 'signin'
-                    ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
-                    : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                Sign In
-              </button>
+            {/* Audience-aware switcher: customers never see the staff door, and
+                the staff terminal never sees customer sign-in / register. */}
+            <div className={`grid ${audience === 'both' ? 'grid-cols-3' : 'grid-cols-1'} bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1`}>
+              {audience !== 'staff' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('signin');
+                      setError(null);
+                    }}
+                    className={`py-2 rounded-lg transition-all cursor-pointer text-center ${
+                      mode === 'signin'
+                        ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    Sign In
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('register');
-                  setError(null);
-                }}
-                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  mode === 'register'
-                    ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
-                    : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                <Sparkles className="w-3 h-3 text-[#05C147]" />
-                <span>Register</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('register');
+                      setError(null);
+                    }}
+                    className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      mode === 'register'
+                        ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <Sparkles className="w-3 h-3 text-[#05C147]" />
+                    <span>Register</span>
+                  </button>
+                </>
+              )}
 
-              <button
-                type="button"
-                onClick={() => {
-                  setMode('staff');
-                  setError(null);
-                }}
-                className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
-                  mode === 'staff'
-                    ? 'bg-emerald-950/80 text-emerald-300 font-bold shadow-md border border-emerald-500/50'
-                    : 'text-amber-400 hover:text-amber-300'
-                }`}
-              >
-                <Shield className="w-3 h-3 text-emerald-400" />
-                <span>Staff Station</span>
-              </button>
+              {audience === 'both' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('staff');
+                    setError(null);
+                  }}
+                  className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    mode === 'staff'
+                      ? 'bg-emerald-950/80 text-emerald-300 font-bold shadow-md border border-emerald-500/50'
+                      : 'text-amber-400 hover:text-amber-300'
+                  }`}
+                >
+                  <Shield className="w-3 h-3 text-emerald-400" />
+                  <span>Staff Station</span>
+                </button>
+              ) : (
+                audience === 'staff' && (
+                  <div className="py-2 rounded-lg bg-emerald-950/80 text-emerald-300 font-bold shadow-md border border-emerald-500/50 flex items-center justify-center gap-1">
+                    <Shield className="w-3 h-3 text-emerald-400" />
+                    <span>Staff Station</span>
+                  </div>
+                )
+              )}
             </div>
 
           {/* Error Notice */}
@@ -479,19 +499,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
                 )}
               </button>
 
-              <div className="text-center pt-1 text-xs text-neutral-400">
-                Are you a customer?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signin');
-                    setError(null);
-                  }}
-                  className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline ml-1"
-                >
-                  Customer Sign In
-                </button>
-              </div>
+              {audience !== 'staff' && (
+                <div className="text-center pt-1 text-xs text-neutral-400">
+                  Are you a customer?{' '}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('signin');
+                      setError(null);
+                    }}
+                    className="text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer underline ml-1"
+                  >
+                    Customer Sign In
+                  </button>
+                </div>
+              )}
             </form>
           )}
 
@@ -583,17 +605,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
                   </button>
                 </span>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('staff');
-                    setError(null);
-                  }}
-                  className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer flex items-center gap-1"
-                >
-                  <Shield className="w-3 h-3" />
-                  <span>Staff Station</span>
-                </button>
+                {audience === 'both' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('staff');
+                      setError(null);
+                    }}
+                    className="text-amber-400 hover:text-amber-300 font-semibold cursor-pointer flex items-center gap-1"
+                  >
+                    <Shield className="w-3 h-3" />
+                    <span>Staff Station</span>
+                  </button>
+                )}
               </div>
             </form>
           )}

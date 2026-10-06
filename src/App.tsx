@@ -24,6 +24,7 @@ import { LoginScreen } from './components/LoginScreen';
 import { CustomerPortal } from './components/CustomerPortal';
 import { StaffPortal } from './components/StaffPortal';
 import { WebsiteReplica } from './components/WebsiteReplica';
+import { ShopAssistant } from './components/ShopAssistant';
 import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
 import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner';
@@ -201,6 +202,7 @@ function AppContent() {
         <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {showGuestBooking ? <BookingPortal /> : <WebsiteReplica onBookService={() => setShowGuestBooking(true)} />}
         </main>
+        <ShopAssistant surface="website" />
       </div>
     );
   }
@@ -210,8 +212,12 @@ function AppContent() {
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
         <SeasonalThemeCanvas theme={seasonalTheme} />
         <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <LoginScreen onGoToBooking={APP_SURFACE === 'customer' ? () => setShowGuestBooking(true) : undefined} />
+          <LoginScreen
+            audience={APP_SURFACE === 'staff' ? 'staff' : isFullSurface ? 'both' : 'customer'}
+            onGoToBooking={APP_SURFACE === 'customer' ? () => setShowGuestBooking(true) : undefined}
+          />
         </main>
+        {APP_SURFACE === 'customer' && <ShopAssistant surface="customer" />}
       </div>
     );
   }
@@ -279,7 +285,7 @@ function AppContent() {
                   onClick={() => setPublicView('login')}
                   className={`pressable inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-200 text-neutral-700 hover:border-emerald-500/50'}`}
                 >
-                  <Lock className="w-3.5 h-3.5" /> Sign in / Staff
+                  <Lock className="w-3.5 h-3.5" /> Customer Sign In
                 </button>
               </div>
             </div>
@@ -287,6 +293,7 @@ function AppContent() {
           <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <WebsiteReplica onBookService={() => setShowGuestBooking(true)} />
           </main>
+          <ShopAssistant surface="website" />
         </div>
       );
     }
@@ -598,6 +605,8 @@ function AppContent() {
           </form>
         </div>
       )}
+      {/* Assistant is for customers only — staff already know the answers. */}
+      {!isStaff && <ShopAssistant surface="customer" />}
       </div>
     </div>
   );

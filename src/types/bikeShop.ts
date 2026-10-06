@@ -361,6 +361,8 @@ export interface SaleLineItem {
   category: 'Labour' | 'Part' | 'Consumable' | 'Diagnostic';
   quantity: number;
   unitPrice: number;
+  /** Set when the line came from live shop stock, so payment can decrement it. */
+  productId?: string;
 }
 
 export interface SaleDiscountState {

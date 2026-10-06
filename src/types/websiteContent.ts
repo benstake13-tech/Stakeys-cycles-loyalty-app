@@ -124,6 +124,10 @@ export interface WebsiteContent {
 /** Shop page. */
   shopNoticeTitle: string;
   shopNoticeBody: string;
+  /** Customer-facing disclaimers shown above the shop and at checkout. */
+  shopDisclaimers: string[];
+  /** Rotating ribbon at the very top of the public website — its own voice. */
+  siteAnnouncements: string[];
   shopImage: string;
   shopCategories: WebProductCategory[];
   products: WebProduct[];

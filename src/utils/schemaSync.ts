@@ -357,6 +357,30 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'updated_at', type: 'timestamptz', default: NOW },
     ],
   },
+  {
+    name: 'ecommerce_orders',
+    primaryKey: 'id',
+    textId: true,
+    columns: [
+      { name: 'id', type: 'text' },
+      { name: 'customer_name', type: 'text' },
+      { name: 'contact', type: 'text' },
+      { name: 'items', type: 'jsonb', default: `'[]'::jsonb` },
+      { name: 'total', type: 'numeric' },
+      { name: 'note', type: 'text' },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'assistant_config',
+    primaryKey: 'id',
+    textId: true,
+    columns: [
+      { name: 'id', type: 'text' },
+      { name: 'config', type: 'jsonb', default: `'{}'::jsonb` },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
 ];
 
 export function expectedTable(name: string): ExpectedTable | undefined {
