@@ -138,6 +138,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const isDark = theme === 'dark';
   const content = useWebsiteContent();
   const [showPreview, setShowPreview] = useState(false);
+  const [editorTab, setEditorTab] = useState<'website' | 'shop' | 'gallery'>('website');
   const [draft, setDraft] = useState(content);
   const [savedSink, setSavedSink] = useState(0);
 
@@ -287,6 +288,32 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       </div>
 
+      {/* Separate the three publishing concerns so an editor never has to
+          scroll past shop stock to change the gallery. */}
+      <div className={`rounded-2xl border p-1.5 grid grid-cols-3 gap-1.5 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
+        {([
+          { id: 'website', label: 'Main Website', hint: 'Hero, pages, FAQs, prices, socials' },
+          { id: 'shop', label: 'Shop & Stock', hint: 'Products, prices, stock levels' },
+          { id: 'gallery', label: 'Gallery', hint: 'Photos shown on the site' },
+        ] as const).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setEditorTab(t.id)}
+            className={`rounded-xl px-3 py-2.5 text-left transition-all cursor-pointer border ${
+              editorTab === t.id
+                ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 border-emerald-400 shadow-lg shadow-emerald-500/25'
+                : isDark
+                  ? 'border-transparent text-neutral-300 hover:bg-neutral-800/60'
+                  : 'border-transparent text-neutral-600 hover:bg-neutral-100'
+            }`}
+          >
+            <span className="block text-xs font-black uppercase tracking-wider">{t.label}</span>
+            <span className={`block text-[10px] font-medium mt-0.5 ${editorTab === t.id ? 'text-neutral-900/80' : isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{t.hint}</span>
+          </button>
+        ))}
+      </div>
+
       {showPreview && (
         <div className={`rounded-2xl border p-4 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
           <details open>
@@ -304,6 +331,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
+      {editorTab === 'website' && (
       <SectionCard title="Hero & Contact" subtitle="Shown on Home and reused across every page." isDark={isDark}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label="Hero badge" isDark={isDark} value={draft.heroBadge} onChange={(v) => setTextField('heroBadge', v)} />
@@ -318,15 +346,60 @@ export const WebsiteContentManagerTab: React.FC = () => {
         <Field label='Review / feedback intro (Home "Leave a Review")' isDark={isDark} textarea value={draft.reviewBlurb} onChange={(v) => setTextField('reviewBlurb', v)} />
         <Field label="Feedback body" isDark={isDark} textarea value={draft.feedbackBody} onChange={(v) => setTextField('feedbackBody', v)} />
         <Field label="Feedback section title" isDark={isDark} value={draft.feedbackTitle} onChange={(v) => setTextField('feedbackTitle', v)} />
+        <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-neutral-950/40 border-neutral-800' : 'bg-neutral-50 border-neutral-200'}`}>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-neutral-200' : 'text-neutral-800'}`}>Announcement ribbon</span>
+              <span className={`block text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>Rotates at the top of the public site — the website's own voice, separate from in-store notices.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => applyDraft({ siteAnnouncements: [...draft.siteAnnouncements, ''] } as Partial<typeof draft>)}
+              className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer"
+            >
+              <Plus className="w-3 h-3" /> Add
+            </button>
+          </div>
+          {draft.siteAnnouncements.length === 0 && (
+            <p className={`text-[11px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>No announcements — the ribbon is hidden.</p>
+          )}
+          {draft.siteAnnouncements.map((a, i) => (
+            <div key={i} className="flex items-end gap-2">
+              <div className="flex-1">
+                <Field
+                  label={`Announcement ${i + 1}`}
+                  isDark={isDark}
+                  value={a}
+                  onChange={(v) => {
+                    const siteAnnouncements = draft.siteAnnouncements.map((x, idx) => (idx === i ? v : x));
+                    applyDraft({ siteAnnouncements } as Partial<typeof draft>);
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => applyDraft({ siteAnnouncements: draft.siteAnnouncements.filter((_, idx) => idx !== i) } as Partial<typeof draft>)}
+                className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+                aria-label={`Remove announcement ${i + 1}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
       </SectionCard>
+      )}
 
+      {editorTab === 'website' && (
       <SectionCard title="Location Page" isDark={isDark}>
         <Field label="Location quote (overlaid on image)" isDark={isDark} textarea value={draft.locationQuote} onChange={(v) => setTextField('locationQuote', v)} />
         <Field label="Mobile-only heading" isDark={isDark} value={draft.mobileTitle} onChange={(v) => setTextField('mobileTitle', v)} />
         <Field label="Mobile-only body" isDark={isDark} textarea value={draft.mobileBody} onChange={(v) => setTextField('mobileBody', v)} />
         <Field label="Location hero image URL" isDark={isDark} value={draft.locationImage} onChange={(v) => setTextField('locationImage', v)} />
       </SectionCard>
+      )}
 
+      {editorTab === 'website' && (
       <SectionCard title="Join the Team" isDark={isDark}>
         <Field label="Heading" isDark={isDark} value={draft.joinTitle} onChange={(v) => setTextField('joinTitle', v)} />
         <Field label="Pitch" isDark={isDark} textarea value={draft.joinBody} onChange={(v) => setTextField('joinBody', v)} />
@@ -341,7 +414,9 @@ export const WebsiteContentManagerTab: React.FC = () => {
           />
         </div>
       </SectionCard>
+      )}
 
+      {editorTab === 'website' && (
       <SectionCard title="FAQs" subtitle="Repairs & Service · Parts & Accessories · General." isDark={isDark}>
         <div className="space-y-3">
           {draft.faqs.map((faq, i) => (
@@ -378,7 +453,9 @@ export const WebsiteContentManagerTab: React.FC = () => {
           <Plus className="w-3.5 h-3.5" /> Add FAQ
         </button>
       </SectionCard>
+      )}
 
+      {editorTab === 'website' && (
       <SectionCard title="Price List" subtitle="Ballpark UK labour-only prices for bicycles and e-scooters." isDark={isDark}>
         <Field label="Intro title" isDark={isDark} value={draft.priceIntroTitle} onChange={(v) => setTextField('priceIntroTitle', v)} />
         <Field label="Intro body" isDark={isDark} textarea value={draft.priceIntroBody} onChange={(v) => setTextField('priceIntroBody', v)} />
@@ -437,10 +514,54 @@ export const WebsiteContentManagerTab: React.FC = () => {
           </button>
         </div>
       </SectionCard>
+      )}
 
+      {editorTab === 'shop' && (
       <SectionCard title="Shop Products" subtitle="Live storefront items — prices, stock and descriptions drive the public Shop + basket checkout." isDark={isDark}>
         <Field label="Suspension notice title" isDark={isDark} value={draft.shopNoticeTitle} onChange={(v) => setTextField('shopNoticeTitle', v)} />
         <Field label="Suspension notice body" isDark={isDark} textarea value={draft.shopNoticeBody} onChange={(v) => setTextField('shopNoticeBody', v)} />
+        <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-amber-500/5 border-amber-500/30' : 'bg-amber-50 border-amber-300'}`}>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-amber-200' : 'text-amber-900'}`}>Customer disclaimers</span>
+              <span className={`block text-[10px] ${isDark ? 'text-amber-200/70' : 'text-amber-800/80'}`}>Shown above the shop and again at checkout before the customer can order.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => applyDraft({ shopDisclaimers: [...draft.shopDisclaimers, ''] } as Partial<typeof draft>)}
+              className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer"
+            >
+              <Plus className="w-3 h-3" /> Add
+            </button>
+          </div>
+          {draft.shopDisclaimers.length === 0 && (
+            <p className={`text-[11px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>No disclaimers — customers will see nothing at checkout.</p>
+          )}
+          {draft.shopDisclaimers.map((d, i) => (
+            <div key={i} className="flex items-end gap-2">
+              <div className="flex-1">
+                <Field
+                  label={`Disclaimer ${i + 1}`}
+                  isDark={isDark}
+                  textarea
+                  value={d}
+                  onChange={(v) => {
+                    const shopDisclaimers = draft.shopDisclaimers.map((x, idx) => (idx === i ? v : x));
+                    applyDraft({ shopDisclaimers } as Partial<typeof draft>);
+                  }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => applyDraft({ shopDisclaimers: draft.shopDisclaimers.filter((_, idx) => idx !== i) } as Partial<typeof draft>)}
+                className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+                aria-label={`Remove disclaimer ${i + 1}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
         <div className="space-y-3">
           {draft.products.map((product, i) => (
             <div key={product.id} className="space-y-2">
@@ -503,7 +624,9 @@ export const WebsiteContentManagerTab: React.FC = () => {
           <Plus className="w-3.5 h-3.5" /> Add Product
         </button>
       </SectionCard>
+      )}
 
+      {editorTab === 'gallery' && (
       <SectionCard title="Gallery" isDark={isDark}>
         <div className="space-y-3">
           {draft.galleryImages.map((img, i) => (
@@ -538,7 +661,9 @@ export const WebsiteContentManagerTab: React.FC = () => {
           <Plus className="w-3.5 h-3.5" /> Add Gallery Image
         </button>
       </SectionCard>
+      )}
 
+      {editorTab === 'website' && (
       <SectionCard title="Social Links" subtitle="Footer + contact strip; used across every page." isDark={isDark}>
         <div className="space-y-3">
           {draft.socials.map((social, i) => (
@@ -567,6 +692,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
           <Plus className="w-3.5 h-3.5" /> Add Social Link
         </button>
       </SectionCard>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 pt-2">
         <button

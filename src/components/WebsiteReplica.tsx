@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   BadgePoundSterling,
   Bike,
   CalendarCheck,
@@ -8,6 +9,7 @@ import {
   MessageCircle,
   Phone,
   ShoppingCart,
+  Sparkles,
   Star,
   Store,
   Tag,
@@ -161,6 +163,18 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
     { key: 'parts', label: 'Parts & Accessories' },
     { key: 'general', label: 'General Information' },
   ];
+
+  // Rotate the site's own announcement ribbon so the marketing site feels alive
+  // without pulling in the in-store staff notice board.
+  const [ribbonIndex, setRibbonIndex] = useState(0);
+  useEffect(() => {
+    if (content.siteAnnouncements.length < 2) return;
+    const id = window.setInterval(
+      () => setRibbonIndex((i) => (i + 1) % content.siteAnnouncements.length),
+      5200
+    );
+    return () => window.clearInterval(id);
+  }, [content.siteAnnouncements.length]);
 
   const heroCard = (
     <div className="relative overflow-hidden rounded-3xl border p-6 sm:p-10 shadow-xl">
@@ -400,6 +414,16 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                 rows={2}
                 className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-100' : 'border-neutral-200 bg-white text-neutral-800'}`}
               />
+              {content.shopDisclaimers.length > 0 && (
+                <div className={`rounded-xl border p-2.5 text-[10px] leading-relaxed space-y-1 ${isDark ? 'border-amber-500/30 bg-amber-500/5 text-amber-200/80' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+                  {content.shopDisclaimers.map((d, i) => (
+                    <p key={i} className="flex gap-1.5">
+                      <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
+                      <span>{d}</span>
+                    </p>
+                  ))}
+                </div>
+              )}
               <button
                 type="button"
                 disabled={!isCheckoutReady(checkoutName, checkoutContact, cartCount) || placing}
@@ -593,6 +617,16 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
               <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
                 {content.shopNoticeBody}
               </p>
+              {content.shopDisclaimers.length > 0 && (
+                <ul className={`mt-4 space-y-1.5 rounded-xl border p-3 text-[11px] leading-relaxed ${isDark ? 'border-amber-500/30 bg-amber-500/5 text-amber-200/90' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
+                  {content.shopDisclaimers.map((d, i) => (
+                    <li key={i} className="flex gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <span>{d}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="flex flex-wrap gap-2.5 mt-4">
                 <a href={call} className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer">
                   <Phone className="w-4 h-4" /> Call / Text / WhatsApp
@@ -751,15 +785,26 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {content.siteAnnouncements.length > 0 && (
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent px-4 py-2.5">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span key={ribbonIndex} className={`animate-fade-in text-xs font-bold tracking-wide ${isDark ? 'text-emerald-200' : 'text-emerald-800'}`}>
+              {content.siteAnnouncements[ribbonIndex]}
+            </span>
+          </div>
+        </div>
+      )}
+
       <div className={`rounded-3xl border p-4 sm:p-5 ${isDark ? 'bg-neutral-900/60 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div>
             <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 flex items-center gap-2">
               <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              Marketing Website · Stakey's Cycles
+              Stakey's Cycles &amp; Scooter · Repairs &amp; Second-Hand Shop
             </div>
             <p className={`text-xs mt-1 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-              Recreated from stakeyscycles.square.site with staff-managed content. Staff can publish edits from the Staff Station → Website tab.
+              Book a repair, browse the shop and see live promotions. Everything is kept up to date by the workshop team.
 
             </p>
           </div>

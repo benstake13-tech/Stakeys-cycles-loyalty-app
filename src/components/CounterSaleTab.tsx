@@ -21,6 +21,7 @@ import {
   Send,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
+import { useWebsiteContent, updateWebsiteContent } from '../context/WebsiteContentStore';
 import {
   UserProfile,
   DiscountCode,
@@ -81,6 +82,39 @@ export const CounterSaleTab: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>('card');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [lastSale, setLastSale] = useState<SaleTransaction | null>(null);
+
+  // Live shop stock, so staff can sell a real product at the till and the
+  // storefront quantity is decremented when the sale is processed.
+  const webContent = useWebsiteContent();
+  const stockProducts = webContent.products;
+
+  const qtyInBasket = (productId: string) =>
+    lines
+      .filter((l) => l.productId === productId)
+      .reduce((sum, l) => sum + l.quantity, 0);
+
+  const addStockProduct = (product: (typeof stockProducts)[number]) => {
+    const remaining = product.stock - qtyInBasket(product.id);
+    if (remaining <= 0) {
+      setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${product.name} in stock.` });
+      return;
+    }
+    const existing = lines.find((l) => l.productId === product.id);
+    if (existing) {
+      setLines((prev) =>
+        prev.map((l) => (l.id === existing.id ? { ...l, quantity: l.quantity + 1 } : l))
+      );
+    } else {
+      addLine({
+        description: product.name,
+        category: 'Part',
+        quantity: 1,
+        unitPrice: product.price,
+        productId: product.id,
+      });
+    }
+    setDiscountMessage(null);
+  };
 
   // Quote workflow state — a till basket becomes a quote, and staff can reopen
   // that quote to edit/approve/process it. Mirrors the booking flow.
@@ -153,7 +187,22 @@ export const CounterSaleTab: React.FC = () => {
   const changeQty = (id: string, delta: number) => {
     setLines((prev) =>
       prev
-        .map((l) => (l.id === id ? { ...l, quantity: Math.max(0, l.quantity + delta) } : l))
+        .map((l) => {
+          if (l.id !== id) return l;
+          const next = Math.max(0, l.quantity + delta);
+          // Never let the till oversell the shelf: cap stock-backed lines.
+          if (delta > 0 && l.productId) {
+            const product = stockProducts.find((p) => p.id === l.productId);
+            const others = prev
+              .filter((o) => o.id !== id && o.productId === l.productId)
+              .reduce((sum, o) => sum + o.quantity, 0);
+            if (product && others + next > product.stock) {
+              setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${product.name} in stock.` });
+              return l;
+            }
+          }
+          return { ...l, quantity: next };
+        })
         .filter((l) => l.quantity > 0)
     );
   };
@@ -352,6 +401,20 @@ export const CounterSaleTab: React.FC = () => {
     setIsProcessing(true);
     try {
       const res = await processSale(sale.id, paymentMethod);
+      // Decrement live storefront stock for every product line sold, so the
+      // shop and the till never disagree on what is actually on the shelf.
+      if (res.success) {
+        const soldByProduct = sale.items.reduce<Record<string, number>>((acc, l) => {
+          if (l.productId) acc[l.productId] = (acc[l.productId] || 0) + l.quantity;
+          return acc;
+        }, {});
+        if (Object.keys(soldByProduct).length > 0) {
+          const products = webContent.products.map((p) =>
+            soldByProduct[p.id] ? { ...p, stock: Math.max(0, p.stock - soldByProduct[p.id]) } : p
+          );
+          updateWebsiteContent({ products });
+        }
+      }
       if (res.success && sale.discountCode) {
         const voucherMatch = (selectedCustomer?.serviceVouchers || []).find(
           (v) => v.code === sale.discountCode && v.status === 'available'
@@ -471,6 +534,49 @@ export const CounterSaleTab: React.FC = () => {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Live storefront stock — sell a real product so the shop stays accurate */}
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+              Shop stock ({stockProducts.length})
+            </span>
+            <span className="text-[10px] text-neutral-600">Selling decrements the storefront</span>
+          </div>
+          {stockProducts.length === 0 ? (
+            <p className="py-4 text-center text-xs text-neutral-600">
+              No products set up yet. Add them in Staff Station → Website → Shop &amp; Stock.
+            </p>
+          ) : (
+            <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {stockProducts.map((p) => {
+                const remaining = p.stock - qtyInBasket(p.id);
+                const soldOut = remaining <= 0;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    disabled={soldOut}
+                    onClick={() => addStockProduct(p)}
+                    className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${
+                      soldOut
+                        ? 'cursor-not-allowed border-neutral-900 bg-neutral-950 text-neutral-600'
+                        : 'border-neutral-800 bg-black text-neutral-300 hover:border-emerald-500/40 hover:text-white'
+                    }`}
+                  >
+                    <span className="min-w-0 pr-2">
+                      <span className="block truncate">{p.name}</span>
+                      <span className={`block text-[10px] ${soldOut ? 'text-rose-400' : 'text-neutral-500'}`}>
+                        {soldOut ? 'Out of stock' : `${remaining} available`}
+                      </span>
+                    </span>
+                    <span className="font-mono font-semibold text-emerald-400">£{p.price.toFixed(2)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Basket */}
