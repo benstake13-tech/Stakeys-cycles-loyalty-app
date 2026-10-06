@@ -41,6 +41,7 @@ import {
   describeDiscountValue,
 } from '../utils/discountService';
 import { normalizeScannedCode, resolveCustomer, membershipBalance, MembershipBalance } from '../utils/membershipCode';
+import { stockLabel, qtyInBasket, tillStockRows } from '../utils/tillStock';
 
 const QUICK_ITEMS: Omit<SaleLineItem, 'id'>[] = [
   { description: 'Standard Workshop Labour (30 min)', category: 'Labour', quantity: 1, unitPrice: 30 },
@@ -84,19 +85,18 @@ export const CounterSaleTab: React.FC = () => {
   const [lastSale, setLastSale] = useState<SaleTransaction | null>(null);
 
   // Live shop stock, so staff can sell a real product at the till and the
-  // storefront quantity is decremented when the sale is processed.
+  // storefront quantity is decremented when the sale is processed. Every item
+  // on the shelf gets its own till button below, so adding stock in the
+  // Staff Station is all it takes to make it sellable at the counter.
   const webContent = useWebsiteContent();
   const stockProducts = webContent.products;
 
-  const qtyInBasket = (productId: string) =>
-    lines
-      .filter((l) => l.productId === productId)
-      .reduce((sum, l) => sum + l.quantity, 0);
+  const qtyInBasketFor = (productId: string) => qtyInBasket(lines, productId);
 
   const addStockProduct = (product: (typeof stockProducts)[number]) => {
-    const remaining = product.stock - qtyInBasket(product.id);
+    const remaining = product.stock - qtyInBasketFor(product.id);
     if (remaining <= 0) {
-      setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${product.name} in stock.` });
+      setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${stockLabel(product)} in stock.` });
       return;
     }
     const existing = lines.find((l) => l.productId === product.id);
@@ -106,7 +106,7 @@ export const CounterSaleTab: React.FC = () => {
       );
     } else {
       addLine({
-        description: product.name,
+        description: stockLabel(product),
         category: 'Part',
         quantity: 1,
         unitPrice: product.price,
@@ -197,7 +197,7 @@ export const CounterSaleTab: React.FC = () => {
               .filter((o) => o.id !== id && o.productId === l.productId)
               .reduce((sum, o) => sum + o.quantity, 0);
             if (product && others + next > product.stock) {
-              setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${product.name} in stock.` });
+              setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${stockLabel(product)} in stock.` });
               return l;
             }
           }
@@ -550,10 +550,7 @@ export const CounterSaleTab: React.FC = () => {
             </p>
           ) : (
             <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {stockProducts.map((p) => {
-                const remaining = p.stock - qtyInBasket(p.id);
-                const soldOut = remaining <= 0;
-                return (
+              {tillStockRows(stockProducts, lines).map(({ product: p, label, remaining, soldOut }) => (
                   <button
                     key={p.id}
                     type="button"
@@ -566,15 +563,14 @@ export const CounterSaleTab: React.FC = () => {
                     }`}
                   >
                     <span className="min-w-0 pr-2">
-                      <span className="block truncate">{p.name}</span>
+                      <span className="block truncate">{label}</span>
                       <span className={`block text-[10px] ${soldOut ? 'text-rose-400' : 'text-neutral-500'}`}>
-                        {soldOut ? 'Out of stock' : `${remaining} available`}
+                        {soldOut ? 'Out of stock' : `${remaining} of ${p.stock} available`}
                       </span>
                     </span>
                     <span className="font-mono font-semibold text-emerald-400">£{p.price.toFixed(2)}</span>
                   </button>
-                );
-              })}
+                ))}
             </div>
           )}
         </div>
