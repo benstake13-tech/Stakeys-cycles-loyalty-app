@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Dices,
   Bike,
+  Bot,
   Edit3,
   Megaphone,
   Wrench,
@@ -60,6 +61,7 @@ import { ServiceStatusBadge } from './ServiceStatusBadge';
 
 import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
+import { AssistantManagerTab } from './AssistantManagerTab';
 import { PerformanceTracker } from './PerformanceTracker';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
@@ -113,6 +115,7 @@ export const StaffPortal: React.FC = () => {
     | 'financials'
     | 'google_business'
     | 'business_performance'
+    | 'assistant'
     | 'diagnostics'
   >('till');
 
@@ -334,6 +337,7 @@ export const StaffPortal: React.FC = () => {
     | 'financials'
     | 'google_business'
     | 'business_performance'
+    | 'assistant'
     | 'diagnostics';
 
   const operationsTabs: SegmentedTab<StaffTabId>[] = [
@@ -348,6 +352,7 @@ export const StaffPortal: React.FC = () => {
   const adminTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'website_cms', label: 'Website', icon: Globe, tone: 'sky', hint: 'Edit the marketing site.content' },
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
+    { id: 'assistant', label: 'Assistant', icon: Bot, tone: 'emerald', hint: 'Customer shop assistant' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
@@ -681,6 +686,9 @@ export const StaffPortal: React.FC = () => {
       {/* VIEW 7: Google Business Profile Tab */}
       {staffTab === 'google_business' && <GoogleBusinessTab />}
       {staffTab === 'website_cms' && <WebsiteContentManagerTab />}
+
+      {/* VIEW 7A: Staff-managed shop assistant (website + customer app) */}
+      {staffTab === 'assistant' && <AssistantManagerTab />}
 
       {/* VIEW 7B: Google & Meta Business Performance (OAuth authorised) */}
       {staffTab === 'business_performance' && <PerformanceTracker />}

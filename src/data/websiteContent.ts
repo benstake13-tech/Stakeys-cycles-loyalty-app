@@ -105,6 +105,16 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContent = {
   shopNoticeTitle: 'We are temporarily suspending online orders.',
   shopNoticeBody:
     'To purchase any of our products,please contact us directly via phone,text,WhatsApp,or Facebook Messenger. We will happily arrange an in-person exchange for your convenience.',
+  shopDisclaimers: [
+    'Prices are for click & collect from the workshop and may change without notice.',
+    'Second-hand parts and bikes are sold as seen; stock is limited to what is shown and may sell in-store before your order is confirmed.',
+    'An order is a request, not a completed sale — we will contact you to confirm availability and payment.',
+  ],
+  siteAnnouncements: [
+    'Same-day call-outs across Salford & Greater Manchester',
+    'Free safety check with every service',
+    'Bikes & e-scooters serviced by hand, not a conveyor belt',
+  ],
   shopImage:
     'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/1759138430927_1759138520.jpg?width=2400&optimize=medium',
   shopCategories: ['Second hand parts', 'Mens Bikes', "women's Bikes", "Children's bikes"],

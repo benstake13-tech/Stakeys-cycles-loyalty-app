@@ -1442,9 +1442,44 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Customer Login with Supabase Auth
   const loginWithCredentials = async (email: string, password = '') => {
     try {
+      const rawId = email.trim();
+      const lowerId = rawId.toLowerCase();
+      let resolvedEmail = lowerId;
+
+      // Members sign in with their email, membership number, or name, but only
+      // an email can be handed to Supabase Auth. Resolve the other two through
+      // the profiles lookup first — otherwise a member typing their card number
+      // gets "invalid credentials" even though their account is fine.
+      if (!lowerId.includes('@')) {
+        // Strip PostgREST filter metacharacters so a name like "Smith, John"
+        // cannot break the .or() expression.
+        const safe = rawId.replace(/[,()*]/g, ' ').trim();
+        if (!safe) {
+          return { success: false, message: 'Please enter your email, name, or member ID.' };
+        }
+        const { data: matches, error: lookupError } = await supabase
+          .from('profiles')
+          .select('email, membership_number, display_name')
+          .or(`membership_number.eq.${safe},display_name.ilike.*${safe}*`)
+          .limit(3);
+
+        if (lookupError) {
+          console.warn('Member lookup failed:', lookupError.message);
+        }
+
+        const match = (matches || []).find((m) => m.email);
+        if (!match?.email) {
+          return {
+            success: false,
+            message: 'No account found for that email, member ID, or name. Check the spelling, or sign in with your email address.',
+          };
+        }
+        resolvedEmail = String(match.email).trim().toLowerCase();
+      }
+
       // 1. Authenticate with Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+        email: resolvedEmail,
         password,
       });
 
