@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   WEBSITE_DISCOUNT_FALLBACK,
   websiteDiscountCatalogue,
+  inferAudience,
 } from './src/utils/websiteDiscounts';
 import { validateDiscountCode, findDiscountCode } from './src/utils/discountService';
 import type { DiscountCode } from './src/types/bikeShop';
@@ -49,5 +50,32 @@ describe('website discount fallback catalogue', () => {
     const res = validateDiscountCode(found, { subtotal: 50, isMember: false });
     expect(res.ok).toBe(true);
     expect(res.amountOff).toBe(2.5);
+  });
+
+  it('infers audience from the code prefix when the live column is absent', () => {
+    expect(inferAudience({ code: 'WEB-5OFF' } as DiscountCode)).toBe('public');
+    expect(inferAudience({ code: 'mem-20off' } as DiscountCode)).toBe('member');
+    expect(inferAudience({ code: 'STK-5341' } as DiscountCode)).toBeUndefined();
+    // An explicit audience is never overridden by the prefix guess.
+    expect(inferAudience({ code: 'WEB-5OFF', audience: 'member' } as DiscountCode)).toBe('member');
+  });
+
+  it('tags un-tagged live rows so a pre-migration DB still shows them', () => {
+    // Reproduces the live database before 20261007: the seeded rows exist but
+    // have no audience column, so they read back with audience undefined.
+    const live = [
+      { id: 'disc-329537', code: 'WEB-5OFF', title: 'Welcome 5% off', status: 'active' },
+      { id: 'disc-425356', code: 'MEM-15OFF', title: 'Members 15% off labour', status: 'active' },
+      { id: 'disc-550252', code: 'STK-5341', title: 'Winter promo', status: 'active' },
+    ] as DiscountCode[];
+    const merged = websiteDiscountCatalogue(live);
+    const publicCodes = merged.filter((c) => c.audience === 'public').map((c) => c.code);
+    expect(publicCodes).toContain('WEB-5OFF');
+    // MEM- is recovered too, so the member set is hidden from signed-out visitors.
+    expect(merged.find((c) => c.code === 'MEM-15OFF')?.audience).toBe('member');
+    // An unrecognised prefix stays open to everyone.
+    expect(merged.find((c) => c.code === 'STK-5341')?.audience).toBeUndefined();
+    // The fallback does not duplicate the live WEB-5OFF.
+    expect(merged.filter((c) => c.code === 'WEB-5OFF').length).toBe(1);
   });
 });

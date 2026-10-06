@@ -12,14 +12,32 @@
  * database is never overwritten or resurrected.
  */
 import { PUBLIC_DISCOUNT_SET, generateDiscountSet } from './discountAudience';
-import { DiscountCode } from '../types/bikeShop';
+import { DiscountAudience, DiscountCode } from '../types/bikeShop';
 
 /** The curated website-visitor set, usable before the migration is applied. */
 export const WEBSITE_DISCOUNT_FALLBACK: DiscountCode[] = generateDiscountSet(PUBLIC_DISCOUNT_SET);
 
+const MEMBER_PREFIX = 'MEM-';
+const PUBLIC_PREFIX = 'WEB-';
+
+/**
+ * Recover a code's audience when the live row does not carry one. Before
+ * `20261007_discount_code_audience.sql` runs, the `audience` column does not
+ * exist, so `upsertDiscountCodeToDb` strips it and every seeded code reads back
+ * with `audience: undefined`. The curated sets use stable prefixes, so the tag
+ * can be inferred from the code itself. Unknown codes stay undefined (open).
+ */
+export function inferAudience(code: DiscountCode): DiscountAudience | undefined {
+  if (code.audience) return code.audience;
+  const value = (code.code || '').toUpperCase();
+  if (value.startsWith(MEMBER_PREFIX)) return 'member';
+  if (value.startsWith(PUBLIC_PREFIX)) return 'public';
+  return undefined;
+}
+
 /** Merge live codes with the curated public fallback, live rows winning. */
 export function websiteDiscountCatalogue(live: DiscountCode[] | undefined | null): DiscountCode[] {
-  const liveCodes = live || [];
+  const liveCodes = (live || []).map((c) => ({ ...c, audience: inferAudience(c) }));
   const known = new Set(liveCodes.map((c) => (c.code || '').toUpperCase()));
   const missing = WEBSITE_DISCOUNT_FALLBACK.filter((c) => !known.has(c.code.toUpperCase()));
   return [...liveCodes, ...missing];
