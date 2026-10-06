@@ -264,6 +264,101 @@ async function startServer() {
     }
   });
 
+  /* ------------------------------------------------------------------ *
+   * Google Drive image catalogue.
+   *
+   * Staff keep product / gallery / advert images in public Drive folders.
+   * Listing a folder needs an API key; serving the bytes does not. This
+   * proxy keeps the key server-side and normalises Drive's response so the
+   * client only ever sees {id, name, thumbnailUrl, directUrl, mimeType}.
+   *
+   * Requires a public folder and a key with the Drive API enabled:
+   *   GOOGLE_DRIVE_API_KEY (falls back to GOOGLE_BUSINESS_API_KEY)
+   * ------------------------------------------------------------------ */
+  const driveKey = () =>
+    process.env.GOOGLE_DRIVE_API_KEY || process.env.GOOGLE_BUSINESS_API_KEY;
+
+  const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
+  const DRIVE_IMAGE_MIMES = [
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/bmp', 'image/avif',
+  ];
+
+  const driveThumbnail = (id: string, size: number) =>
+    `https://drive.google.com/thumbnail?id=${id}&sz=w${size}`;
+
+  app.get('/api/drive/list', async (req, res) => {
+    const key = driveKey();
+    if (!key) {
+      return res.status(500).json({ error: 'Google Drive API key not configured' });
+    }
+    const folderId = String(req.query.folderId || '').trim();
+    if (!folderId) {
+      return res.status(400).json({ error: 'folderId is required' });
+    }
+
+    try {
+      // Page through the folder so a big stock folder is fully returned.
+      const files: any[] = [];
+      let pageToken: string | undefined;
+      do {
+        const params = new URLSearchParams({
+          q: `'${folderId}' in parents and trashed = false`,
+          key,
+          fields: 'nextPageToken, files(id, name, mimeType, imageMediaMetadata(width, height))',
+          pageSize: '1000',
+          supportsAllDrives: 'true',
+          includeItemsFromAllDrives: 'true',
+        });
+        if (pageToken) params.set('pageToken', pageToken);
+
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
+        const data = await response.json();
+        if (!response.ok) {
+          return res.status(response.status).json({ error: data?.error?.message || 'Drive list failed' });
+        }
+        files.push(...(data.files || []));
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+
+      const images = files
+        .filter((f) => f.mimeType !== DRIVE_FOLDER_MIME && DRIVE_IMAGE_MIMES.includes(f.mimeType))
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          mimeType: f.mimeType,
+          width: f.imageMediaMetadata?.width,
+          height: f.imageMediaMetadata?.height,
+          thumbnailUrl: driveThumbnail(f.id, 400),
+          directUrl: driveThumbnail(f.id, 1600),
+        }));
+
+      // Sub-folders, so the picker can drill into "Bikes / Parts / ...".
+      const folders = files
+        .filter((f) => f.mimeType === DRIVE_FOLDER_MIME)
+        .map((f) => ({ id: f.id, name: f.name }));
+
+      res.json({ folderId, images, folders });
+    } catch (error) {
+      console.error('Drive list error:', error);
+      res.status(500).json({ error: 'Failed to list Drive folder' });
+    }
+  });
+
+  // Turn any Drive share link into a direct-renderable URL, so staff can paste
+  // a link instead of hunting for the file id.
+  app.get('/api/drive/resolve', (req, res) => {
+    const url = String(req.query.url || '');
+    const match =
+      url.match(/\/file\/d\/([-\w]{10,})/) ||
+      url.match(/[?&]id=([-\w]{10,})/) ||
+      url.match(/\/folders\/([-\w]{10,})/);
+    if (!match) {
+      return res.status(400).json({ error: 'No Drive file id found in that link' });
+    }
+    const id = match[1];
+    res.json({ id, directUrl: driveThumbnail(id, 1600), thumbnailUrl: driveThumbnail(id, 400) });
+  });
+
   // Static surface previews (website / staff / customer) built with
   // VITE_SURFACE + a /preview/<surface>/ base, so all three can be reviewed
   // side by side from this single dev port.

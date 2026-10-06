@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ShopPromotion, VehicleCategory } from '../types/bikeShop';
+import { DriveImagePicker } from './DriveImagePicker';
 
 export const PromotionsManagerTab: React.FC = () => {
   const { promotions, addPromotion, updatePromotion, deletePromotion, refreshPromotionsExpiry } = useShop();
@@ -24,6 +25,7 @@ export const PromotionsManagerTab: React.FC = () => {
   const [editingPromoId, setEditingPromoId] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [showDrivePicker, setShowDrivePicker] = useState(false);
 
   const [formData, setFormData] = useState<{
     title: string;
@@ -452,6 +454,13 @@ export const PromotionsManagerTab: React.FC = () => {
                       }}
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowDrivePicker(true)}
+                    className="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-800 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-400 transition-all font-bold cursor-pointer"
+                  >
+                    Drive
+                  </button>
                 </div>
               </div>
 
@@ -474,6 +483,17 @@ export const PromotionsManagerTab: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {showDrivePicker && (
+        <DriveImagePicker
+          folder="promo"
+          onClose={() => setShowDrivePicker(false)}
+          onPick={(url) => {
+            setFormData((prev) => ({ ...prev, imageUrl: url }));
+            setShowDrivePicker(false);
+          }}
+        />
       )}
     </div>
   );
