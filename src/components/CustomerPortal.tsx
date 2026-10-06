@@ -29,6 +29,8 @@ import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
+import { FaceAvatar } from './FaceAvatar';
+import { AvatarEditorModal } from './AvatarEditorModal';
 import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
 import {
   BikeIdentityFields,
@@ -50,6 +52,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     addCustomerBike,
     removeCustomerBike,
     saveBikeScrapedSpecs,
+    updateCustomerAvatar,
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps'>('garage');
@@ -57,6 +60,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
   const [viewingCustomerInvoice, setViewingCustomerInvoice] = useState<ServiceBooking | null>(null);
+
+  const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
 
   // Modal for adding a new bike to profile
   const [isAddBikeModalOpen, setIsAddBikeModalOpen] = useState(false);
@@ -175,24 +180,40 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
         {/* Content Box */}
         <div className="relative z-10 p-6 sm:p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="max-w-xl">
-            {/* Unboxed Zero-Pill Metadata */}
-            <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
-              <span className="text-emerald-400 font-semibold tracking-wider uppercase">
-                Member ID {currentUser.membershipNumber}
-              </span>
-              <span aria-hidden="true" className="text-neutral-600">·</span>
-              <span>Workshop</span>
-              <span aria-hidden="true" className="text-neutral-600">·</span>
-              <span>Workshop Certified</span>
+          <div className="flex flex-row items-center gap-6 max-w-xl">
+            {/* Avatar & Edit Overlay */}
+            <div className="relative group shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-neutral-800 shadow-xl">
+                <FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={96} className="w-full h-full object-cover" />
+              </div>
+              <button
+                onClick={() => setIsAvatarEditorOpen(true)}
+                className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all cursor-pointer backdrop-blur-[2px]"
+              >
+                <Sparkles className="w-5 h-5 text-emerald-400 mb-1" />
+                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-100">Edit Avatar</span>
+              </button>
             </div>
 
-            <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
-              Welcome back, {currentUser.displayName}
-            </h1>
-            <p className="text-sm text-neutral-300 mt-2 leading-relaxed">
-              Your registered bikes, scheduled workshop repairs, and digital loyalty pass in one place.
-            </p>
+            <div>
+              {/* Unboxed Zero-Pill Metadata */}
+              <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
+                <span className="text-emerald-400 font-semibold tracking-wider uppercase">
+                  Member ID {currentUser.membershipNumber}
+                </span>
+                <span aria-hidden="true" className="text-neutral-600">·</span>
+                <span>Workshop</span>
+                <span aria-hidden="true" className="text-neutral-600">·</span>
+                <span>Workshop Certified</span>
+              </div>
+
+              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
+                Welcome back, {currentUser.displayName}
+              </h1>
+              <p className="text-sm text-neutral-300 mt-2 leading-relaxed">
+                Your registered bikes, scheduled workshop repairs, and digital loyalty pass in one place.
+              </p>
+            </div>
           </div>
 
           {/* Clean Tabular Figures Metrics Panel */}
@@ -797,6 +818,19 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         addBike={undefined}
         onAdded={(bike: CustomerBike) => setViewingBikeSpecs(bike)}
       />
+
+      {/* Avatar Editor Modal */}
+      {isAvatarEditorOpen && (
+        <AvatarEditorModal
+          name={currentUser.displayName}
+          currentConfigString={currentUser.avatarColor}
+          onSave={async (configString) => {
+            await updateCustomerAvatar(configString);
+            setIsAvatarEditorOpen(false);
+          }}
+          onClose={() => setIsAvatarEditorOpen(false)}
+        />
+      )}
     </div>
   );
 };

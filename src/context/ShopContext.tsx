@@ -166,6 +166,7 @@ interface ShopContextType {
   // Core actions
   addStamp: (customerId: string, staffId: string, bypassLimit?: boolean) => Promise<{ success: boolean; message: string }>;
   redeemReward: (customerId: string, staffId: string, rewardDescription: string) => Promise<{ success: boolean; message: string }>;
+  updateCustomerAvatar: (avatarColor: string) => Promise<void>;
   updateCustomerPoints: (
     customerId: string,
     staffId: string,
@@ -1845,6 +1846,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: `Redeemed: ${rewardDescription}` };
   };
 
+  const updateCustomerAvatar = async (avatarColor: string) => {
+    if (!currentUser) return;
+    const updatedUser = { ...currentUser, avatarColor };
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.uid === currentUser.uid ? updatedUser : u)));
+    try {
+      await updateUserProfileInDb(currentUser.uid, currentUser.membershipNumber, { avatarColor });
+    } catch (err) {
+      console.error('[ShopContext] updateCustomerAvatar DB failed:', err);
+    }
+  };
+
   // Manual Customer Point & Balance Adjustment for Staff Database
   const updateCustomerPoints = async (
     customerId: string,
@@ -3344,6 +3357,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         removeCustomerBike,
         addStamp,
         redeemReward,
+        updateCustomerAvatar,
         updateCustomerPoints,
         createCustomerByStaff,
         updateWheel,

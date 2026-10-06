@@ -637,6 +637,7 @@ export async function updateUserProfileInDb(
     points?: number;
     displayName?: string;
     phoneNumber?: string;
+    avatarColor?: string;
     lastStampedAt?: Date | null;
     lastSpinDate?: string | null;
     lastSpunAt?: Date | string | null;
@@ -655,6 +656,7 @@ export async function updateUserProfileInDb(
     if (updates.points !== undefined) payload.merit_points = updates.points;
     if (updates.displayName !== undefined) payload.display_name = updates.displayName;
     if (updates.phoneNumber !== undefined) payload.phone = updates.phoneNumber;
+    if (updates.avatarColor !== undefined) payload.avatar_color = updates.avatarColor;
     const spunIso =
       updates.lastSpunAt !== undefined
         ? updates.lastSpunAt instanceof Date
@@ -754,6 +756,7 @@ export async function fetchUserProfileFromDb(
         displayName: row.display_name,
         email: row.email,
         phoneNumber: row.phone || undefined,
+        avatarColor: row.avatar_color || undefined,
         role: row.role || 'customer',
         membershipNumber: row.membership_number,
         stamps: row.stamps !== undefined ? row.stamps : 0,
