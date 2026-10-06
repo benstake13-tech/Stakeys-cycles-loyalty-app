@@ -51,8 +51,39 @@ function clone(content: WebsiteContent): WebsiteContent {
   return JSON.parse(JSON.stringify(content)) as WebsiteContent;
 }
 
+let isSyncing = false;
+export async function syncFromSupabase(): Promise<void> {
+  if (isSyncing || typeof window === 'undefined') return;
+  isSyncing = true;
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('website_content_json')
+      .eq('id', 1)
+      .maybeSingle();
+    if (!error && data && data.website_content_json) {
+      const parsed = data.website_content_json as any;
+      const merged = { ...clone(DEFAULT_WEBSITE_CONTENT), ...parsed };
+      merged.products = (merged.products || []).map((p: any) => {
+        return { ...p, stock: p.stock ?? 1 };
+      });
+      merged.shopDisclaimers = merged.shopDisclaimers ?? clone(DEFAULT_WEBSITE_CONTENT).shopDisclaimers;
+      merged.siteAnnouncements = merged.siteAnnouncements ?? clone(DEFAULT_WEBSITE_CONTENT).siteAnnouncements;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      cached = merged;
+      notify();
+      console.log('[WEBSITE CONTENT] Successfully synchronized with Supabase.');
+    }
+  } catch (err) {
+    console.error('[WEBSITE CONTENT] Failed to sync from Supabase:', err);
+  } finally {
+    isSyncing = false;
+  }
+}
+
 export function getWebsiteContent(): WebsiteContent {
   if (cached) return cached;
+  void syncFromSupabase();
   if (typeof window !== 'undefined') {
     for (const legacyKey of LEGACY_STORAGE_KEYS) {
       try {

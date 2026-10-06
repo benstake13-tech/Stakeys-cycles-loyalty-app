@@ -24,6 +24,8 @@ import {
 import { useShop } from '../context/ShopContext';
 import { StaffMember, StaffRole, StaffWorkStatus } from '../types/bikeShop';
 import type { StaffAccountRole } from '../api/backendDataService';
+import { FaceAvatar } from './FaceAvatar';
+import { AvatarEditorModal } from './AvatarEditorModal';
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -98,6 +100,7 @@ export const StaffManagementTab: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
+  const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
 
   const [formData, setFormData] = useState<{
     name: string;
@@ -107,6 +110,7 @@ export const StaffManagementTab: React.FC = () => {
     status: StaffWorkStatus;
     joinedDate: string;
     certificationLevel: string;
+    avatarColor?: string;
     notes: string;
   }>({
     name: '',
@@ -116,6 +120,7 @@ export const StaffManagementTab: React.FC = () => {
     status: 'Active',
     joinedDate: new Date().toISOString().split('T')[0],
     certificationLevel: 'Workshop Level 2',
+    avatarColor: '',
     notes: '',
   });
 
@@ -197,6 +202,7 @@ export const StaffManagementTab: React.FC = () => {
       status: 'Active',
       joinedDate: new Date().toISOString().split('T')[0],
       certificationLevel: 'Workshop Level 2',
+      avatarColor: '',
       notes: '',
     });
     setFormError(null);
@@ -213,6 +219,7 @@ export const StaffManagementTab: React.FC = () => {
       status: staff.status,
       joinedDate: staff.joinedDate,
       certificationLevel: staff.certificationLevel || '',
+      avatarColor: staff.avatarColor || '',
       notes: staff.notes || '',
     });
     setFormError(null);
@@ -666,12 +673,7 @@ export const StaffManagementTab: React.FC = () => {
                 {/* Header: Name, Avatar, Role, Status */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm text-neutral-950 shadow-md shrink-0"
-                      style={{ backgroundColor: staff.avatarColor || '#05C147' }}
-                    >
-                      {staff.name.slice(0, 2).toUpperCase()}
-                    </div>
+                    <FaceAvatar seed={staff.name} configString={staff.avatarColor} size={40} className="shrink-0" />
                     <div>
                       <h4 className="font-bold text-white text-base leading-snug">{staff.name}</h4>
                       <div className="text-xs font-semibold text-emerald-400 mt-0.5">{staff.role}</div>
@@ -822,6 +824,18 @@ export const StaffManagementTab: React.FC = () => {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
+              {/* Live Face Avatar Preview & Customize Button */}
+              <div className="flex flex-col items-center justify-center py-4 bg-neutral-900/40 rounded-2xl border border-neutral-800/80 mb-4 gap-3">
+                <FaceAvatar seed={formData.name || 'Stakey'} configString={formData.avatarColor} size={80} />
+                <button
+                  type="button"
+                  onClick={() => { setIsAvatarEditorOpen(true); }}
+                  className="px-3.5 py-1.5 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white text-xs font-mono font-bold transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>🎨 Customize Face Avatar</span>
+                </button>
+              </div>
+
               <div>
                 <label className="block text-neutral-300 font-medium mb-1">Full Name</label>
                 <input
@@ -935,6 +949,23 @@ export const StaffManagementTab: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* High-Quality Avatar Editor Modal */}
+      {isAvatarEditorOpen && (
+        <AvatarEditorModal
+          name={formData.name || 'Stakey'}
+          currentConfigString={formData.avatarColor}
+          onSave={(configString) => {
+            setFormData((prev) => {
+              return { ...prev, avatarColor: configString };
+            });
+            setIsAvatarEditorOpen(false);
+          }}
+          onClose={() => {
+            setIsAvatarEditorOpen(false);
+          }}
+        />
       )}
     </div>
   );

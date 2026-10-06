@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useShop } from '../context/ShopContext';
 
 /**
  * Seasonal 3D atmosphere layer.
@@ -301,6 +302,25 @@ function deadTree(s: number): Geo {
   return g;
 }
 
+function pumpkin(s: number): Geo {
+  const g = emptyGeo();
+  const orange = '#ea580c';
+  merge(g, sphere(2, orange, 0.85, 8, 6), { pos: v3(0, 1.7, 0), scale: s });
+  merge(g, cylinder(0.3, 1.2, '#166534', 4), { pos: v3(0, 3.2, 0), scale: s, rotZ: 0.3 });
+  return g;
+}
+
+function goblin(s: number): Geo {
+  const g = emptyGeo();
+  const skin = '#65a30d'; // Goblin Green
+  const shirt = '#451a03'; // Brown rags
+  merge(g, box(2, 2.5, 1.5, shirt), { pos: v3(0, 2, 0), scale: s }); // body
+  merge(g, sphere(1.2, skin, 0.9, 6, 4), { pos: v3(0, 4, 0), scale: s }); // head
+  merge(g, cone(0.8, 1.5, skin, 4, 0), { pos: v3(-1.2, 4.2, 0), scale: s, rotZ: 1.2 }); // ear
+  merge(g, cone(0.8, 1.5, skin, 4, 0), { pos: v3(1.2, 4.2, 0), scale: s, rotZ: -1.2 }); // ear
+  return g;
+}
+
 // --- Christmas
 function cabin(s: number, roofColor: string): Geo {
   const g = emptyGeo();
@@ -324,6 +344,16 @@ function pine(s: number): Geo {
   merge(g, cone(7.4, 2.6, '#f4f8ff', 8, 8.4), { pos: v3(0, 0, 0), scale: s });
   merge(g, cone(5.9, 2.2, '#f4f8ff', 8, 12.6), { pos: v3(0, 0, 0), scale: s });
   merge(g, cone(4.4, 2, '#f4f8ff', 8, 17), { pos: v3(0, 0, 0), scale: s });
+  return g;
+}
+
+function elf(s: number): Geo {
+  const g = emptyGeo();
+  const green = '#16a34a';
+  const skin = '#fcd34d';
+  merge(g, cone(1.5, 3, green, 6, 0), { pos: v3(0, 0, 0), scale: s }); // body
+  merge(g, sphere(0.8, skin, 1, 6, 4), { pos: v3(0, 3.4, 0), scale: s }); // head
+  merge(g, cone(1, 2, '#dc2626', 6, 0), { pos: v3(0, 4, 0), scale: s, rotZ: 0.3 }); // hat
   return g;
 }
 
@@ -492,6 +522,7 @@ const SCENES: Record<SeasonKey, SeasonScene> = {
         { count: 4, zRange: [230, 600], make: () => hauntedHouse(1), scale: [1.1, 1.8] },
         { count: 8, zRange: [110, 660], make: () => grave(1), scale: [0.9, 1.5] },
         { count: 9, zRange: [90, 700], make: () => deadTree(1), scale: [1, 1.8] },
+        { count: 6, zRange: [150, 450], make: () => goblin(1), scale: [1, 1.5] },
       ]),
   },
   christmas: {
@@ -516,6 +547,7 @@ const SCENES: Record<SeasonKey, SeasonScene> = {
       scatter(w, [
         { count: 4, zRange: [240, 620], make: () => cabin(1, pick(['#b91c1c', '#0e7490', '#7c3aed'])), scale: [1.1, 1.7] },
         { count: 12, zRange: [70, 720], make: () => pine(1), scale: [1, 1.9] },
+        { count: 5, zRange: [150, 400], make: () => elf(1), scale: [1, 1.3] },
       ]),
   },
   easter: {
@@ -734,6 +766,7 @@ function projectGeo(geo: Geo, w: number, h: number, pal: Palette, out: DrawFace[
 interface Rider {
   x: number;
   z: number;
+  yPos?: number;
   dir: number;
   speed: number;
   t: number;
@@ -741,6 +774,7 @@ interface Rider {
   skin: string;
   scale: number;
   bike: Geo;
+  santa?: boolean;
 }
 
 const BIKE_FRAME = '#d3dae6';
@@ -770,7 +804,7 @@ function buildBike(frameColor: string): Geo {
 }
 
 /** A seated, pedalling cyclist (limbs animate with `t`). */
-function buildCyclist(skin: string, jersey: string, t: number): Geo {
+function buildCyclist(skin: string, jersey: string, t: number, isSanta = false): Geo {
   const g = emptyGeo();
   const ped = Math.sin(t * 9) * 1.4;
   const lean = 0.34;
@@ -781,6 +815,11 @@ function buildCyclist(skin: string, jersey: string, t: number): Geo {
   merge(g, box(3.8, 0.8, 0.8, jersey), { pos: v3(1.3, 10.6, -1.15), rotZ: 0.5 });
   merge(g, box(0.95, 4.4, 0.95, BIKE_DARK), { pos: v3(-0.4 + ped, 5.6, 0.95), rotZ: 0.3 });
   merge(g, box(0.95, 4.4, 0.95, BIKE_DARK), { pos: v3(-0.4 - ped, 5.6, -0.95), rotZ: 0.3 });
+  if (isSanta) {
+    merge(g, cone(1.8, 3, '#dc2626', 6, 0), { pos: v3(1.5, 14, 0), rotZ: 0.2 });
+    merge(g, sphere(0.6, '#ffffff', 1), { pos: v3(2.5, 16.5, 0) });
+    merge(g, sphere(3.5, '#b91c1c', 0.9, 6, 4), { pos: v3(-4, 9, 0) });
+  }
   return g;
 }
 
@@ -890,17 +929,65 @@ function drawParticle(ctx: CanvasRenderingContext2D, p: Particle, spec: WeatherS
 // =============================================================================
 // Component
 // =============================================================================
+interface InteractiveProp {
+  id: string;
+  x: number;
+  z: number;
+  type: 'pumpkin';
+  geo: Geo;
+  scale: number;
+  screenBounds?: { x: number; y: number; w: number; h: number };
+  clicked: boolean;
+}
+
 export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const themeRef = useRef<string | undefined>(theme);
+  const { currentUser, updateCustomerPoints } = useShop();
+  const [uiBloodyHands, setUiBloodyHands] = useState(false);
+  const interactiveProps = useRef<InteractiveProp[]>([]);
 
   useEffect(() => {
     themeRef.current = theme;
+    if (theme === 'halloween') {
+      setUiBloodyHands(true);
+    } else {
+      setUiBloodyHands(false);
+    }
   }, [theme]);
+
+  const handleCanvasClick = (e: MouseEvent) => {
+    if (themeRef.current !== 'halloween') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    for (let i = interactiveProps.current.length - 1; i >= 0; i--) {
+      const p = interactiveProps.current[i];
+      if (p.clicked || !p.screenBounds) continue;
+      if (
+        clickX >= p.screenBounds.x &&
+        clickX <= p.screenBounds.x + p.screenBounds.w &&
+        clickY >= p.screenBounds.y &&
+        clickY <= p.screenBounds.y + p.screenBounds.h
+      ) {
+        p.clicked = true;
+        if (currentUser && updateCustomerPoints) {
+           updateCustomerPoints(currentUser.uid, 'system', { points: (currentUser.points || 0) + 20, staffNote: 'Found a spooky pumpkin!' });
+        }
+        break;
+      }
+    }
+  };
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    canvas.style.pointerEvents = 'auto';
+    canvas.addEventListener('click', handleCanvasClick);
+    
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -916,22 +1003,33 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
     let lastKey: string | undefined = '__init__';
     const faces: DrawFace[] = [];
 
-    const spawnRiders = (n: number) => {
+    const spawnRiders = (n: number, isChristmas: boolean) => {
       const jerseys = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4'];
       const skins = ['#f6c9a0', '#d9a066', '#8d5524', '#f1d2b6'];
-      riders = Array.from({ length: n }, () => {
+      riders = Array.from({ length: n }, (_, i) => {
         const jersey = pick(jerseys);
-        const z = rand(150, 520);
+        const isSanta = isChristmas && i === 0;
+        let yPos = 0;
+        let speed = rand(1.8, 3.6);
+        let z = rand(150, 520);
+        let x = rand(-0.7, 0.7) * z;
+        if (isSanta) {
+          yPos = 120;
+          speed = 6;
+          z = 600;
+        }
         return {
-          x: rand(-0.7, 0.7) * z,
+          x,
           z,
+          yPos,
           dir: Math.random() < 0.5 ? 1 : -1,
-          speed: rand(1.8, 3.6),
+          speed,
           t: rand(0, 100),
-          jersey,
+          jersey: isSanta ? '#dc2626' : jersey,
           skin: pick(skins),
-          scale: rand(0.95, 1.3),
-          bike: buildBike(jersey),
+          scale: isSanta ? 2.5 : rand(0.95, 1.3),
+          bike: buildBike(isSanta ? '#dc2626' : jersey),
+          santa: isSanta,
         };
       });
     };
@@ -939,6 +1037,7 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
     const reset = () => {
       const key = themeRef.current as SeasonKey;
       const s = SCENES[key];
+      interactiveProps.current = [];
       if (!s) {
         scene = [];
         particles = [];
@@ -947,6 +1046,20 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
         return;
       }
       scene = [...buildRidges(s.ridges), ...s.build(w)];
+      if (key === 'halloween') {
+         for (let i = 0; i < 15; i++) {
+            const z = rand(100, 300);
+            interactiveProps.current.push({
+               id: 'pump_' + i,
+               x: rand(-1.15, 1.15) * z,
+               z,
+               type: 'pumpkin',
+               geo: pumpkin(1),
+               scale: rand(1.2, 2.2),
+               clicked: false
+            });
+         }
+      }
       const spec = WEATHER[key];
       particles = Array.from({ length: spec.count }, () => makeParticle(spec, w, h));
       stars = s.palette.night
@@ -958,8 +1071,7 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
             phase: rand(0, TAU),
           }))
         : [];
-      spawnRiders(s.riders);
-      // Camera is fixed, so the static scenery can be projected once per build.
+      spawnRiders(s.riders, key === 'christmas');
       cachedScene = [];
       for (const g of scene) projectGeo(g, w, h, s.palette, cachedScene);
     };
@@ -1038,15 +1150,37 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
       faces.length = 0;
       for (const f of cachedScene) faces.push(f);
 
+      for (const p of interactiveProps.current) {
+        if (p.clicked) continue;
+        const pg = emptyGeo();
+        merge(pg, p.geo, { pos: v3(p.x, 0, p.z), scale: p.scale });
+        
+        const oldLen = faces.length;
+        projectGeo(pg, w, h, pal, faces);
+        
+        if (faces.length > oldLen) {
+           let minX = 9999, maxX = -9999, minY = 9999, maxY = -9999;
+           for(let i=oldLen; i<faces.length; i++){
+              for(const pt of faces[i].pts) {
+                 if (pt.x < minX) minX = pt.x;
+                 if (pt.x > maxX) maxX = pt.x;
+                 if (pt.y < minY) minY = pt.y;
+                 if (pt.y > maxY) maxY = pt.y;
+              }
+           }
+           p.screenBounds = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+        }
+      }
+
       for (const r of riders) {
         r.t += 0.02;
         const bob = Math.abs(Math.sin(r.t * 4)) * 0.5;
         const rg = emptyGeo();
         merge(rg, r.bike, { pos: v3(0, 0, 0) });
-        merge(rg, buildCyclist(r.skin, r.jersey, r.t), { pos: v3(0, 0, 0) });
+        merge(rg, buildCyclist(r.skin, r.jersey, r.t, r.santa), { pos: v3(0, 0, 0) });
         const placed = emptyGeo();
         merge(placed, rg, {
-          pos: v3(r.x, bob, r.z),
+          pos: v3(r.x, bob + (r.yPos || 0), r.z),
           rotY: r.dir === 1 ? 0 : Math.PI,
           scale: r.scale,
         });
@@ -1116,17 +1250,30 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: string }) => {
     raf = requestAnimationFrame(draw);
 
     return () => {
+      canvas.removeEventListener('click', handleCanvasClick);
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
     };
-  }, []);
+  }, [theme, currentUser]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 0 }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        aria-hidden="true"
+        className="fixed inset-0 cursor-crosshair"
+        style={{ zIndex: 0 }}
+      />
+      {uiBloodyHands && (
+        <div className="fixed inset-0 pointer-events-none z-50 flex items-center justify-center opacity-30">
+          <svg viewBox="0 0 100 100" className="w-64 h-64 text-red-700 fill-current drop-shadow-2xl" style={{ transform: 'rotate(-15deg) translate(-20%, -30%)' }}>
+             <path d="M50 30 C45 20, 30 10, 20 20 C10 30, 25 45, 30 50 C25 60, 10 75, 20 85 C30 95, 45 80, 50 75 C55 80, 70 95, 80 85 C90 75, 75 60, 70 50 C75 45, 90 30, 80 20 C70 10, 55 20, 50 30" />
+          </svg>
+          <svg viewBox="0 0 100 100" className="w-64 h-64 text-red-800 fill-current drop-shadow-2xl absolute right-10 bottom-10" style={{ transform: 'rotate(25deg)' }}>
+             <path d="M50 30 C45 20, 30 10, 20 20 C10 30, 25 45, 30 50 C25 60, 10 75, 20 85 C30 95, 45 80, 50 75 C55 80, 70 95, 80 85 C90 75, 75 60, 70 50 C75 45, 90 30, 80 20 C70 10, 55 20, 50 30" />
+          </svg>
+        </div>
+      )}
+    </>
   );
 };
