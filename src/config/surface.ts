@@ -13,7 +13,7 @@ export type AppSurface = 'website' | 'staff' | 'customer' | 'full';
  * its own value here so `npm run build` on that branch produces its domain's
  * bundle without extra flags. 'full' (all surfaces, local dev) is the default.
  */
-const DEFAULT_SURFACE: AppSurface = 'website';
+const DEFAULT_SURFACE: AppSurface = 'staff';
 
 const raw = String(import.meta.env.VITE_SURFACE ?? DEFAULT_SURFACE).toLowerCase();
 
