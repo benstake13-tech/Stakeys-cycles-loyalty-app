@@ -25,9 +25,11 @@ import confetti from 'canvas-confetti';
 
 interface LoginScreenProps {
   onGoToBooking?: () => void;
+/** Returns to the public marketing website (logged-out visitors). */
+  onBackToWebsite?: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
+export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackToWebsite }) => {
   const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, addCustomerBike } = useShop();
 
   const [mode, setMode] = useState<'signin' | 'register' | 'staff'>('signin');
@@ -765,6 +767,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 </button>
               </div>
             </form>
+          )}
+
+          {onBackToWebsite && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={onBackToWebsite}
+                className="text-[11px] text-neutral-400 hover:text-emerald-400 font-semibold transition-colors cursor-pointer"
+              >
+                ← Back to the website
+              </button>
+            </div>
           )}
 
           {/* Guest Walk-In Service Booking Option */}

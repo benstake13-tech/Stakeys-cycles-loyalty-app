@@ -41,6 +41,8 @@ function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
+  // Logged-out visitors land on the public marketing website, not the login form.
+  const [publicView, setPublicView] = useState<'website' | 'login'>('website');
   const [activeTab, setActiveTab] = useState<NavTabId>('customer');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -126,8 +128,7 @@ function AppContent() {
     setActiveTab(tab);
   };
 
-  // Website CTA: guests open the guest booking flow; signed-in usersjump to the Booking tab.
-
+  // Website CTA: guests open the guest booking flow; signed-in users jump to the Booking tab.
   const handleWebsiteBookService = () => {
     if (!currentUser) {
       setShowGuestBooking(true);
@@ -203,7 +204,42 @@ function AppContent() {
         </div>
       );
     }
-    return <LoginScreen onGoToBooking={() => setShowGuestBooking(true)} />;
+    if (publicView === 'website') {
+      return (
+        <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+          <SeasonalThemeCanvas theme={seasonalTheme} />
+          <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
+                  <StakeysLogo className="w-9 h-9" />
+                </div>
+                <div>
+                  <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
+                    STAKEYS
+                    <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">Cycles &amp; Scooter</span>
+                  </span>
+                  <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Repairs · Parts · Salford</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ThemeToggle showLabel={false} />
+                <button
+                  onClick={() => setPublicView('login')}
+                  className={`pressable inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-200 text-neutral-700 hover:border-emerald-500/50'}`}
+                >
+                  <Lock className="w-3.5 h-3.5" /> Sign in / Staff
+                </button>
+              </div>
+            </div>
+          </header>
+          <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <WebsiteReplica onBookService={() => setShowGuestBooking(true)} />
+          </main>
+        </div>
+      );
+    }
+    return <LoginScreen onGoToBooking={() => setShowGuestBooking(true)} onBackToWebsite={() => setPublicView('website')} />;
   }
 
   return (
