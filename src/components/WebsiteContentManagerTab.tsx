@@ -17,6 +17,8 @@ import {
 } from '../context/WebsiteContentStore';
 import { DEFAULT_WEBSITE_CONTENT } from '../data/websiteContent';
 import { ItemQrModal } from './ItemQrModal';
+import { DriveImagePicker } from './DriveImagePicker';
+import { DriveFolderKey } from '../utils/googleDrive';
 import {
   WebFaq,
   WebPriceItem,
@@ -141,9 +143,17 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const content = useWebsiteContent();
   const [showPreview, setShowPreview] = useState(false);
   const [editorTab, setEditorTab] = useState<'website' | 'shop' | 'gallery'>('website');
+  // The "website" area used to be one long scroll; it is split into focused
+  // sub-sections so an editor never scrolls past FAQs to reach the price list.
+  const [siteSection, setSiteSection] = useState<'hero' | 'location' | 'join' | 'faqs' | 'prices' | 'socials'>('hero');
+  const [drivePicker, setDrivePicker] = useState<null | { folder: DriveFolderKey; apply: (url: string) => void }>(null);
   const [draft, setDraft] = useState(content);
   const [savedSink, setSavedSink] = useState(0);
   const [qrProduct, setQrProduct] = useState<WebProduct | null>(null);
+
+  const openDrivePicker = (folder: DriveFolderKey, apply: (url: string) => void) => {
+    setDrivePicker({ folder, apply });
+  };
 
   const save = () => {
     // Publishing a brand-new item should hand staff its QR label straight away.
@@ -323,6 +333,34 @@ export const WebsiteContentManagerTab: React.FC = () => {
         ))}
       </div>
 
+      {editorTab === 'website' && (
+        <div className={`rounded-2xl border p-1.5 flex flex-wrap gap-1.5 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
+          {([
+            { id: 'hero', label: 'Hero & Contact' },
+            { id: 'location', label: 'Location' },
+            { id: 'join', label: 'Join the Team' },
+            { id: 'faqs', label: 'FAQs' },
+            { id: 'prices', label: 'Price List' },
+            { id: 'socials', label: 'Socials' },
+          ] as const).map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => setSiteSection(s.id)}
+              className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer border ${
+                siteSection === s.id
+                  ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+                  : isDark
+                    ? 'border-transparent text-neutral-300 hover:bg-neutral-800/60'
+                    : 'border-transparent text-neutral-600 hover:bg-neutral-100'
+              }`}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {showPreview && (
         <div className={`rounded-2xl border p-4 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
           <details open>
@@ -340,7 +378,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
-      {editorTab === 'website' && (
+      {editorTab === 'website' && siteSection === 'hero' && (
       <SectionCard title="Hero & Contact" subtitle="Shown on Home and reused across every page." isDark={isDark}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label="Hero badge" isDark={isDark} value={draft.heroBadge} onChange={(v) => setTextField('heroBadge', v)} />
@@ -399,7 +437,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
       </SectionCard>
       )}
 
-      {editorTab === 'website' && (
+      {editorTab === 'website' && siteSection === 'location' && (
       <SectionCard title="Location Page" isDark={isDark}>
         <Field label="Location quote (overlaid on image)" isDark={isDark} textarea value={draft.locationQuote} onChange={(v) => setTextField('locationQuote', v)} />
         <Field label="Mobile-only heading" isDark={isDark} value={draft.mobileTitle} onChange={(v) => setTextField('mobileTitle', v)} />
@@ -408,7 +446,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
       </SectionCard>
       )}
 
-      {editorTab === 'website' && (
+      {editorTab === 'website' && siteSection === 'join' && (
       <SectionCard title="Join the Team" isDark={isDark}>
         <Field label="Heading" isDark={isDark} value={draft.joinTitle} onChange={(v) => setTextField('joinTitle', v)} />
         <Field label="Pitch" isDark={isDark} textarea value={draft.joinBody} onChange={(v) => setTextField('joinBody', v)} />
@@ -425,7 +463,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
       </SectionCard>
       )}
 
-      {editorTab === 'website' && (
+      {editorTab === 'website' && siteSection === 'faqs' && (
       <SectionCard title="FAQs" subtitle="Repairs & Service · Parts & Accessories · General." isDark={isDark}>
         <div className="space-y-3">
           {draft.faqs.map((faq, i) => (
@@ -464,7 +502,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
       </SectionCard>
       )}
 
-      {editorTab === 'website' && (
+      {editorTab === 'website' && siteSection === 'prices' && (
       <SectionCard title="Price List" subtitle="Ballpark UK labour-only prices for bicycles and e-scooters." isDark={isDark}>
         <Field label="Intro title" isDark={isDark} value={draft.priceIntroTitle} onChange={(v) => setTextField('priceIntroTitle', v)} />
         <Field label="Intro body" isDark={isDark} textarea value={draft.priceIntroBody} onChange={(v) => setTextField('priceIntroBody', v)} />
@@ -651,6 +689,13 @@ export const WebsiteContentManagerTab: React.FC = () => {
                     }}
                   />
                 </label>
+                <button
+                  type="button"
+                  onClick={() => openDrivePicker('stock', (url) => setProductField(i, 'image', url))}
+                  className="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-800 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-400 transition-all font-bold cursor-pointer h-[38px] mt-5 flex items-center justify-center"
+                >
+                  Drive
+                </button>
               </div>
               <div>
                 <span className={labelCls}>Category</span>
@@ -716,6 +761,16 @@ export const WebsiteContentManagerTab: React.FC = () => {
               </label>
               <button
                 type="button"
+                onClick={() => openDrivePicker('gallery', (url) => {
+                  const galleryImages = draft.galleryImages.map((g, idx) => (idx === i ? { ...g, url } : g));
+                  applyDraft({ galleryImages } as Partial<typeof draft>);
+                })}
+                className="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-800 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-400 transition-all font-bold cursor-pointer h-[38px] mb-1 flex items-center justify-center"
+              >
+                Drive
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   const galleryImages = draft.galleryImages.filter((g) => g.id !== img.id);
                   applyDraft({ galleryImages } as Partial<typeof draft>);
@@ -740,7 +795,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
       </SectionCard>
       )}
 
-      {editorTab === 'website' && (
+      {editorTab === 'website' && siteSection === 'socials' && (
       <SectionCard title="Social Links" subtitle="Footer + contact strip; used across every page." isDark={isDark}>
         <div className="space-y-3">
           {draft.socials.map((social, i) => (
@@ -793,6 +848,17 @@ export const WebsiteContentManagerTab: React.FC = () => {
 
       {qrProduct && (
         <ItemQrModal product={qrProduct} isDark={isDark} onClose={() => setQrProduct(null)} />
+      )}
+
+      {drivePicker && (
+        <DriveImagePicker
+          folder={drivePicker.folder}
+          onClose={() => setDrivePicker(null)}
+          onPick={(url) => {
+            drivePicker.apply(url);
+            setDrivePicker(null);
+          }}
+        />
       )}
     </div>
   );
