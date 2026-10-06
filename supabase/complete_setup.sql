@@ -509,6 +509,7 @@ ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS terms_and_conditions JSON
 ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS eligible_categories JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS bg_gradient TEXT;
 ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS featured BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS image_url TEXT;
 ALTER TABLE public.promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2m. app_settings — one shared row (id = 1) holding workshop-wide settings

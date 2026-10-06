@@ -353,6 +353,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'terms_and_conditions', type: 'jsonb', default: `'[]'::jsonb` },
       { name: 'eligible_categories', type: 'jsonb', default: `'[]'::jsonb` },
       { name: 'bg_gradient', type: 'text' },
+      { name: 'image_url', type: 'text' },
       { name: 'featured', type: 'boolean', default: 'false' },
       { name: 'created_at', type: 'timestamptz', default: NOW },
       { name: 'updated_at', type: 'timestamptz', default: NOW },

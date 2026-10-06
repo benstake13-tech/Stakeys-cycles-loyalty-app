@@ -42,6 +42,7 @@ export interface ShopPromotion {
   eligibleCategories: VehicleCategory[];
   bgGradient: string;
   featured?: boolean;
+  imageUrl?: string;
 }
 
 export interface TrustedBikeRecommendation {

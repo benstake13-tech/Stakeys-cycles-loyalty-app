@@ -38,6 +38,7 @@ export const PromotionsManagerTab: React.FC = () => {
     termsText: string;
     eligibleCategories: VehicleCategory[];
     bgGradient: string;
+    imageUrl?: string;
   }>({
     title: '',
     subtitle: '',
@@ -51,6 +52,7 @@ export const PromotionsManagerTab: React.FC = () => {
     termsText: 'Valid for in-store and online bookings.\nLabour only; replacement parts charged separately.\nCannot combine with other offers.',
     eligibleCategories: ['cycle', 'ebike'],
     bgGradient: 'from-emerald-950/80 via-[#0e1713] to-neutral-900',
+    imageUrl: '',
   });
 
   const handleOpenAdd = () => {
@@ -68,6 +70,7 @@ export const PromotionsManagerTab: React.FC = () => {
       termsText: 'Valid for in-store and online bookings.\nLabour only; replacement parts charged separately.\nCannot combine with other offers.',
       eligibleCategories: ['cycle', 'ebike'],
       bgGradient: 'from-emerald-950/80 via-[#0e1713] to-neutral-900',
+      imageUrl: '',
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -88,6 +91,7 @@ export const PromotionsManagerTab: React.FC = () => {
       termsText: promo.termsAndConditions.join('\n'),
       eligibleCategories: promo.eligibleCategories || ['cycle'],
       bgGradient: promo.bgGradient || 'from-emerald-950/80 via-[#0e1713] to-neutral-900',
+      imageUrl: promo.imageUrl || '',
     });
     setFormError(null);
     setIsModalOpen(true);
@@ -129,6 +133,7 @@ export const PromotionsManagerTab: React.FC = () => {
         termsAndConditions: termsArray.length > 0 ? termsArray : ['Standard workshop service conditions apply.'],
         eligibleCategories: formData.eligibleCategories,
         bgGradient: formData.bgGradient,
+        imageUrl: formData.imageUrl ? formData.imageUrl.trim() : undefined,
       };
 
       if (editingPromoId) {
@@ -410,6 +415,44 @@ export const PromotionsManagerTab: React.FC = () => {
                   placeholder="Enter specific rules, eligible services, and exclusions..."
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-emerald-500 resize-none"
                 />
+              </div>
+
+              <div>
+                <label className="block text-neutral-300 font-medium mb-1">Promotion Card Image</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={formData.imageUrl || ''}
+                    onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
+                    placeholder="e.g. data:image/png;base64,... or https://example.com/image.jpg"
+                    className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                  {formData.imageUrl && (
+                    <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 bg-neutral-900">
+                      <img src={formData.imageUrl} alt="Promo preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <label className="shrink-0 px-3.5 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-all font-bold cursor-pointer">
+                    <span>Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (typeof reader.result === 'string') {
+                              setFormData({ ...formData, imageUrl: reader.result });
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2">

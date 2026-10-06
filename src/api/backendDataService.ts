@@ -1154,6 +1154,7 @@ export async function fetchPromotionsFromDb(): Promise<ShopPromotion[]> {
       eligibleCategories: normalizeStringArray(row.eligible_categories) as ShopPromotion['eligibleCategories'],
       bgGradient: row.bg_gradient || '',
       featured: row.featured === true,
+      imageUrl: row.image_url || undefined,
     }));
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] fetchPromotionsFromDb:', err);
@@ -1179,6 +1180,7 @@ export async function upsertPromotionToDb(promo: ShopPromotion): Promise<boolean
       eligible_categories: promo.eligibleCategories || [],
       bg_gradient: promo.bgGradient || null,
       featured: promo.featured === true,
+      image_url: promo.imageUrl || null,
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabase.from('promotions').upsert(payload, { onConflict: 'id' });

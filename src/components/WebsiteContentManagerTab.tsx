@@ -603,7 +603,36 @@ export const WebsiteContentManagerTab: React.FC = () => {
                 }} />
               </div>
 
-              <Field label="Image URL" isDark={isDark} value={product.image} onChange={(v) => setProductField(i, 'image', v)} />
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <Field label="Image URL" isDark={isDark} value={product.image} onChange={(v) => setProductField(i, "image", v)} />
+                </div>
+                {product.image && (
+                  <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 bg-neutral-900 mt-5">
+                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <label className="shrink-0 px-3.5 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-all font-bold cursor-pointer h-[38px] mt-5 flex items-center justify-center">
+                  <span>Upload</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          if (typeof reader.result === "string") {
+                            setProductField(i, "image", reader.result);
+                          }
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
               <div>
                 <span className={labelCls}>Category</span>
                 <select
@@ -635,11 +664,37 @@ export const WebsiteContentManagerTab: React.FC = () => {
           {draft.galleryImages.map((img, i) => (
             <div key={img.id} className="flex items-end gap-3">
               <div className="flex-1">
-                <Field label={`Gallery image ${i + 1}`} isDark={isDark} value={img.url} onChange={(v) => {
+                <Field label={"Gallery image " + (i + 1)} isDark={isDark} value={img.url} onChange={(v) => {
                   const galleryImages = draft.galleryImages.map((g, idx) => (idx === i ? { ...g, url: v } : g));
                   applyDraft({ galleryImages } as Partial<typeof draft>);
                 }} />
               </div>
+              {img.url && (
+                <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 bg-neutral-900 mb-1">
+                  <img src={img.url} alt={"Gallery " + (i + 1)} className="w-full h-full object-cover" />
+                </div>
+              )}
+              <label className="shrink-0 px-3.5 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-all font-bold cursor-pointer h-[38px] mb-1 flex items-center justify-center">
+                <span>Upload</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        if (typeof reader.result === 'string') {
+                          const galleryImages = draft.galleryImages.map((g, idx) => (idx === i ? { ...g, url: reader.result } : g));
+                          applyDraft({ galleryImages } as Partial<typeof draft>);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+              </label>
               <button
                 type="button"
                 onClick={() => {
