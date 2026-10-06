@@ -163,7 +163,15 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
                       }`}
                     />
 
-                    <div>
+                    {/* Promotion Background Image */}
+                    {promo.imageUrl && (
+                      <div
+                        className="absolute inset-0 z-0 bg-cover bg-center opacity-25 pointer-events-none rounded-2xl"
+                        style={{ backgroundImage: "url(" + promo.imageUrl + ")" }}
+                      />
+                    )}
+
+                    <div className="relative z-10">
                       {/* Top Meta Strip: Status badge & 3D Flip trigger prompt */}
                       <div className="flex items-center justify-between gap-2 mb-3">
                         <span
@@ -207,7 +215,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
                     </div>
 
                     {/* Bottom Zone: Discount Tag, Coupon code with 1-click copy */}
-                    <div className="pt-3 border-t border-neutral-800/80 dark:border-neutral-800/80 light:border-neutral-200 space-y-2.5">
+                    <div className="pt-3 border-t border-neutral-800/80 dark:border-neutral-800/80 light:border-neutral-200 space-y-2.5 relative z-10">
                       <div className="flex items-baseline justify-between">
                         <div>
                           <span className="text-[10px] text-neutral-400 uppercase font-mono block">Benefit</span>

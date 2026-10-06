@@ -1011,10 +1011,8 @@ export const BIKE_YEAR_OPTIONS: string[] = (() => {
 })();
 
 export const TIME_SLOT_OPTIONS: string[] = [
-  'Morning (09:00 - 12:00)',
   'Midday (12:00 - 15:00)',
   'Afternoon (15:00 - 18:00)',
-  'Saturday Morning (09:30 - 13:00)',
 ];
 
 // ---------------------------------------------------------------------------
