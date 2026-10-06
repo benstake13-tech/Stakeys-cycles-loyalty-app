@@ -615,20 +615,28 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
       case 'location':
         return (
           <div className="space-y-6">
-            <div className="relative overflow-hidden rounded-3xl border shadow-lg">
-              <img
-                src={content.locationImage}
-                alt="Stakey's Cycles — Salford"
-                className="w-full h-56 sm:h-72 object-cover"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-              <div className="absolute bottom-0 left-0 p-6 sm:p-8">
-                <p className="text-white/90 italic text-sm sm:text-lg font-semibold max-w-2xl leading-relaxed drop-shadow">
+            {content.locationImage ? (
+              <div className="relative overflow-hidden rounded-3xl border shadow-lg">
+                <img
+                  src={content.locationImage}
+                  alt="Stakey's Cycles — Salford"
+                  className="w-full h-56 sm:h-72 object-cover"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                <div className="absolute bottom-0 left-0 p-6 sm:p-8">
+                  <p className="text-white/90 italic text-sm sm:text-lg font-semibold max-w-2xl leading-relaxed drop-shadow">
+                    “{content.locationQuote}”
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
+                <p className={`italic text-sm sm:text-lg font-semibold max-w-3xl leading-relaxed ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>
                   “{content.locationQuote}”
                 </p>
               </div>
-            </div>
+            )}
             <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
               <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{content.mobileTitle}</h3>
               <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
@@ -710,19 +718,26 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         return (
           <div className="space-y-6">
             <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Gallery</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {content.galleryImages.map((img) => (
-                <figure
-                  key={img.id}
-                  className={`overflow-hidden rounded-2xl border shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white border-neutral-200'}`}
-                >
-                  <img src={img.url} alt="Stakey's Cycles workshop work" className="w-full h-56 object-cover" loading="lazy" />
-                  <figcaption className={`px-4 py-3 text-[11px] font-semibold ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                    Stakey's Cycles — Salford
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
+            {content.galleryImages.length === 0 ? (
+              <div className={`rounded-2xl border border-dashed p-8 text-center ${isDark ? 'border-neutral-700 text-neutral-400' : 'border-neutral-300 text-neutral-500'}`}>
+                <p className="text-sm font-semibold">Photos coming soon.</p>
+                <p className="text-[11px] mt-1">We're refreshing our gallery with new workshop shots.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {content.galleryImages.map((img) => (
+                  <figure
+                    key={img.id}
+                    className={`overflow-hidden rounded-2xl border shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white border-neutral-200'}`}
+                  >
+                    <img src={img.url} alt="Stakey's Cycles workshop work" className="w-full h-56 object-cover" loading="lazy" />
+                    <figcaption className={`px-4 py-3 text-[11px] font-semibold ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                      Stakey's Cycles — Salford
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
             {footerBar}
           </div>
         );
