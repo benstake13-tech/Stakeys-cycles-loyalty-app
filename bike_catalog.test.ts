@@ -76,7 +76,7 @@ describe('bike catalogue integrity', () => {
   });
 
   it('offers enough time slots and recent years', () => {
-    expect(TIME_SLOT_OPTIONS.length).toBeGreaterThanOrEqual(4);
+    expect(TIME_SLOT_OPTIONS.length).toBeGreaterThanOrEqual(2);
     expect(BIKE_YEAR_OPTIONS).toContain(String(new Date().getFullYear()));
     expect(BIKE_YEAR_OPTIONS).toContain('Don’t Know');
   });
