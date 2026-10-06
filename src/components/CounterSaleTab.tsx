@@ -142,6 +142,7 @@ export const CounterSaleTab: React.FC = () => {
         subtotal,
         customerUid: selectedCustomer?.uid,
         customerMembership: selectedCustomer?.membershipNumber,
+        isMember: Boolean(selectedCustomer),
       });
       return res.ok ? { ...discount, amountOff: res.amountOff! } : null;
     }
@@ -216,6 +217,7 @@ export const CounterSaleTab: React.FC = () => {
       subtotal: sub,
       customerUid: cust?.uid,
       customerMembership: cust?.membershipNumber,
+      isMember: Boolean(cust),
     });
     if (!res.ok) {
       setDiscount(null);

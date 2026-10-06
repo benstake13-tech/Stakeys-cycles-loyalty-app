@@ -21,6 +21,11 @@ import { useWebsiteContent } from '../context/WebsiteContentStore';
 import { supabase } from '../lib/supabase';
 import { SegmentedTab, SegmentedTabs } from './SegmentedTabs';
 import { WebsitePageId, WebProductCategory, WebCartItem, WebProduct } from '../types/websiteContent';
+import {
+  applyDiscountToTotal,
+  findDiscountCode,
+  validateDiscountCode,
+} from '../utils/discountService';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
@@ -50,7 +55,7 @@ const SOCIAL_ICON: Record<string, string> = {
 };
 
 export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService }) => {
-  const { currentUser, theme, promotions } = useShop();
+  const { currentUser, theme, promotions, discountCodes, recordDiscountUsage } = useShop();
   const content = useWebsiteContent();
   const isDark = theme === 'dark';
 
@@ -67,10 +72,48 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
   const [checkoutNote, setCheckoutNote] = useState('');
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [placing, setPlacing] = useState(false);
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedCode, setAppliedCode] = useState<{ id: string; code: string; amountOff: number } | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
-  const cartTotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const cartDiscount = appliedCode?.amountOff ?? 0;
+  const cartTotal = applyDiscountToTotal(cartSubtotal, cartDiscount);
   const cartQtyFor = (productId: string) => cart.find((i) => i.productId === productId)?.qty ?? 0;
+
+  /** Re-validate the applied code against the live basket so it never over-discounts. */
+  const promoEvaluation = appliedCode
+    ? validateDiscountCode(findDiscountCode(appliedCode.code, discountCodes || []), {
+        subtotal: cartSubtotal,
+        isMember: Boolean(currentUser),
+      })
+    : null;
+  const promoActive = Boolean(appliedCode && promoEvaluation?.ok);
+
+  const applyPromoCode = () => {
+    setPromoError(null);
+    const found = findDiscountCode(promoInput, discountCodes || []);
+    if (!found) {
+      setPromoError('That code was not recognised.');
+      return;
+    }
+    const res = validateDiscountCode(found, {
+      subtotal: cartSubtotal,
+      isMember: Boolean(currentUser),
+    });
+    if (!res.ok) {
+      setPromoError(res.reason || 'That code cannot be used on this basket.');
+      return;
+    }
+    setAppliedCode({ id: found.id, code: found.code, amountOff: res.amountOff || 0 });
+    setPromoInput('');
+  };
+
+  const clearPromoCode = () => {
+    setAppliedCode(null);
+    setPromoError(null);
+  };
 
   const addToCart = (product: WebProduct) => {
     setOrderPlaced(false);
@@ -112,16 +155,27 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         items: cart,
         total: cartTotal,
         note: checkoutNote.trim() || null,
+        discount_code: promoActive ? appliedCode?.code || null : null,
       };
-      const { error } = await supabase.from('ecommerce_orders').insert(order);
+      let { error } = await supabase.from('ecommerce_orders').insert(order);
+      if (error) {
+        // Older project without the discount_code column — still save the order.
+        const retry = await supabase
+          .from('ecommerce_orders')
+          .insert({ ...order, discount_code: undefined });
+        error = retry.error;
+      }
       if (error) console.warn('[WEBSITE SHOP] Order persist skipped:', error.message);
+      if (promoActive && appliedCode) {
+        void recordDiscountUsage(appliedCode.id);
+      }
       await supabase.functions
         .invoke('send-email', {
           body: {
             from: 'noreply@stakeyscycles.co.uk',
             to: 'Benstake13@gmail.com',
             subject: `🛒 [STAKEY'S SHOP] New order — £${cartTotal.toFixed(2)} (${checkoutName.trim()})`,
-            html: `<h2>New shop order</h2><p><strong>${checkoutName.trim()}</strong> · ${checkoutContact.trim()}</p><p>Total: <strong>£${cartTotal.toFixed(2)}</strong></p><ul>${cart
+            html: `<h2>New shop order</h2><p><strong>${checkoutName.trim()}</strong> · ${checkoutContact.trim()}</p><p>Total: <strong>£${cartTotal.toFixed(2)}</strong>${promoActive ? ` (code <strong>${appliedCode?.code}</strong>, −£${cartDiscount.toFixed(2)})` : ''}</p><ul>${cart
               .map((i) => `<li>${i.qty}× ${i.name} — £${(i.price * i.qty).toFixed(2)}</li>`)
               .join('')}</ul>${checkoutNote.trim() ? `<p>Note: ${checkoutNote.trim()}</p>` : ''}`,
           },
@@ -130,6 +184,8 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
       setOrderPlaced(true);
       setCart([]);
       setCheckoutNote('');
+      setAppliedCode(null);
+      setPromoInput('');
     } finally {
       setPlacing(false);
     }
@@ -456,9 +512,57 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
               ))}
             </div>
 
-            <div className={`flex items-center justify-between rounded-xl border p-3 ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-neutral-50'}`}>
-              <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>Total</span>
-              <span className={`text-lg font-black ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>£{cartTotal.toFixed(2)}</span>
+            <div className={`rounded-xl border p-3 space-y-1.5 ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-neutral-50'}`}>
+              <div className="flex items-center justify-between">
+                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>Subtotal</span>
+                <span className={`text-xs font-bold ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>£{cartSubtotal.toFixed(2)}</span>
+              </div>
+              {promoActive && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Code {appliedCode?.code}</span>
+                  <span className="text-xs font-bold text-emerald-500">−£{cartDiscount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className={`flex items-center justify-between border-t pt-1.5 ${isDark ? 'border-neutral-800' : 'border-neutral-200'}`}>
+                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>Total</span>
+                <span className={`text-lg font-black ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>£{cartTotal.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Promo / discount code — public codes work for everyone, member codes need a signed-in member */}
+            <div className="space-y-1.5">
+              {promoActive ? (
+                <div className="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+                  <span className="text-[11px] font-bold text-emerald-500">
+                    {appliedCode?.code} applied{currentUser ? ' (member)' : ''}
+                  </span>
+                  <button type="button" onClick={clearPromoCode} className="text-[11px] font-semibold text-neutral-400 hover:text-rose-400 cursor-pointer">
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    value={promoInput}
+                    onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                    placeholder="Discount code"
+                    className={`w-full rounded-xl border px-3 py-2 text-xs font-mono outline-none ${isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-100' : 'border-neutral-200 bg-white text-neutral-800'}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={applyPromoCode}
+                    className="pressable shrink-0 rounded-xl border border-emerald-500/50 px-3 py-2 text-xs font-bold text-emerald-500 cursor-pointer"
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+              {promoError && <p className="text-[10px] text-rose-400">{promoError}</p>}
+              {!currentUser && (
+                <p className={`text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>
+                  Loyalty members get bigger discounts — sign in to unlock member codes.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

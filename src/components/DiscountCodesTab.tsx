@@ -13,10 +13,18 @@ import {
   Ban,
   Copy,
   Infinity as InfinityIcon,
+  Sparkles,
+  Users,
+  Globe,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { DiscountCode, DiscountCodeType, VehicleCategory } from '../types/bikeShop';
+import { DiscountCode, DiscountCodeType, DiscountAudience, VehicleCategory } from '../types/bikeShop';
 import { describeDiscountValue } from '../utils/discountService';
+import {
+  DISCOUNT_SET_BLUEPRINTS,
+  DiscountSetBlueprint,
+  generateDiscountSet,
+} from '../utils/discountAudience';
 
 const CATEGORY_OPTIONS: { id: VehicleCategory; label: string }[] = [
   { id: 'cycle', label: 'Bicycle' },
@@ -32,6 +40,7 @@ type FormState = {
   type: DiscountCodeType;
   value: number;
   status: 'active' | 'disabled';
+  audience: DiscountAudience | '';
   expiresAt: string;
   usageLimit: number;
   assignedToUid: string;
@@ -48,6 +57,7 @@ const blankForm = (): FormState => ({
   type: 'percent',
   value: 10,
   status: 'active',
+  audience: '',
   expiresAt: '',
   usageLimit: 0,
   assignedToUid: '',
@@ -56,6 +66,18 @@ const blankForm = (): FormState => ({
   eligibleCategories: [],
   minimumSpend: 0,
 });
+
+function audiencePill(audience?: DiscountAudience) {
+  if (audience === 'member') return 'bg-emerald-950/60 text-emerald-300 border-emerald-800';
+  if (audience === 'public') return 'bg-sky-950/60 text-sky-300 border-sky-800';
+  return 'bg-neutral-900 text-neutral-400 border-neutral-800';
+}
+
+function audienceLabel(audience?: DiscountAudience) {
+  if (audience === 'member') return 'Loyalty members';
+  if (audience === 'public') return 'Website visitors';
+  return 'Open to all';
+}
 
 function statusPill(code: DiscountCode) {
   if (code.status === 'disabled')
@@ -99,6 +121,7 @@ export const DiscountCodesTab: React.FC = () => {
       type: code.type,
       value: code.value,
       status: code.status === 'expired' ? 'active' : code.status,
+      audience: code.audience || '',
       expiresAt: code.expiresAt ? new Date(code.expiresAt).toISOString().split('T')[0] : '',
       usageLimit: code.usageLimit || 0,
       assignedToUid: code.assignedToUid || '',
@@ -160,6 +183,7 @@ export const DiscountCodesTab: React.FC = () => {
       assignedToName: form.assignedToName || undefined,
       eligibleCategories: form.eligibleCategories,
       minimumSpend: form.minimumSpend > 0 ? form.minimumSpend : undefined,
+      audience: form.audience || undefined,
       createdBy: currentUser?.displayName,
     };
 
@@ -184,6 +208,23 @@ export const DiscountCodesTab: React.FC = () => {
       status: code.status === 'active' ? 'disabled' : 'active',
     });
   };
+
+  const handleGenerateSet = async (blueprint: DiscountSetBlueprint) => {
+    const existing = new Set(discountCodes.map((c) => c.code.toUpperCase()));
+    const fresh = generateDiscountSet(blueprint).filter((c) => !existing.has(c.code));
+    if (fresh.length === 0) {
+      setFlash(`${blueprint.label} is already up to date — no new codes needed.`);
+      return;
+    }
+    for (const code of fresh) {
+      const { id, createdAt, timesUsed, ...payload } = code;
+      await addDiscountCode(payload);
+    }
+    setFlash(`Added ${fresh.length} ${blueprint.label.toLowerCase()} code(s): ${fresh.map((c) => c.code).join(', ')}.`);
+  };
+
+  const memberCount = discountCodes.filter((c) => c.audience === 'member').length;
+  const publicCount = discountCodes.filter((c) => c.audience === 'public').length;
 
   const copyCode = async (code: string) => {
     try {
@@ -212,6 +253,56 @@ export const DiscountCodesTab: React.FC = () => {
         >
           <Plus className="w-4 h-4" /> New Code
         </button>
+      </div>
+
+      {/* Generate the two curated sets: loyalty members vs website visitors */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {DISCOUNT_SET_BLUEPRINTS.map((bp) => {
+          const isMember = bp.audience === 'member';
+          const count = isMember ? memberCount : publicCount;
+          return (
+            <div
+              key={bp.audience}
+              className={`rounded-2xl border p-4 space-y-2.5 ${
+                isMember
+                  ? 'border-emerald-800/70 bg-emerald-950/20'
+                  : 'border-sky-800/70 bg-sky-950/20'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {isMember ? (
+                    <Users className="w-4 h-4 text-emerald-400" />
+                  ) : (
+                    <Globe className="w-4 h-4 text-sky-400" />
+                  )}
+                  <span className="text-sm font-bold text-white">{bp.label}</span>
+                </div>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${audiencePill(bp.audience)}`}>
+                  {count} live
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-400">{bp.blurb}</p>
+              <ul className="space-y-1 text-[11px] text-neutral-300">
+                {bp.templates.map((t) => (
+                  <li key={t.slug} className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] text-neutral-400">{bp.prefix}-{t.slug}</span>
+                    <span>{t.value}{t.type === 'percent' ? '% off' : ' credit'}</span>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => handleGenerateSet(bp)}
+                className={`pressable flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-neutral-950 ${
+                  isMember ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-sky-500 hover:bg-sky-400'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" /> Generate {isMember ? 'member' : 'website'} codes
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       {flash && (
@@ -263,6 +354,9 @@ export const DiscountCodesTab: React.FC = () => {
               </div>
 
               <div className="flex flex-wrap gap-1.5 text-[10px] text-neutral-500">
+                <span className={`rounded-md border px-1.5 py-0.5 ${audiencePill(code.audience)}`}>
+                  {audienceLabel(code.audience)}
+                </span>
                 {code.assignedToUid ? (
                   <span className="rounded-md bg-sky-950/60 px-1.5 py-0.5 text-sky-300">
                     {code.assignedToName || code.assignedToMembership || 'Assigned member'}
@@ -446,6 +540,33 @@ export const DiscountCodesTab: React.FC = () => {
                   className="mt-1 w-full rounded-xl border border-neutral-700 bg-black px-3 py-2 text-sm text-white focus:border-amber-500 outline-none"
                 />
               </label>
+
+              <div className="col-span-2 text-xs font-semibold text-neutral-400">
+                Who is it for?
+                <div className="mt-1 flex gap-2">
+                  {([
+                    { id: '', label: 'Open to all' },
+                    { id: 'member', label: 'Loyalty members' },
+                    { id: 'public', label: 'Website visitors' },
+                  ] as { id: DiscountAudience | ''; label: string }[]).map((opt) => (
+                    <button
+                      key={opt.id || 'all'}
+                      type="button"
+                      onClick={() => setForm({ ...form, audience: opt.id })}
+                      className={`flex-1 rounded-xl border px-3 py-2 text-xs font-bold ${
+                        form.audience === opt.id
+                          ? 'border-amber-500 bg-amber-500/10 text-amber-300'
+                          : 'border-neutral-700 bg-black text-neutral-400'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[10px] font-normal text-neutral-500">
+                  Member-only codes are refused unless the customer is signed in to a loyalty account.
+                </p>
+              </div>
 
               <label className="col-span-2 text-xs font-semibold text-neutral-400">
                 Reserve for one member (optional)
