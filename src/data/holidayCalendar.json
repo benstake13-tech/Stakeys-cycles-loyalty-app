@@ -1,0 +1,41 @@
+{
+  "$schema": "https://stakeys.local/schemas/holiday-calendar.json",
+  "description": "Seasonal theme calendar. Fixed holidays use MM-DD; dynamic holidays are resolved by name from src/utils/lunar.ts. The active window opens `leadDays` before the celebration and closes `trailDays` after.",
+  "window": { "leadDays": 7, "trailDays": 2 },
+  "themes": {
+    "none": { "label": "No seasonal theme" },
+    "halloween": { "label": "Halloween" },
+    "christmas": { "label": "Christmas" },
+    "stpatricks": { "label": "St. Patrick's Day" },
+    "newyear": { "label": "New Year's Eve" },
+    "valentines": { "label": "Valentine's Day" },
+    "easter": { "label": "Easter" },
+    "thanksgiving": { "label": "Thanksgiving" },
+    "cny": { "label": "Chinese New Year" },
+    "midautumn": { "label": "Mid-Autumn Festival" },
+    "diwali": { "label": "Diwali" },
+    "holi": { "label": "Holi" },
+    "eidfitr": { "label": "Eid al-Fitr" },
+    "eidadha": { "label": "Eid al-Adha" },
+    "hanukkah": { "label": "Hanukkah" },
+    "cincodemayo": { "label": "Cinco de Mayo" }
+  },
+  "holidays": [
+    { "theme": "valentines", "name": "Valentine's Day", "month": 2, "day": 14, "priority": 40 },
+    { "theme": "stpatricks", "name": "St. Patrick's Day", "month": 3, "day": 17, "priority": 40 },
+    { "theme": "easter", "name": "Easter Sunday", "resolver": "easter", "priority": 50 },
+    { "theme": "cincodemayo", "name": "Cinco de Mayo", "month": 5, "day": 5, "priority": 30 },
+    { "theme": "eidfitr", "name": "Eid al-Fitr", "resolver": "eidAlFitr", "priority": 55 },
+    { "theme": "holi", "name": "Holi", "resolver": "holi", "priority": 45 },
+    { "theme": "mothersday", "name": "Mothering Sunday", "resolver": "mothersDayUk", "priority": 20, "disabled": true },
+    { "theme": "eidadha", "name": "Eid al-Adha", "resolver": "eidAlAdha", "priority": 55 },
+    { "theme": "cny", "name": "Chinese New Year", "resolver": "chineseNewYear", "priority": 60 },
+    { "theme": "midautumn", "name": "Mid-Autumn Festival", "resolver": "midAutumn", "priority": 50 },
+    { "theme": "halloween", "name": "Halloween", "month": 10, "day": 31, "priority": 60 },
+    { "theme": "diwali", "name": "Diwali", "resolver": "diwali", "priority": 55 },
+    { "theme": "thanksgiving", "name": "Thanksgiving (US)", "resolver": "thanksgivingUS", "priority": 30 },
+    { "theme": "hanukkah", "name": "Hanukkah", "resolver": "hanukkah", "priority": 45 },
+    { "theme": "christmas", "name": "Christmas Day", "month": 12, "day": 25, "priority": 80 },
+    { "theme": "newyear", "name": "New Year's Eve", "month": 12, "day": 31, "priority": 50 }
+  ]
+}

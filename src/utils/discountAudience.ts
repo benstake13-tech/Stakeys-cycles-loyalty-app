@@ -83,6 +83,22 @@ export const PUBLIC_DISCOUNT_SET: DiscountSetBlueprint = {
       value: 5,
       minimumSpend: 30,
     },
+    {
+      slug: '10OFF60',
+      title: '£10 off £60',
+      description: '£10 off any website basket over £60.',
+      type: 'fixed',
+      value: 10,
+      minimumSpend: 60,
+    },
+    {
+      slug: '10ACCESS',
+      title: '10% off accessories',
+      description: '10% off accessories booked online.',
+      type: 'percent',
+      value: 10,
+      eligibleCategories: ['cycle', 'ebike', 'electric_scooter', 'cargo'],
+    },
   ],
 };
 

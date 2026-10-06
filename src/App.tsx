@@ -22,7 +22,6 @@ import {
 import { ShopProvider, useShop } from './context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
 import { CustomerPortal } from './components/CustomerPortal';
-import { StaffPortal } from './components/StaffPortal';
 import { WebsiteReplica } from './components/WebsiteReplica';
 import { ShopAssistant } from './components/ShopAssistant';
 import { BookingPortal } from './components/BookingPortal';
@@ -32,12 +31,19 @@ import { StakeysLogo } from './components/StakeysLogo';
 import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
-import { SeasonalThemeCanvas } from './components/SeasonalThemeCanvas';
+import { ThemeStage } from './components/ThemeStage';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { Toaster } from 'react-hot-toast';
 import { initPushEngage, linkUser, unlinkUser } from './utils/pushNotifications';
-import { APP_SURFACE, isFullSurface, isWebsiteSurface } from './config/surface';
+import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
+
+// The entire staff area is only ever bundled into the full/staff surfaces; the
+// customer build lazily splits it out and never ships the staff code.
+const StaffPortal: React.LazyExoticComponent<React.ComponentType> = React.lazy(async () => {
+  if (!isFullSurface && !isStaffSurface) return { default: (() => null) as React.ComponentType };
+  return import('./components/StaffPortal').then((m) => ({ default: m.StaffPortal }));
+});
 
 function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
@@ -124,6 +130,8 @@ function AppContent() {
 
   const goToTab = (tab: NavTabId) => {
     if (tab === 'staff' && !isStaff) {
+      // Customer builds have no staff door; silently ignore any stray request.
+      if (!showStaffEntry) return;
       openStaffUnlock();
       return;
     }
@@ -153,6 +161,9 @@ function AppContent() {
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', hint: 'Current offers and rewards' },
   ];
 
+  // Customer builds get no route into the staff area at all.
+  const showStaffEntry = isFullSurface || isStaffSurface;
+
   if (isStaff) {
     navTabs.push({
       id: 'staff',
@@ -163,7 +174,7 @@ function AppContent() {
       hint: 'Workshop terminal',
     });
     navTabs.push({ id: 'deliverables', label: 'Config', icon: Layers, tone: 'neutral', hint: 'Architecture & deliverables' });
-  } else {
+  } else if (showStaffEntry) {
     navTabs.push({ id: 'staff', label: 'Staff Station', icon: Shield, tone: 'amber', hint: 'Secure staff sign-in' });
   }
 
@@ -173,7 +184,7 @@ function AppContent() {
   if (isWebsiteSurface) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-        <SeasonalThemeCanvas theme={seasonalTheme} />
+        <ThemeStage theme={seasonalTheme} />
         <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -210,7 +221,7 @@ function AppContent() {
   if (!isFullSurface && !currentUser) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-        <SeasonalThemeCanvas theme={seasonalTheme} />
+        <ThemeStage theme={seasonalTheme} />
         <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <LoginScreen
             audience={APP_SURFACE === 'staff' ? 'staff' : isFullSurface ? 'both' : 'customer'}
@@ -264,7 +275,7 @@ function AppContent() {
     if (publicView === 'website') {
       return (
         <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-          <SeasonalThemeCanvas theme={seasonalTheme} />
+          <ThemeStage theme={seasonalTheme} />
           <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -303,7 +314,7 @@ function AppContent() {
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* Seasonal characters ride across the background of every screen */}
-      <SeasonalThemeCanvas theme={seasonalTheme} />
+      <ThemeStage theme={seasonalTheme} />
 
       {/* Page content sits above the seasonal canvas (z-0) so the characters
           ride across the background of every screen, behind the UI. */}
@@ -439,8 +450,10 @@ function AppContent() {
           {activeTab === 'promotions' && <PromotionsCarousel />}
           {activeTab === 'staff' &&
             (isStaff ? (
-              <StaffPortal />
-            ) : (
+              <React.Suspense fallback={null}>
+                <StaffPortal />
+              </React.Suspense>
+            ) : showStaffEntry ? (
               <div className={`max-w-md mx-auto rounded-3xl border p-8 text-center space-y-4 ${isDark ? 'bg-[#0d1015] border-amber-500/40' : 'bg-white border-amber-400'}`}>
                 <ShieldCheck className="w-12 h-12 text-amber-400 mx-auto" />
                 <h3 className={`text-lg font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Staff Terminal Locked</h3>
@@ -455,7 +468,7 @@ function AppContent() {
                   Staff Sign In
                 </button>
               </div>
-            ))}
+            ) : null)}
           {activeTab === 'deliverables' && isStaff && <DeliverablesViewer />}
         </div>
       </main>
@@ -513,8 +526,8 @@ function AppContent() {
         </div>
       </footer>
 
-      {/* Secure staff sign-in modal */}
-      {showStaffPinModal && (
+      {/* Secure staff sign-in modal (full/staff surfaces only) */}
+      {showStaffPinModal && showStaffEntry && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
           <form
             onSubmit={handleStaffUnlock}
