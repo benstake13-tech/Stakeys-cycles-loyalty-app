@@ -16,7 +16,14 @@ import { WebsiteContent } from '../types/websiteContent';
  * run DDL,so we never create it. If the column exists,we upsert it on save
  * so edits follow staff across devices; otherwise we stay local-only.
  */
-const STORAGE_KEY = 'stakeys.website_content.v1';
+const STORAGE_KEY = 'stakeys.website_content.v2';
+
+/**
+ * Earlier drafts live under v1 and still carry the seeded demo stock. Bumping
+ * the key drops that stale shelf on the next load; we also actively remove the
+ * old key so it can never be resurrected by a downgrade or a second tab.
+ */
+const LEGACY_STORAGE_KEYS = ['stakeys.website_content.v1'];
 
 let cached: WebsiteContent | null = null;
 const listeners = new Set<() => void>();
@@ -32,6 +39,13 @@ function clone(content: WebsiteContent): WebsiteContent {
 export function getWebsiteContent(): WebsiteContent {
   if (cached) return cached;
   if (typeof window !== 'undefined') {
+    for (const legacyKey of LEGACY_STORAGE_KEYS) {
+      try {
+        window.localStorage.removeItem(legacyKey);
+      } catch {
+        // Ignore storage failures (private mode); the new key still wins.
+      }
+    }
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
@@ -77,8 +91,9 @@ export function updateWebsiteContent(patch: Partial<WebsiteContent>): void {
 
 export function resetWebsiteContent(): void {
   const fresh = clone(DEFAULT_WEBSITE_CONTENT);
-    void persistToSupabase(fresh);
-  }
+  save(fresh);
+  void persistToSupabase(fresh);
+}
 
 let columnProbeState: 'unknown' | 'absent' | 'present' = 'unknown';
 async function persistToSupabase(content: WebsiteContent): Promise<boolean> {

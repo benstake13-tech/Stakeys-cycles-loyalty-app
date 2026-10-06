@@ -177,24 +177,45 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
   }, [content.siteAnnouncements.length]);
 
   const heroCard = (
-    <div className="relative overflow-hidden rounded-3xl border p-6 sm:p-10 shadow-xl">
-      <div className="absolute -top-16 -right-16 w-56 h-56 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-20 -left-16 w-48 h-48 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-        <div className="space-y-4">
-          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${isDark ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+    <div className={`relative overflow-hidden rounded-[2rem] border shadow-2xl ${isDark ? 'border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black' : 'border-neutral-200 bg-gradient-to-br from-white via-emerald-50/40 to-white'}`}>
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-emerald-500/25 blur-3xl" />
+        <div className="absolute -bottom-24 -left-20 w-64 h-64 rounded-full bg-sky-500/15 blur-3xl" />
+        <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:28px_28px]" />
+      </div>
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-6 sm:p-10">
+        <div className="space-y-5">
+          <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-sm ${isDark ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
             <span className="w-1.5 h-1.5 rounded-full bg-[#05C147] animate-pulse" />
             {content.heroBadge}
           </span>
-          <h2 className={`font-display text-3xl sm:text-4xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-            Stakey's <span className="text-emerald-500">{content.heroTitle}</span>
+          <h2 className={`font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.05] ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+            Stakey's{' '}
+            <span className="bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent">
+              {content.heroTitle}
+            </span>
           </h2>
-          <p className={`text-sm font-semibold ${isDark ? 'text-emerald-200/80' : 'text-emerald-700/80'}`}>
+          <p className={`text-base font-bold ${isDark ? 'text-emerald-200/90' : 'text-emerald-700'}`}>
             {content.heroSubtitle}
           </p>
-          <p className={`text-sm leading-relaxed ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
+          <p className={`text-sm leading-relaxed max-w-xl ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
             {content.heroBlurb}
           </p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { icon: BadgePoundSterling, label: '10 stamps → £40 credit' },
+              { icon: CalendarCheck, label: 'Live repair tracking' },
+              { icon: MapPin, label: 'Salford · call-out' },
+            ].map(({ icon: Icon, label }) => (
+              <span
+                key={label}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold ${isDark ? 'border-neutral-800 bg-neutral-900/70 text-neutral-300' : 'border-neutral-200 bg-white/80 text-neutral-700'}`}
+              >
+                <Icon className="w-3.5 h-3.5 text-emerald-500" />
+                {label}
+              </span>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               type="button"
@@ -206,7 +227,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
             </button>
             <a
               href={call}
-              className="pressable inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold cursor-pointer"
+              className={`pressable inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-300 text-neutral-800 hover:border-emerald-500/50'}`}
             >
               <Phone className="w-4 h-4" />
               Call Us Out
@@ -257,6 +278,52 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
           )}
         </div>
       </div>
+    </div>
+  );
+
+  const valueProps = [
+    {
+      icon: CalendarCheck,
+      title: 'Book a repair in a minute',
+      body: 'Pick your symptoms, choose a slot and we confirm by text. No phone queue needed.',
+      tone: 'emerald',
+    },
+    {
+      icon: Store,
+      title: 'Second-hand bikes & parts',
+      body: 'Serviced, photographed and priced to go — buy online and collect from the workshop.',
+      tone: 'amber',
+    },
+    {
+      icon: BadgePoundSterling,
+      title: 'Loyalty that pays you back',
+      body: 'Collect a stamp every visit. Fill the card and unlock £40 of workshop credit.',
+      tone: 'sky',
+    },
+  ] as const;
+
+  const valueBand = (
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {valueProps.map(({ icon: Icon, title, body, tone }) => (
+        <div
+          key={title}
+          className={`group rounded-2xl border p-5 shadow-sm transition-transform hover:-translate-y-0.5 ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-white/80'}`}
+        >
+          <span
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${
+              tone === 'emerald'
+                ? 'bg-emerald-500/15 text-emerald-500'
+                : tone === 'amber'
+                ? 'bg-amber-500/15 text-amber-500'
+                : 'bg-sky-500/15 text-sky-500'
+            }`}
+          >
+            <Icon className="w-5 h-5" />
+          </span>
+          <h3 className={`mt-3 text-sm font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{title}</h3>
+          <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{body}</p>
+        </div>
+      ))}
     </div>
   );
 
@@ -668,6 +735,25 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
               </button>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {visibleProducts.length === 0 && (
+                <div className={`sm:col-span-2 lg:col-span-3 rounded-2xl border border-dashed p-8 text-center ${isDark ? 'border-neutral-800 bg-neutral-900/40' : 'border-neutral-200 bg-white/60'}`}>
+                  <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500">
+                    <Store className="w-6 h-6" />
+                  </span>
+                  <h4 className={`mt-3 text-sm font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>The shelf is empty right now</h4>
+                  <p className={`mx-auto mt-1 max-w-md text-xs leading-relaxed ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+                    Fresh second-hand bikes and parts are listed here as they're serviced. Tell us what you're after and we'll keep an eye out for it.
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
+                    <a href={call} className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-neutral-950 text-[11px] font-black uppercase tracking-wider cursor-pointer">
+                      <Phone className="w-3.5 h-3.5" /> Call the workshop
+                    </a>
+                    <a href={mail} className={`pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[11px] font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200' : 'border-neutral-300 text-neutral-700'}`}>
+                      <MessageCircle className="w-3.5 h-3.5" /> Ask about a part
+                    </a>
+                  </div>
+                </div>
+              )}
               {visibleProducts.map((p) => {
                 const inBasket = cartQtyFor(p.id);
                 const soldOut = p.stock <= 0;
@@ -776,6 +862,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         return (
           <div className="space-y-6">
             {heroCard}
+            {valueBand}
             {reviewCard}
             {footerBar}
           </div>
@@ -796,33 +883,44 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         </div>
       )}
 
-      <div className={`rounded-3xl border p-4 sm:p-5 ${isDark ? 'bg-neutral-900/60 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
+      <div className={`sticky top-2 z-30 rounded-2xl border p-3 sm:p-4 shadow-lg backdrop-blur-xl ${isDark ? 'bg-neutral-950/80 border-neutral-800' : 'bg-white/85 border-neutral-200'}`}>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 flex items-center gap-2">
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              Stakey's Cycles &amp; Scooter · Repairs &amp; Second-Hand Shop
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-400 text-neutral-950 shadow">
+              <Bike className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500 flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5" />
+                Stakey's Cycles &amp; Scooter
+              </div>
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+                Repairs · Second-hand shop · Live promotions — kept current by the workshop team.
+              </p>
             </div>
-            <p className={`text-xs mt-1 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-              Book a repair, browse the shop and see live promotions. Everything is kept up to date by the workshop team.
-
-            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setCartOpen(true)}
-              className={`pressable inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-[11px] font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200' : 'border-neutral-200 text-neutral-700'}`}
+              className={`pressable inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-200 text-neutral-700 hover:border-emerald-500/50'}`}
             >
               <ShoppingCart className="w-3.5 h-3.5" /> Basket
               {cartCount > 0 && (
                 <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-neutral-950">{cartCount}</span>
               )}
             </button>
+            <button
+              type="button"
+              onClick={onBookService}
+              className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-3.5 py-2 text-neutral-950 text-[11px] font-black uppercase tracking-wider shadow cursor-pointer"
+            >
+              <CalendarCheck className="w-3.5 h-3.5" /> Book a repair
+            </button>
             {currentUser && (
-              <span className={`hidden sm:inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+              <span className={`hidden xl:inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-[#05C147] animate-pulse" />
-                Book = {content.calloutCta}
+                Loyalty active
               </span>
             )}
           </div>

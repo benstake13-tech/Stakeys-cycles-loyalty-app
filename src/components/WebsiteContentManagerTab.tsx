@@ -517,7 +517,10 @@ export const WebsiteContentManagerTab: React.FC = () => {
       )}
 
       {editorTab === 'shop' && (
-      <SectionCard title="Shop Products" subtitle="Live storefront items — prices, stock and descriptions drive the public Shop + basket checkout." isDark={isDark}>
+      <SectionCard title="Shop Products" subtitle="Every item you add here appears on the public Shop and as a one-tap button on the staff Till — prices and stock stay in sync." isDark={isDark}>
+        <div className={`rounded-xl border p-3.5 text-[11px] leading-relaxed ${isDark ? 'bg-emerald-500/5 border-emerald-500/30 text-emerald-200/90' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
+          Add an item below and it is instantly sellable at the counter: the Till builds one button per product, priced and stock-capped, and selling it decrements this shelf count.
+        </div>
         <Field label="Suspension notice title" isDark={isDark} value={draft.shopNoticeTitle} onChange={(v) => setTextField('shopNoticeTitle', v)} />
         <Field label="Suspension notice body" isDark={isDark} textarea value={draft.shopNoticeBody} onChange={(v) => setTextField('shopNoticeBody', v)} />
         <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-amber-500/5 border-amber-500/30' : 'bg-amber-50 border-amber-300'}`}>
