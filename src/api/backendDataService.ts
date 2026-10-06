@@ -1488,6 +1488,7 @@ function mapDiscountCodeRow(row: any): DiscountCode {
     assignedToName: row.assigned_to_name || undefined,
     eligibleCategories: Array.isArray(row.eligible_categories) ? row.eligible_categories : [],
     minimumSpend: row.minimum_spend != null ? Number(row.minimum_spend) : undefined,
+    audience: row.audience === 'member' || row.audience === 'public' ? row.audience : undefined,
     createdBy: row.created_by || undefined,
   };
 }
@@ -1512,8 +1513,8 @@ export async function fetchDiscountCodesFromDb(): Promise<DiscountCode[]> {
 
 export async function upsertDiscountCodeToDb(code: DiscountCode): Promise<boolean> {
   const supabase = getSupabaseClient();
-  try {
-    const payload = {
+  const buildPayload = (includeAudience: boolean) => {
+    const payload: Record<string, unknown> = {
       id: code.id,
       code: code.code,
       title: code.title,
@@ -1532,7 +1533,22 @@ export async function upsertDiscountCodeToDb(code: DiscountCode): Promise<boolea
       created_by: code.createdBy || null,
       updated_at: new Date().toISOString(),
     };
-    const { error } = await supabase.from('discount_codes').upsert(payload, { onConflict: 'id' });
+    // Only send the new column when the live table has it; an unknown column
+    // would otherwise fail the whole upsert on an unsynced project (PGRST204).
+    if (includeAudience) payload.audience = code.audience || null;
+    return payload;
+  };
+  try {
+    let { error } = await supabase
+      .from('discount_codes')
+      .upsert(buildPayload(true), { onConflict: 'id' });
+    if (error) {
+      // Retry without the audience column so the code still saves.
+      const retry = await supabase
+        .from('discount_codes')
+        .upsert(buildPayload(false), { onConflict: 'id' });
+      error = retry.error;
+    }
     if (error) {
       console.error('[SUPABASE NET ERROR] UPSERT discount_codes failed:', error.message);
       return false;

@@ -330,6 +330,13 @@ export type DiscountCodeType = 'percent' | 'fixed';
 export type DiscountCodeStatus = 'active' | 'disabled' | 'expired';
 
 /**
+ * Who a code is for. Loyalty members get the richer set; `public` codes are the
+ * lighter offers handed to unregistered website visitors. A `member` code is
+ * refused when the basket has no signed-in member.
+ */
+export type DiscountAudience = 'member' | 'public';
+
+/**
  * A staff-managed discount code. Codes can be tied to a specific member
  * (`assignedToUid`) or open to anyone, and can restrict the vehicle categories
  * they apply to. Codes are scanned at the till or typed in manually.
@@ -351,6 +358,8 @@ export interface DiscountCode {
   assignedToName?: string;
   eligibleCategories: VehicleCategory[]; // empty = all categories
   minimumSpend?: number; // £ subtotal required before discount applies
+  /** Loyalty-member set vs open-to-everyone website set. Undefined = open. */
+  audience?: DiscountAudience;
   createdBy?: string;
 }
 

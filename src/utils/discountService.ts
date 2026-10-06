@@ -48,6 +48,8 @@ export function validateDiscountCode(
     lines?: DiscountLine[];
     customerUid?: string;
     customerMembership?: string;
+    /** True when the basket belongs to a signed-in loyalty member. */
+    isMember?: boolean;
     categories?: (VehicleCategory | string)[];
     now?: Date;
   }
@@ -55,6 +57,12 @@ export function validateDiscountCode(
   if (!code) return { ok: false, reason: 'Discount code not found.' };
   if (code.status === 'disabled') return { ok: false, reason: 'This code has been disabled.' };
   if (code.status === 'expired') return { ok: false, reason: 'This code has expired.' };
+
+  // Member-only codes need a signed-in loyalty member. A code explicitly
+  // assigned to someone already implies membership, so don't double-gate it.
+  if (code.audience === 'member' && !code.assignedToUid && !opts.isMember) {
+    return { ok: false, reason: 'This code is for loyalty members only — join or sign in to use it.' };
+  }
 
   const now = opts.now || new Date();
   if (code.expiresAt) {
