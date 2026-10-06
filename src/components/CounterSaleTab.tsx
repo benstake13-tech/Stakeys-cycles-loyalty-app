@@ -19,6 +19,7 @@ import {
   ThumbsDown,
   CreditCard,
   Send,
+  QrCode,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { useWebsiteContent, updateWebsiteContent } from '../context/WebsiteContentStore';
@@ -31,7 +32,10 @@ import {
   SaleTransaction,
   CollectedVoucher,
 } from '../types/bikeShop';
+import { WebProduct } from '../types/websiteContent';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
+import { ItemScanModal } from './ItemScanModal';
+import { ItemQrModal } from './ItemQrModal';
 import {
   validateDiscountCode,
   computeSaleTotals,
@@ -70,6 +74,7 @@ export const CounterSaleTab: React.FC = () => {
     processSale,
     redeemServiceVoucher,
     resolveScannedMember,
+    theme,
   } = useShop();
 
   const [lines, setLines] = useState<SaleLineItem[]>([]);
@@ -82,6 +87,8 @@ export const CounterSaleTab: React.FC = () => {
   const [vatRate, setVatRate] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>('card');
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [scannedItem, setScannedItem] = useState<WebProduct | null>(null);
+  const [qrProduct, setQrProduct] = useState<WebProduct | null>(null);
   const [lastSale, setLastSale] = useState<SaleTransaction | null>(null);
 
   // Live shop stock, so staff can sell a real product at the till and the
@@ -553,25 +560,35 @@ export const CounterSaleTab: React.FC = () => {
           ) : (
             <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
               {tillStockRows(stockProducts, lines).map(({ product: p, label, remaining, soldOut }) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    disabled={soldOut}
-                    onClick={() => addStockProduct(p)}
-                    className={`flex items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${
-                      soldOut
-                        ? 'cursor-not-allowed border-neutral-900 bg-neutral-950 text-neutral-600'
-                        : 'border-neutral-800 bg-black text-neutral-300 hover:border-emerald-500/40 hover:text-white'
-                    }`}
-                  >
-                    <span className="min-w-0 pr-2">
-                      <span className="block truncate">{label}</span>
-                      <span className={`block text-[10px] ${soldOut ? 'text-rose-400' : 'text-neutral-500'}`}>
-                        {soldOut ? 'Out of stock' : `${remaining} of ${p.stock} available`}
+                  <div key={p.id} className="flex items-stretch gap-1">
+                    <button
+                      type="button"
+                      disabled={soldOut}
+                      onClick={() => addStockProduct(p)}
+                      className={`flex flex-1 items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${
+                        soldOut
+                          ? 'cursor-not-allowed border-neutral-900 bg-neutral-950 text-neutral-600'
+                          : 'border-neutral-800 bg-black text-neutral-300 hover:border-emerald-500/40 hover:text-white'
+                      }`}
+                    >
+                      <span className="min-w-0 pr-2">
+                        <span className="block truncate">{label}</span>
+                        <span className={`block text-[10px] ${soldOut ? 'text-rose-400' : 'text-neutral-500'}`}>
+                          {soldOut ? 'Out of stock' : `${remaining} of ${p.stock} available`}
+                        </span>
                       </span>
-                    </span>
-                    <span className="font-mono font-semibold text-emerald-400">£{p.price.toFixed(2)}</span>
-                  </button>
+                      <span className="font-mono font-semibold text-emerald-400">£{p.price.toFixed(2)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQrProduct(p)}
+                      title="Print this item's QR code"
+                      aria-label={`Print QR code for ${label}`}
+                      className="shrink-0 rounded-xl border border-neutral-800 px-2 text-neutral-400 hover:border-emerald-500/40 hover:text-emerald-400"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ))}
             </div>
           )}
@@ -966,13 +983,32 @@ export const CounterSaleTab: React.FC = () => {
         )}
       </div>
 
-      {/* Scanner — both members and discount codes route through here */}
+      {/* Scanner — members, discount codes and item QR codes all route through here */}
       <QRCodeScannerModal
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onCustomerScanned={(customer, balance) => handleCustomer(customer, { balance })}
         onDiscountCodeScanned={(code) => applyDiscountCode(code)}
+        onItemScanned={(product) => setScannedItem(product)}
       />
+
+      {/* A scanned item for sale: sell it now, or view its details first */}
+      {scannedItem && (
+        <ItemScanModal
+          product={scannedItem}
+          isDark={theme === 'dark'}
+          onSell={() => {
+            addStockProduct(scannedItem);
+            setScannedItem(null);
+          }}
+          onClose={() => setScannedItem(null)}
+        />
+      )}
+
+      {/* Print an item's QR label so it can be stuck on the bike/part */}
+      {qrProduct && (
+        <ItemQrModal product={qrProduct} isDark={theme === 'dark'} onClose={() => setQrProduct(null)} />
+      )}
     </div>
   );
 };

@@ -781,39 +781,55 @@ export async function fetchUserProfileFromDb(
  * 12. FETCH ALL PROFILES
  */
 export async function fetchAllProfilesFromDb(): Promise<UserProfile[]> {
+  const { profiles } = await fetchAllProfilesFromDbDetailed();
+  return profiles;
+}
+
+/**
+ * Same as fetchAllProfilesFromDb but also reports the underlying error (e.g. an
+ * RLS/permission denial) so callers can distinguish "empty" from "denied".
+ */
+export async function fetchAllProfilesFromDbDetailed(): Promise<{
+  profiles: UserProfile[];
+  error?: string;
+}> {
   const supabase = getSupabaseClient();
   console.log('[SUPABASE NET] SELECT ALL profiles');
   try {
     const { data, error } = await supabase.from('profiles').select('*');
     if (error) {
       console.error('[SUPABASE NET ERROR] SELECT ALL profiles failed:', error.message);
-      return []; // Return empty list instead of crashing
+      return { profiles: [], error: error.message };
     }
 
     if (data && data.length > 0) {
-      return data.map((row: any) => ({
-        uid: row.id,
-        email: row.email,
-        displayName: row.display_name,
-        role: row.role || 'customer',
-        membershipNumber: row.membership_number,
-        stamps: row.stamps !== undefined ? row.stamps : 0,
-        tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
-        points: row.merit_points !== undefined ? row.merit_points : 0,
-        phoneNumber: row.phone || undefined,
-        lastStampedAt: row.last_stamped_at ? new Date(row.last_stamped_at) : undefined,
-        lastSpunAt: row.last_spun_at
-          ? new Date(row.last_spun_at)
-          : row.last_spin_date
-          ? new Date(row.last_spin_date)
-          : undefined,
-        createdAt: row.created_at ? new Date(row.created_at) : new Date(),
-      }));
+      return {
+        profiles: data.map((row: any) => ({
+          uid: row.id,
+          email: row.email,
+          displayName: row.display_name,
+          role: row.role || 'customer',
+          membershipNumber: row.membership_number,
+          stamps: row.stamps !== undefined ? row.stamps : 0,
+          tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
+          points: row.merit_points !== undefined ? row.merit_points : 0,
+          phoneNumber: row.phone || undefined,
+          lastStampedAt: row.last_stamped_at ? new Date(row.last_stamped_at) : undefined,
+          lastSpunAt: row.last_spun_at
+            ? new Date(row.last_spun_at)
+            : row.last_spin_date
+            ? new Date(row.last_spin_date)
+            : undefined,
+          createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+        })),
+      };
     }
+    return { profiles: [] };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error('[SUPABASE NET EXCEPTION] fetchAllProfilesFromDb:', err);
+    return { profiles: [], error: message };
   }
-  return [];
 }
 
 /**
