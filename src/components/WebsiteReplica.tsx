@@ -21,6 +21,7 @@ import { useWebsiteContent } from '../context/WebsiteContentStore';
 import { supabase } from '../lib/supabase';
 import { SegmentedTab, SegmentedTabs } from './SegmentedTabs';
 import { SocialBrandIcon } from './SocialBrandIcon';
+import { ShareMenu } from './ShareMenu';
 import { WebsitePageId, WebProductCategory, WebCartItem, WebProduct } from '../types/websiteContent';
 import {
   applyDiscountToTotal,
@@ -1000,6 +1001,11 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                           {soldOut ? 'Unavailable' : `${p.stock} in stock`}
                         </span>
                       </div>
+                      <ShareMenu
+                        title={`${p.name} — Stakeys Cycles`}
+                        text={`Check out this ${p.name} for £${p.price.toFixed(2)} at Stakeys Cycles:`}
+                        isDark={isDark}
+                      />
                       <div className="mt-auto pt-1">
                         {inBasket > 0 ? (
                           <div className="flex items-center justify-between gap-2">
