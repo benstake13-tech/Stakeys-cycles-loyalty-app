@@ -124,6 +124,8 @@ export const BridgeRepairModal: React.FC<{ onClose: () => void }> = ({ onClose }
               <span className="font-bold text-sm truncate">
                 {!diag?.reachable
                   ? 'Supabase unreachable — check the connection first'
+                  : installed === false
+                  ? 'Bridge not yet instrumented — run the SQL below to see the full report'
                   : bridgeHealthy
                   ? 'Bridge healthy — every member can sign in'
                   : `${unlinked} member${unlinked === 1 ? '' : 's'} without a login · ${unconfirmed} unconfirmed login${unconfirmed === 1 ? '' : 's'}`}
