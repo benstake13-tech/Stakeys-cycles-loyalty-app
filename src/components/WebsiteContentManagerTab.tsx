@@ -4,6 +4,7 @@ import {
   EyeOff,
   Globe,
   Plus,
+  QrCode,
   RotateCcw,
   Save,
   Trash2,
@@ -15,6 +16,7 @@ import {
   useWebsiteContent,
 } from '../context/WebsiteContentStore';
 import { DEFAULT_WEBSITE_CONTENT } from '../data/websiteContent';
+import { ItemQrModal } from './ItemQrModal';
 import {
   WebFaq,
   WebPriceItem,
@@ -141,10 +143,17 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const [editorTab, setEditorTab] = useState<'website' | 'shop' | 'gallery'>('website');
   const [draft, setDraft] = useState(content);
   const [savedSink, setSavedSink] = useState(0);
+  const [qrProduct, setQrProduct] = useState<WebProduct | null>(null);
 
   const save = () => {
+    // Publishing a brand-new item should hand staff its QR label straight away.
+    const publishedIds = new Set(content.products.map((p) => p.id));
+    const newlyAdded = draft.products.filter(
+      (p) => !publishedIds.has(p.id) && (p.name.trim() || p.price > 0)
+    );
     updateWebsiteContent(draft);
     setSavedSink((n) => n + 1);
+    if (newlyAdded.length > 0) setQrProduct(newlyAdded[0]);
   };
 
   const applyDraft = (patch: Partial<typeof draft>) => {
@@ -570,13 +579,23 @@ export const WebsiteContentManagerTab: React.FC = () => {
             <div key={product.id} className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-bold uppercase text-neutral-500">#{i + 1}</span>
-                <button
-                  type="button"
-                  onClick={() => removeProduct(i)}
-                  className="pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-                >
-                  <Trash2 className="w-3 h-3" /> Remove
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setQrProduct(product)}
+                    className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-800 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer"
+                    title="Generate and print this item's QR code"
+                  >
+                    <QrCode className="w-3 h-3" /> QR code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeProduct(i)}
+                    className="pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" /> Remove
+                  </button>
+                </div>
               </div>
               <Field label="Product name" isDark={isDark} value={product.name} onChange={(v) => setProductField(i, 'name', v)} />
               <Field label="Description" isDark={isDark} textarea value={product.description ?? ''} onChange={(v) => setProductField(i, 'description', v)} />
@@ -771,6 +790,10 @@ export const WebsiteContentManagerTab: React.FC = () => {
           Saved {savedSink}× this session · Last published {content.updatedAt ? new Date(content.updatedAt).toLocaleString() : 'never'}
         </span>
       </div>
+
+      {qrProduct && (
+        <ItemQrModal product={qrProduct} isDark={isDark} onClose={() => setQrProduct(null)} />
+      )}
     </div>
   );
 };

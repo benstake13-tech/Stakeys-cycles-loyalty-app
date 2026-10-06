@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Scan, X, AlertCircle, Keyboard, Camera, CheckCircle, Upload, SwitchCamera, Award, Ticket, Sparkles, UserCheck } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, DiscountCode } from '../types/bikeShop';
+import { WebProduct } from '../types/websiteContent';
 import { wheelAudio } from '../utils/wheelAudio';
 import { resolveCustomer, normalizeScannedCode, parseMembershipPayload, MembershipBalance } from '../utils/membershipCode';
 import { findDiscountCode } from '../utils/discountService';
+import { resolveItemByCode } from '../utils/itemCode';
+import { useWebsiteContent } from '../context/WebsiteContentStore';
 import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
 
 interface QRCodeScannerModalProps {
@@ -13,6 +16,8 @@ interface QRCodeScannerModalProps {
   onCustomerScanned: (customer: UserProfile, scannedBalance?: MembershipBalance) => void;
   /** Optional: fires when the scanned code is not a member but matches a discount code. */
   onDiscountCodeScanned?: (code: DiscountCode) => void;
+  /** Optional: fires when the scanned code matches an item for sale (QR on a bike/part). */
+  onItemScanned?: (product: WebProduct) => void;
 }
 
 const READER_ID = 'stakeys-scanner-reader';
@@ -37,8 +42,10 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   onClose,
   onCustomerScanned,
   onDiscountCodeScanned,
+  onItemScanned,
 }) => {
-  const { users, discountCodes, resolveScannedMember } = useShop();
+  const { users, discountCodes, resolveScannedMemberDetailed } = useShop();
+  const webContent = useWebsiteContent();
   const [manualQuery, setManualQuery] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -50,9 +57,13 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   const [scanResult, setScanResult] = useState<
     { customer: UserProfile; balance?: MembershipBalance } | null
   >(null);
+  // Set the instant a payload is detected so the scanner stops continuous frame
+  // detection and never re-arms until staff explicitly ask for the next code.
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handlingRef = useRef(false); // guards against duplicate frames firing callbacks
+  const processingRef = useRef(false); // synchronous twin of isProcessing
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const stopScanner = useCallback(async () => {
@@ -71,55 +82,88 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
     }
   }, []);
 
+  // Set the instant a payload is detected so the scanner stops continuous frame
+  // detection and never re-arms until staff explicitly ask for the next code.
+  const pauseScanner = useCallback(() => {
+    processingRef.current = true;
+    setIsProcessing(true);
+    // Stop immediately so no further frame can fire a second decode while we resolve.
+    void stopScanner();
+  }, [stopScanner]);
+
+  const resumeScanner = useCallback(() => {
+    processingRef.current = false;
+    setIsProcessing(false);
+  }, []);
+
   // Resolve a decoded string into a customer and act on it.
   const processCode = useCallback(
     async (rawCode: string) => {
+      // Duplicate-frame guard. The scanner has already been paused the moment the
+      // payload was detected, but a frame can still be in flight — never resolve twice.
       if (handlingRef.current) return;
+      handlingRef.current = true;
+
+      const clean = normalizeScannedCode(rawCode);
       // Server-backed member resolution so a scan always binds to the correct
       // account, even on a till that has not cached the full roster.
-      const customer = await resolveScannedMember(rawCode);
+      const { customer, error: lookupError } = await resolveScannedMemberDetailed(rawCode);
 
       if (customer) {
-        handlingRef.current = true;
         wheelAudio.playScannerBeep();
-        void stopScanner().finally(() => {
-          // Show the pass (with its stamps / tickets / points) before loading it,
-          // so staff can confirm the balances that came in on the code.
-          setScanResult({ customer, balance: parseMembershipPayload(rawCode) });
-          handlingRef.current = false;
-        });
+        // Show the pass (with its stamps / tickets / points) before loading it,
+        // so staff can confirm the balances that came in on the code.
+        setScanResult({ customer, balance: parseMembershipPayload(rawCode) });
         return;
       }
 
       // Not a member — maybe it's a discount code on the till tablet.
-      const discount = findDiscountCode(normalizeScannedCode(rawCode), discountCodes || []);
+      const discount = findDiscountCode(clean, discountCodes || []);
       if (discount && onDiscountCodeScanned) {
-        handlingRef.current = true;
         wheelAudio.playScannerBeep();
-        void stopScanner().finally(() => {
-          onDiscountCodeScanned(discount);
-          onClose();
-          handlingRef.current = false;
-        });
+        onDiscountCodeScanned(discount);
+        onClose();
         return;
       }
 
-      const local = resolveCustomer(rawCode, users);
-      wheelAudio.playScannerError();
-      if (local.status === 'multiple') {
-        setErrorMessage(
-          `"${normalizeScannedCode(rawCode)}" matches ${local.customers.length} customers — refine the code.`
-        );
-      } else {
-        setErrorMessage(`No registered customer found matching "${normalizeScannedCode(rawCode)}".`);
+      // Not a member or discount — maybe it's an item for sale (QR on a bike/part).
+      const item = resolveItemByCode(rawCode, webContent.products || []);
+      if (item && onItemScanned) {
+        wheelAudio.playScannerBeep();
+        onItemScanned(item);
+        onClose();
+        return;
       }
+
+      // Nothing resolved. Never reset quietly: log the underlying Supabase/RLS
+      // failure and surface an explicit alert so staff know the scan failed.
+      wheelAudio.playScannerError();
+      if (lookupError) {
+        console.error('[SCANNER] Supabase lookup failed for', clean, '—', lookupError);
+      } else {
+        console.warn('[SCANNER] No profile matched scanned code', clean);
+      }
+
+      const local = resolveCustomer(rawCode, users);
+      const reason =
+        local.status === 'multiple'
+          ? `"${clean}" matches ${local.customers.length} customers — refine the code.`
+          : lookupError
+          ? `User not found or access denied. (${lookupError})`
+          : 'User not found or access denied.';
+      setErrorMessage(reason);
+      window.alert(reason);
+      // Keep the scanner paused so it cannot loop on the same unreadable code;
+      // staff must press "Scan Next QR Code" to try again.
     },
-    [users, discountCodes, onClose, onCustomerScanned, onDiscountCodeScanned, stopScanner, resolveScannedMember]
+    [users, discountCodes, onClose, onDiscountCodeScanned, onItemScanned, webContent, resolveScannedMemberDetailed]
   );
 
   const startScanner = useCallback(
     async (cameraIdOrConfig?: string | MediaTrackConstraints) => {
       if (!isOpen) return;
+      // Never re-arm while a payload is being processed — that is the loop we are fixing.
+      if (processingRef.current) return;
       if (!document.getElementById(READER_ID)) return;
 
       setCameraError(null);
@@ -138,7 +182,12 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         await scanner.start(
           cameraIdOrConfig || { facingMode: 'environment' },
           { fps: 15, qrbox: { width: 260, height: 260 }, aspectRatio: 1.0 },
-          (decodedText) => processCode(decodedText),
+          (decodedText) => {
+            // A code was detected: pause continuous detection FIRST, then resolve it.
+            if (processingRef.current) return;
+            pauseScanner();
+            void processCode(decodedText);
+          },
           () => {
             /* per-frame decode misses are expected; ignore */
           }
@@ -166,11 +215,17 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         );
       }
     },
-    [isOpen, processCode]
+    [isOpen, processCode, pauseScanner]
   );
+
+  // Latest startScanner, so the visibility effect can restart the camera without
+  // depending on its (frequently re-created) identity.
+  const startScannerRef = useRef(startScanner);
+  startScannerRef.current = startScanner;
 
   const flipCamera = useCallback(async () => {
     if (cameras.length < 2) return;
+    if (processingRef.current) return;
     const nextIndex = (activeCameraIndex + 1) % cameras.length;
     setActiveCameraIndex(nextIndex);
     await stopScanner();
@@ -179,6 +234,9 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
 
   const handleFileUpload = useCallback(
     async (file: File) => {
+      // A photo payload counts as a detection: pause immediately so the camera
+      // cannot re-arm or double-handle while the image is decoded.
+      pauseScanner();
       await stopScanner();
       const scanner = new Html5Qrcode(READER_ID, {
         formatsToSupport: SCAN_FORMATS,
@@ -196,23 +254,28 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         scannerRef.current = null;
         setErrorMessage('Could not read a barcode/QR from that image. Try a clearer photo.');
         wheelAudio.playScannerError();
+        // Stay paused; staff choose "Scan Next QR Code" to retry.
       }
     },
-    [processCode, stopScanner]
+    [processCode, stopScanner, pauseScanner]
   );
 
-  // Start the camera in lock-step with modal visibility.
+  // Start the camera in lock-step with modal visibility. Depends ONLY on `isOpen`
+  // (plus the stable stopScanner): startScanner is read through a ref so a
+  // re-render can never tear down a resolved scan and silently restart scanning.
   useEffect(() => {
     if (isOpen) {
       handlingRef.current = false;
+      processingRef.current = false;
+      setIsProcessing(false);
       setManualQuery('');
       setErrorMessage(null);
       setScanResult(null);
-      const timer = setTimeout(() => void startScanner(), 250);
+      const timer = setTimeout(() => void startScannerRef.current(), 250);
       return () => clearTimeout(timer);
     }
     void stopScanner();
-  }, [isOpen, startScanner, stopScanner]);
+  }, [isOpen, stopScanner]);
 
   // Full teardown on unmount.
   useEffect(() => () => void stopScanner(), [stopScanner]);
@@ -222,7 +285,19 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   const submitManual = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualQuery.trim()) return;
-    processCode(manualQuery.trim());
+    // Manual entry behaves like a detection: pause so the camera cannot also fire.
+    pauseScanner();
+    void processCode(manualQuery.trim());
+  };
+
+  // Explicitly clear the pause and re-arm. The ONLY place scanning resumes after
+  // a detection, so the modal can never loop back on its own.
+  const scanNextCode = () => {
+    handlingRef.current = false;
+    resumeScanner();
+    setScanResult(null);
+    setErrorMessage(null);
+    void startScanner();
   };
 
   return (
@@ -292,6 +367,8 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  // Explicit navigation/action trigger: hand the resolved customer
+                  // to the portal, which opens their profile/action screen.
                   onCustomerScanned(scanResult.customer, scanResult.balance);
                   onClose();
                 }}
@@ -299,16 +376,20 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
               >
                 <CheckCircle className="w-4 h-4" /> Load into till
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setScanResult(null);
-                  void startScanner();
-                }}
-                className="text-[11px] text-neutral-400 hover:text-white underline"
-              >
-                Scan another code
-              </button>
+            </div>
+          ) : isProcessing ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#0c0e12] p-6 text-center">
+              {errorMessage ? (
+                <>
+                  <AlertCircle className="w-8 h-8 text-rose-400" />
+                  <p className="text-sm font-semibold text-rose-300">{errorMessage}</p>
+                </>
+              ) : (
+                <>
+                  <span className="h-6 w-6 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                  <p className="text-xs text-emerald-300">Code detected — looking up member…</p>
+                </>
+              )}
             </div>
           ) : (
             <>
@@ -338,14 +419,22 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
             <AlertCircle className="w-3.5 h-3.5" /> {cameraError}
           </p>
         )}
-        {errorMessage && (
+        {errorMessage && !isProcessing && (
           <p className="text-sm text-rose-400 flex items-center gap-1.5">
             <AlertCircle className="w-4 h-4" /> {errorMessage}
           </p>
         )}
 
         <div className="flex flex-wrap items-center gap-2">
-          {!isScanning ? (
+          {isProcessing ? (
+            <button
+              type="button"
+              onClick={scanNextCode}
+              className="pressable px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5"
+            >
+              <Scan className="w-4 h-4" /> Scan Next QR Code
+            </button>
+          ) : !isScanning ? (
             <button
               type="button"
               onClick={() => void startScanner()}

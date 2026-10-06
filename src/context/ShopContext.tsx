@@ -70,6 +70,7 @@ import {
   updateUserProfileInDb,
   fetchUserProfileFromDb,
   fetchAllProfilesFromDb,
+  fetchAllProfilesFromDbDetailed,
   subscribeToDatabaseChanges,
   ensureProfileRowInDb,
   fetchPrizeWheelsFromDb,
@@ -289,6 +290,10 @@ interface ShopContextType {
     options?: { note?: string; estimateReadyAt?: string | null }
   ) => Promise<{ success: boolean; message?: string }>;
   resolveScannedMember: (rawCode: string) => Promise<UserProfile | null>;
+  /** Like resolveScannedMember, but surfaces the underlying Supabase/RLS error. */
+  resolveScannedMemberDetailed: (
+    rawCode: string
+  ) => Promise<{ customer: UserProfile | null; error?: string }>;
   addRepairProgressNote: (
     bookingId: string,
     note: string,
@@ -3008,18 +3013,30 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * customer found remotely. Keeps every branch of the till pointing at the
    * same account for stamps, discounts and history.
    */
-  const resolveScannedMember = async (rawCode: string): Promise<UserProfile | null> => {
+  const resolveScannedMemberDetailed = async (
+    rawCode: string
+  ): Promise<{ customer: UserProfile | null; error?: string }> => {
     let pool = users;
     const local = resolveCustomer(rawCode, pool);
     if (local.status !== 'match' && local.status !== 'multiple') {
-      const remote = await fetchAllProfilesFromDb();
+      const { profiles: remote, error } = await fetchAllProfilesFromDbDetailed();
       if (remote && remote.length > 0) {
         pool = remote;
         setUsers(remote);
       }
+      const res = resolveCustomer(rawCode, pool);
+      if (res.status === 'match') return { customer: res.customer };
+      // Surface the Supabase/RLS failure so the scanner can alert instead of
+      // silently resetting to the scanning state.
+      return { customer: null, error };
     }
     const res = resolveCustomer(rawCode, pool);
-    return res.status === 'match' ? res.customer : null;
+    return { customer: res.status === 'match' ? res.customer : null };
+  };
+
+  const resolveScannedMember = async (rawCode: string): Promise<UserProfile | null> => {
+    const { customer } = await resolveScannedMemberDetailed(rawCode);
+    return customer;
   };
 
   const addRepairProgressNote = async (
@@ -3407,6 +3424,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateBookingStatus,
         setRepairStage,
         resolveScannedMember,
+        resolveScannedMemberDetailed,
         addRepairProgressNote,
         updateBookingQuote,
         deleteBooking,
