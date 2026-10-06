@@ -60,6 +60,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
   const isDark = theme === 'dark';
 
   const livePromotions = promotions.filter((p) => p.status === 'active');
+  const liveDiscountCodes = (discountCodes || []).filter(
+    (c) => c.status === 'active' && (c.audience === 'public' || (c.audience === 'member' && currentUser))
+  );
 
   const [page, setPage] = useState<WebsitePageId>('home');
   const [faqFilter, setFaqFilter] = useState<'repairs' | 'parts' | 'general' | 'all'>('all');
@@ -331,6 +334,62 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                 </div>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Website Active Coupons & Codes */}
+        <div className={"rounded-2xl border p-4 shadow-sm space-y-3 " + (isDark ? "bg-neutral-900/70 border-neutral-800" : "bg-white/80 border-neutral-200")}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-emerald-400" />
+              <span className={"text-[11px] font-black uppercase tracking-widest " + (isDark ? "text-neutral-200" : "text-neutral-700")}>
+                Active Coupons &amp; Codes
+              </span>
+            </div>
+            <span className={"text-[10px] font-bold " + (isDark ? "text-neutral-500" : "text-neutral-400")}>
+              {liveDiscountCodes.length} available
+            </span>
+          </div>
+
+          {liveDiscountCodes.length === 0 ? (
+            <p className={"text-[11px] leading-snug " + (isDark ? "text-neutral-400" : "text-neutral-500")}>
+              No active coupon codes right now.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {liveDiscountCodes.map((coupon) => (
+                <div
+                  key={coupon.id}
+                  className={"rounded-xl border p-3 space-y-1 relative group overflow-hidden " + (isDark ? "border-neutral-800 bg-neutral-950/80" : "border-neutral-200 bg-neutral-50/80")}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={"text-[11px] font-bold " + (isDark ? "text-white" : "text-neutral-900")}>
+                      {coupon.title}
+                    </span>
+                    <span className={"px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase " + (coupon.audience === "member" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-neutral-800 text-neutral-400 dark:text-neutral-400 light:bg-neutral-200 light:text-neutral-600")}>
+                      {coupon.audience === "member" ? "Member Only" : "Public"}
+                    </span>
+                  </div>
+                  {coupon.description && (
+                    <p className={"text-[11px] leading-snug " + (isDark ? "text-neutral-400" : "text-neutral-500")}>{coupon.description}</p>
+                  )}
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <span className={"rounded-lg border border-dashed px-2 py-0.5 text-[10px] font-mono font-bold " + (isDark ? "border-neutral-700 text-neutral-200" : "border-neutral-300 text-neutral-700")}>
+                      {coupon.code}
+                    </span>
+                    <span className="text-[10px] text-emerald-400 dark:text-emerald-400 light:text-emerald-600 font-bold">
+                      {coupon.type === "percent" ? (coupon.value + "% Off") : ("£" + coupon.value + " Off")}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!currentUser && (
+            <p className={"text-[10px] leading-snug text-center mt-1 border-t border-dashed pt-2 " + (isDark ? "border-neutral-800 text-neutral-500" : "border-neutral-300 text-neutral-400")}>
+              💡 <strong>Sign in</strong> to unlock premium member codes!
+            </p>
           )}
         </div>
       </div>
