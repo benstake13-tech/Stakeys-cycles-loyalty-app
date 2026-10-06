@@ -45,6 +45,7 @@ import {
   BadgePercent,
   FlaskConical,
   DatabaseZap,
+  Cable,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -69,6 +70,7 @@ import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
 import { SchemaSyncModal } from './SchemaSyncModal';
+import { BridgeRepairModal } from './BridgeRepairModal';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
@@ -122,6 +124,7 @@ export const StaffPortal: React.FC = () => {
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
   const [isStaffAccountsSetupOpen, setIsStaffAccountsSetupOpen] = useState(false);
+  const [isBridgeRepairOpen, setIsBridgeRepairOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -499,6 +502,16 @@ export const StaffPortal: React.FC = () => {
                   >
                     <ShieldCheck className="w-4 h-4" />
                     <span>Set Up Staff Accounts</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsBridgeRepairOpen(true)}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-400 text-neutral-950 text-xs font-bold shadow-md shadow-fuchsia-500/20 cursor-pointer"
+                    title="Re-link website & customer loyalty profiles to staff-side Supabase logins and copy the repair SQL"
+                  >
+                    <Cable className="w-4 h-4" />
+                    <span>Repair App Bridge</span>
                   </button>
 
                   <button
@@ -1211,6 +1224,7 @@ export const StaffPortal: React.FC = () => {
 
       {/* Live schema audit + sync SQL (fixes app <-> Supabase drift) */}
       {isSchemaSyncOpen && <SchemaSyncModal onClose={() => setIsSchemaSyncOpen(false)} />}
+      {isBridgeRepairOpen && <BridgeRepairModal onClose={() => setIsBridgeRepairOpen(false)} />}
       {isStaffAccountsSetupOpen && (
         <StaffAccountsSetupModal onClose={() => setIsStaffAccountsSetupOpen(false)} />
       )}
