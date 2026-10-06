@@ -118,15 +118,10 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContent = {
   shopImage:
     'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/1759138430927_1759138520.jpg?width=2400&optimize=medium',
   shopCategories: ['Second hand parts', 'Mens Bikes', "women's Bikes", "Children's bikes"],
-  products: [
-    { id: "prod-1", name: "Carrera titan", price: 150, category: "Mens Bikes", image: "https://137550110.cdn6.editmysite.com/uploads/1/3/7/5/137550110/s967229048819919037_p84_i2_w2048.jpeg?width=640&optimize=medium", description: "Great starter road bike — serviced and ready to ride.", stock: 5 },
-    { id: "prod-2", name: "Riley escooter", price: 100, category: "Second hand parts", image: "https://137550110.cdn6.editmysite.com/uploads/1/3/7/5/137550110/s967229048819919037_p85_i1_w2048.jpeg?width=640&optimize=medium", description: "Serviced e-scooter, tested, charged and ready.", stock: 5 },
-    { id: "prod-3", name: "Shimano front brake", price: 10, category: "Second hand parts", image: "https://137550110.cdn6.editmysite.com/uploads/1/3/7/5/137550110/s967229048819919037_p80_i1_w1536.jpeg?width=640&optimize=medium", description: "Quality Shimano brake lever unit, pulled from a serviced bike.", stock: 5 },
-    { id: "prod-4", name: "Rock shox dropper reverb stealth", price: 50, category: "Second hand parts", image: "https://137550110.cdn6.editmysite.com/uploads/1/3/7/5/137550110/s967229048819919037_p79_i1_w1536.jpeg?width=640&optimize=medium", description: "Dropper post, serviced and smooth.", stock: 2 },
-    { id: "prod-5", name: "Manitou Swinger Coil(Airshock", price: 40, category: "Second hand parts", image: "https://137550110.cdn6.editmysite.com/uploads/1/3/7/5/137550110/s967229048819919037_p82_i1_w1536.jpeg?width=640&optimize=medium", description: "Coil air shock, reconditioned.", stock: 5 },
-    { id: "prod-6", name: "Enduro pivot bearings", price: 5, category: "Second hand parts", image: "https://137550110.cdn6.editmysite.com/uploads/1/3/7/5/137550110/s967229048819919037_p81_i1_w1536.jpeg?width=640&optimize=medium", description: "Pivot bearing kit — ideal replacement set.", stock: 5 },
-    { id: "prod-7", name: "Race face crank arms", price: 60, category: "Second hand parts", image: "https://137550110.cdn6.editmysite.com/uploads/1/3/7/5/137550110/s967229048819919037_p78_i1_w1536.jpeg?width=640&optimize=medium", description: "Crank arm set, reconditioned.", stock: 5 },
-  ],
+  // Stock is managed by staff (Staff Station → Website → Shop & Stock). The
+  // storefront starts empty on purpose so the shop only ever shows real items
+  // the workshop has actually put on the shelf.
+  products: [],
   galleryImages: [
     { id: 'gallery-1', url: 'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/1759137166109_1759137252.jpg?width=2400&optimize=medium&height=480&fit=cover&dpr=1' },
     { id: 'gallery-2', url: 'https://0ca62f996deb60c3566c.cdn6.editmysite.com/uploads/b/0ca62f996deb60c3566c74cc18015a9cedf0432e2958ab48a230a14f0ffe944a/1759129006118_1759129156.jpg?width=2400&optimize=medium' },
