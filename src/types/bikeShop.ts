@@ -42,6 +42,7 @@ export interface ShopPromotion {
   eligibleCategories: VehicleCategory[];
   bgGradient: string;
   featured?: boolean;
+  imageUrl?: string;
 }
 
 export interface TrustedBikeRecommendation {
@@ -185,6 +186,7 @@ export interface UserProfile {
   lastStampedAt?: any; // Timestamp of last visit stamp for 1-per-day rate limiting
   lastSpunAt?: any; // Timestamp of last wheel spin for 1-per-week rate limiting
   phoneNumber?: string;
+  avatarColor?: string; // High-quality SVG FaceAvatar configuration
   bikes?: CustomerBike[]; // Personal registered bikes in customer's garage
   serviceVouchers?: CollectedVoucher[]; // Collected rewards such as £40 service voucher
 }
