@@ -20,6 +20,7 @@ import { useShop } from '../context/ShopContext';
 import { useWebsiteContent } from '../context/WebsiteContentStore';
 import { supabase } from '../lib/supabase';
 import { SegmentedTab, SegmentedTabs } from './SegmentedTabs';
+import { SocialBrandIcon } from './SocialBrandIcon';
 import { WebsitePageId, WebProductCategory, WebCartItem, WebProduct } from '../types/websiteContent';
 import {
   applyDiscountToTotal,
@@ -44,17 +45,6 @@ const CHECKOUT_SUCCESS_TITLE = 'Order received!';
 function isCheckoutReady(name: string, contact: string, itemCount: number): boolean {
   return itemCount > 0 && name.trim().length > 1 && contact.trim().length > 4;
 }
-
-const SOCIAL_ICON: Record<string, string> = {
-  Instagram: '📸',
-  Facebook: '📘',
-  LinkedIn: '💼',
-  Pinterest: '📌',
-  Snapchat: '👻',
-  TikTok: '🎵',
-  Yelp: '⭐',
-  YouTube: '▶️',
-};
 
 export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService }) => {
   const { currentUser, theme, promotions, discountCodes, recordDiscountUsage } = useShop();
@@ -523,9 +513,10 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
           target="_blank"
           rel="noreferrer"
           title={s.platform}
+          aria-label={s.platform}
           className={`pressable inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer ${isDark ? 'border-neutral-700 bg-neutral-900/70 text-neutral-300 hover:border-emerald-500/50' : 'border-neutral-200 bg-white text-neutral-600 hover:border-emerald-500/50'}`}
         >
-          <span>{SOCIAL_ICON[s.platform] ?? '🔗'}</span>
+          <SocialBrandIcon platform={s.platform} className="w-3.5 h-3.5 shrink-0" />
           <span className="hidden sm:inline">{s.platform}</span>
         </a>
       ))}
