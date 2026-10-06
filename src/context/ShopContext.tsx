@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
   UserProfile,
@@ -25,6 +25,13 @@ import {
   RepairProgressEvent,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
+import {
+  SeasonalThemeId,
+  ThemeOverride,
+  SEASONAL_THEME_LABELS,
+  isSeasonalThemeId,
+  resolveTheme,
+} from '../utils/holidayCalendar';
 import {
   makeRepairEvent,
   repairStageIndex,
@@ -224,10 +231,12 @@ interface ShopContextType {
   setTheme: (theme: ThemeMode) => void;
   /** Seasonal holiday theme applied to every account (stored in Supabase). */
   seasonalTheme: SeasonalThemeId;
+  /** Manual override: 'AUTO' follows the calendar, a theme id forces it, null = AUTO. */
+  seasonalOverride: ThemeOverride;
   /** Apply/refresh the seasonal theme from Supabase (used on mount + realtime). */
   refreshSeasonalTheme: () => Promise<void>;
-  /** Persist a seasonal theme so all accounts pick it up seamlessly. */
-  setSeasonalTheme: (theme: SeasonalThemeId) => Promise<{ success: boolean; message?: string }>;
+  /** Persist a seasonal override so all accounts pick it up seamlessly. */
+  setSeasonalTheme: (theme: ThemeOverride) => Promise<{ success: boolean; message?: string }>;
   // Staff Roster Management
   staffMembers: StaffMember[];
   addStaffMember: (staff: Omit<StaffMember, 'id'>) => Promise<StaffMember>;
@@ -321,17 +330,7 @@ interface ShopContextType {
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
-export type SeasonalThemeId = 'none' | 'halloween' | 'christmas' | 'easter' | 'cny' | 'valentines';
-
-const SEASONAL_THEMES: SeasonalThemeId[] = ['none', 'halloween', 'christmas', 'easter', 'cny', 'valentines'];
-export const SEASONAL_THEME_LABELS: Record<SeasonalThemeId, string> = {
-  none: 'No seasonal theme',
-  halloween: 'Halloween',
-  christmas: 'Christmas',
-  easter: 'Easter',
-  cny: 'Chinese New Year',
-  valentines: "Valentine's Day",
-};
+export type { SeasonalThemeId, ThemeOverride } from '../utils/holidayCalendar';
 
 const STORAGE_KEY = 'stakeys_cycles_pb_state_v2';
 
@@ -408,37 +407,66 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Seasonal theme — one shared setting in Supabase applied to every account.
   // The row is created on demand so this works even before the SQL is run.
   // ---------------------------------------------------------------------------
-  const [seasonalTheme, setSeasonalThemeState] = useState<SeasonalThemeId>('none');
+  // A ?theme= preview pins the theme for the whole session (see below).
+  const previewThemeRef = useRef<ThemeOverride>((() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get('theme');
+      if (q === 'none') return 'none';
+      if (q && isSeasonalThemeId(q)) return q;
+    } catch {
+      /* no window (SSR/tests) */
+    }
+    return null;
+  })());
+
+  const [seasonalOverride, setSeasonalOverride] = useState<ThemeOverride>(() => {
+    // QA/preview: ?theme=halloween forces a theme for this session only. It never
+    // writes to the shared store, so a preview link can't change anyone else.
+    return previewThemeRef.current ?? 'AUTO';
+  });
+  // The theme actually rendered: the manual override when set, otherwise the
+  // holiday the 9-day calendar window resolves for right now.
+  const [seasonalTheme, setSeasonalThemeState] = useState<SeasonalThemeId>(() =>
+    resolveTheme('AUTO')
+  );
 
   const refreshSeasonalTheme = async () => {
+    let override: ThemeOverride = 'AUTO';
     try {
       const { data } = await supabase
         .from('app_theme_config')
         .select('theme')
         .eq('id', 1)
         .maybeSingle();
-      const next = (data?.theme as SeasonalThemeId) || 'none';
-      setSeasonalThemeState(SEASONAL_THEMES.includes(next) ? next : 'none');
+      const stored = data?.theme;
+      if (stored === 'AUTO' || stored === null || stored === undefined) override = 'AUTO';
+      else if (isSeasonalThemeId(stored)) override = stored;
     } catch {
-      // Table not created yet — keep the current theme rather than crashing.
+      // Table not created yet — stay on AUTO (calendar) rather than crashing.
     }
+    setSeasonalOverride(previewThemeRef.current ?? override);
+    setSeasonalThemeState(resolveTheme(previewThemeRef.current ?? override));
   };
 
   const setSeasonalTheme = async (
-    next: SeasonalThemeId
+    next: ThemeOverride
   ): Promise<{ success: boolean; message?: string }> => {
-    const safe = SEASONAL_THEMES.includes(next) ? next : 'none';
-    const prev = seasonalTheme;
-    setSeasonalThemeState(safe); // optimistic so this device updates instantly
+    const safe: ThemeOverride =
+      next === 'AUTO' || next === null ? 'AUTO' : isSeasonalThemeId(next) ? next : 'AUTO';
+    const prev = seasonalOverride;
+    setSeasonalOverride(safe); // optimistic so this device updates instantly
+    setSeasonalThemeState(resolveTheme(safe));
     try {
       const { error } = await supabase
         .from('app_theme_config')
         .upsert({ id: 1, theme: safe, updated_at: new Date().toISOString() }, { onConflict: 'id' });
       if (error) throw error;
-      toast.success(`Theme applied to all accounts: ${SEASONAL_THEME_LABELS[safe]}`);
+      const label = safe === 'AUTO' ? 'Auto (calendar)' : SEASONAL_THEME_LABELS[safe];
+      toast.success(`Theme applied to all accounts: ${label}`);
       return { success: true };
     } catch (err: any) {
-      setSeasonalThemeState(prev);
+      setSeasonalOverride(prev);
+      setSeasonalThemeState(resolveTheme(prev));
       const message =
         'Could not reach the shared theme store. Run the SQL setup (app_theme_config) to enable cross-account themes.';
       toast.error(message);
@@ -456,13 +484,30 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         'postgres_changes',
         { event: '*', schema: 'public', table: 'app_theme_config', filter: 'id=eq.1' },
         (payload: any) => {
-          const next = payload?.new?.theme as SeasonalThemeId;
-          if (next && SEASONAL_THEMES.includes(next)) setSeasonalThemeState(next);
+          const stored = payload?.new?.theme;
+          const override: ThemeOverride =
+            stored === 'AUTO' || stored === null || stored === undefined
+              ? 'AUTO'
+              : isSeasonalThemeId(stored)
+                ? stored
+                : 'AUTO';
+          setSeasonalOverride(previewThemeRef.current ?? override);
+          setSeasonalThemeState(resolveTheme(previewThemeRef.current ?? override));
         }
       )
       .subscribe();
 
+    // In AUTO mode the calendar can change at midnight, so re-evaluate hourly
+    // (cheap, and keeps a long-open tab in step with the schedule).
+    const autoTick = window.setInterval(() => {
+      setSeasonalOverride((current) => {
+        if (current === 'AUTO') setSeasonalThemeState(resolveTheme('AUTO'));
+        return current;
+      });
+    }, 60 * 60 * 1000);
+
     return () => {
+      window.clearInterval(autoTick);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3390,6 +3435,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         toggleTheme,
         setTheme,
         seasonalTheme,
+        seasonalOverride,
         refreshSeasonalTheme,
         setSeasonalTheme,
         staffMembers,
