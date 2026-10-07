@@ -410,6 +410,17 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => onUpdatePaymentStatus('paid_online')}
+                className={`px-3 py-1.5 rounded-lg border font-semibold cursor-pointer transition-colors ${
+                  invoice.paymentStatus === 'paid_online'
+                    ? 'bg-emerald-500 text-neutral-950 border-emerald-400'
+                    : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700 text-neutral-300'
+                }`}
+              >
+                Mark Paid (Online)
+              </button>
+              <button
+                type="button"
                 onClick={() => onUpdatePaymentStatus('unpaid')}
                 className={`px-3 py-1.5 rounded-lg border font-semibold cursor-pointer transition-colors ${
                   invoice.paymentStatus === 'unpaid'
