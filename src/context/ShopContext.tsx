@@ -83,6 +83,8 @@ import {
   fetchCustomerBikesFromDb,
   insertCustomerBikeToDb,
   deleteCustomerBikeFromDb,
+  reassignBikesToOwner,
+  deleteBikesByIds,
   updateCustomerBikeSpecsInDb,
   fetchServiceBookingsFromDb,
   insertServiceBookingToDb,
@@ -196,6 +198,7 @@ interface ShopContextType {
     bike: Omit<CustomerBike, 'id' | 'addedAt'>
   ) => Promise<CustomerBike>;
   removeCustomerBike: (bikeId: string) => Promise<void>;
+  repairCustomerGarage: () => Promise<{ scanned: number; removed: number; reassigned: number }>;
   // Core actions
   addStamp: (customerId: string, staffId: string, bypassLimit?: boolean) => Promise<{ success: boolean; message: string }>;
   redeemReward: (customerId: string, staffId: string, rewardDescription: string) => Promise<{ success: boolean; message: string }>;
@@ -2891,6 +2894,44 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  /**
+   * "Fix My Garage": repairs a garage that shows the wrong bikes. A stale build
+   * (or a profile with no membership number) used to fetch customer_bikes with a
+   * blank membership filter, which matches every NULL row and leaks the whole
+   * workshop. This re-fetches strictly by the profile UUID, removes any bikes
+   * that belong to someone else, and re-points legacy membership-keyed rows to
+   * this profile.
+   */
+  const repairCustomerGarage = async (): Promise<{ scanned: number; removed: number; reassigned: number }> => {
+    if (!currentUser) return { scanned: 0, removed: 0, reassigned: 0 };
+    const userId = currentUser.uid;
+    const membership = (currentUser.membershipNumber || '').trim();
+
+    const fresh = await fetchCustomerBikesFromDb(userId, membership || undefined);
+    const freshIds = new Set(fresh.map((b) => b.id));
+
+    // Anything currently on screen that the strict query did not return is not
+    // this customer's — drop it locally and from the database.
+    const staleIds = (currentUser.bikes || [])
+      .filter((b) => !freshIds.has(b.id))
+      .map((b) => b.id);
+    const removed = await deleteBikesByIds(userId, staleIds);
+
+    // Re-home legacy rows that were stored under the bare membership number.
+    const reassigned = membership ? await reassignBikesToOwner(userId, membership) : 0;
+
+    // If legacy rows were re-pointed, re-read so they appear under the UUID too.
+    const finalBikes = reassigned > 0
+      ? await fetchCustomerBikesFromDb(userId, membership || undefined)
+      : fresh;
+
+    const updatedUser: UserProfile = { ...currentUser, bikes: finalBikes };
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.uid === userId ? { ...u, bikes: finalBikes } : u)));
+
+    return { scanned: fresh.length, removed, reassigned };
+  };
+
   const createBooking = async (
     data: Omit<ServiceBooking, 'id' | 'createdAt' | 'status' | 'notifications'>
   ): Promise<ServiceBooking> => {
@@ -3889,6 +3930,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addCustomerBike,
         addCustomerBikeForUser,
         removeCustomerBike,
+        repairCustomerGarage,
         addStamp,
         redeemReward,
         updateCustomerAvatar,
