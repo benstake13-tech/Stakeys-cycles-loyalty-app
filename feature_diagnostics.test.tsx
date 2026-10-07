@@ -17,6 +17,10 @@ vi.mock('./src/utils/pushNotifications', () => ({
   getPushPermission: vi.fn(async () => 'granted'),
   requestPushPermission: vi.fn(async () => 'granted'),
   getSubscriptionId: vi.fn(async () => 'sub-1'),
+  isPushSubscribed: vi.fn(async () => true),
+  optInPushSubscription: vi.fn(async () => 'sub-1'),
+  getConfiguredAppId: vi.fn(() => 'app-id'),
+  setConfiguredAppId: vi.fn(() => true),
   linkUser: vi.fn(async () => {}),
   registerEmailSubscription: vi.fn(async () => {}),
 }));
