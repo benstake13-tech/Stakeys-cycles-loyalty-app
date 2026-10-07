@@ -52,6 +52,14 @@ export const StaffBookingsTab: React.FC = () => {
     currentUser,
     ownerConfig,
     updateOwnerConfig,
+    automatedRemindersEnabled,
+    setAutomatedRemindersEnabled,
+    remindersPushOnly,
+    setRemindersPushOnly,
+    reminderOwnerEmail,
+    setReminderOwnerEmail,
+    bookingsDueIn24h,
+    dispatch24hReminderForBooking,
     isStaffBookingSoundEnabled,
     toggleStaffBookingSound,
     playStaffBookingAlertPing,
@@ -540,6 +548,126 @@ export const StaffBookingsTab: React.FC = () => {
               </button>
             </div>
           </form>
+        )}
+      </div>
+
+      {/* 24-Hour Reminder Manager — push-first so customers/staff aren't flooded */}
+      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 ${
+              automatedRemindersEnabled
+                ? 'bg-emerald-500/20 border-emerald-500/40 text-[#05C147]'
+                : 'bg-neutral-800 border-neutral-700 text-neutral-500'
+            }`}>
+              <Bell className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-white">24-Hour Reminder Manager</h3>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+                  automatedRemindersEnabled
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                }`}>
+                  {automatedRemindersEnabled ? 'ACTIVE' : 'PAUSED'}
+                </span>
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                {remindersPushOnly
+                  ? <>Reminders are sent as <strong className="text-neutral-200">push notifications</strong> to the customer's app and to devices attached to <strong className="text-neutral-200">{reminderOwnerEmail || 'no email set'}</strong>.</>
+                  : <>Reminders are sent by <strong className="text-neutral-200">email</strong> to the customer and {reminderOwnerEmail || 'no owner email set'}.</>}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setAutomatedRemindersEnabled(!automatedRemindersEnabled)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border ${
+                automatedRemindersEnabled
+                  ? 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200 border-neutral-700'
+                  : 'bg-[#05C147] hover:bg-emerald-400 text-neutral-950 border-emerald-400'
+              }`}
+            >
+              {automatedRemindersEnabled ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+              <span>{automatedRemindersEnabled ? 'Pause Reminders' : 'Resume Reminders'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={requestPushNotificationPermission}
+              className="px-4 py-2 rounded-xl bg-sky-950/60 hover:bg-sky-900/80 text-sky-300 text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-sky-500/40"
+              title="Allow this device to receive reminder push notifications"
+            >
+              <Zap className="w-4 h-4 text-sky-400" />
+              <span>Enable Push On This Device</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-neutral-800/80 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <label className="flex items-start gap-3 cursor-pointer rounded-2xl bg-neutral-950/50 border border-neutral-800 p-3.5">
+            <input
+              type="checkbox"
+              checked={remindersPushOnly}
+              onChange={(e) => setRemindersPushOnly(e.target.checked)}
+              className="mt-0.5 rounded border-neutral-700 text-[#05C147] focus:ring-emerald-500 w-4 h-4"
+            />
+            <span className="text-xs text-neutral-300">
+              <span className="font-bold text-white block">Push only (no reminder emails)</span>
+              Uncheck to fall back to the legacy reminder email to the customer and workshop.
+            </span>
+          </label>
+
+          <div className="lg:col-span-2">
+            <label className="block text-xs font-semibold text-neutral-300 mb-1">
+              Devices attached to this email receive the workshop reminder
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                value={reminderOwnerEmail}
+                onChange={(e) => setReminderOwnerEmail(e.target.value)}
+                placeholder="stakeyscycle95@gmail.com"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-neutral-950 border border-neutral-700 text-white font-mono text-xs focus:outline-none focus:border-[#05C147]"
+              />
+              <span className="text-[11px] text-neutral-500 whitespace-nowrap">
+                {bookingsDueIn24h.length} due in 24h
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {bookingsDueIn24h.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              Upcoming (next 24 hours)
+            </div>
+            {bookingsDueIn24h.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-neutral-950/50 border border-neutral-800 px-3.5 py-2.5"
+              >
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white truncate">
+                    {b.customerName} • {b.serviceTitle}
+                  </div>
+                  <div className="text-[11px] text-neutral-400">
+                    {b.preferredDate} ({b.preferredTimeSlot}) {b.reminder24hSent ? '• reminder sent' : '• reminder pending'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => dispatch24hReminderForBooking(b.id)}
+                  className="shrink-0 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs font-bold border border-emerald-500/40 transition-colors cursor-pointer"
+                >
+                  Send now
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

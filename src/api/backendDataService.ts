@@ -416,6 +416,7 @@ export async function updateServiceBookingInDb(
     if (updates.quoteNote !== undefined) payload.quote_note = updates.quoteNote;
     if (updates.quoteSentAt) payload.quote_sent_at = updates.quoteSentAt;
     if (updates.reminder24hSent !== undefined) payload.reminder_24h_sent = updates.reminder24hSent;
+    if (updates.notifications !== undefined) payload.notifications = updates.notifications;
     if (updates.repairStage !== undefined) payload.repair_stage = updates.repairStage;
     if (updates.progressEvents !== undefined) payload.progress_events = updates.progressEvents;
     if (updates.estimateReadyAt !== undefined) payload.estimate_ready_at = updates.estimateReadyAt;
@@ -427,14 +428,16 @@ export async function updateServiceBookingInDb(
       .update(payload)
       .eq('id', bookingId);
 
-    if (error && payload.invoice !== undefined) {
-      // Older project without the invoice column — persist everything else.
-      const { invoice: _drop, ...withoutInvoice } = payload;
-      const retry = await supabase
-        .from('service_bookings')
-        .update(withoutInvoice)
-        .eq('id', bookingId);
-      error = retry.error;
+    // Newer optional columns (invoice, notifications) may not exist on an older
+    // project. Drop the offending column(s) and retry so the rest still persists.
+    const OPTIONAL_COLUMNS = ['invoice', 'notifications'];
+    for (const column of OPTIONAL_COLUMNS) {
+      if (error && payload[column] !== undefined) {
+        console.warn(`[SUPABASE NET] Retrying UPDATE without optional column "${column}"`);
+        delete payload[column];
+        const retry = await supabase.from('service_bookings').update(payload).eq('id', bookingId);
+        error = retry.error;
+      }
     }
 
     if (!error) {
@@ -1250,6 +1253,8 @@ export interface AppSettings {
   smsAlertsEnabled: boolean;
   businessName: string;
   automatedRemindersEnabled: boolean;
+  remindersPushOnly: boolean;
+  reminderOwnerEmail: string;
 }
 
 export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | null> {
@@ -1274,6 +1279,8 @@ export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | n
       businessName: row.business_name || undefined,
       automatedRemindersEnabled:
         row.automated_reminders_enabled == null ? undefined : row.automated_reminders_enabled === true,
+      remindersPushOnly: row.reminders_push_only == null ? undefined : row.reminders_push_only === true,
+      reminderOwnerEmail: row.reminder_owner_email || undefined,
     };
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] fetchAppSettingsFromDb:', err);
@@ -1293,6 +1300,8 @@ export async function upsertAppSettingsToDb(settings: Partial<AppSettings>): Pro
     if (settings.automatedRemindersEnabled !== undefined) {
       payload.automated_reminders_enabled = settings.automatedRemindersEnabled;
     }
+    if (settings.remindersPushOnly !== undefined) payload.reminders_push_only = settings.remindersPushOnly;
+    if (settings.reminderOwnerEmail !== undefined) payload.reminder_owner_email = settings.reminderOwnerEmail;
     const { error } = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.error('[SUPABASE NET ERROR] upsert app_settings failed:', error.message);
