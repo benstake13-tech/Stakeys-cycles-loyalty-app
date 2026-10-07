@@ -724,6 +724,70 @@ export async function dispatch24hReminderNotification(
 }
 
 /**
+ * SOS Emergency Repair — alert the workshop owner's devices over OneSignal.
+ *
+ * These are deliberately owner-only pushes (tagged `owner_email`), because an
+ * SOS job is a "drop everything and dispatch" event for the shop owner. The
+ * push fires for each milestone: the customer requesting, staff approving, the
+ * quote being sent and the rider confirming the price.
+ */
+export async function dispatchSosNotification(
+  booking: ServiceBooking,
+  config: OwnerNotificationConfig,
+  stage: 'requested' | 'approved' | 'quoted' | 'confirmed',
+  options: { ownerReminderEmail?: string; quotedPrice?: number } = {}
+): Promise<BookingNotificationLog> {
+  const now = new Date();
+  const ownerEmail = (options.ownerReminderEmail || config.ownerEmail || '').trim();
+  const ref = `#${booking.id}`;
+
+  const stageCopy: Record<typeof stage, { subject: string; body: string }> = {
+    requested: {
+      subject: `🚨 SOS EMERGENCY REQUEST ${ref}`,
+      body: `${booking.customerName} needs an urgent repair (${booking.vehicleModel}). Tap to approve.`,
+    },
+    approved: {
+      subject: `✅ SOS approved ${ref} — request live location`,
+      body: `${booking.customerName}'s emergency repair is approved. Ask for their WhatsApp live location.`,
+    },
+    quoted: {
+      subject: `💷 SOS quote sent ${ref}`,
+      body: `Quote of £${(options.quotedPrice ?? 0).toFixed(2)} sent to ${booking.customerName}. Awaiting their confirmation.`,
+    },
+    confirmed: {
+      subject: `🚴 SET OFF NOW ${ref} — price confirmed`,
+      body: `${booking.customerName} confirmed £${(options.quotedPrice ?? 0).toFixed(2)}. Set off immediately.`,
+    },
+  };
+
+  const copy = stageCopy[stage];
+  const log: BookingNotificationLog = {
+    id: `notif-sos-${stage}-${Date.now()}`,
+    type: 'push',
+    recipient: ownerEmail,
+    recipientRole: 'owner',
+    category: 'sos_emergency',
+    subject: copy.subject,
+    content: copy.body,
+    timestamp: now,
+    status: 'delivered',
+  };
+
+  if (ownerEmail) {
+    await sendPushToUser(
+      undefined,
+      copy.subject,
+      copy.body,
+      undefined,
+      { tag: { key: 'owner_email', value: ownerEmail } }
+    ).catch((err) => console.error(`[SOS] owner push (${stage}) failed:`, err));
+  }
+
+  console.log(`[SOS] 🔔 Sent SOS ${stage} push to owner devices (${ownerEmail || 'no owner email set'})`);
+  return log;
+}
+
+/**
  * Generates branded HTML email sent to customer when their repair booking is APPROVED
  */
 export function generateBookingApprovalEmailHtml(

@@ -60,11 +60,13 @@ import {
   dispatch24hReminderNotification,
   dispatchBookingApprovalNotification,
   dispatchBookingDeclinedNotification,
+  dispatchSosNotification,
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
 import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/pushNotifications';
+import { isSosBooking, sosStatusOf } from '../utils/sosRepair';
 import { isStaffSurface, isFullSurface } from '../config/surface';
 import { generateMembershipNumber } from '../api/firebaseService';
 import {
@@ -330,6 +332,10 @@ interface ShopContextType {
   ) => Promise<{ success: boolean; message?: string }>;
   updateBookingStatus: (bookingId: string, status: BookingStatus) => void;
   updateBookingQuote: (bookingId: string, quote: { quotedPrice: number, quoteNote?: string }) => Promise<{ success: boolean; message?: string }>;
+  /** SOS: record that we asked the rider for their WhatsApp live location. */
+  requestSosLocation: (bookingId: string, locationNote?: string) => Promise<{ success: boolean; message?: string }>;
+  /** SOS: the rider confirmed the quoted price — set off immediately. */
+  confirmSosQuote: (bookingId: string) => Promise<{ success: boolean; message?: string }>;
   deleteBooking: (bookingId: string) => Promise<{ success: boolean; message?: string }>;
   clearAllBookings: () => Promise<{ success: boolean; message?: string; deleted: number }>;
   setRepairStage: (
@@ -2894,12 +2900,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: now,
       notifications: [],
       repairStage: 'received',
+      ...(data.isSos ? { sosStatus: data.sosStatus || 'requested' } : {}),
       progressEvents: [
         makeRepairEvent({
           stage: 'received',
           kind: 'stage',
           label: repairStageLabel('received'),
-          note: 'Booking received — your repair is in the workshop queue.',
+          note: data.isSos
+            ? '🚨 SOS EXPRESS REPAIR received — jumping the workshop queue.'
+            : 'Booking received — your repair is in the workshop queue.',
           createdBy: 'Online Booking System',
         }),
       ],
@@ -2939,6 +2948,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       undefined,
       { segment: 'staff' }
     );
+
+    // SOS emergency repair: fire an owner-only OneSignal push (and a loud ping
+    // on any staff device that has the terminal open) the moment it lands.
+    if (completedBooking.isSos) {
+      staffBookingAudio.playLoudBookingPing();
+      const sosLog = await dispatchSosNotification(completedBooking, ownerConfig, 'requested', {
+        ownerReminderEmail: reminderOwnerEmailRef.current,
+      }).catch((e) => {
+        console.warn('[SOS] request push failed:', e);
+        return null;
+      });
+      if (sosLog) {
+        setBookings((prev) =>
+          prev.map((b) =>
+            b.id === completedBooking.id ? { ...b, notifications: [...b.notifications, sosLog] } : b
+          )
+        );
+      }
+    }
 
     // Trigger instant email alert confirmation banner
     const failureWarning = failures && failures.length > 0 ? ` ⚠️ ${failures.join(' ')}` : '';
@@ -3083,6 +3111,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       approvedAt: new Date().toISOString(),
       approvedBy: currentUser?.displayName || 'Workshop Staff',
       staffNotes: staffNote || target.staffNotes,
+      ...(isSosBooking(target) ? { sosStatus: 'approved' as const } : {}),
       notifications: [emailLog, ...(target.notifications || [])],
     };
 
@@ -3104,10 +3133,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       quotedPrice,
       quoteNote,
       quoteSentAt,
+      ...(isSosBooking(target) ? { sosStatus: 'approved' } : {}),
     }).catch((e) => {
       console.warn('[DB SYNC] Error approving booking in DB:', e);
       return false;
     });
+
+    // SOS: nudge the owner to request the rider's live location over WhatsApp.
+    if (isSosBooking(target)) {
+      const sosLog = await dispatchSosNotification(updated, ownerConfig, 'approved', {
+        ownerReminderEmail: reminderOwnerEmailRef.current,
+      }).catch(() => null);
+      if (sosLog) {
+        setBookings((prev) =>
+          prev.map((b) => (b.id === bookingId ? { ...b, notifications: [...b.notifications, sosLog] } : b))
+        );
+      }
+    }
 
     if (emailSent) {
       setLatestSmsAlert({
@@ -3424,11 +3466,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return { success: false, message: 'Booking not found' };
 
+    const isSos = isSosBooking(target);
     const updated: ServiceBooking = {
       ...target,
       quotedPrice: quote.quotedPrice,
       quoteNote: quote.quoteNote,
       quoteSentAt: new Date().toISOString(),
+      ...(isSos ? { sosStatus: 'quoted' as const } : {}),
     };
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
@@ -3437,10 +3481,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       quotedPrice: quote.quotedPrice,
       quoteNote: quote.quoteNote,
       quoteSentAt: updated.quoteSentAt,
+      ...(isSos ? { sosStatus: 'quoted' } : {}),
     }).catch((e) => {
       console.warn('[DB SYNC] Error updating booking quote in DB:', e);
       return false;
     });
+
+    // SOS: tell the owner a quote has gone out, so they watch for the CONFIRM.
+    if (isSos) {
+      const log = await dispatchSosNotification(updated, ownerConfig, 'quoted', {
+        ownerReminderEmail: reminderOwnerEmailRef.current,
+        quotedPrice: quote.quotedPrice,
+      }).catch(() => null);
+      if (log) {
+        setBookings((prev) =>
+          prev.map((b) => (b.id === bookingId ? { ...b, notifications: [...b.notifications, log] } : b))
+        );
+      }
+    }
 
     return {
       success: true,
@@ -3448,6 +3506,75 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? `Quote of £${quote.quotedPrice.toFixed(2)} saved for booking #${bookingId}. It will be included as the estimate in the approval email.`
         : `Quote of £${quote.quotedPrice.toFixed(2)} saved on this device only — the database sync failed. Run the repair SQL, then re-send the quote.`,
     };
+  };
+
+  /**
+   * SOS step 2: record that we've asked the rider for their live location over
+   * WhatsApp. Staff send the actual WhatsApp message from the terminal (the
+   * deep link lives in sosRepair.ts); this just advances the job's status.
+   */
+  const requestSosLocation = async (
+    bookingId: string,
+    locationNote?: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    const updated: ServiceBooking = {
+      ...target,
+      sosStatus: 'location_requested',
+      sosLocationRequestedAt: new Date().toISOString(),
+      sosLocationNote: locationNote || target.sosLocationNote,
+    };
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+
+    const persisted = await updateServiceBookingInDb(bookingId, {
+      sosStatus: 'location_requested',
+      sosLocationRequestedAt: updated.sosLocationRequestedAt,
+      sosLocationNote: updated.sosLocationNote,
+    }).catch(() => false);
+
+    return {
+      success: true,
+      message: persisted
+        ? 'Live-location request recorded — send the WhatsApp message to the rider.'
+        : 'Recorded on this device only — the database sync failed.',
+    };
+  };
+
+  /**
+   * SOS step 4: the rider has confirmed the quoted price over WhatsApp, so we
+   * set off immediately. Fires the loudest owner push of the flow.
+   */
+  const confirmSosQuote = async (
+    bookingId: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const target = bookings.find((b) => b.id === bookingId);
+    if (!target) return { success: false, message: 'Booking not found' };
+
+    const updated: ServiceBooking = {
+      ...target,
+      sosStatus: 'confirmed',
+      sosConfirmedAt: new Date().toISOString(),
+    };
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
+
+    await updateServiceBookingInDb(bookingId, {
+      sosStatus: 'confirmed',
+      sosConfirmedAt: updated.sosConfirmedAt,
+    }).catch(() => false);
+
+    const log = await dispatchSosNotification(updated, ownerConfig, 'confirmed', {
+      ownerReminderEmail: reminderOwnerEmailRef.current,
+      quotedPrice: updated.quotedPrice,
+    }).catch(() => null);
+    if (log) {
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, notifications: [...b.notifications, log] } : b))
+      );
+    }
+
+    return { success: true, message: `Price confirmed for #${bookingId} — set off immediately!` };
   };
 
   const deleteBooking = async (
@@ -3818,6 +3945,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         resolveScannedMemberDetailed,
         addRepairProgressNote,
         updateBookingQuote,
+        requestSosLocation,
+        confirmSosQuote,
         deleteBooking,
         clearAllBookings,
         saveRepairInvoice,
