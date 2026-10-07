@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BadgePoundSterling,
@@ -7,6 +7,7 @@ import {
   Check,
   Copy,
   Globe,
+  Link2,
   MapPin,
   MessageCircle,
   Phone,
@@ -30,7 +31,7 @@ import {
   findDiscountCode,
   validateDiscountCode,
 } from '../utils/discountService';
-import { websiteDiscountCatalogue } from '../utils/websiteDiscounts';
+import { websiteDiscountCatalogue, discountCodeFromSearch, discountShareUrl } from '../utils/websiteDiscounts';
 import type { DiscountCode } from '../types/bikeShop';
 import { PolicyDisclaimers } from './PolicyDisclaimers';
 import { DISCOUNT_DISCLAIMERS } from '../utils/workshopPolicy';
@@ -79,6 +80,8 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
   const [appliedCode, setAppliedCode] = useState<{ id: string; code: string; amountOff: number } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const pendingDeepLink = useRef<string>('');
 
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -144,6 +147,41 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
     setCopiedCode(code);
     window.setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 1800);
   };
+
+  /** Copy a shareable offer link (`?code=…`) so the code can be promoted in the wild. */
+  const copyOfferLink = async (code: string) => {
+    const link = discountShareUrl(code);
+    try {
+      await navigator.clipboard.writeText(link);
+    } catch {
+      window.prompt('Copy this offer link:', link);
+    }
+    setCopiedLink(code);
+    window.setTimeout(() => setCopiedLink((c) => (c === code ? null : c)), 1800);
+  };
+
+  // A visitor arriving from a shared offer link (?code=WEB-5OFF) has the code
+  // remembered here and applied automatically once their basket has items.
+  useEffect(() => {
+    const code = discountCodeFromSearch();
+    if (!code) return;
+    setPromoInput(code);
+    pendingDeepLink.current = code;
+  }, []);
+
+  // Retry the pending deep-link code whenever the basket changes. A public code
+  // applies straight away; a member code stays in the box until they sign in.
+  useEffect(() => {
+    const code = pendingDeepLink.current;
+    if (!code || cart.length === 0) return;
+    const found = findDiscountCode(code, catalogue);
+    if (!found || !validateDiscountCode(found, { subtotal: cartSubtotal, isMember: Boolean(currentUser) }).ok) {
+      return;
+    }
+    applyCode(found, true);
+    pendingDeepLink.current = '';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart, currentUser, cartSubtotal]);
 
   const addToCart = (product: WebProduct) => {
     setOrderPlaced(false);
@@ -331,9 +369,27 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                       </>
                     )}
                   </button>
-                  <span className="text-[10px] text-emerald-400 dark:text-emerald-400 light:text-emerald-600 font-bold">
-                    {coupon.type === 'percent' ? coupon.value + '% Off' : '£' + coupon.value + ' Off'}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyOfferLink(coupon.code)}
+                      title="Copy shareable offer link"
+                      className={'pressable inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-bold cursor-pointer ' + (isDark ? 'border-neutral-700 text-neutral-300 hover:border-emerald-500/50' : 'border-neutral-300 text-neutral-600 hover:border-emerald-500/50')}
+                    >
+                      {copiedLink === coupon.code ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-400" /> Link
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="w-3 h-3" /> Link
+                        </>
+                      )}
+                    </button>
+                    <span className="text-[10px] text-emerald-400 dark:text-emerald-400 light:text-emerald-600 font-bold">
+                      {coupon.type === 'percent' ? coupon.value + '% Off' : '£' + coupon.value + ' Off'}
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"

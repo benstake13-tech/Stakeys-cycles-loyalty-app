@@ -3,6 +3,8 @@ import {
   WEBSITE_DISCOUNT_FALLBACK,
   websiteDiscountCatalogue,
   inferAudience,
+  discountCodeFromSearch,
+  discountShareUrl,
 } from './src/utils/websiteDiscounts';
 import { validateDiscountCode, findDiscountCode } from './src/utils/discountService';
 import type { DiscountCode } from './src/types/bikeShop';
@@ -77,5 +79,32 @@ describe('website discount fallback catalogue', () => {
     expect(merged.find((c) => c.code === 'STK-5341')?.audience).toBeUndefined();
     // The fallback does not duplicate the live WEB-5OFF.
     expect(merged.filter((c) => c.code === 'WEB-5OFF').length).toBe(1);
+  });
+});
+
+describe('website offer links', () => {
+  it('reads a code from a shared offer link (?code= / ?promo=)', () => {
+    expect(discountCodeFromSearch('?code=web-5off')).toBe('WEB-5OFF');
+    expect(discountCodeFromSearch('?promo=WEB-10OFF60')).toBe('WEB-10OFF60');
+    // Unrelated query params are ignored.
+    expect(discountCodeFromSearch('?ref=STK-REF-123456')).toBe('');
+    expect(discountCodeFromSearch('')).toBe('');
+  });
+
+  it('builds a shareable link that carries the code', () => {
+    expect(discountShareUrl('web-5off', 'https://stakeys-cycles.co.uk')).toBe(
+      'https://stakeys-cycles.co.uk/?code=WEB-5OFF'
+    );
+    // Round-trips through the reader.
+    const url = discountShareUrl('WEB-10OFF60', 'https://example.com');
+    expect(discountCodeFromSearch(new URL(url).search)).toBe('WEB-10OFF60');
+  });
+
+  it('a code shared by link validates for a signed-out visitor', () => {
+    const catalogue = websiteDiscountCatalogue([]);
+    const code = discountCodeFromSearch('?code=WEB-5OFF');
+    const res = validateDiscountCode(findDiscountCode(code, catalogue), { subtotal: 40, isMember: false });
+    expect(res.ok).toBe(true);
+    expect(res.amountOff).toBe(2);
   });
 });
