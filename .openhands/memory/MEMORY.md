@@ -217,3 +217,10 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - Tests: push_repair.test.ts now 15 (opt-in gating incl. `denied` guard, app-id reporting); push_notifications.test.ts gained `isPushSubscribed`/`optInPushSubscription`/app-id-override units. Full suite 63 files / 446 tests.
 - Lesson kept: `feature_diagnostics.test.tsx` hand-mocks `./src/utils/pushNotifications`; every new named export the tab imports must be added there.
 - Heads: `staff-terminal` 7d43034 / `main-website` bf19b70 / `customer-app` d74c914.
+
+## Session 17 (2026-10-06) — Phone-side enable-push, one tap
+- Root cause restated: OneSignal "no subscribed devices" = nobody tapped Allow. The browser's notification prompt never fires on its own — staff must trigger it. Triggers: the header "Enable Push" button (StaffPortal -> requestPushNotificationPermission) and the diagnostics section.
+- Added a dedicated "Enable on This Device" button in the Repair & Configure Push section: requests permission -> forces optInPushSubscription() -> immediately re-runs the repair pass and flashes whether the subscription registered. Intended phone workflow: open staff app -> Enable on This Device -> Allow -> Test push.
+- pushRepair subscription step now: on repair, if granted and (optedIn===false or no sub id) it calls optInSubscription() then polls getSubscriptionId()/isSubscribed() briefly (<=1.25s) for a late device token; status fixed vs warn. Fixed a stale branch that read the pre-opt-in perm after mutation.
+- Tests: 63 files / 447. push_repair.test.ts covers optedIn:false repair AND late-token-after-optin.
+- Heads: staff-terminal 86a0c35 / main-website 9ee8c2d / customer-app b516104.
