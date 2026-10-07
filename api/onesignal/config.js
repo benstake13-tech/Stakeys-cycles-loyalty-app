@@ -7,13 +7,18 @@
  * where the deployed front-end can actually reach it.
  *
  * The App ID is safe to expose to the browser; the REST key never is. Only the
- * key's presence is reported, as a boolean.
+ * key's presence is reported, as a boolean, plus which env-var name it was
+ * found under so a misconfigured deploy is diagnosable.
  */
-const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
+import { resolveAppId, resolveRestKey, REST_KEY_ENV_NAMES } from './_shared.js';
 
 export default function handler(_req, res) {
-  const appId =
-    process.env.VITE_ONESIGNAL_APP_ID || process.env.ONESIGNAL_APP_ID || DEFAULT_APP_ID;
-  const apiKey = process.env.ONESIGNAL_REST_API_KEY || process.env.ONESIGNAL_API_KEY;
-  res.status(200).json({ appId, serverPush: Boolean(appId && apiKey) });
+  const appId = resolveAppId();
+  const { key, source } = resolveRestKey();
+  res.status(200).json({
+    appId,
+    serverPush: Boolean(appId && key),
+    restKeyEnv: source,
+    restKeyEnvNames: REST_KEY_ENV_NAMES,
+  });
 }
