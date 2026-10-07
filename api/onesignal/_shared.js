@@ -40,5 +40,5 @@ export function resolveOrigin(req, env = process.env) {
   if (env.APP_ORIGIN) return env.APP_ORIGIN;
   const proto = String(req?.headers?.['x-forwarded-proto'] || 'https').split(',')[0].trim();
   const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host;
-  return host ? `${proto}://${host}` : 'https://stakey-cycles.co.uk';
+  return host ? `${proto}://${host}` : 'https://stakeys-cycle.co.uk';
 }
