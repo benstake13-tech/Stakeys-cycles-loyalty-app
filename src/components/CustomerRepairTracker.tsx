@@ -389,7 +389,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                   {currentStage === 'collected'
                     ? `This repair is complete and your ${v.noun} is back with you. A copy of your itemized invoice remains available below.`
                     : currentStage === 'ready_for_pickup'
-                    ? `Our workshop mechanic has completed the repair and safety sign-off. Please collect your ${v.noun} at Stakey's Cycles counter (14 High Street). You can view your itemized receipt below.`
+                    ? `Our workshop mechanic has completed the repair and safety sign-off. Please collect your ${v.noun} at Stakey's Cycles counter (Salford, M6 6QS). You can view your itemized receipt below.`
                     : currentStage === 'awaiting_approval'
                     ? `We've inspected your ${v.noun} and sent a quote. Please review and approve it so we can begin the work.`
                     : currentStage === 'parts_ordered'
@@ -561,7 +561,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                   </a>
 
                   <a
-                    href="https://maps.google.com/?q=Stakey's+Cycles+14+High+Street+Bideford"
+                    href="https://maps.google.com/?q=Stakey's+Cycles+Salford+M6+6QS"
                     target="_blank"
                     rel="noreferrer"
                     className="px-3.5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
