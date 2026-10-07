@@ -32,6 +32,8 @@ import {
   deletePromotionFromDb,
   deleteDiscountCodeFromDb,
   deleteServiceBookingFromDb,
+  upsertReferralToDb,
+  deleteReferralFromDb,
 } from '../api/backendDataService';
 import {
   validateDiscountCode,
@@ -42,6 +44,8 @@ import {
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { generateMembershipNumber, generateBarcodeValue } from '../api/firebaseService';
 import { planBalanceProbe } from '../utils/schemaSync';
+import { generateBookingEmailHtml } from '../utils/notificationService';
+import { syntheticWeatherReport, ridingConditionsFor } from '../utils/weatherService';
 import type {
   CustomerBike,
   ServiceBooking,
@@ -52,6 +56,7 @@ import type {
   SaleTransaction,
   PrizeDraw,
   CollectedVoucher,
+  ReferralRecord,
 } from '../types/bikeShop';
 
 export type FeatureArea =
@@ -63,6 +68,8 @@ export type FeatureArea =
   | 'prizes'
   | 'content'
   | 'settings'
+  | 'reach'
+  | 'email'
   | 'logic';
 
 export type TestStatus = 'pass' | 'fail' | 'warn' | 'skipped';
@@ -106,6 +113,8 @@ export const AREA_LABELS: Record<FeatureArea, string> = {
   prizes: 'Prizes & Vouchers',
   content: 'Staff, Promotions & Draws',
   settings: 'Settings & Theme',
+  reach: 'Push & Email Delivery',
+  email: 'Transactional Email',
   logic: 'Pure Logic (offline)',
 };
 
@@ -116,6 +125,12 @@ const diagBookingId = () => `${SENTINEL}booking-${Date.now()}`;
 function err(e: unknown): string {
   const anyE = e as any;
   return anyE?.message || anyE?.error_description || String(e);
+}
+
+/** Short content-type of a fetch Response, for clearer endpoint failures. */
+function friendlyType(res: Response): string {
+  const ct = res.headers?.get?.('content-type') || 'unknown';
+  return ct.split(';')[0];
 }
 
 /** Maps a raw PostgREST/Postgres failure onto a plain-English hint. */
@@ -169,7 +184,7 @@ async function verifyColumn(
 }
 
 /** Builds a booking payload shaped exactly like the customer booking form. */
-function makeDiagBooking(id: string): ServiceBooking {
+function makeDiagBooking(id: string, overrides: Partial<ServiceBooking> = {}): ServiceBooking {
   return {
     id,
     customerName: 'Diagnostics Probe',
@@ -185,6 +200,7 @@ function makeDiagBooking(id: string): ServiceBooking {
     notes: 'diagnostics probe',
     status: 'pending',
     reminder24hSent: false,
+    ...overrides,
   } as ServiceBooking;
 }
 
@@ -646,6 +662,37 @@ export const FEATURE_TESTS: FeatureTest[] = [
           status: 'fail',
           detail: `insert=${ok}; bike_details=${saved ? JSON.stringify(saved) : 'null'}`,
           hint: 'Run the bike-details migration to add service_bookings.bike_details. Until then the app falls back to storing the details inside notes/scraped_data.',
+        };
+      } catch (e) {
+        const message = err(e);
+        await client.from('service_bookings').delete().eq('id', booking.id);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+
+  // ---- SOS emergency repair -----------------------------------------------
+  {
+    id: 'sos-booking-write',
+    tables: ['service_bookings'],
+    area: 'bookings',
+    label: 'Create an SOS emergency booking',
+    description: 'Writes a priority SOS booking (is_sos + sos_status), verifies the flag persists, then deletes it.',
+    writes: true,
+    run: async () => {
+      const booking = makeDiagBooking(diagBookingId(), { isSos: true, sosStatus: 'requested' });
+      const client = getSupabaseClient();
+      try {
+        const ok = await insertServiceBookingToDb(booking);
+        const flag = await verifyColumn('service_bookings', booking.id, 'is_sos', true);
+        await client.from('service_bookings').delete().eq('id', booking.id);
+        if (ok && flag.ok) {
+          return { status: 'pass', detail: 'SOS booking written; is_sos + sos_status persisted.' };
+        }
+        return {
+          status: 'fail',
+          detail: `insert=${ok}; ${flag.detail}`,
+          hint: 'Run supabase/migrations/20261006_sos_emergency_repair.sql to add service_bookings.is_sos / sos_status.',
         };
       } catch (e) {
         const message = err(e);
@@ -1147,6 +1194,66 @@ export const FEATURE_TESTS: FeatureTest[] = [
     },
   },
 
+  // ---- Referrals & assistant ---------------------------------------------
+  {
+    id: 'referrals-read',
+    tables: ['referrals'],
+    area: 'content',
+    label: 'Read referral records',
+    description: 'Selects referrals rows.',
+    run: () => probeRead('referrals', 'created_at'),
+  },
+  {
+    id: 'referral-write',
+    tables: ['referrals'],
+    area: 'content',
+    label: 'Save a refer-a-friend record',
+    description: 'Writes a temporary referral, verifies it reads back, then deletes it.',
+    writes: true,
+    run: async () => {
+      const id = sentinel(`ref-${Date.now()}`);
+      const referral: ReferralRecord = {
+        id,
+        ownerUid: sentinel('owner'),
+        ownerName: 'Diagnostics Probe',
+        ownerMembership: 'STK-DIAG',
+        code: 'STK-REF-DIAG',
+        link: 'https://stakeyscycles.co.uk/?ref=STK-REF-DIAG',
+        timesShared: 0,
+        rewardsEarned: 0,
+        rewards: [],
+        referredFriends: [],
+        createdAt: new Date(),
+      } as ReferralRecord;
+      const client = getSupabaseClient();
+      try {
+        const ok = await upsertReferralToDb(referral);
+        const { data } = await client.from('referrals').select('id, code').eq('id', id).maybeSingle();
+        await deleteReferralFromDb(id);
+        if (ok && data && (data as any).code === 'STK-REF-DIAG') {
+          return { status: 'pass', detail: 'Referral written, read back and cleaned up.' };
+        }
+        return {
+          status: 'fail',
+          detail: `upsert=${ok}; row=${data ? JSON.stringify(data) : 'null'}`,
+          hint: 'Check the referrals table columns/grants (owner_uid, code, link, rewards, referred_friends).',
+        };
+      } catch (e) {
+        const message = err(e);
+        await deleteReferralFromDb(id);
+        return { status: 'fail', detail: message, hint: hintFor(message) };
+      }
+    },
+  },
+  {
+    id: 'assistant-config-read',
+    tables: ['assistant_config'],
+    area: 'content',
+    label: 'Read assistant config table',
+    description: 'Selects assistant_config so the staff-managed shop assistant can persist.',
+    run: () => probeRead('assistant_config'),
+  },
+
   // ---- Settings -----------------------------------------------------------
   {
     id: 'settings-read',
@@ -1256,6 +1363,126 @@ export const FEATURE_TESTS: FeatureTest[] = [
     },
   },
 
+  // ---- Push & email delivery ----------------------------------------------
+  {
+    id: 'push-runtime-config',
+    area: 'reach',
+    label: 'Push runtime config (/api/onesignal/config)',
+    description: 'Confirms the deployed back-end exposes the OneSignal App ID + server-push capability.',
+    run: async () => {
+      try {
+        const res = await fetch('/api/onesignal/config');
+        const data: any = await res.json().catch(() => null);
+        if (!res.ok || !data || typeof data !== 'object' || !('appId' in data)) {
+          return {
+            status: 'fail',
+            detail: `Endpoint returned ${res.status} ${friendlyType(res)} — no JSON config.`,
+            hint: 'The production host has no /api/onesignal/config function, so server pushes never fire (the SPA rewrite returns index.html). Deploy api/onesignal/config.js and set ONESIGNAL_REST_API_KEY.',
+          };
+        }
+        if (data.appId && data.serverPush) {
+          return { status: 'pass', detail: `App ID ${String(data.appId).slice(0, 8)}… and server push configured.` };
+        }
+        if (data.appId) {
+          return {
+            status: 'warn',
+            detail: 'App ID resolved but serverPush=false.',
+            hint: 'Set ONESIGNAL_REST_API_KEY (server-only) so pushes can be delivered while the app is closed.',
+          };
+        }
+        return { status: 'fail', detail: 'No OneSignal App ID returned.', hint: 'Set VITE_ONESIGNAL_APP_ID / ONESIGNAL_APP_ID.' };
+      } catch (e) {
+        return { status: 'fail', detail: err(e), hint: 'The request never reached the server.' };
+      }
+    },
+  },
+  {
+    id: 'push-server-dispatch',
+    area: 'reach',
+    label: 'Server push dispatch (/api/onesignal/notify)',
+    description: 'Sends a silent internal test to the endpoint to confirm it can reach OneSignal.',
+    run: async () => {
+      try {
+        const res = await fetch('/api/onesignal/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '__stakeys_diag__',
+            body: 'push probe',
+            segment: '__stakeys_diag_no_such_segment__',
+          }),
+        });
+        const data: any = await res.json().catch(() => null);
+        if (!data || typeof data !== 'object') {
+          return {
+            status: 'fail',
+            detail: `Endpoint returned ${res.status} ${friendlyType(res)} — no JSON.`,
+            hint: 'Deploy api/onesignal/notify.js (production) so server pushes have somewhere to go.',
+          };
+        }
+        // OneSignal reports { id, recipients } or { errors:[...] }. An unknown
+        // segment legitimately returns 200 with 0 recipients, which still proves
+        // the server reached the provider with a valid key.
+        if (data.errors && data.errors.length) {
+          return {
+            status: 'fail',
+            detail: `OneSignal: ${JSON.stringify(data.errors).slice(0, 160)}`,
+            hint: 'Usually a bad or missing ONESIGNAL_REST_API_KEY on the server.',
+          };
+        }
+        return { status: 'pass', detail: 'Server reached OneSignal and accepted the message envelope.' };
+      } catch (e) {
+        return { status: 'fail', detail: err(e), hint: 'The request never reached the server.' };
+      }
+    },
+  },
+
+  // ---- Transactional email ------------------------------------------------
+  {
+    id: 'email-booking-template',
+    area: 'email',
+    label: 'Booking confirmation email template',
+    description: 'Renders the workshop booking email and checks it is complete (customer, service, vehicle).',
+    run: async () => {
+      const html = generateBookingEmailHtml(
+        makeDiagBooking('diag-email'),
+        { ownerEmail: 'shop@example.com', ownerPhone: '+44 7000 000000', emailAlertsEnabled: true, businessName: "Stakey's Cycles" } as any
+      );
+      const checks: Array<[string, boolean]> = [
+        ['service title', html.includes('Diagnostics Service')],
+        ['customer name', html.includes('Diagnostics Probe')],
+        ['vehicle model', html.includes('Diagnostics Model')],
+        ['closing html', html.trim().endsWith('</html>')],
+      ];
+      const missing = checks.filter(([, ok]) => !ok).map(([n]) => n);
+      return missing.length === 0
+        ? { status: 'pass', detail: 'Workshop booking email renders all key fields.' }
+        : { status: 'fail', detail: `Template missing: ${missing.join(', ')}` };
+    },
+  },
+  {
+    id: 'email-sos-importance',
+    area: 'email',
+    label: 'SOS email flagged as high importance',
+    description: 'Renders an SOS booking email and confirms it is labelled SOS + marked high importance.',
+    run: async () => {
+      const booking = makeDiagBooking('diag-sos', { isSos: true, sosStatus: 'requested' });
+      const html = generateBookingEmailHtml(
+        booking,
+        { ownerEmail: 'shop@example.com', ownerPhone: '+44 7000 000000', emailAlertsEnabled: true, businessName: "Stakey's Cycles" } as any
+      );
+      const checks: Array<[string, boolean]> = [
+        ['SOS label', /SOS EMERGENCY/i.test(html)],
+        ['HIGH IMPORTANCE label', /HIGH IMPORTANCE/i.test(html)],
+        ['emergency title', /SOS Emergency Repair/i.test(html)],
+      ];
+      const missing = checks.filter(([, ok]) => !ok).map(([n]) => n);
+      return missing.length === 0
+        ? { status: 'pass', detail: 'SOS booking email is labelled emergency + high importance.' }
+        : { status: 'fail', detail: `SOS email missing: ${missing.join(', ')}` };
+    },
+  },
+
   // ---- Pure logic (no network) -------------------------------------------
   {
     id: 'logic-discount-maths',
@@ -1300,6 +1527,22 @@ export const FEATURE_TESTS: FeatureTest[] = [
       return r === 1.01
         ? { status: 'pass', detail: 'roundMoney(1.005) = 1.01.' }
         : { status: 'fail', detail: `roundMoney(1.005) = ${r}` };
+    },
+  },
+  {
+    id: 'logic-weather-report',
+    area: 'logic',
+    label: 'Riding weather report',
+    description: 'Builds a synthetic 7-day forecast and confirms each day grades for riding.',
+    run: async () => {
+      const report = syntheticWeatherReport();
+      const graded = report.days.every((d) => {
+        const c = ridingConditionsFor(d);
+        return c && typeof c.grade === 'string' && typeof c.headline === 'string';
+      });
+      return report.days.length === 7 && graded
+        ? { status: 'pass', detail: '7-day forecast built; every day has a riding grade + headline.' }
+        : { status: 'fail', detail: `days=${report.days.length}, graded=${graded}` };
     },
   },
 ];

@@ -7,7 +7,10 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
-vi.mock('./src/utils/notificationService', () => ({ dispatchTestEmail: vi.fn(async () => ({ success: true })) }));
+vi.mock('./src/utils/notificationService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./src/utils/notificationService')>()),
+  dispatchTestEmail: vi.fn(async () => ({ success: true })),
+}));
 vi.mock('./src/utils/pushNotifications', () => ({ sendPushToUser: vi.fn(async () => ({ ok: true, via: 'local' })) }));
 
 import { FEATURE_TESTS, runFeatureTests, summarize, AREA_LABELS } from './src/utils/featureDiagnostics';
@@ -46,6 +49,13 @@ describe('feature diagnostics engine', () => {
     const s = summarize(results);
     expect(s.pass).toBe(logicIds.length);
     expect(s.fail).toBe(0);
+  });
+
+  it('runs the offline email template checks and they pass', async () => {
+    const emailIds = FEATURE_TESTS.filter((t) => t.area === 'email').map((t) => t.id);
+    expect(emailIds.length).toBeGreaterThan(0);
+    const results = await runFeatureTests(undefined, emailIds);
+    expect(results.every((r) => r.status === 'pass')).toBe(true);
   });
 
   it('reports progress for each test as it completes', async () => {

@@ -16,12 +16,18 @@ export interface DispatchResult {
  * Generates branded HTML email content for the workshop owner/staff
  */
 export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerNotificationConfig): string {
+  const sos = Boolean(booking.isSos);
+  const alertBannerBg = sos ? '#7f1d1d' : '#1f2937';
+  const alertBannerColor = sos ? '#fecaca' : '#34d399';
+  const alertText = sos
+    ? '🚨 SOS EMERGENCY — PRIORITY CALL-OUT (EXPRESS QUEUE)'
+    : '⚡ NEW WORKSHOP REPAIR BOOKING RECEIVED';
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>New Service Booking - Stakey's Cycles & Scooter</title>
+  <title>${sos ? '🚨 SOS Emergency Repair' : 'New Service Booking'} - Stakey's Cycles & Scooter</title>
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0c0d0e; color: #ffffff; margin: 0; padding: 24px;">
   <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width: 600px; margin: 0 auto; background-color: #141517; border-radius: 16px; border: 1px solid #27272a; overflow: hidden;">
@@ -35,15 +41,29 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
 
     <!-- Alert Banner -->
     <tr>
-      <td style="background-color: #1f2937; padding: 12px 24px; border-bottom: 1px solid #374151; color: #34d399; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
-        ⚡ NEW WORKSHOP REPAIR BOOKING RECEIVED
+      <td style="background-color: ${alertBannerBg}; padding: 12px 24px; border-bottom: 1px solid #374151; color: ${alertBannerColor}; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+        ${alertText}
       </td>
     </tr>
+${sos ? `
+    <!-- SOS priority block -->
+    <tr>
+      <td style="padding: 20px 24px 0 24px;">
+        <table width="100%" border="0" cellspacing="0" cellpadding="12" style="background-color: #450a0a; border-radius: 12px; border: 2px solid #ef4444;">
+          <tr>
+            <td style="color: #fecaca; font-size: 15px; font-weight: 800; line-height: 1.5;">
+              🚨 SOS EMERGENCY REPAIR — HIGH IMPORTANCE<br />
+              <span style="font-weight: 600; font-size: 13px;">A rider is off the road and needs this job treated as priority. Jump the workshop queue and dispatch as soon as capacity allows.</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : ''}
 
     <!-- Booking Details Body -->
     <tr>
       <td style="padding: 28px 24px;">
-        <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 16px 0;">Booking #${booking.id}</h2>
+        <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 16px 0;">${sos ? '🚨 ' : ''}Booking #${booking.id}</h2>
 
         <table width="100%" border="0" cellspacing="0" cellpadding="8" style="background-color: #18181b; border-radius: 12px; margin-bottom: 20px; border: 1px solid #27272a;">
           <tr>
@@ -78,6 +98,13 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
               ${booking.approvalStatus === 'approved' ? '✅ Confirmed & Approved' : '⏳ Awaiting Workshop Review & Approval'}
             </td>
           </tr>
+          ${sos ? `
+          <tr>
+            <td style="color: #a1a1aa; font-size: 13px;">SOS Status:</td>
+            <td style="color: #f87171; font-size: 13px; font-weight: 700; text-transform: uppercase;">
+              🚨 ${(booking.sosStatus || 'requested').replace(/_/g, ' ')}
+            </td>
+          </tr>` : ''}
         </table>
 
         <!-- Customer Contact Details -->
@@ -477,6 +504,14 @@ export async function dispatchBookingNotifications(
   config: OwnerNotificationConfig
 ): Promise<DispatchResult> {
   const now = new Date();
+  const sos = Boolean(booking.isSos);
+  const ownerSubject = sos
+    ? `🚨 [STAKEY'S WORKSHOP] SOS EMERGENCY #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`
+    : `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`;
+  // High-importance headers so SOS mail is flagged in the workshop inbox.
+  const importantHeaders: Record<string, string> | undefined = sos
+    ? { 'Importance': 'high', 'X-Priority': '1', 'X-MSMail-Priority': 'High' }
+    : undefined;
 
   // 1. Workshop Owner/Staff Email Log
   const emailLog: BookingNotificationLog = {
@@ -485,7 +520,7 @@ export async function dispatchBookingNotifications(
     recipient: config.ownerEmail,
     recipientRole: 'owner',
     category: 'booking_confirmation',
-    subject: `⚡ NEW BOOKING: ${booking.customerName} - ${booking.serviceTitle} (${booking.preferredDate})`,
+    subject: ownerSubject,
     content: generateBookingEmailHtml(booking, config),
     timestamp: now,
     status: 'delivered',
@@ -522,8 +557,9 @@ export async function dispatchBookingNotifications(
         body: {
           from: 'noreply@stakeyscycles.co.uk',
           to: config.ownerEmail,
-          subject: `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`,
+          subject: ownerSubject,
           html: generateBookingEmailHtml(booking, config),
+          ...(importantHeaders ? { headers: importantHeaders } : {}),
         },
       });
 

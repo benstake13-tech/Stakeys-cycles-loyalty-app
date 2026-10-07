@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
     return json({ error: 'RESEND_API_KEY is not configured for the send-email function' }, 500);
   }
 
-  let payload: { to?: string; subject?: string; html?: string; from?: string; text?: string };
+  let payload: { to?: string; subject?: string; html?: string; from?: string; text?: string; headers?: Record<string, string> };
   try {
     payload = await req.json();
   } catch {
@@ -67,6 +67,11 @@ Deno.serve(async (req: Request) => {
   };
   if (payload.html) resendBody.html = payload.html;
   if (payload.text) resendBody.text = payload.text;
+  // Custom headers (e.g. Importance: high for SOS emergency mail). Resend
+  // accepts a plain key/value map and passes it through to the message.
+  if (payload.headers && Object.keys(payload.headers).length) {
+    resendBody.headers = payload.headers;
+  }
 
   try {
     const res = await fetch(RESEND_ENDPOINT, {

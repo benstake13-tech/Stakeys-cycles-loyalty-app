@@ -1731,6 +1731,22 @@ export async function upsertReferralToDb(referral: ReferralRecord): Promise<bool
   }
 }
 
+/** Removes a referral row (used by the test bench to clean up a sentinel). */
+export async function deleteReferralFromDb(referralId: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('referrals').delete().eq('id', referralId);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE referrals failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteReferralFromDb:', err);
+    return false;
+  }
+}
+
 export async function fetchCounterSalesFromDb(): Promise<SaleTransaction[]> {
   const supabase = getSupabaseClient();
   try {

@@ -45,6 +45,8 @@ const AREA_ORDER: FeatureArea[] = [
   'prizes',
   'content',
   'settings',
+  'reach',
+  'email',
   'logic',
 ];
 

@@ -46,7 +46,6 @@ import {
   FlaskConical,
   Gift,
   DatabaseZap,
-  Cable,
   CloudRain,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
@@ -61,7 +60,7 @@ import { PromotionsManagerTab } from './PromotionsManagerTab';
 import { DiscountCodesTab } from './DiscountCodesTab';
 import { CounterSaleTab } from './CounterSaleTab';
 import { ServiceStatusBadge } from './ServiceStatusBadge';
-
+import { BackendRepairModal } from './BackendRepairModal';
 import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
 import { AssistantManagerTab } from './AssistantManagerTab';
@@ -73,8 +72,7 @@ import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
-import { SchemaSyncModal } from './SchemaSyncModal';
-import { BridgeRepairModal } from './BridgeRepairModal';
+
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
@@ -128,9 +126,8 @@ export const StaffPortal: React.FC = () => {
   >('till');
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isSchemaSyncOpen, setIsSchemaSyncOpen] = useState(false);
+  const [isBackendRepairOpen, setIsBackendRepairOpen] = useState(false);
   const [isStaffAccountsSetupOpen, setIsStaffAccountsSetupOpen] = useState(false);
-  const [isBridgeRepairOpen, setIsBridgeRepairOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -496,12 +493,12 @@ export const StaffPortal: React.FC = () => {
 
                   <button
                     type="button"
-                    onClick={() => setIsSchemaSyncOpen(true)}
-                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/20 cursor-pointer"
-                    title="Audit the live Supabase schema and copy a sync SQL script"
+                    onClick={() => setIsBackendRepairOpen(true)}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-400 to-fuchsia-500 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/20 cursor-pointer"
+                    title="Audit the live schema, re-link the app bridge and copy the one-shot sync & repair SQL — then reconnect"
                   >
                     <DatabaseZap className="w-4 h-4" />
-                    <span>Fix Database Schema</span>
+                    <span>Sync &amp; Repair Backend</span>
                   </button>
 
                   <button
@@ -512,16 +509,6 @@ export const StaffPortal: React.FC = () => {
                   >
                     <ShieldCheck className="w-4 h-4" />
                     <span>Set Up Staff Accounts</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsBridgeRepairOpen(true)}
-                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-400 text-neutral-950 text-xs font-bold shadow-md shadow-fuchsia-500/20 cursor-pointer"
-                    title="Re-link website & customer loyalty profiles to staff-side Supabase logins and copy the repair SQL"
-                  >
-                    <Cable className="w-4 h-4" />
-                    <span>Repair App Bridge</span>
                   </button>
 
                   <button
@@ -1250,8 +1237,7 @@ export const StaffPortal: React.FC = () => {
       />
 
       {/* Live schema audit + sync SQL (fixes app <-> Supabase drift) */}
-      {isSchemaSyncOpen && <SchemaSyncModal onClose={() => setIsSchemaSyncOpen(false)} />}
-      {isBridgeRepairOpen && <BridgeRepairModal onClose={() => setIsBridgeRepairOpen(false)} />}
+      {isBackendRepairOpen && <BackendRepairModal onClose={() => setIsBackendRepairOpen(false)} />}
       {isStaffAccountsSetupOpen && (
         <StaffAccountsSetupModal onClose={() => setIsStaffAccountsSetupOpen(false)} />
       )}
