@@ -181,4 +181,20 @@ describe('pushNotifications (OneSignal)', () => {
     expect(first).toBe(true);
     expect(second).toBe(true);
   });
+
+  it('adminPushTarget addresses the owner_email tag group at the admin inbox', async () => {
+    const { adminPushTarget, ADMIN_NOTIFICATION_EMAIL } = await load();
+    expect(ADMIN_NOTIFICATION_EMAIL).toBe('stakeyscycle95@gmail.com');
+    expect(adminPushTarget()).toEqual({ tag: { key: 'owner_email', value: 'stakeyscycle95@gmail.com' } });
+  });
+
+  it('an admin-targeted push is sent as a tag, never a broadcast segment', async () => {
+    const { sendPushToUser, adminPushTarget } = await load();
+    await sendPushToUser(undefined, 'T', 'B', undefined, adminPushTarget());
+    const call = (fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('/api/onesignal/notify'));
+    const body = JSON.parse(call[1].body);
+    expect(body.tag).toEqual({ key: 'owner_email', value: 'stakeyscycle95@gmail.com' });
+    expect(body.segment).toBeUndefined();
+    expect(body.externalUserId).toBeUndefined();
+  });
 });

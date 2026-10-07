@@ -36,7 +36,7 @@ import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
 import { Toaster } from 'react-hot-toast';
-import { initOneSignal, linkUser, unlinkUser, registerEmailSubscription } from './utils/pushNotifications';
+import { initOneSignal, linkUser, unlinkUser, registerEmailSubscription, ADMIN_NOTIFICATION_EMAIL } from './utils/pushNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
 
 // The entire staff area is only ever bundled into the full/staff surfaces; the
@@ -47,7 +47,7 @@ const StaffPortal: React.LazyExoticComponent<React.ComponentType> = React.lazy(a
 });
 
 function AppContent() {
-  const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme, reminderOwnerEmail } = useShop();
+  const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   // Logged-out visitors land on the public marketing website, not the login form.
@@ -100,17 +100,20 @@ function AppContent() {
     if (currentUser) {
       const isStaffUser = currentUser.role === 'staff' || currentUser.role === 'admin';
       const tags: Record<string, string> = { role: currentUser.role || 'customer' };
-      // Tag staff devices with the workshop owner email so the 24-hour reminder
-      // push can reach every device attached to it (see notificationService).
-      if (isStaffUser && reminderOwnerEmail) tags.owner_email = reminderOwnerEmail;
-      void linkUser(currentUser.uid, tags);
-      if (isStaffUser && reminderOwnerEmail) {
-        void registerEmailSubscription(reminderOwnerEmail);
+      // Every device that should receive the workshop's admin alerts is tagged
+      // with the admin inbox, so booking/system pushes can be addressed to it
+      // (see adminPushTarget). The tag value is fixed to the admin email — not
+      // the configurable reminder address — so an alert can never be pointed at
+      // the wrong inbox.
+      if (isStaffUser) {
+        tags.owner_email = ADMIN_NOTIFICATION_EMAIL;
+        void registerEmailSubscription(ADMIN_NOTIFICATION_EMAIL);
       }
+      void linkUser(currentUser.uid, tags);
     } else {
       void unlinkUser();
     }
-  }, [currentUser?.uid, currentUser?.role, reminderOwnerEmail]);
+  }, [currentUser?.uid, currentUser?.role]);
 
   const openStaffUnlock = () => {
     setStaffError(null);

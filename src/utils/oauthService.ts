@@ -39,8 +39,25 @@ export const OAUTH_PROVIDERS: Record<
   },
 };
 
+/**
+ * Reads the public OAuth client id for a provider.
+ *
+ * These MUST be read as literal `import.meta.env.VITE_*` accesses. Indexing the
+ * env object dynamically (e.g. `import.meta.env[name]`) makes Vite inline the
+ * WHOLE environment — including server-only secrets like
+ * `VITE_ONESIGNAL_REST_API_KEY` — into the public browser bundle. The switch
+ * below keeps each read a static property access so only these two public
+ * values can ever be inlined.
+ */
 export function getClientId(provider: OAuthProvider): string | undefined {
-  return (import.meta as any).env?.[OAUTH_PROVIDERS[provider].clientIdEnv] as string | undefined;
+  switch (provider) {
+    case 'google':
+      return import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    case 'meta':
+      return import.meta.env.VITE_META_APP_ID as string | undefined;
+    default:
+      return undefined;
+  }
 }
 
 export function isProviderConfigured(provider: OAuthProvider): boolean {

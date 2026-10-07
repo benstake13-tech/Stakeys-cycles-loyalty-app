@@ -376,7 +376,9 @@ export async function runPushRepair(
     });
   }
 
-  // 7. End-to-end dispatch probe.
+  // 7. End-to-end dispatch probe. This is the one step that actually SENDS a
+  //    message, so it only runs when this pass is allowed to perform the
+  //    dispatch repair — a read-only check must never fire a push.
   if (!serverPush) {
     steps.push({
       id: 'dispatch',
@@ -385,6 +387,15 @@ export async function runPushRepair(
       detail: 'Skipped — server push is not configured yet.',
       hint: 'Fix the server push config above, then re-run.',
       facts: [{ label: 'Reached OneSignal', value: 'no (skipped)', ok: false }],
+    });
+  } else if (!canRepair('dispatch')) {
+    steps.push({
+      id: 'dispatch',
+      label: 'Test push dispatch',
+      status: 'warn',
+      detail: 'Not sent — a test push is only dispatched during a repair, not a read-only check.',
+      hint: 'Press “Repair & Configure Push” (or “Fix” on this step) to send a real test push to the admin devices.',
+      facts: [{ label: 'Reached OneSignal', value: 'no (check-only)', ok: false }],
     });
   } else {
     const res = await safe(
@@ -431,7 +442,7 @@ export async function runPushRepair(
         label: 'Test push dispatch',
         status: 'fail',
         detail: 'Push dispatch did not return a usable response.',
-        hint: 'Deploy api/onesignal/notify.js and set ONESIGNAL_REST_API_KEY.',
+        hint: 'Deploy api/onesignal/notify.js and set ONESIGNAL_REST_API_KEY (or VITE_ONESIGNAL_REST_API_KEY) on the server.',
         facts: dispatchFacts,
       });
     }
