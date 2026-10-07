@@ -205,3 +205,19 @@
   }
 }
 
+/* Printing: drop on-screen-only chrome and force black-on-white so a dark
+   themed report comes out of the printer legible (browsers strip backgrounds). */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+  }
+  * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+}
+
