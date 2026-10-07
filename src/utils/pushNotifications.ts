@@ -192,6 +192,63 @@ export async function getSubscriptionId(): Promise<string | null> {
   return (id as string) || null;
 }
 
+/** Whether this device's push subscription is opted in (null when unknown). */
+export async function isPushSubscribed(): Promise<boolean | null> {
+  const optedIn = await withOneSignal((os) => os?.User?.PushSubscription?.optedIn ?? null);
+  return typeof optedIn === 'boolean' ? optedIn : null;
+}
+
+/**
+ * Explicitly opts this device in. Granting browser permission is not always
+ * enough — a device that was previously soft-unsubscribed needs `optIn()` to
+ * start receiving pushes again. Returns the subscription id afterwards.
+ */
+export async function optInPushSubscription(): Promise<string | null> {
+  await withOneSignal(async (os) => {
+    try {
+      await os?.User?.PushSubscription?.optIn?.();
+    } catch (err) {
+      console.warn('[OneSignal] optIn failed:', err);
+    }
+  });
+  return getSubscriptionId();
+}
+
+/** localStorage key holding a staff-set App ID override. */
+export const APP_ID_OVERRIDE_KEY = 'stakeys.onesignal.appId';
+
+/** The App ID the app is currently configured to use (override or env). */
+export function getConfiguredAppId(): string {
+  const override = readAppIdOverride();
+  return override || envAppId || '';
+}
+
+function readAppIdOverride(): string {
+  try {
+    return (localStorage.getItem(APP_ID_OVERRIDE_KEY) || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Stores an App ID override for index.html to pick up on the next load, or
+ * clears it when given an empty value. Returns true when the stored value
+ * actually changed (so the caller knows a reload is required).
+ */
+export function setConfiguredAppId(appId: string): boolean {
+  const clean = String(appId || '').trim();
+  try {
+    const current = readAppIdOverride();
+    if (clean === current) return false;
+    if (clean) localStorage.setItem(APP_ID_OVERRIDE_KEY, clean);
+    else localStorage.removeItem(APP_ID_OVERRIDE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface PushSendResult {
   ok: boolean;
   via: 'server' | 'local' | 'none';
