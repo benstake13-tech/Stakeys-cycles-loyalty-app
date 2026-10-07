@@ -189,6 +189,12 @@ export interface UserProfile {
   avatarColor?: string; // High-quality SVG FaceAvatar configuration
   bikes?: CustomerBike[]; // Personal registered bikes in customer's garage
   serviceVouchers?: CollectedVoucher[]; // Collected rewards such as £40 service voucher
+  /** Refer a Friend code used when this customer signed up, if any. */
+  referredByCode?: string;
+  /** The customer's own Refer a Friend code (generated on first visit). */
+  referralCode?: string;
+  /** £5 credits earned from successful referrals. */
+  referralRewards?: ReferralReward[];
 }
 
 export interface PrizeWheelSegment {
@@ -365,6 +371,57 @@ export interface DiscountCode {
   createdBy?: string;
 }
 
+/** The £15-off-a-full-service reward a referred friend books with. */
+export interface ReferralFriendReward {
+  code: string;
+  discount: number;
+  status: 'issued' | 'redeemed';
+  issuedAt: string;
+  redeemedAt?: string;
+}
+
+/** The £5 thank-you credit a referrer earns once a friend's booking is approved. */
+export interface ReferralReward {
+  id: string;
+  amount: number;
+  status: 'pending' | 'earned' | 'redeemed';
+  friendName: string;
+  earnedAt: string;
+  redeemedAt?: string;
+}
+
+/**
+ * A "Refer a Friend" record: one row per customer. The owner's code is shared
+ * with friends; a friend who signs up and books with it gets £15 off a full
+ * service, and the referrer earns a £5 credit once that booking is approved.
+ */
+export interface ReferralRecord {
+  id: string;
+  /** The customer who owns the shareable code (and earns the £5). */
+  ownerUid: string;
+  ownerName: string;
+  ownerMembership?: string;
+  code: string;
+  /** The referral link customers copy/share, e.g. https://…/?ref=STK-REF-123456 */
+  link: string;
+  timesShared: number;
+  rewardsEarned: number;
+  /** £5 credits the referrer has earned. */
+  rewards: ReferralReward[];
+  /** Friends who signed up with this code and their booking reward status. */
+  referredFriends: Array<{
+    friendUid?: string;
+    friendName: string;
+    friendEmail?: string;
+    joinedAt: string;
+    bookingId?: string;
+    bookingApproved: boolean;
+    rewardGranted: boolean;
+    friendReward?: ReferralFriendReward;
+  }>;
+  createdAt: any;
+}
+
 /** A billable line on a counter sale. */
 export interface SaleLineItem {
   id: string;
@@ -492,6 +549,8 @@ export interface ServiceBooking {
   notes?: string;
   selectedIssues?: string[];
   otherNotes?: string;
+  /** Refer a Friend code used at booking time, if any (friend's £15 reward). */
+  referralCode?: string;
   status: BookingStatus;
   approvalStatus?: 'pending_approval' | 'approved' | 'declined';
   approvedAt?: any;

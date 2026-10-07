@@ -15,6 +15,7 @@ import {
   Award,
   ShieldCheck,
   MapPin,
+  Gift,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
@@ -30,6 +31,14 @@ import {
   isEbike,
 } from './BikeIdentityFields';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
+import { PolicyDisclaimers } from './PolicyDisclaimers';
+import { BOOKING_POLICY_DISCLAIMERS } from '../utils/workshopPolicy';
+import {
+  referralCodeFromSearch,
+  isFullService,
+  describeFriendReward,
+  FRIEND_REWARD,
+} from '../utils/referral';
 import {
   createBookingMailtoUrl,
   createCustomerMailtoUrl,
@@ -112,6 +121,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   });
   const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>(TIME_SLOT_OPTIONS[0]);
   const [notes, setNotes] = useState<string>('');
+
+  // Refer a Friend: prefilled from a ?ref= link, editable so staff can key a
+  // code in for a walk-in, and shown as £15 off only when a full service is
+  // chosen (see referral.isFullService).
+  const [referralCode, setReferralCode] = useState<string>('');
+  useEffect(() => {
+    const fromLink = referralCodeFromSearch();
+    if (fromLink) setReferralCode((prev) => prev || fromLink);
+  }, []);
 
   // Service type: bring it to the workshop, or a mobile call-out at the rider's home.
   const [serviceType, setServiceType] = useState<'in_shop' | 'home_visit'>('in_shop');
@@ -256,6 +274,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     };
   }, [problemSelectionMode, selectedProblemId, selectedIssueIds, problemNotes]);
 
+  // A referral code only unlocks the £15 friend reward on a full service.
+  const referralIsFullService = isFullService(computedService.serviceId, computedService.headline);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -360,6 +381,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               .join('\n')
           : 'SERVICE TYPE: Drop off at workshop';
 
+      const referralNote = referralCode.trim()
+        ? `Refer a Friend code: ${referralCode.trim()}${
+            referralIsFullService ? ' (£15 off full service to apply)' : ' (not a full service — reward not applicable)'
+          }`
+        : '';
+
       const finalNotes = [
         serviceTypeBlock,
         bikeBlock,
@@ -367,6 +394,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
         notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
         voucherNote,
+        referralNote,
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -392,6 +420,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         preferredDate: serviceType === 'home_visit' ? todayIso : preferredDate,
         preferredTimeSlot: serviceType === 'home_visit' ? homeVisitTime : preferredTimeSlot,
         notes: finalNotes,
+        referralCode: referralCode.trim() || undefined,
         selectedIssues: selectedIssueIds,
         otherNotes: problemNotes.trim() || undefined,
       });
@@ -423,6 +452,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const handleBookAnother = () => {
     setSubmittedBooking(null);
     setNotes('');
+    setReferralCode('');
   };
 
   // Website surface: after the confirmation is shown, send the visitor back to
@@ -1252,6 +1282,36 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <span className="font-semibold text-white">Repair Booking Policy: </span>
               All bookings are submitted as <em>Pending Staff Approval</em>. Once reviewed, you receive an automated confirmation email notifying you if the booking has been accepted or declined.
             </div>
+          </div>
+
+          <PolicyDisclaimers
+            items={BOOKING_POLICY_DISCLAIMERS}
+            title="Workshop terms & policy"
+            tone="amber"
+          />
+
+          {/* Refer a Friend code */}
+          <div>
+            <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+              Refer a Friend Code <span className="text-neutral-500">(Optional)</span>
+            </label>
+            <div className="relative">
+              <Gift className="w-4 h-4 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={referralCode}
+                onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                placeholder="STK-REF-123456"
+                className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm font-mono tracking-wider text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+            <p className={`text-[11px] mt-1 ${referralCode.trim() && !referralIsFullService ? 'text-amber-400' : 'text-neutral-500'}`}>
+              {referralCode.trim()
+                ? referralIsFullService
+                  ? `✓ This booking qualifies for ${describeFriendReward()} — your friend's code will be credited once approved.`
+                  : `The £${FRIEND_REWARD} referral reward only applies to a full service. Your code is still recorded for the referrer.`
+                : `Been referred by a friend? Enter their code to get ${describeFriendReward()}.`}
+            </p>
           </div>
 
           <div>

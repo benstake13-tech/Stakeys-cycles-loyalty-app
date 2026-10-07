@@ -22,6 +22,7 @@ import {
   RepairInvoice,
   StaffMember,
   ShopPromotion,
+  ReferralRecord,
 } from '../types/bikeShop';
 
 export interface DatabaseSyncStatus {
@@ -271,6 +272,7 @@ export async function fetchServiceBookingsFromDb(
         preferredDate: row.preferred_date,
         preferredTimeSlot: row.preferred_time_slot,
         notes: row.notes || undefined,
+        referralCode: row.referral_code || undefined,
         status: row.status || 'pending',
         approvalStatus: row.approval_status || (row.status === 'confirmed' ? 'approved' : 'pending_approval'),
         approvedAt: row.approved_at || undefined,
@@ -329,12 +331,14 @@ export async function insertServiceBookingToDb(
         estimate_ready_at: booking.estimateReadyAt || null,
       };
       if (includeBikeDetails && booking.bikeDetails) payload.bike_details = booking.bikeDetails;
+      if (includeBikeDetails && booking.referralCode) payload.referral_code = booking.referralCode;
       return payload;
     };
 
     let { error } = await supabase.from('service_bookings').insert(buildPayload(true));
     if (error) {
-      // Older project without the bike_details column — still save the booking.
+      // Older project without the bike_details/referral_code columns — still
+      // save the booking.
       const retry = await supabase.from('service_bookings').insert(buildPayload(false));
       error = retry.error;
     }
@@ -1623,6 +1627,68 @@ export async function incrementDiscountUsageInDb(id: string, timesUsed: number):
     return true;
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] incrementDiscountUsageInDb:', err);
+    return false;
+  }
+}
+
+function mapReferralRow(row: any): ReferralRecord {
+  return {
+    id: row.id,
+    ownerUid: row.owner_uid || '',
+    ownerName: row.owner_name || 'Stakey’s Customer',
+    ownerMembership: row.owner_membership || undefined,
+    code: row.code || '',
+    link: row.link || '',
+    timesShared: Number(row.times_shared) || 0,
+    rewardsEarned: Number(row.rewards_earned) || 0,
+    rewards: Array.isArray(row.rewards) ? row.rewards : [],
+    referredFriends: Array.isArray(row.referred_friends) ? row.referred_friends : [],
+    createdAt: row.created_at ? new Date(row.created_at) : new Date(),
+  };
+}
+
+export async function fetchReferralsFromDb(): Promise<ReferralRecord[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('referrals')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] SELECT referrals failed:', error.message);
+      return [];
+    }
+    return (data || []).map(mapReferralRow);
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchReferralsFromDb:', err);
+    return [];
+  }
+}
+
+export async function upsertReferralToDb(referral: ReferralRecord): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: referral.id,
+      owner_uid: referral.ownerUid,
+      owner_name: referral.ownerName,
+      owner_membership: referral.ownerMembership || null,
+      code: referral.code,
+      link: referral.link,
+      times_shared: referral.timesShared || 0,
+      rewards_earned: referral.rewardsEarned || 0,
+      rewards: referral.rewards || [],
+      referred_friends: referral.referredFriends || [],
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('referrals').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] UPSERT referrals failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertReferralToDb:', err);
     return false;
   }
 }

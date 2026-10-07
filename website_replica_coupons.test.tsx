@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DEFAULT_WEBSITE_CONTENT } from './src/data/websiteContent';
 
@@ -64,5 +64,14 @@ describe('website coupon panel', () => {
     expect(screen.getAllByText('WEB-5OFF').length).toBeGreaterThan(0);
     expect(screen.queryByText('MEM-15OFF')).toBeNull();
     expect(screen.queryByText(/No active coupon codes right now/i)).toBeNull();
+  });
+
+  it('lets a visitor copy a code for use in-store', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<WebsiteReplica onBookService={vi.fn()} />);
+    const copyButtons = screen.getAllByTitle('Copy code');
+    fireEvent.click(copyButtons[0]);
+    expect(writeText).toHaveBeenCalled();
   });
 });
