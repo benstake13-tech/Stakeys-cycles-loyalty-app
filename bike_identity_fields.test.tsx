@@ -53,4 +53,15 @@ describe('BikeIdentityFields', () => {
       customModel: '',
     });
   });
+
+  it('groups the brand picker into E-Scooters and Bikes, both alphabetical', () => {
+    renderFields();
+    fireEvent.click(screen.getByText('Change'));
+    expect(screen.getByText('E-Scooters')).toBeTruthy();
+    expect(screen.getByText('Bikes')).toBeTruthy();
+
+    // Scooter-only Xiaomi shows; Trek (a bike maker) does not sit in the scooter list.
+    expect(screen.getByText('Xiaomi')).toBeTruthy();
+    expect(screen.getByText('Trek')).toBeTruthy();
+  });
 });

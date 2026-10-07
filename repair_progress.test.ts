@@ -18,7 +18,7 @@ const baseBooking: ServiceBooking = {
   id: 'bk-1042',
   customerName: 'Ada Lovelace',
   customerEmail: 'ada@example.com',
-  customerPhone: '07911 882910',
+  customerPhone: '07388 209102',
   membershipNumber: 'STK-123456',
   vehicleCategory: 'cycle',
   vehicleModel: 'Trek Domane',
@@ -113,7 +113,7 @@ describe('matchesRepairQuery (public tracker lookup)', () => {
   });
 
   it('matches a partial phone number, email, membership and name', () => {
-    expect(matchesRepairQuery(baseBooking, '882910')).toBe(true);
+    expect(matchesRepairQuery(baseBooking, '209102')).toBe(true);
     expect(matchesRepairQuery(baseBooking, 'ADA@EXAMPLE')).toBe(true);
     expect(matchesRepairQuery(baseBooking, 'stk-123456')).toBe(true);
     expect(matchesRepairQuery(baseBooking, 'lovelace')).toBe(true);

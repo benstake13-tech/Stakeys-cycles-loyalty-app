@@ -295,7 +295,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
 
         <div className="relative z-10 flex items-center gap-4 text-[11px] text-neutral-400">
           <span className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Supabase secured
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Secure &amp; encrypted
           </span>
           <span className="flex items-center gap-1.5">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Workshop certified
@@ -434,7 +434,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
                     <span>Workshop Staff Station</span>
                   </div>
                   <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-neutral-900 text-emerald-400 border border-neutral-700">
-                    Supabase Secured
+                    Encrypted
                   </span>
                 </div>
                 <p className="text-[11px] text-neutral-400">
@@ -669,7 +669,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
                     type="tel"
                     value={registerPhone}
                     onChange={(e) => setRegisterPhone(e.target.value)}
-                    placeholder="e.g. +44 7911 882910"
+                    placeholder="e.g. +44 7388 209102"
                     className="w-full bg-neutral-950 border border-neutral-700/80 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-[#05C147] focus:ring-1 focus:ring-[#05C147] transition-all"
                   />
                 </div>

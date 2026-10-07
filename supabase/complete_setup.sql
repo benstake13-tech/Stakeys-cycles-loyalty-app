@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS public.service_bookings (
   repair_stage TEXT DEFAULT 'received',
   progress_events JSONB DEFAULT '[]'::jsonb,
   estimate_ready_at TEXT,
+  invoice JSONB,
   approval_status TEXT DEFAULT 'pending_approval',
   approved_at TIMESTAMPTZ,
   approved_by TEXT,
@@ -320,6 +321,7 @@ ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS reminder_24h_sent B
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS repair_stage TEXT DEFAULT 'received';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS progress_events JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS estimate_ready_at TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS invoice JSONB;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending_approval';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approved_at TIMESTAMPTZ;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS approved_by TEXT;

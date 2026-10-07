@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Calendar,
   Clock,
@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Award,
   ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
@@ -38,10 +39,16 @@ import confetti from 'canvas-confetti';
 interface BookingPortalProps {
   initialBikeId?: string;
   onGoToMyBikes?: () => void;
+  /**
+   * Called after a booking is submitted. The website surface uses this to send
+   * the visitor back to the homepage once their confirmation has been shown.
+   */
+  onBookingComplete?: () => void;
 }
 
-export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes }) => {
+export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes, onBookingComplete }) => {
   const { currentUser, createBooking, redeemServiceVoucher, ownerConfig } = useShop();
+  const todayIso = new Date().toISOString().split('T')[0];
 
   // If user has saved bikes in profile, check if initialBikeId is set
   const savedBikes = currentUser?.bikes || [];
@@ -97,7 +104,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   // Contact & Schedule
   const [customerName, setCustomerName] = useState<string>(currentUser?.displayName || '');
   const [customerEmail, setCustomerEmail] = useState<string>(currentUser?.email || '');
-  const [customerPhone, setCustomerPhone] = useState<string>(currentUser?.phoneNumber || '+44 7911 882910');
+  const [customerPhone, setCustomerPhone] = useState<string>(currentUser?.phoneNumber || '');
   const [preferredDate, setPreferredDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 2);
@@ -106,8 +113,16 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>(TIME_SLOT_OPTIONS[0]);
   const [notes, setNotes] = useState<string>('');
 
+  // Service type: bring it to the workshop, or a mobile call-out at the rider's home.
+  const [serviceType, setServiceType] = useState<'in_shop' | 'home_visit'>('in_shop');
+  const [homeAddress, setHomeAddress] = useState<string>('');
+  const [homeVisitTime, setHomeVisitTime] = useState<string>(TIME_SLOT_OPTIONS[0]);
+  const [fixLocation, setFixLocation] = useState<'inside' | 'outside' | ''>('');
+
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Synchronous guard so a double-tap can't create two bookings (and two emails).
+  const isSubmittingRef = useRef(false);
   const [submittedBooking, setSubmittedBooking] = useState<any | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -132,7 +147,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const issuesStepComplete = problemSelectionMode === 'packages'
     ? Boolean(selectedProblemId)
     : selectedIssueIds.length > 0 || problemNotes.trim().length > 0;
-  const scheduleStepComplete = Boolean(preferredDate && preferredTimeSlot);
+  const scheduleStepComplete = Boolean(
+    serviceType === 'home_visit'
+      ? homeAddress.trim() && homeVisitTime
+      : preferredDate && preferredTimeSlot
+  );
   const contactStepComplete = Boolean(customerName.trim() && customerPhone.trim());
   const bookingProgress = [bikeStepComplete, issuesStepComplete, scheduleStepComplete, contactStepComplete].filter(Boolean).length;
 
@@ -253,7 +272,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       setFormError('Please enter a valid email address or leave it blank to be notified via phone.');
       return;
     }
-    if (!preferredDate) {
+    if (serviceType === 'home_visit' && !homeAddress.trim()) {
+      setFormError('Please enter the address where we should meet you for the call-out.');
+      return;
+    }
+    if (serviceType === 'in_shop' && !preferredDate) {
       setFormError('Please choose a preferred drop-off date.');
       return;
     }
@@ -280,6 +303,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       applyVoucher && availableServiceVouchers.length > 0 ? availableServiceVouchers[0] : null;
     const effectivePrice = 0; // Priced upon completion by staff quote/invoice
 
+    // A double-tap can fire handleSubmit twice before React disables the button,
+    // so block re-entry synchronously before we create the booking.
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
       const voucherNote = selectedVoucher
@@ -321,7 +348,20 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         .filter(Boolean)
         .join('\n');
 
+      const serviceTypeBlock =
+        serviceType === 'home_visit'
+          ? [
+              'SERVICE TYPE: Home visit / call-out',
+              `Address: ${homeAddress.trim()}`,
+              `Preferred visit time: ${homeVisitTime}`,
+              fixLocation ? `Where to work: ${fixLocation === 'inside' ? 'Inside (garage/home)' : 'Outside (driveway/kerbside)'}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n')
+          : 'SERVICE TYPE: Drop off at workshop';
+
       const finalNotes = [
+        serviceTypeBlock,
         bikeBlock,
         issuesBlock,
         problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
@@ -349,8 +389,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           ? `${computedService.headline} (£40 Voucher Applied)`
           : computedService.headline,
         servicePrice: effectivePrice,
-        preferredDate,
-        preferredTimeSlot,
+        preferredDate: serviceType === 'home_visit' ? todayIso : preferredDate,
+        preferredTimeSlot: serviceType === 'home_visit' ? homeVisitTime : preferredTimeSlot,
         notes: finalNotes,
         selectedIssues: selectedIssueIds,
         otherNotes: problemNotes.trim() || undefined,
@@ -375,6 +415,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     } catch (err: any) {
       setFormError(err.message || 'Failed to submit booking. Please try again.');
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   };
@@ -383,6 +424,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     setSubmittedBooking(null);
     setNotes('');
   };
+
+  // Website surface: after the confirmation is shown, send the visitor back to
+  // the homepage automatically. Signed-in surfaces pass no callback, so their
+  // confirmation screen (with "Book Another") is left untouched.
+  useEffect(() => {
+    if (!submittedBooking || !onBookingComplete) return;
+    const timer = setTimeout(() => {
+      onBookingComplete();
+    }, 6000);
+    return () => clearTimeout(timer);
+  }, [submittedBooking, onBookingComplete]);
 
   // SUCCESS CONFIRMATION VOUCHER
   if (submittedBooking) {
@@ -448,9 +500,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">Drop-off Schedule:</span>
+              <span className="text-neutral-400">{serviceType === 'home_visit' ? 'Call-Out Schedule:' : 'Drop-off Schedule:'}</span>
               <span className="text-neutral-200">
-                {submittedBooking.preferredDate} ({submittedBooking.preferredTimeSlot})
+                {serviceType === 'home_visit'
+                  ? `${submittedBooking.preferredTimeSlot} · ${homeAddress}`
+                  : `${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot})`}
               </span>
             </div>
             <div className="flex justify-between py-1">
@@ -546,9 +600,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                     <Clock className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="font-bold text-white mb-0.5">Automated 24-Hour Email Reminder Active</div>
+                    <div className="font-bold text-white mb-0.5">
+                      {serviceType === 'home_visit' ? 'Call-Out Confirmation' : 'Automated 24-Hour Email Reminder Active'}
+                    </div>
                     <div className="text-neutral-300 leading-relaxed text-[11px]">
-                      An automated reminder email will be delivered to your inbox (<strong>{submittedBooking.customerEmail}</strong>) 24 hours prior to your scheduled service slot on <strong>{submittedBooking.preferredDate}</strong> ({submittedBooking.preferredTimeSlot}).
+                      {serviceType === 'home_visit'
+                        ? `We'll contact you on your number to confirm the arrival slot for your call-out on ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}).`
+                        : `An automated reminder email will be delivered to your inbox (${submittedBooking.customerEmail}) 24 hours prior to your scheduled service slot on ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}).`}
                     </div>
                   </div>
                 </div>
@@ -558,8 +616,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
           {/* What to do next */}
           <div className="py-5 text-xs text-neutral-400 space-y-2">
-            <div className="text-neutral-200 font-medium mb-1">Drop-off instructions:</div>
-            <div>Bring your bike to Stakey's Cycles during your selected time window. Our workshop mechanic will perform a safety check with you before beginning repairs.</div>
+            <div className="text-neutral-200 font-medium mb-1">
+              {serviceType === 'home_visit' ? 'What happens next:' : 'Drop-off instructions:'}
+            </div>
+            <div>
+              {serviceType === 'home_visit'
+                ? "We'll text you to confirm the exact arrival slot for your mobile call-out. Please have your bike accessible and, for e-bikes and e-scooters, the battery key and charger ready."
+                : "Bring your bike to Stakey's Cycles during your selected time window. Our workshop mechanic will perform a safety check with you before beginning repairs."}
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
@@ -668,7 +732,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <span className="text-neutral-300 truncate max-w-[220px]">{computedService.headline}</span>
           <span className="text-neutral-500 hidden sm:inline">•</span>
           <span className="text-neutral-400">
-            {preferredDate} · {preferredTimeSlot}
+            {serviceType === 'home_visit' ? `Call-out · ${homeVisitTime}` : `${preferredDate} · ${preferredTimeSlot}`}
           </span>
           <span className="ml-auto text-emerald-400 font-semibold">Ask for a quote</span>
         </div>
@@ -948,9 +1012,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               {scheduleStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '03'}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-display text-base font-bold text-white">Drop-Off Window</h3>
+              <h3 className="font-display text-base font-bold text-white">
+                {serviceType === 'home_visit' ? 'Mobile Call-Out' : 'Drop-Off Window'}
+              </h3>
               <p className="text-xs text-neutral-400">
-                {scheduleStepComplete ? `${preferredDate} · ${preferredTimeSlot}` : 'Choose your preferred drop-off date and time slot.'}
+                {scheduleStepComplete
+                  ? serviceType === 'home_visit'
+                    ? `${homeVisitTime} · ${homeAddress}`
+                    : `${preferredDate} · ${preferredTimeSlot}`
+                  : 'Choose how you want us to fix it, then pick a time.'}
               </p>
             </div>
             <ChevronDown
@@ -962,6 +1032,108 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
           {openSteps.schedule && (
           <>
+          {/* How would you like it fixed? */}
+          <div className="pt-2">
+            <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+              How would you like it fixed?
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {([
+                { id: 'in_shop', title: 'Drop off at workshop', desc: 'Bring it to us — fastest turnaround.' },
+                { id: 'home_visit', title: 'Home visit / call-out', desc: 'We come to your address (mobile service).' },
+              ] as const).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setServiceType(opt.id)}
+                  className={`text-left rounded-xl border p-3 cursor-pointer transition-colors ${
+                    serviceType === opt.id
+                      ? 'border-emerald-500/60 bg-emerald-500/10'
+                      : 'border-neutral-800 bg-neutral-900/60 hover:border-neutral-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {opt.id === 'home_visit' ? (
+                      <MapPin className={`w-4 h-4 ${serviceType === opt.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                    ) : (
+                      <Wrench className={`w-4 h-4 ${serviceType === opt.id ? 'text-emerald-400' : 'text-neutral-500'}`} />
+                    )}
+                    <span className={`text-xs font-semibold ${serviceType === opt.id ? 'text-white' : 'text-neutral-300'}`}>
+                      {opt.title}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-1">{opt.desc}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {serviceType === 'home_visit' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                  Address for the call-out
+                </label>
+                <div className="relative">
+                  <MapPin className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    value={homeAddress}
+                    onChange={(e) => setHomeAddress(e.target.value)}
+                    placeholder="House number, street, postcode"
+                    className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                  Preferred arrival time
+                </label>
+                <div className="relative">
+                  <select
+                    value={homeVisitTime}
+                    onChange={(e) => setHomeVisitTime(e.target.value)}
+                    className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+                  >
+                    {TIME_SLOT_OPTIONS.map((slot) => (
+                      <option key={slot} value={slot}>
+                        {slot}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                  Where can we work? (optional)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { id: 'inside', label: 'Inside' },
+                    { id: 'outside', label: 'Outside' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setFixLocation(fixLocation === opt.id ? '' : opt.id)}
+                      className={`rounded-lg border px-3 py-2.5 text-xs font-semibold cursor-pointer transition-colors ${
+                        fixLocation === opt.id
+                          ? 'border-emerald-500/60 bg-emerald-500/10 text-white'
+                          : 'border-neutral-800 bg-neutral-900/60 text-neutral-400 hover:text-white'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="sm:col-span-2 text-[11px] text-neutral-500">
+                Call-out visits cover Salford and nearby areas. We'll confirm the exact slot by text before we set off.
+              </p>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
@@ -1019,6 +1191,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </p>
             </div>
           </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
             <div>

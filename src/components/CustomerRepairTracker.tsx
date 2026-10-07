@@ -32,6 +32,7 @@ import {
   repairProgressPercent,
   repairStageIndex,
 } from '../utils/repairProgress';
+import { vehicleNouns } from '../utils/vehicleType';
 
 interface CustomerRepairTrackerProps {
   initialBookingId?: string;
@@ -90,6 +91,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
   const currentStageIndex = repairStageIndex(currentStage);
   const progressPercent = repairProgressPercent(currentStage);
   const isPaused = currentStage === 'awaiting_approval' || currentStage === 'parts_ordered';
+  const v = vehicleNouns(activeBooking?.vehicleCategory);
 
   // Calculate ETA based on current stage
   const etaMessage = useMemo(() => {
@@ -372,31 +374,31 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
               <div className="space-y-1">
                 <div className="font-bold text-white text-sm">
                   {currentStage === 'collected'
-                    ? '🎉 Bike Collected — Thanks for Choosing Stakey’s!'
+                    ? `🎉 ${v.Noun} Collected — Thanks for Choosing Stakey’s!`
                     : currentStage === 'ready_for_pickup'
-                    ? '🎉 Your Bike is Fully Serviced & Ready for Collection!'
+                    ? `🎉 Your ${v.Noun} is Fully Serviced & Ready for Collection!`
                     : currentStage === 'awaiting_approval'
                     ? '📝 Quote Ready — We Need Your Approval'
                     : currentStage === 'parts_ordered'
                     ? '📦 Parts Ordered — Your Repair is Booked In'
                     : currentStage === 'on_the_bench'
-                    ? '🛠️ Your Bike is Currently on the Workshop Stand'
+                    ? `🛠️ Your ${v.Noun} is Currently on the Workshop Stand`
                     : '📅 Your Repair is Logged In at the Workshop'}
                 </div>
                 <p className="text-neutral-300 text-xs leading-relaxed">
                   {currentStage === 'collected'
-                    ? `This repair is complete and your bike is back with you. A copy of your itemized invoice remains available below.`
+                    ? `This repair is complete and your ${v.noun} is back with you. A copy of your itemized invoice remains available below.`
                     : currentStage === 'ready_for_pickup'
-                    ? `Our workshop mechanic has completed the repair and safety sign-off. Please collect your bike at Stakey's Cycles counter (14 High Street). You can view your itemized receipt below.`
+                    ? `Our workshop mechanic has completed the repair and safety sign-off. Please collect your ${v.noun} at Stakey's Cycles counter (14 High Street). You can view your itemized receipt below.`
                     : currentStage === 'awaiting_approval'
-                    ? `We've inspected your bike and sent a quote. Please review and approve it so we can begin the work.`
+                    ? `We've inspected your ${v.noun} and sent a quote. Please review and approve it so we can begin the work.`
                     : currentStage === 'parts_ordered'
-                    ? `We've ordered the replacement components. We'll move your bike onto the bench as soon as they arrive.`
+                    ? `We've ordered the replacement components. We'll move your ${v.noun} onto the bench as soon as they arrive.`
                     : currentStage === 'on_the_bench'
                     ? `Mechanics are currently replacing components, tensioning cables, and calibrating tolerances. Final road safety tests will follow.`
                     : currentStage === 'quality_check'
                     ? `Work is done and we're carrying out the final quality control and road test before handover.`
-                    : `Your bike is booked in at Stakey's Cycles. ${activeBooking.preferredDate ? `Drop-off: ${activeBooking.preferredDate} (${activeBooking.preferredTimeSlot}).` : ''}`}
+                    : `Your ${v.noun} is booked in at Stakey's Cycles. ${activeBooking.preferredDate ? `Drop-off: ${activeBooking.preferredDate} (${activeBooking.preferredTimeSlot}).` : ''}`}
                 </p>
               </div>
             </div>
@@ -551,7 +553,7 @@ export const CustomerRepairTracker: React.FC<CustomerRepairTrackerProps> = ({
                   )}
 
                   <a
-                    href="tel:+447911882910"
+                    href="tel:+447388209102"
                     className="px-3.5 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-850 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Phone className="w-3.5 h-3.5 text-emerald-400" />

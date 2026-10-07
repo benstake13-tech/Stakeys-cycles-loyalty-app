@@ -135,22 +135,41 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
             return (
               <div
                 key={promo.id}
-                className="perspective-1200 h-[280px] w-full cursor-pointer select-none group"
+                role="button"
+                tabIndex={0}
+                aria-pressed={isFlipped}
+                aria-label={`${promo.title} — activate to ${isFlipped ? 'hide' : 'show'} terms and conditions`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleToggleFlip(promo.id);
+                  }
+                }}
+                className="h-[280px] w-full cursor-pointer select-none group"
+                style={{ perspective: '1200px' }}
                 onClick={() => handleToggleFlip(promo.id)}
               >
-                {/* 3D Card Container that rotates on Y axis */}
+                {/* 3D Card Container that rotates on Y axis. Inline transform
+                    styles (rather than utility classes) guarantee the flip
+                    works across browsers and cannot be overridden by Tailwind's
+                    own rotate utilities. */}
                 <div
-                  className={`relative w-full h-full transform-style-3d transition-3d ${
-                    isFlipped ? 'rotate-y-180' : 'rotate-y-0'
-                  }`}
+                  className="relative w-full h-full"
+                  style={{
+                    transformStyle: 'preserve-3d',
+                    WebkitTransformStyle: 'preserve-3d',
+                    transition: 'transform 0.6s cubic-bezier(0.2, 0.85, 0.4, 1.2)',
+                    transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                  }}
                 >
                   {/* FRONT FACE OF 3D CARD */}
                   <div
-                    className={`absolute inset-0 backface-hidden rounded-2xl p-5 border flex flex-col justify-between overflow-hidden shadow-3d-depth hover:shadow-3d-depth-hover transition-all ${
+                    className={`absolute inset-0 rounded-2xl p-5 border flex flex-col justify-between overflow-hidden shadow-3d-depth hover:shadow-3d-depth-hover transition-all ${
                       isDark
                         ? 'bg-gradient-to-br from-neutral-900 via-neutral-900/95 to-neutral-950 border-neutral-700/80 text-white'
                         : 'bg-white border-neutral-300 text-neutral-900 shadow-3d-light hover:shadow-3d-light-hover'
                     }`}
+                    style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
                   >
                     {/* Atmospheric glow backdrop */}
                     <div
@@ -263,11 +282,16 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
 
                   {/* BACK FACE OF 3D CARD (Terms & Conditions, Rules, Exclusions) */}
                   <div
-                    className={`absolute inset-0 backface-hidden rotate-y-180 rounded-2xl p-5 border flex flex-col justify-between overflow-hidden shadow-3d-depth ${
+                    className={`absolute inset-0 rounded-2xl p-5 border flex flex-col justify-between overflow-hidden shadow-3d-depth ${
                       isDark
                         ? 'bg-neutral-950 border-emerald-500/40 text-neutral-200'
                         : 'bg-neutral-900 border-emerald-600 text-neutral-100'
                     }`}
+                    style={{
+                      backfaceVisibility: 'hidden',
+                      WebkitBackfaceVisibility: 'hidden',
+                      transform: 'rotateY(180deg)',
+                    }}
                   >
                     <div>
                       <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-800">
