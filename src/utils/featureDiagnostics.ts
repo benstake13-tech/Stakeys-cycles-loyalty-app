@@ -41,6 +41,7 @@ import {
   voucherToDiscountState,
   roundMoney,
 } from '../utils/discountService';
+import { websiteDiscountCatalogue, WEBSITE_DISCOUNT_FALLBACK, inferAudience } from '../utils/websiteDiscounts';
 import { buildFinancialLedger, summarizeLedger, workshopPaymentLabel } from '../utils/financials';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { generateMembershipNumber, generateBarcodeValue } from '../api/firebaseService';
@@ -876,6 +877,65 @@ export const FEATURE_TESTS: FeatureTest[] = [
         return { status: 'pass', detail: '£40 credit converts to a £40 fixed discount.' };
       }
       return { status: 'fail', detail: `Conversion returned ${JSON.stringify(state)}` };
+    },
+  },
+  {
+    id: 'website-discount-codes',
+    tables: ['discount_codes'],
+    area: 'till',
+    label: 'Website discount codes',
+    description: 'Reads your live codes, applies the curated public fallback, and checks a public code validates for a signed-out visitor.',
+    run: async () => {
+      // Same merge the marketing site uses, so a "no codes on the website"
+      // report can be traced to an empty/unreadable table vs the audience column.
+      let live: DiscountCode[] = [];
+      let readError: string | undefined;
+      try {
+        const { data, error } = await getSupabaseClient()
+          .from('discount_codes')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) readError = error.message;
+        else live = (data || []) as DiscountCode[];
+      } catch (e) {
+        readError = err(e);
+      }
+
+      const catalogue = websiteDiscountCatalogue(live);
+      const publicCodes = catalogue.filter((c) => c.audience === 'public' && c.status === 'active');
+      const proxied = publicCodes[0] || WEBSITE_DISCOUNT_FALLBACK[0];
+      const applied = validateDiscountCode(proxied, { subtotal: 50, isMember: false });
+      const livePublic = live.filter((c) => inferAudience(c) === 'public' && c.status === 'active');
+
+      const detail =
+        `live=${live.length}, public=${publicCodes.length}` +
+        (proxied ? `, ${proxied.code} → ${applied.ok ? `−£${(applied.amountOff || 0).toFixed(2)}` : applied.reason}` : '') +
+        (readError ? `; read error: ${readError}` : '');
+
+      if (readError) {
+        return { status: 'fail', detail, hint: hintFor(readError) };
+      }
+      if (live.length === 0) {
+        return {
+          status: 'warn',
+          detail,
+          hint: 'The live discount_codes table is empty — the website is running on its built-in public codes. Open Discount Codes and "Generate Website visitor set" to make the codes editable.',
+        };
+      }
+      if (livePublic.length === 0) {
+        return {
+          status: 'warn',
+          detail,
+          hint: 'No public website codes exist in the database. Open Discount Codes and "Generate Website visitor set".',
+        };
+      }
+      if (!applied.ok) {
+        return { status: 'fail', detail, hint: 'A public code did not validate for a signed-out visitor.' };
+      }
+      return {
+        status: 'pass',
+        detail: `${detail}. Public codes render on the website and apply at checkout.`,
+      };
     },
   },
 

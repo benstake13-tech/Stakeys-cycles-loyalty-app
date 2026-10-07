@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import confetti from 'canvas-confetti';
 import {
   User,
@@ -27,6 +27,7 @@ import {
   FileText,
   Sliders,
   Save,
+  RefreshCw,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, CustomerBike, ServiceBooking, VehicleCategory } from '../types/bikeShop';
@@ -57,6 +58,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     redeemReward,
     updateCustomerPoints,
     addCustomerBikeForUser,
+    refreshCustomerGarageForStaff,
     updateBookingStatus,
   } = useShop();
 
@@ -78,6 +80,8 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
   const [newBikeColour, setNewBikeColour] = useState('');
   const [newBikeNotes, setNewBikeNotes] = useState('');
   const [isSavingBike, setIsSavingBike] = useState(false);
+  const [isFixingGarage, setIsFixingGarage] = useState(false);
+  const [garageFixNote, setGarageFixNote] = useState<string | null>(null);
 
   // Get freshest customer data from users array
   const currentCustomer = users.find((u) => u.uid === customer.uid) || customer;
@@ -105,6 +109,49 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     wheelAudio.playScannerBeep();
     setTimeout(() => setCopiedId(false), 2000);
   };
+
+  /**
+   * "Fix My Garage" — repairs the persistent "bikes exist but are not showing"
+   * case for THIS customer. Re-homes legacy membership-keyed rows to the profile
+   * UUID, re-reads strictly by UUID, drops anything that is not theirs, and
+   * refreshes the roster. Reports exactly what was found/removed/re-homed, or
+   * the raw RLS/query error so the cause is visible.
+   */
+  const handleFixGarage = async () => {
+    setIsFixingGarage(true);
+    setGarageFixNote(null);
+    try {
+      const res = await refreshCustomerGarageForStaff(currentCustomer.uid, { expectedMin: bikes.length });
+      if (res.error) {
+        setGarageFixNote(`Could not fully repair — ${res.error}`);
+      } else {
+        const bits = [`${res.found} bike${res.found === 1 ? '' : 's'} loaded`];
+        if (res.reassigned) bits.push(`${res.reassigned} re-homed`);
+        if (res.removed) bits.push(`${res.removed} removed`);
+        setGarageFixNote(`Garage repaired — ${bits.join(', ')}.`);
+      }
+    } catch (e: any) {
+      setGarageFixNote(`Repair failed — ${e?.message || 'unknown error'}`);
+    } finally {
+      setIsFixingGarage(false);
+    }
+  };
+
+  // The roster never loads bikes for anyone but the signed-in account, so a
+  // dossier opened for another customer (e.g. Chloe) always showed an empty
+  // garage even when the rows existed. Load this customer's garage from the
+  // database once when the dossier opens — read-only, no destructive cleanup.
+  const garageLoadedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const uid = currentCustomer.uid;
+    if (!uid || garageLoadedFor.current === uid) return;
+    garageLoadedFor.current = uid;
+    setIsFixingGarage(true);
+    refreshCustomerGarageForStaff(uid, { deleteStale: false })
+      .catch(() => {})
+      .finally(() => setIsFixingGarage(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentCustomer.uid]);
 
   // Add Stamp Action
   const handleApplyStamp = async () => {
@@ -499,6 +546,21 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={handleFixGarage}
+                disabled={isFixingGarage}
+                data-testid="fix-my-garage"
+                title="Re-fetch this customer's bikes, re-home legacy rows and clear anything that isn't theirs"
+                className="pressable px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+              >
+                {isFixingGarage ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Wrench className="w-3.5 h-3.5" />
+                )}
+                <span>{isFixingGarage ? 'Fixing…' : 'Fix My Garage'}</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsAiBikeOpen(true)}
                 className="pressable px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20"
               >
@@ -515,6 +577,16 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
               </button>
             </div>
           </div>
+
+          {garageFixNote && (
+            <div
+              data-testid="garage-fix-note"
+              className="flex items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-100"
+            >
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{garageFixNote}</span>
+            </div>
+          )}
 
           {bikes.length === 0 ? (
             <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-10 text-center space-y-3">

@@ -129,6 +129,19 @@ export async function fetchCustomerBikesFromDb(
   userId: string,
   membershipNumber?: string
 ): Promise<CustomerBike[]> {
+  const { bikes } = await fetchCustomerBikesFromDbDetailed(userId, membershipNumber);
+  return bikes;
+}
+
+/**
+ * Same as fetchCustomerBikesFromDb but also reports the underlying error, so a
+ * "bikes exist but do not show" report can distinguish an RLS/query denial from
+ * a genuinely empty garage.
+ */
+export async function fetchCustomerBikesFromDbDetailed(
+  userId: string,
+  membershipNumber?: string
+): Promise<{ bikes: CustomerBike[]; error?: string }> {
   const supabase = getSupabaseClient();
   const ownerIds = bikeOwnerIds(userId, membershipNumber);
   console.log(`[SUPABASE NET] SELECT customer_bikes for owners=${ownerIds.join(',')}`);
@@ -145,39 +158,42 @@ export async function fetchCustomerBikesFromDb(
     const { data, error } = await query;
     if (error) {
       console.error('[SUPABASE NET ERROR] SELECT customer_bikes failed:', error.message);
-    } else {
-      console.log(`[SUPABASE NET SUCCESS] SELECT customer_bikes returned ${data?.length || 0} rows`);
+      return { bikes: [], error: error.message };
     }
+    console.log(`[SUPABASE NET SUCCESS] SELECT customer_bikes returned ${data?.length || 0} rows`);
 
     if (data && data.length > 0) {
-      return data.map((row: any) => {
-        const extraMeta = row.scraped_data?.meta || {};
-        return {
-          id: row.id,
-          brand: row.brand || 'Unknown',
-          model: row.model || 'Bike',
-          year: row.year || undefined,
-          colour: row.color || 'Standard',
-          color: row.color || 'Standard',
-          serialNumber: row.serial_number || undefined,
-          category: normalizeCategory(row.category),
-          categoryLabel: extraMeta.categoryLabel || row.model || 'Cycle',
-          frameSizeOrNotes: extraMeta.frameSizeOrNotes || undefined,
-          addedAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-          lastServiceDate: extraMeta.lastServiceDate || undefined,
-          lastServiceTitle: extraMeta.lastServiceTitle || undefined,
-          healthStatus: extraMeta.healthStatus || 'healthy',
-          stockSpecsScraped: Boolean(row.stock_specs_scraped),
-          scrapedData: row.scraped_data && row.scraped_data.components ? row.scraped_data : undefined,
-          bikeDetails: (row.bike_details as BikeDetails) || extraMeta.bikeDetails || undefined,
-        };
-      });
+      return {
+        bikes: data.map((row: any) => {
+          const extraMeta = row.scraped_data?.meta || {};
+          return {
+            id: row.id,
+            brand: row.brand || 'Unknown',
+            model: row.model || 'Bike',
+            year: row.year || undefined,
+            colour: row.color || 'Standard',
+            color: row.color || 'Standard',
+            serialNumber: row.serial_number || undefined,
+            category: normalizeCategory(row.category),
+            categoryLabel: extraMeta.categoryLabel || row.model || 'Cycle',
+            frameSizeOrNotes: extraMeta.frameSizeOrNotes || undefined,
+            addedAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+            lastServiceDate: extraMeta.lastServiceDate || undefined,
+            lastServiceTitle: extraMeta.lastServiceTitle || undefined,
+            healthStatus: extraMeta.healthStatus || 'healthy',
+            stockSpecsScraped: Boolean(row.stock_specs_scraped),
+            scrapedData: row.scraped_data && row.scraped_data.components ? row.scraped_data : undefined,
+            bikeDetails: (row.bike_details as BikeDetails) || extraMeta.bikeDetails || undefined,
+          };
+        }),
+      };
     }
+    return { bikes: [] };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     console.error('[SUPABASE NET EXCEPTION] fetchCustomerBikesFromDb:', err);
+    return { bikes: [], error: message };
   }
-
-  return [];
 }
 
 /**
@@ -934,6 +950,7 @@ export async function fetchAllProfilesFromDbDetailed(): Promise<{
           tickets: row.completed_cards !== undefined ? row.completed_cards : 0,
           points: row.merit_points !== undefined ? row.merit_points : 0,
           phoneNumber: row.phone || undefined,
+          avatarColor: row.avatar_color || undefined,
           lastStampedAt: row.last_stamped_at ? new Date(row.last_stamped_at) : undefined,
           lastSpunAt: row.last_spun_at
             ? new Date(row.last_spun_at)

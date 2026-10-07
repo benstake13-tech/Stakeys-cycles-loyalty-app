@@ -190,3 +190,54 @@ describe('runPushRepair — dispatch probe', () => {
     expect(steps.find((s) => s.id === 'dispatch')?.status).toBe('warn');
   });
 });
+
+describe('runPushRepair — per-step repair isolation', () => {
+  it('repairs only the requested step and leaves the others untouched', async () => {
+    const optInSubscription = vi.fn(async () => 'sub-xyz');
+    const linkUser = vi.fn(async () => undefined);
+    const registerEmail = vi.fn(async () => undefined);
+    const requestPermission = vi.fn(async () => 'granted' as const);
+    const deps = makeDeps({
+      getPermission: async () => 'default',
+      requestPermission,
+      isSubscribed: async () => false,
+      optInSubscription,
+      linkUser,
+      registerEmail,
+    });
+    const steps = await runPushRepair(deps, CTX, { repair: true, only: 'permission' });
+    expect(requestPermission).toHaveBeenCalledOnce();
+    expect(optInSubscription).not.toHaveBeenCalled();
+    expect(linkUser).not.toHaveBeenCalled();
+    expect(registerEmail).not.toHaveBeenCalled();
+    expect(steps).toHaveLength(7);
+  });
+
+  it('opts the device in when only the subscription step is targeted', async () => {
+    let subscribed = false;
+    const optInSubscription = vi.fn(async () => {
+      subscribed = true;
+      return 'sub-xyz';
+    });
+    const linkUser = vi.fn(async () => undefined);
+    const deps = makeDeps({
+      isSubscribed: async () => subscribed,
+      optInSubscription,
+      linkUser,
+    });
+    const steps = await runPushRepair(deps, CTX, { repair: true, only: 'subscription' });
+    expect(optInSubscription).toHaveBeenCalledOnce();
+    expect(linkUser).not.toHaveBeenCalled();
+    expect(steps.find((s) => s.id === 'subscription')?.status).toBe('fixed');
+  });
+
+  it('exposes raw probe facts for every step', async () => {
+    const steps = await runPushRepair(makeDeps(), CTX);
+    for (const step of steps) {
+      expect(Array.isArray(step.facts)).toBe(true);
+      expect(step.facts!.length).toBeGreaterThan(0);
+    }
+    const sub = steps.find((s) => s.id === 'subscription');
+    expect(sub?.facts?.find((f) => f.label === 'Opted in')?.ok).toBe(true);
+  });
+});
