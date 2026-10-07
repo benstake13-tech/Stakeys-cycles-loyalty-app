@@ -42,3 +42,36 @@ export function websiteDiscountCatalogue(live: DiscountCode[] | undefined | null
   const missing = WEBSITE_DISCOUNT_FALLBACK.filter((c) => !known.has(c.code.toUpperCase()));
   return [...liveCodes, ...missing];
 }
+
+/**
+ * Read a discount code a visitor arrived with via a shared offer link
+ * (`?code=WEB-5OFF`, or the `?promo=` alias). Returns an upper-cased code or
+ * '' when none is present, so marketing can point a bio/SMS link straight at a
+ * code without the shopper having to retype it.
+ */
+export function discountCodeFromSearch(search?: string): string {
+  const qs =
+    search !== undefined
+      ? search
+      : typeof window !== 'undefined'
+      ? window.location.search
+      : '';
+  try {
+    const params = new URLSearchParams(qs);
+    return (params.get('code') || params.get('promo') || '').trim().toUpperCase();
+  } catch {
+    return '';
+  }
+}
+
+/** Build the shareable offer link a coupon card copies (origin + `?code=`). */
+export function discountShareUrl(code: string, origin?: string): string {
+  const base =
+    origin !== undefined
+      ? origin
+      : typeof window !== 'undefined'
+      ? window.location.origin
+      : '';
+  const clean = String(code || '').trim().toUpperCase();
+  return clean ? `${base}/?code=${encodeURIComponent(clean)}` : base;
+}

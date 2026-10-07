@@ -74,4 +74,15 @@ describe('website coupon panel', () => {
     fireEvent.click(copyButtons[0]);
     expect(writeText).toHaveBeenCalled();
   });
+
+  it('lets a visitor copy a shareable offer link carrying the code', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(<WebsiteReplica onBookService={vi.fn()} />);
+    const linkButtons = screen.getAllByTitle('Copy shareable offer link');
+    expect(linkButtons.length).toBeGreaterThan(0);
+    fireEvent.click(linkButtons[0]);
+    const copied = writeText.mock.calls[0][0] as string;
+    expect(copied).toMatch(/\?code=WEB-/);
+  });
 });
