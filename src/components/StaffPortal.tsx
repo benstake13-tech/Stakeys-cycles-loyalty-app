@@ -47,6 +47,7 @@ import {
   Gift,
   DatabaseZap,
   Cable,
+  CloudRain,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -65,6 +66,7 @@ import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
 import { AssistantManagerTab } from './AssistantManagerTab';
 import { PerformanceTracker } from './PerformanceTracker';
+import { WeatherForecast } from './weather/WeatherForecast';
 import { StaffReferralsTab } from './StaffReferralsTab';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
@@ -122,6 +124,7 @@ export const StaffPortal: React.FC = () => {
     | 'referrals'
     | 'assistant'
     | 'diagnostics'
+    | 'weather'
   >('till');
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
@@ -345,7 +348,8 @@ export const StaffPortal: React.FC = () => {
     | 'business_performance'
     | 'referrals'
     | 'assistant'
-    | 'diagnostics';
+    | 'diagnostics'
+    | 'weather';
 
   const operationsTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
@@ -354,6 +358,7 @@ export const StaffPortal: React.FC = () => {
     { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel' },
     { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
     { id: 'terminal', label: 'Staff Station', icon: Layers, tone: 'emerald', hint: 'Station overview & workshop metrics' },
+    { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
   ];
 
   const adminTabs: SegmentedTab<StaffTabId>[] = [
@@ -711,6 +716,22 @@ export const StaffPortal: React.FC = () => {
 
       {/* VIEW 7B: Google & Meta Business Performance (OAuth authorised) */}
       {staffTab === 'business_performance' && <PerformanceTracker />}
+
+      {/* VIEW 7C: Live 7-day riding weather for planning workshop capacity */}
+      {staffTab === 'weather' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+              <CloudRain className="w-5 h-5 text-sky-400" /> Riding Weather
+            </h2>
+            <p className="text-xs text-neutral-400 mt-1">
+              Live seven-day forecast for the workshop area, scored for riding — handy for anticipating demand
+              on fair days and warning riders off in poor conditions.
+            </p>
+          </div>
+          <WeatherForecast isDark />
+        </div>
+      )}
 
       {/* VIEW 8: Feature Test Bench — live self-test of every backend feature */}
       {staffTab === 'diagnostics' && <StaffDiagnosticsTab />}

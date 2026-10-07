@@ -79,6 +79,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'phone', type: 'text' },
       { name: 'role', type: 'text', default: `'customer'` },
       { name: 'membership_number', type: 'text', relaxNotNull: true },
+      { name: 'avatar_color', type: 'text' },
       { name: 'stamps', type: 'integer', default: '0' },
       { name: 'completed_cards', type: 'integer', default: '0' },
       { name: 'merit_points', type: 'integer', default: '0' },

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone TEXT,
   role TEXT DEFAULT 'customer',
   membership_number TEXT,
+  avatar_color TEXT,
   stamps INTEGER DEFAULT 0,
   completed_cards INTEGER DEFAULT 0,
   merit_points INTEGER DEFAULT 0,
@@ -250,6 +251,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'customer';
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS membership_number TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_color TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS stamps INTEGER DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS completed_cards INTEGER DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS merit_points INTEGER DEFAULT 0;

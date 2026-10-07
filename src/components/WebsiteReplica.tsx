@@ -17,6 +17,7 @@ import {
   Store,
   Tag,
   Trash2,
+  CloudRain,
   X,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
@@ -35,6 +36,7 @@ import { websiteDiscountCatalogue, discountCodeFromSearch, discountShareUrl } fr
 import type { DiscountCode } from '../types/bikeShop';
 import { PolicyDisclaimers } from './PolicyDisclaimers';
 import { DISCOUNT_DISCLAIMERS } from '../utils/workshopPolicy';
+import { WeatherForecast } from './weather/WeatherForecast';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
@@ -262,6 +264,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
   const pageTabs: SegmentedTab<WebsitePageId>[] = [
     { id: 'home', label: 'Home', icon: Globe, tone: 'emerald' },
     { id: 'location', label: 'Location', icon: MapPin, tone: 'sky' },
+    { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky' },
     { id: 'shop', label: 'Shop', icon: Store, tone: 'amber' },
     {
       id: 'offers',
@@ -892,6 +895,23 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                 </a>
               </div>
             </div>
+            {footerBar}
+          </div>
+        );
+      case 'weather':
+        return (
+          <div className="space-y-6">
+            <div className={`rounded-3xl border p-5 sm:p-6 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
+              <h3 className={`text-xl font-extrabold flex items-center gap-2 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                <CloudRain className="w-5 h-5 text-sky-400" />
+                Riding conditions for the week ahead
+              </h3>
+              <p className={`text-sm leading-relaxed mt-1 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                Live seven-day forecast for your area, turned into plain “can I ride?” guidance — so you can
+                plan a commute, a delivery shift or a weekend loop around the weather.
+              </p>
+            </div>
+            <WeatherForecast isDark={isDark} />
             {footerBar}
           </div>
         );
