@@ -450,6 +450,8 @@ export interface RepairInvoice {
   vehicleCategory: VehicleCategory;
   items: InvoiceLineItem[];
   checklistSignoff: RepairChecklistItem[];
+  /** Symptoms the customer reported at intake, copied onto the invoice so the bill can be audited against the job. */
+  reportedSymptoms?: string[];
   labourSubtotal: number;
   partsSubtotal: number;
   subtotal: number;

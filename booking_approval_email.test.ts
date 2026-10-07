@@ -4,7 +4,7 @@ import type { ServiceBooking, OwnerNotificationConfig } from './src/types/bikeSh
 
 const config: OwnerNotificationConfig = {
   ownerEmail: 'workshop@stakeyscycles.com',
-  ownerPhone: '+44 7700 900821',
+  ownerPhone: '+44 7388 209102',
   emailAlertsEnabled: true,
   businessName: "Stakey's Cycles",
 };

@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { Search, Check, X, Bike, Zap, ChevronDown } from 'lucide-react';
 import {
-  BIKE_BRAND_PROFILES,
-  BIKE_BRAND_TYPES,
-  BikeBrandType,
   modelsForBrand,
   brandProfileFor,
   isCustomModel,
+  brandSections,
+  isScooterBrand,
+  UNKNOWN_BRAND_NAMES,
   EBIKE_STATUS_OPTIONS,
   EBIKE_MOTOR_SYSTEMS,
   EBIKE_BATTERY_POSITIONS,
@@ -64,8 +64,10 @@ const fieldClass =
 const labelClass = 'block text-xs font-medium text-neutral-300 mb-1.5';
 
 /**
- * Searchable brand picker. A plain <select> with 90+ options is painful on a
- * phone, so this filters by name, type tag or country as the rider types.
+ * Searchable brand picker. 90+ brands in one flat list is painful on a phone,
+ * so the catalogue is split into two alphabetical sections — E-Scooters and
+ * Bikes — with a search box that filters across both. A brand that builds both
+ * (e.g. Pure Electric) appears in each section.
  */
 const BrandPicker: React.FC<{
   brand: string;
@@ -74,22 +76,57 @@ const BrandPicker: React.FC<{
 }> = ({ brand, onSelect, idPrefix }) => {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<BikeBrandType | 'All'>('All');
 
-  const results = useMemo(() => {
+  const sections = useMemo(() => brandSections(), []);
+
+  const matches = (b: { name: string; country: string; types: string[] }) => {
     const q = query.trim().toLowerCase();
-    return BIKE_BRAND_PROFILES.filter((b) => {
-      if (typeFilter !== 'All' && !b.types.includes(typeFilter)) return false;
-      if (!q) return true;
-      return (
-        b.name.toLowerCase().includes(q) ||
-        b.country.toLowerCase().includes(q) ||
-        b.types.some((t) => t.toLowerCase().includes(q))
-      );
-    });
-  }, [query, typeFilter]);
+    if (!q) return true;
+    return (
+      b.name.toLowerCase().includes(q) ||
+      b.country.toLowerCase().includes(q) ||
+      b.types.some((t) => t.toLowerCase().includes(q))
+    );
+  };
+
+  const scooterResults = sections.scooters.filter(matches);
+  const bikeResults = sections.bikes.filter(matches);
+  const unknownResults = sections.unknown.filter(matches);
+  const total = scooterResults.length + bikeResults.length + unknownResults.length;
 
   const selected = brandProfileFor(brand);
+  const selectedSection = selected
+    ? UNKNOWN_BRAND_NAMES.includes(selected.name)
+      ? 'Not sure'
+      : isScooterBrand(selected)
+      ? 'E-Scooter'
+      : 'Bike'
+    : '';
+
+  const choose = (name: string) => {
+    onSelect(name);
+    setOpen(false);
+    setQuery('');
+  };
+
+  const BrandRow: React.FC<{ b: (typeof sections.bikes)[number] }> = ({ b }) => (
+    <button
+      type="button"
+      onClick={() => choose(b.name)}
+      className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 hover:bg-neutral-900 cursor-pointer ${
+        b.name === brand ? 'bg-emerald-500/10' : ''
+      }`}
+    >
+      <span className="min-w-0">
+        <span className="text-sm text-white block truncate">{b.name}</span>
+        <span className="text-[10px] text-neutral-500 block truncate">{b.types.join(' · ')}</span>
+      </span>
+      <span className="flex items-center gap-2 shrink-0">
+        {b.country !== '—' && <span className="text-[10px] text-neutral-500 font-mono">{b.country}</span>}
+        {b.name === brand && <Check className="w-4 h-4 text-emerald-400" />}
+      </span>
+    </button>
+  );
 
   return (
     <div>
@@ -107,8 +144,8 @@ const BrandPicker: React.FC<{
           <span className="flex items-center gap-2 min-w-0">
             <Bike className="w-4 h-4 text-emerald-400 shrink-0" />
             <span className="truncate">{brand || 'Choose a brand'}</span>
-            {selected && selected.country !== '—' && (
-              <span className="text-[10px] text-neutral-500 font-mono shrink-0">{selected.country}</span>
+            {selectedSection && (
+              <span className="text-[10px] text-neutral-500 font-mono shrink-0">{selectedSection}</span>
             )}
           </span>
           <span className="text-[11px] text-emerald-400 font-semibold shrink-0">Change</span>
@@ -123,7 +160,7 @@ const BrandPicker: React.FC<{
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search 90+ brands, or type a type (mountain, e-bike…)"
+              placeholder="Search all brands, or type a type (mountain, e-scooter…)"
               className="w-full bg-transparent py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none"
             />
             <button
@@ -139,57 +176,52 @@ const BrandPicker: React.FC<{
             </button>
           </div>
 
-          <div className="flex gap-1.5 overflow-x-auto px-3 py-2 border-b border-neutral-800/80">
-            {(['All', ...BIKE_BRAND_TYPES] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTypeFilter(t as BikeBrandType | 'All')}
-                className={`px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap cursor-pointer border transition-colors ${
-                  typeFilter === t
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                    : 'bg-neutral-900 text-neutral-400 border-neutral-800 hover:text-white'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          <div className="max-h-56 overflow-y-auto">
-            {results.length === 0 ? (
+          <div className="max-h-64 overflow-y-auto">
+            {total === 0 ? (
               <div className="px-3 py-4 text-xs text-neutral-400">
                 No brand matches “{query}”. Choose <strong>Other / Not Listed</strong> and type the
                 brand below.
               </div>
             ) : (
-              results.map((b) => (
-                <button
-                  key={b.name}
-                  type="button"
-                  onClick={() => {
-                    onSelect(b.name);
-                    setOpen(false);
-                    setQuery('');
-                  }}
-                  className={`w-full text-left px-3 py-2 flex items-center justify-between gap-2 hover:bg-neutral-900 cursor-pointer ${
-                    b.name === brand ? 'bg-emerald-500/10' : ''
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="text-sm text-white block truncate">{b.name}</span>
-                    <span className="text-[10px] text-neutral-500 block truncate">
-                      {b.types.join(' · ')}
-                    </span>
-                  </span>
-                  <span className="flex items-center gap-2 shrink-0">
-                    {b.country !== '—' && (
-                      <span className="text-[10px] text-neutral-500 font-mono">{b.country}</span>
-                    )}
-                    {b.name === brand && <Check className="w-4 h-4 text-emerald-400" />}
-                  </span>
-                </button>
-              ))
+              <>
+                {scooterResults.length > 0 && (
+                  <div>
+                    <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0d1015] border-y border-neutral-800/80">
+                      <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                        E-Scooters
+                      </span>
+                      <span className="text-[10px] text-neutral-500">{scooterResults.length}</span>
+                    </div>
+                    {scooterResults.map((b) => (
+                      <BrandRow key={`scooter-${b.name}`} b={b} />
+                    ))}
+                  </div>
+                )}
+
+                {bikeResults.length > 0 && (
+                  <div>
+                    <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0d1015] border-y border-neutral-800/80">
+                      <Bike className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                        Bikes
+                      </span>
+                      <span className="text-[10px] text-neutral-500">{bikeResults.length}</span>
+                    </div>
+                    {bikeResults.map((b) => (
+                      <BrandRow key={`bike-${b.name}`} b={b} />
+                    ))}
+                  </div>
+                )}
+
+                {unknownResults.length > 0 && (
+                  <div className="border-t border-neutral-800/80">
+                    {unknownResults.map((b) => (
+                      <BrandRow key={`unknown-${b.name}`} b={b} />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -211,6 +243,9 @@ export const BikeIdentityFields: React.FC<Props> = ({
   const models = modelsForBrand(value.brand);
   const needsCustomModel = isCustomModel(value.model) || value.brand === 'Other / Not Listed';
   const isEbikeCategory = value.category === 'ebike';
+  // E-scooters are never pedal cycles, so the e-bike conversion question does
+  // not apply and is removed entirely for that category.
+  const isEscooterCategory = value.category === 'electric_scooter';
   const showEbikeQuestions = isEbikeCategory || value.ebikeStatus === 'factory' || value.ebikeStatus === 'converted';
 
   const handleBrand = (brand: string) => {
@@ -347,7 +382,8 @@ export const BikeIdentityFields: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* ---- E-bike conversion question (asked for every bike) ---- */}
+      {/* ---- E-bike conversion question (asked for every bike except e-scooters) ---- */}
+      {!isEscooterCategory && (
       <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3.5 space-y-3">
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-amber-400" />
@@ -472,6 +508,7 @@ export const BikeIdentityFields: React.FC<Props> = ({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 };

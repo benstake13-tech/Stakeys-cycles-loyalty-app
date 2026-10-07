@@ -49,6 +49,7 @@ import {
   dispatchBookingDeclinedNotification,
   isBookingDueIn24Hours,
 } from '../utils/notificationService';
+import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/pushNotifications';
 import { generateMembershipNumber } from '../api/firebaseService';
@@ -1091,6 +1092,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isInitialBookingsLoadRef.current) {
       incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
       isInitialBookingsLoadRef.current = false;
+      // Remember which lifecycle emails these bookings already had, so reloading
+      // the shared table never re-sends a confirmation or reminder.
+      rehydrateBookingEmailLedger(incomingBookings);
       setBookings(incomingBookings);
       return;
     }
@@ -3245,6 +3249,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateServiceBookingInDb(bookingId, {
       status: 'ready_for_pickup',
       servicePrice: invoice.grandTotal,
+      invoice,
     }).catch((e) => console.warn('[DB SYNC] Error saving invoice in DB:', e));
 
     setLatestSmsAlert({
@@ -3278,6 +3283,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     bookingId: string,
     paymentStatus: 'unpaid' | 'paid_card' | 'paid_cash' | 'paid_online'
   ): Promise<void> => {
+    let nextInvoice: RepairInvoice | undefined;
+    let nextStatus: ServiceBooking['status'] | undefined;
     setBookings((prev) =>
       prev.map((b) => {
         if (b.id === bookingId && b.invoice) {
@@ -3286,15 +3293,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             paymentStatus,
             paymentDate: paymentStatus !== 'unpaid' ? new Date().toISOString() : undefined,
           };
+          nextInvoice = updatedInvoice;
+          nextStatus = paymentStatus !== 'unpaid' ? 'completed' : b.status;
           return {
             ...b,
-            status: paymentStatus !== 'unpaid' ? 'completed' : b.status,
+            status: nextStatus,
             invoice: updatedInvoice,
           };
         }
         return b;
       })
     );
+
+    if (nextInvoice) {
+      updateServiceBookingInDb(bookingId, {
+        status: nextStatus,
+        invoice: nextInvoice,
+      }).catch((e) => console.warn('[DB SYNC] Error updating invoice payment status:', e));
+    }
   };
 
   const updateOwnerConfig = (config: Partial<OwnerNotificationConfig>) => {

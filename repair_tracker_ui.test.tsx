@@ -17,7 +17,7 @@ function makeBooking(over: Partial<ServiceBooking> = {}): ServiceBooking {
     id: 'bk-2001',
     customerName: 'Ada Lovelace',
     customerEmail: 'ada@example.com',
-    customerPhone: '07911 882910',
+    customerPhone: '07388 209102',
     customerId: 'u1',
     membershipNumber: 'STK-123456',
     vehicleCategory: 'cycle',

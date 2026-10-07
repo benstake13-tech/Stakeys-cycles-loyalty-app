@@ -77,7 +77,7 @@ export const ShopAssistant: React.FC<ShopAssistantProps> = ({ surface }) => {
     <>
       {open && (
         <div
-          className={`fixed bottom-24 right-4 z-[60] w-[min(94vw,24rem)] rounded-2xl border shadow-2xl overflow-hidden flex flex-col ${
+          className={`fixed bottom-20 right-4 z-[60] w-[min(94vw,24rem)] rounded-2xl border shadow-2xl overflow-hidden flex flex-col ${
             isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-white border-neutral-200'
           }`}
         >

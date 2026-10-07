@@ -31,6 +31,7 @@ import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { dispatchTestEmail } from '../utils/notificationService';
+import { vehicleNouns } from '../utils/vehicleType';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
@@ -118,12 +119,12 @@ export const StaffBookingsTab: React.FC = () => {
   const handleOpenApprove = (b: ServiceBooking) => {
     setApprovingBooking(b);
     setApprovalNote(
-      `Your service appointment on ${b.preferredDate} (${b.preferredTimeSlot}) is approved. Please bring your vehicle to our workshop intake bay.`
+      `Your service appointment on ${b.preferredDate} (${b.preferredTimeSlot}) is approved. Please bring your ${vehicleNouns(b.vehicleCategory).noun} to our workshop.`
     );
     setEstimatePrice(b.quotedPrice != null ? b.quotedPrice.toString() : '');
     setEstimateNote(
       b.quoteNote ||
-        `Estimated cost to complete the ${b.serviceTitle} on your ${b.vehicleModel}. This is an estimate only — the final price is confirmed once we inspect the bike.`
+        `Estimated cost to complete the ${b.serviceTitle} on your ${vehicleNouns(b.vehicleCategory).noun}. This is an estimate only — the final price is confirmed once we inspect it.`
     );
     setApproveError(null);
   };
@@ -203,7 +204,7 @@ export const StaffBookingsTab: React.FC = () => {
   const handleOpenQuote = (b: ServiceBooking) => {
     setQuotingBooking(b);
     setQuotedPrice(b.quotedPrice ? b.quotedPrice.toString() : '');
-    setQuoteNote(b.quoteNote || `Hello ${b.customerName}, here is your estimated quote for your repair. Please contact us via WhatsApp if you have questions or wish to share photos of your bike's condition.`);
+    setQuoteNote(b.quoteNote || `Hello ${b.customerName}, here is your estimated quote for your repair. Please contact us via WhatsApp if you have questions or wish to share photos of your ${vehicleNouns(b.vehicleCategory).noun}'s condition.`);
   };
 
   const handleConfirmQuote = async () => {
