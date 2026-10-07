@@ -8,6 +8,7 @@ const hoisted = vi.hoisted(() => ({
   rows: [] as any[],
   deleteRows: [] as any[],
   updateRows: [] as any[],
+  error: null as any,
 }));
 
 function makeBuilder(table: string) {
@@ -22,7 +23,7 @@ function makeBuilder(table: string) {
     delete: (...a: any[]) => { op = 'delete'; record('delete', ...a); return builder; },
     then: (resolve: any) => {
       const data = op === 'delete' ? hoisted.deleteRows : op === 'update' ? hoisted.updateRows : hoisted.rows;
-      return Promise.resolve({ data, error: null }).then(resolve);
+      return Promise.resolve({ data, error: hoisted.error }).then(resolve);
     },
   };
   return builder;
@@ -45,6 +46,7 @@ beforeEach(() => {
   hoisted.rows = [];
   hoisted.deleteRows = [];
   hoisted.updateRows = [];
+  hoisted.error = null;
 });
 
 describe('customer_bikes ownership query', () => {
@@ -112,5 +114,22 @@ describe('deleteBikesByIds', () => {
     const n = await deleteBikesByIds('uuid-1', []);
     expect(n).toBe(0);
     expect(hoisted.calls).toHaveLength(0);
+  });
+});
+
+describe('fetchCustomerBikesFromDbDetailed', () => {
+  it('returns the bikes and no error on success', async () => {
+    hoisted.rows = [{ id: 'b1', brand: 'Trek', model: 'FX', category: 'cycle' }];
+    const { bikes, error } = await (await import('./src/api/backendDataService')).fetchCustomerBikesFromDbDetailed('uuid-1', '124');
+    expect(error).toBeUndefined();
+    expect(bikes.map((b) => b.id)).toEqual(['b1']);
+  });
+
+  it('surfaces the underlying error so a hidden garage is explainable', async () => {
+    hoisted.rows = [];
+    hoisted.error = { message: 'permission denied for table customer_bikes' };
+    const { bikes, error } = await (await import('./src/api/backendDataService')).fetchCustomerBikesFromDbDetailed('uuid-1');
+    expect(bikes).toEqual([]);
+    expect(error).toContain('permission denied');
   });
 });

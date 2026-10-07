@@ -20,6 +20,15 @@ export interface PushRepairStep {
   status: PushRepairStatus;
   detail: string;
   hint?: string;
+  /** Raw probe values behind this step, so a failure can be pinned precisely. */
+  facts?: { label: string; value: string; ok?: boolean }[];
+}
+
+/** Shortens a secret-ish identifier for display without hiding which one it is. */
+function mask(value: string | null | undefined, keep = 8): string {
+  const v = String(value ?? '').trim();
+  if (!v) return '—';
+  return v.length <= keep ? v : `${v.slice(0, keep)}…`;
 }
 
 export interface PushRepairServerConfig {
@@ -122,82 +131,123 @@ function permissionStep(perm: PushPermission, repaired: boolean): PushRepairStep
   };
 }
 
+
+/** Which step repairs which part of the chain, for a single-step "Fix" button. */
+export const PUSH_STEP_FIX_ACTION: Record<string, string> = {
+  'server-config': 'Re-check server config',
+  'sdk-loaded': 'Reload & re-initialise',
+  permission: 'Request permission',
+  subscription: 'Opt this device in',
+  identity: 'Re-link this user',
+  email: 'Re-attach email',
+  dispatch: 'Re-send test push',
+};
+
 export async function runPushRepair(
   deps: PushRepairDeps,
   ctx: PushRepairContext,
-  opts: { repair?: boolean } = {}
+  opts: { repair?: boolean; only?: string } = {}
 ): Promise<PushRepairStep[]> {
   const repair = Boolean(opts.repair);
+  // When `only` is set, the pass still evaluates every step (so the list stays
+  // complete) but performs a repair side-effect for just that one step.
+  const canRepair = (id: string) => repair && (!opts.only || opts.only === id);
   const steps: PushRepairStep[] = [];
 
   // 1. Server push configuration (env vars + deployed functions).
   let serverPush = false;
+  let serverAppId: string | null = null;
+  let restKeyEnv: string | null = null;
+  let restKeyNames: string[] = [];
+  let cfgError: string | null = null;
   try {
     const cfg = await deps.getServerConfig();
-    serverPush = cfg.serverPush;
-    if (!cfg.appId) {
-      steps.push({
-        id: 'server-config',
-        label: 'Server push config',
-        status: 'fail',
-        detail: 'The app ID was not returned by /api/onesignal/config.',
-        hint: 'Set VITE_ONESIGNAL_APP_ID (or ONESIGNAL_APP_ID) in the deployment, then redeploy.',
-      });
-    } else if (!cfg.serverPush) {
-      const names = cfg.restKeyEnvNames?.length ? cfg.restKeyEnvNames.join(', ') : DEFAULT_REST_KEY_NAMES.join(', ');
-      steps.push({
-        id: 'server-config',
-        label: 'Server push config',
-        status: 'fail',
-        detail: 'App ID resolved but serverPush=false — the server cannot see the REST key.',
-        hint: `Add the REST key under one of: ${names}. In Vercel set it for all environments, then Redeploy.`,
-      });
-    } else {
-      steps.push({
-        id: 'server-config',
-        label: 'Server push config',
-        status: 'pass',
-        detail: `App ID resolved and server push is ready${cfg.restKeyEnv ? ` (key from ${cfg.restKeyEnv})` : ''}.`,
-      });
-    }
-  } catch {
+    serverPush = Boolean(cfg.serverPush);
+    serverAppId = cfg.appId;
+    restKeyEnv = cfg.restKeyEnv ?? null;
+    restKeyNames = cfg.restKeyEnvNames ?? [];
+  } catch (e: any) {
+    cfgError = e?.message || 'fetch failed';
+  }
+
+  const serverFacts = [
+    { label: 'App ID (env)', value: mask(serverAppId), ok: Boolean(serverAppId) },
+    { label: 'serverPush', value: String(serverPush), ok: serverPush },
+    { label: 'REST key env', value: restKeyEnv || 'not found', ok: Boolean(restKeyEnv) },
+    { label: 'Endpoint', value: '/api/onesignal/config', ok: !cfgError },
+  ];
+
+  if (cfgError) {
     steps.push({
       id: 'server-config',
       label: 'Server push config',
       status: 'fail',
-      detail: 'Could not reach /api/onesignal/config.',
+      detail: `Could not read /api/onesignal/config (${cfgError}).`,
       hint: 'The host may not be deploying the api/onesignal functions. Check the Vercel project branch and redeploy.',
+      facts: serverFacts,
+    });
+  } else if (!serverAppId) {
+    steps.push({
+      id: 'server-config',
+      label: 'Server push config',
+      status: 'fail',
+      detail: 'The app ID was not returned by /api/onesignal/config.',
+      hint: 'Set VITE_ONESIGNAL_APP_ID (or ONESIGNAL_APP_ID) in the deployment, then redeploy.',
+      facts: serverFacts,
+    });
+  } else if (!serverPush) {
+    const names = restKeyNames.length ? restKeyNames.join(', ') : DEFAULT_REST_KEY_NAMES.join(', ');
+    steps.push({
+      id: 'server-config',
+      label: 'Server push config',
+      status: 'fail',
+      detail: 'App ID resolved but serverPush=false — the server cannot see the REST key.',
+      hint: `Add the REST key under one of: ${names}. In Vercel set it for all environments, then Redeploy.`,
+      facts: serverFacts,
+    });
+  } else {
+    steps.push({
+      id: 'server-config',
+      label: 'Server push config',
+      status: 'pass',
+      detail: `App ID resolved and server push is ready${restKeyEnv ? ` (key from ${restKeyEnv})` : ''}.`,
+      facts: serverFacts,
     });
   }
 
   // 2. SDK loaded + which App ID it is using.
   const sdkOk = await safe(() => deps.initSdk(), false);
   const appId = deps.getConfiguredAppId();
-  steps.push(
-    sdkOk
-      ? {
-          id: 'sdk-loaded',
-          label: 'OneSignal SDK loaded',
-          status: 'pass',
-          detail: `The v16 web SDK initialised${appId ? ` with App ID ${appId.slice(0, 8)}…` : ''}.`,
-        }
-      : {
-          id: 'sdk-loaded',
-          label: 'OneSignal SDK loaded',
-          status: 'fail',
-          detail: 'The OneSignal SDK did not initialise.',
-          hint: appId
-            ? `Check that App ID ${appId.slice(0, 8)}… is a valid OneSignal app, then reload.`
-            : 'Set the App ID in the Configure Push section below, then reload.',
-        }
-  );
+  steps.push({
+    id: 'sdk-loaded',
+    label: 'OneSignal SDK loaded',
+    status: sdkOk ? 'pass' : 'fail',
+    detail: sdkOk
+      ? `The v16 web SDK initialised${appId ? ` with App ID ${appId.slice(0, 8)}…` : ''}.`
+      : 'The OneSignal SDK did not initialise.',
+    hint: sdkOk
+      ? undefined
+      : appId
+      ? `Check that App ID ${appId.slice(0, 8)}… is a valid OneSignal app, then reload.`
+      : 'Set the App ID in the Configure Push section below, then reload.',
+    facts: [
+      { label: 'Initialised', value: String(sdkOk), ok: sdkOk },
+      { label: 'App ID in use', value: mask(appId), ok: Boolean(appId) },
+    ],
+  });
 
   // 3. Browser permission (repairable).
   let perm = await safe(() => deps.getPermission(), 'default' as PushPermission);
-  if (repair && sdkOk && perm === 'default') {
+  if (canRepair('permission') && sdkOk && perm === 'default') {
     perm = await safe(() => deps.requestPermission(), perm);
   }
-  steps.push(permissionStep(perm, repair && sdkOk));
+  const permission = permissionStep(perm, canRepair('permission') && sdkOk);
+  const hasNotif = typeof window !== 'undefined' && 'Notification' in window;
+  permission.facts = [
+    { label: 'Permission', value: perm, ok: perm === 'granted' },
+    { label: 'Browser Notification API', value: String(hasNotif), ok: hasNotif },
+  ];
+  steps.push(permission);
 
   // 4. This device's push subscription — id + opt-in state (repairable).
   //    Two failure shapes are common: the device has an id but is soft
@@ -208,7 +258,7 @@ export async function runPushRepair(
   let subId = sdkOk ? await safe(() => deps.getSubscriptionId(), null) : null;
   let subscribed = sdkOk ? await safe(() => deps.isSubscribed(), null) : null;
   let optedInNow = false;
-  if (repair && sdkOk && granted && (subscribed === false || !subId)) {
+  if (canRepair('subscription') && sdkOk && granted && (subscribed === false || !subId)) {
     await safe(() => deps.optInSubscription(), null);
     optedInNow = true;
     for (let i = 0; i < 6 && (!subId || subscribed === false); i++) {
@@ -218,12 +268,19 @@ export async function runPushRepair(
     }
   }
 
+  const subscriptionFacts = [
+    { label: 'Subscription id', value: mask(subId), ok: Boolean(subId) },
+    { label: 'Opted in', value: subscribed === null ? 'unknown' : String(subscribed), ok: subscribed === true },
+    { label: 'Permission', value: perm, ok: granted },
+  ];
+
   if (subId && subscribed !== false) {
     steps.push({
       id: 'subscription',
       label: 'Device push subscription',
       status: optedInNow ? 'fixed' : 'pass',
-      detail: `Subscription ${String(subId).slice(0, 8)}… registered and opted in.`,
+      detail: `Subscription ${mask(subId)} registered and opted in.`,
+      facts: subscriptionFacts,
     });
   } else if (subId && subscribed === false) {
     steps.push({
@@ -231,7 +288,8 @@ export async function runPushRepair(
       label: 'Device push subscription',
       status: 'warn',
       detail: 'This device has a subscription id but is not opted in, so it will not receive pushes.',
-      hint: 'Press “Repair & Configure Push” to opt this device back in.',
+      hint: 'Press “Fix” on this step (or “Repair & Configure Push”) to opt this device back in.',
+      facts: subscriptionFacts,
     });
   } else {
     steps.push({
@@ -242,20 +300,26 @@ export async function runPushRepair(
         ? 'Permission is granted but OneSignal has not registered this device yet.'
         : 'No subscription id until notification permission is granted.',
       hint: granted
-        ? 'Tap “Enable Push” in the staff header (or Allow on the prompt), then re-run in a few seconds.'
-        : 'Tap “Enable Push” in the staff header and allow notifications on this device.',
+        ? 'Tap “Enable on This Device” (or Allow on the prompt), then re-run in a few seconds.'
+        : 'Tap “Enable on This Device” and allow notifications on this device.',
+      facts: subscriptionFacts,
     });
   }
 
   // 5. Signed-in identity (repairable: logs the user into push).
   if (ctx.userId) {
-    if (repair && sdkOk) {
+    if (canRepair('identity') && sdkOk) {
       await safe(() => deps.linkUser(ctx.userId as string, identityTags(ctx)), undefined);
+      const linkedId = await safe(() => deps.getSubscriptionId(), null);
       steps.push({
         id: 'identity',
         label: 'User linked to push',
         status: 'fixed',
-        detail: `Linked external id ${ctx.userId.slice(0, 8)}… so targeted pushes reach this device.`,
+        detail: `Linked external id ${mask(ctx.userId)} so targeted pushes reach this device.`,
+        facts: [
+          { label: 'User id (external)', value: mask(ctx.userId), ok: true },
+          { label: 'Subscription id', value: mask(linkedId), ok: Boolean(linkedId) },
+        ],
       });
     } else {
       steps.push({
@@ -263,6 +327,11 @@ export async function runPushRepair(
         label: 'User linked to push',
         status: 'pass',
         detail: `${ctx.displayName || 'This profile'} will be linked to push for targeted sends.`,
+        facts: [
+          { label: 'User id (external)', value: mask(ctx.userId), ok: true },
+          { label: 'Display name', value: ctx.displayName || '—', ok: Boolean(ctx.displayName) },
+          { label: 'Membership tag', value: ctx.membershipNumber || '—', ok: Boolean(ctx.membershipNumber) },
+        ],
       });
     }
   } else {
@@ -271,18 +340,21 @@ export async function runPushRepair(
       label: 'User linked to push',
       status: 'warn',
       detail: 'No signed-in profile to link — staff segment pushes still work.',
+      hint: 'Sign in as a staff member so targeted pushes can be addressed to you.',
+      facts: [{ label: 'Signed in', value: 'no', ok: false }],
     });
   }
 
   // 6. Owner email subscription (repairable).
   if (ctx.ownerEmail) {
-    if (repair && sdkOk) {
+    if (canRepair('email') && sdkOk) {
       await safe(() => deps.registerEmail(ctx.ownerEmail as string), undefined);
       steps.push({
         id: 'email',
         label: 'Email subscription',
         status: 'fixed',
         detail: `Attached ${ctx.ownerEmail} to this device for email-targeted pushes.`,
+        facts: [{ label: 'Owner email', value: ctx.ownerEmail, ok: true }],
       });
     } else {
       steps.push({
@@ -290,8 +362,18 @@ export async function runPushRepair(
         label: 'Email subscription',
         status: 'pass',
         detail: `${ctx.ownerEmail} can be attached to this device for email-targeted pushes.`,
+        facts: [{ label: 'Owner email', value: ctx.ownerEmail, ok: true }],
       });
     }
+  } else {
+    steps.push({
+      id: 'email',
+      label: 'Email subscription',
+      status: 'warn',
+      detail: 'No owner email configured — email-targeted pushes will be skipped.',
+      hint: 'Set the workshop owner email in app settings.',
+      facts: [{ label: 'Owner email', value: 'not set', ok: false }],
+    });
   }
 
   // 7. End-to-end dispatch probe.
@@ -302,6 +384,7 @@ export async function runPushRepair(
       status: 'warn',
       detail: 'Skipped — server push is not configured yet.',
       hint: 'Fix the server push config above, then re-run.',
+      facts: [{ label: 'Reached OneSignal', value: 'no (skipped)', ok: false }],
     });
   } else {
     const res = await safe(
@@ -309,13 +392,20 @@ export async function runPushRepair(
       { ok: false, via: 'none', envelope: null } as Awaited<ReturnType<PushRepairDeps['sendTestPush']>>
     );
     const errors = res.envelope?.errors || [];
+    const recipients = res.envelope?.recipients;
+    const dispatchFacts = [
+      { label: 'Transport', value: res.via, ok: res.via === 'server' },
+      { label: 'OneSignal id', value: mask(res.envelope?.id ?? null), ok: Boolean(res.envelope?.id) },
+      { label: 'Recipients', value: recipients === undefined ? 'n/a' : String(recipients), ok: (recipients ?? 0) > 0 },
+      { label: 'Errors', value: errors.length ? errors.join('; ') : 'none', ok: errors.length === 0 },
+    ];
     if (res.ok) {
-      const recipients = res.envelope?.recipients ?? 0;
       steps.push({
         id: 'dispatch',
         label: 'Test push dispatch',
         status: 'pass',
-        detail: `OneSignal accepted and delivered to ${recipients} device${recipients === 1 ? '' : 's'}.`,
+        detail: `OneSignal accepted and delivered to ${recipients ?? 0} device${(recipients ?? 0) === 1 ? '' : 's'}.`,
+        facts: dispatchFacts,
       });
     } else if (errors.some((e) => /not subscribed/i.test(e))) {
       steps.push({
@@ -323,7 +413,8 @@ export async function runPushRepair(
         label: 'Test push dispatch',
         status: 'warn',
         detail: 'The server reached OneSignal, but no device is subscribed yet.',
-        hint: 'Open the staff app on a phone, tap Allow on the notification prompt (or “Enable Push”), then re-run.',
+        hint: 'Open the staff app on a phone, tap “Enable on This Device” and Allow, then re-run.',
+        facts: dispatchFacts,
       });
     } else if (errors.length) {
       steps.push({
@@ -332,6 +423,7 @@ export async function runPushRepair(
         status: 'fail',
         detail: `OneSignal error: ${errors.join('; ')}`,
         hint: 'Make sure the App ID and REST key belong to the same OneSignal app.',
+        facts: dispatchFacts,
       });
     } else {
       steps.push({
@@ -340,6 +432,7 @@ export async function runPushRepair(
         status: 'fail',
         detail: 'Push dispatch did not return a usable response.',
         hint: 'Deploy api/onesignal/notify.js and set ONESIGNAL_REST_API_KEY.',
+        facts: dispatchFacts,
       });
     }
   }
