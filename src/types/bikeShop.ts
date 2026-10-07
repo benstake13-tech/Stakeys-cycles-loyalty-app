@@ -312,6 +312,7 @@ export interface BookingNotificationLog {
     | 'booking_approved'
     | 'booking_declined'
     | 'reminder_24h'
+    | 'sos_emergency'
     | 'status_update';
 }
 
@@ -570,6 +571,12 @@ export interface ServiceBooking {
   repairStage?: RepairStageId;
   progressEvents?: RepairProgressEvent[];
   estimateReadyAt?: string | null;
+  // SOS emergency repair (priority call-out for couriers / delivery riders).
+  isSos?: boolean;
+  sosStatus?: 'requested' | 'approved' | 'location_requested' | 'quoted' | 'confirmed' | 'declined';
+  sosLocationRequestedAt?: any;
+  sosLocationNote?: string;
+  sosConfirmedAt?: any;
 }
 
 export interface OwnerNotificationConfig {

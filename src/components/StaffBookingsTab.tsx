@@ -24,6 +24,7 @@ import {
   FileText,
   AlertTriangle,
   Trash2,
+  Siren,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice } from '../types/bikeShop';
@@ -37,6 +38,8 @@ import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
 import { ClearBookingsModal } from './ClearBookingsModal';
 import { PhoneBookingPanel } from './PhoneBookingPanel';
+import { StaffSosPanel } from './StaffSosPanel';
+import { isSosBooking } from '../utils/sosRepair';
 
 export const StaffBookingsTab: React.FC = () => {
   const {
@@ -70,7 +73,7 @@ export const StaffBookingsTab: React.FC = () => {
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('all');
-  const [bookingView, setBookingView] = useState<'queue' | 'phone'>('queue');
+  const [bookingView, setBookingView] = useState<'queue' | 'sos' | 'phone'>('queue');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
 
   // Invoice & Repair Completion Modal States
@@ -122,6 +125,11 @@ export const StaffBookingsTab: React.FC = () => {
 
   const pendingCount = bookings.filter(
     (b) => b.status === 'pending' || b.approvalStatus === 'pending_approval'
+  ).length;
+
+  // SOS jobs still needing action (anything not yet confirmed).
+  const sosOpenCount = bookings.filter(
+    (b) => isSosBooking(b) && b.status !== 'cancelled' && (b.sosStatus || 'requested') !== 'confirmed'
   ).length;
 
   const handleOpenApprove = (b: ServiceBooking) => {
@@ -324,7 +332,7 @@ export const StaffBookingsTab: React.FC = () => {
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* View switcher: online/workshop queue vs staff-logged phone bookings */}
+      {/* View switcher: online/workshop queue vs SOS priority vs staff-logged phone bookings */}
       <div className="inline-flex p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold">
         <button
           type="button"
@@ -337,6 +345,21 @@ export const StaffBookingsTab: React.FC = () => {
         </button>
         <button
           type="button"
+          onClick={() => setBookingView('sos')}
+          className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+            bookingView === 'sos' ? 'bg-rose-500 text-white font-bold shadow-sm' : 'text-rose-300 hover:text-white'
+          }`}
+        >
+          <Siren className="w-3.5 h-3.5" />
+          SOS Priority
+          {sosOpenCount > 0 && (
+            <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-neutral-950/70 text-rose-200">
+              {sosOpenCount}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
           onClick={() => setBookingView('phone')}
           className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
             bookingView === 'phone' ? 'bg-[#05C147] text-neutral-950 font-bold shadow-sm' : 'text-neutral-400 hover:text-white'
@@ -346,6 +369,8 @@ export const StaffBookingsTab: React.FC = () => {
           Phone Bookings
         </button>
       </div>
+
+      {bookingView === 'sos' && <StaffSosPanel />}
 
       {bookingView === 'phone' && <PhoneBookingPanel />}
 
@@ -832,6 +857,12 @@ export const StaffBookingsTab: React.FC = () => {
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] flex items-center gap-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping" />
                             ⚡ FRESH INCOMING
+                          </span>
+                        )}
+                        {isSosBooking(b) && (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white border border-rose-300 flex items-center gap-1">
+                            <Siren className="w-3 h-3" />
+                            SOS PRIORITY
                           </span>
                         )}
                       </div>

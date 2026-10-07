@@ -290,6 +290,11 @@ export async function fetchServiceBookingsFromDb(
         progressEvents: normalizeProgressEvents(row.progress_events),
         estimateReadyAt: row.estimate_ready_at || null,
         invoice: (row.invoice as RepairInvoice) || undefined,
+        isSos: Boolean(row.is_sos),
+        sosStatus: row.sos_status || undefined,
+        sosLocationRequestedAt: row.sos_location_requested_at || undefined,
+        sosLocationNote: row.sos_location_note || undefined,
+        sosConfirmedAt: row.sos_confirmed_at || undefined,
       }));
     }
   } catch (err) {
@@ -308,7 +313,7 @@ export async function insertServiceBookingToDb(
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] INSERT service_bookings id=${booking.id}`);
   try {
-    const buildPayload = (includeBikeDetails: boolean) => {
+    const buildPayload = (includeBikeDetails: boolean, includeSos: boolean) => {
       const payload: any = {
         id: booking.id,
         customer_id: booking.customerId || null,
@@ -332,14 +337,24 @@ export async function insertServiceBookingToDb(
       };
       if (includeBikeDetails && booking.bikeDetails) payload.bike_details = booking.bikeDetails;
       if (includeBikeDetails && booking.referralCode) payload.referral_code = booking.referralCode;
+      if (includeSos && booking.isSos) {
+        payload.is_sos = true;
+        payload.sos_status = booking.sosStatus || 'requested';
+      }
       return payload;
     };
 
-    let { error } = await supabase.from('service_bookings').insert(buildPayload(true));
+    let { error } = await supabase.from('service_bookings').insert(buildPayload(true, true));
     if (error) {
       // Older project without the bike_details/referral_code columns — still
       // save the booking.
-      const retry = await supabase.from('service_bookings').insert(buildPayload(false));
+      const retry = await supabase.from('service_bookings').insert(buildPayload(false, true));
+      error = retry.error;
+    }
+    if (error && booking.isSos) {
+      // Older project without the SOS columns — fall back to the notes marker
+      // so the job is still recognisable.
+      const retry = await supabase.from('service_bookings').insert(buildPayload(true, false));
       error = retry.error;
     }
 
@@ -422,15 +437,29 @@ export async function updateServiceBookingInDb(
     if (updates.estimateReadyAt !== undefined) payload.estimate_ready_at = updates.estimateReadyAt;
     if (updates.bikeDetails !== undefined) payload.bike_details = updates.bikeDetails;
     if (updates.invoice !== undefined) payload.invoice = updates.invoice;
+    if (updates.isSos !== undefined) payload.is_sos = updates.isSos;
+    if (updates.sosStatus !== undefined) payload.sos_status = updates.sosStatus;
+    if (updates.sosLocationRequestedAt !== undefined) payload.sos_location_requested_at = updates.sosLocationRequestedAt;
+    if (updates.sosLocationNote !== undefined) payload.sos_location_note = updates.sosLocationNote;
+    if (updates.sosConfirmedAt !== undefined) payload.sos_confirmed_at = updates.sosConfirmedAt;
 
     let { error } = await supabase
       .from('service_bookings')
       .update(payload)
       .eq('id', bookingId);
 
-    // Newer optional columns (invoice, notifications) may not exist on an older
-    // project. Drop the offending column(s) and retry so the rest still persists.
-    const OPTIONAL_COLUMNS = ['invoice', 'notifications'];
+    // Newer optional columns (invoice, notifications, SOS fields) may not exist
+    // on an older project. Drop the offending column(s) and retry so the rest
+    // still persists.
+    const OPTIONAL_COLUMNS = [
+      'invoice',
+      'notifications',
+      'is_sos',
+      'sos_status',
+      'sos_location_requested_at',
+      'sos_location_note',
+      'sos_confirmed_at',
+    ];
     for (const column of OPTIONAL_COLUMNS) {
       if (error && payload[column] !== undefined) {
         console.warn(`[SUPABASE NET] Retrying UPDATE without optional column "${column}"`);

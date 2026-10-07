@@ -120,6 +120,11 @@ CREATE TABLE IF NOT EXISTS public.service_bookings (
   quote_note TEXT,
   quote_sent_at TIMESTAMPTZ,
   quote_sent_by TEXT,
+  is_sos BOOLEAN DEFAULT FALSE,
+  sos_status TEXT,
+  sos_location_requested_at TIMESTAMPTZ,
+  sos_location_note TEXT,
+  sos_confirmed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -353,6 +358,11 @@ ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_note TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_at TIMESTAMPTZ;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_by TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS referral_code TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS is_sos BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS sos_status TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS sos_location_requested_at TIMESTAMPTZ;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS sos_location_note TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS sos_confirmed_at TIMESTAMPTZ;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2e. prize_wheels
