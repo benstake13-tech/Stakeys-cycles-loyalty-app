@@ -106,14 +106,14 @@ describe('booking email de-duplication', () => {
     expect(count('APPROVED')).toBe(1); // approval (duplicate suppressed)
     expect(count('could not be approved')).toBe(1); // decline
     // Reminders default to push, so no reminder email is sent.
-    expect(count('24-Hour')).toBe(0);
+    expect(count('Slot Reminder')).toBe(0);
   });
 
   it('sends reminder emails when email mode is explicitly requested', async () => {
     await dispatch24hReminderNotification(booking, config, { pushOnly: false });
 
     const subjects = hoisted.invokes.map((i) => i.body.subject as string);
-    expect(subjects.filter((s) => s.includes('24-Hour')).length).toBe(2); // customer + workshop
+    expect(subjects.filter((s) => s.includes('Slot Reminder')).length).toBe(2); // customer + workshop
   });
 
   it('dispatches the 24h reminder as a push to the customer and owner-email devices', async () => {
