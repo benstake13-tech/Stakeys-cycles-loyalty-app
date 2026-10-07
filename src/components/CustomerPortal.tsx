@@ -19,7 +19,9 @@ import {
   Activity,
   Gift,
   CloudRain,
+  RefreshCw,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useShop } from '../context/ShopContext';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
@@ -55,6 +57,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     bookings,
     addCustomerBike,
     removeCustomerBike,
+    repairCustomerGarage,
     saveBikeScrapedSpecs,
     updateCustomerAvatar,
   } = useShop();
@@ -76,6 +79,27 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     model: 'FX 1 / 2 / 3 (Hybrid Commuter)',
   });
   const [isSavingBike, setIsSavingBike] = useState(false);
+  const [isFixingGarage, setIsFixingGarage] = useState(false);
+
+  const handleFixGarage = async () => {
+    setIsFixingGarage(true);
+    try {
+      const { removed, reassigned } = await repairCustomerGarage();
+      if (removed > 0 || reassigned > 0) {
+        toast.success(
+          `Garage repaired — removed ${removed} misplaced bike${removed === 1 ? '' : 's'}` +
+            (reassigned > 0 ? `, restored ${reassigned} of your own.` : '.')
+        );
+      } else {
+        toast.success('Garage checked — your bikes are correct.');
+      }
+    } catch (err) {
+      toast.error('Could not repair the garage. Please try again.');
+      console.warn('[GARAGE] repair failed:', err);
+    } finally {
+      setIsFixingGarage(false);
+    }
+  };
 
   const patchBikeIdentity = (patch: Partial<BikeIdentityValue>) =>
     setBikeIdentity((prev) => ({ ...prev, ...patch }));
@@ -292,6 +316,16 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleFixGarage}
+                disabled={isFixingGarage}
+                title="Removes any bikes that are not yours and reloads your own from the database"
+                className="pressable px-4 py-2 rounded-lg bg-neutral-800/80 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isFixingGarage ? 'animate-spin' : ''}`} />
+                <span>{isFixingGarage ? 'Fixing…' : 'Fix My Garage'}</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setIsAiIdentifierOpen(true)}

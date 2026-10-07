@@ -41,6 +41,74 @@ function normalizeCategory(cat?: string): VehicleCategory {
   return 'cycle';
 }
 
+/**
+ * The `customer_id` values that legitimately own a customer's bikes. Always
+ * includes the profile UUID; adds the membership number only when it is a real,
+ * non-empty token (never the empty string, which PostgREST `eq.` would match
+ * against every NULL row and leak the whole workshop's garage).
+ */
+function bikeOwnerIds(userId: string, membershipNumber?: string): string[] {
+  const ids = [userId];
+  const membership = (membershipNumber || '').trim();
+  if (membership && membership !== userId) ids.push(membership);
+  return ids;
+}
+
+/**
+ * Reassigns every bike owned by `membershipNumber` (legacy rows written before
+ * the profile-UUID migration) to `userId`, so a customer's garage is keyed only
+ * by their stable UUID going forward. Returns the number of rows updated.
+ */
+export async function reassignBikesToOwner(
+  userId: string,
+  membershipNumber: string
+): Promise<number> {
+  const membership = (membershipNumber || '').trim();
+  if (!membership) return 0;
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('customer_bikes')
+      .update({ customer_id: userId })
+      .eq('customer_id', membership)
+      .select('id');
+    if (error) {
+      console.error('[SUPABASE NET ERROR] reassignBikesToOwner failed:', error.message);
+      return 0;
+    }
+    return data?.length || 0;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] reassignBikesToOwner:', err);
+    return 0;
+  }
+}
+
+/**
+ * Deletes the given bike rows by id, scoped to `userId` so a stray id can never
+ * remove another customer's bike. Returns the number of rows deleted.
+ */
+export async function deleteBikesByIds(userId: string, ids: string[]): Promise<number> {
+  const clean = ids.filter((id) => id && id.trim());
+  if (clean.length === 0) return 0;
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('customer_bikes')
+      .delete()
+      .eq('customer_id', userId)
+      .in('id', clean)
+      .select('id');
+    if (error) {
+      console.error('[SUPABASE NET ERROR] deleteBikesByIds failed:', error.message);
+      return 0;
+    }
+    return data?.length || 0;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteBikesByIds:', err);
+    return 0;
+  }
+}
+
 function normalizeProgressEvents(value: unknown): RepairProgressEvent[] {
   if (Array.isArray(value)) return value as RepairProgressEvent[];
   if (typeof value === 'string') {
@@ -62,14 +130,17 @@ export async function fetchCustomerBikesFromDb(
   membershipNumber?: string
 ): Promise<CustomerBike[]> {
   const supabase = getSupabaseClient();
-  console.log(`[SUPABASE NET] SELECT customer_bikes for userId=${userId}, membership=${membershipNumber}`);
+  const ownerIds = bikeOwnerIds(userId, membershipNumber);
+  console.log(`[SUPABASE NET] SELECT customer_bikes for owners=${ownerIds.join(',')}`);
   try {
     let query = supabase.from('customer_bikes').select('*');
-    if (membershipNumber) {
-      query = query.or(`customer_id.eq.${userId},customer_id.eq.${membershipNumber}`);
-    } else {
-      query = query.eq('customer_id', userId);
-    }
+    // Match the profile UUID, and (for legacy rows written before the id
+    // migration) an exact non-empty membership number. A blank membership must
+    // NEVER be used as a filter — `eq.` matches every NULL/empty row and would
+    // hand this customer the whole workshop's bikes.
+    query = ownerIds.length > 1
+      ? query.or(ownerIds.map((id) => `customer_id.eq.${id}`).join(','))
+      : query.eq('customer_id', ownerIds[0]);
 
     const { data, error } = await query;
     if (error) {
