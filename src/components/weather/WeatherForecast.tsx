@@ -7,6 +7,7 @@ import {
   MapPin,
   Navigation,
   RefreshCw,
+  Search,
   Sparkles,
   Star,
   Sunrise,
@@ -17,16 +18,22 @@ import {
 import { WeatherScene } from './WeatherScene';
 import {
   DailyWeather,
+  KnownPlace,
   RIDING_GRADE_LABEL,
   RidingGrade,
+  WeatherLocation,
   WeatherReport,
   dayLabel,
   fetchWeatherReport,
   loadCachedWeather,
+  loadManualLocation,
+  placeLabel,
   pickBestRidingDay,
   resolveWeatherLocation,
   ridingConditionsFor,
   saveCachedWeather,
+  saveManualLocation,
+  searchPlaces,
   syntheticWeatherReport,
 } from '../../utils/weatherService';
 
@@ -97,13 +104,70 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
   const [selected, setSelected] = useState(0);
   const [unit, setUnit] = useState<TempUnit>('c');
   const [locating, setLocating] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [placeQuery, setPlaceQuery] = useState('');
+  const [placeResults, setPlaceResults] = useState<KnownPlace[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimer = useRef<number | null>(null);
   const mounted = useRef(true);
 
+  const applyLocation = useCallback(async (location: WeatherLocation) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const fresh = await fetchWeatherReport(location);
+      if (!mounted.current) return;
+      setReport(fresh);
+      saveCachedWeather(fresh);
+    } catch {
+      if (!mounted.current) return;
+      setError('Live weather is unavailable right now — showing the last known forecast.');
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  }, []);
+
+  const runSearch = useCallback((query: string) => {
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    if (query.trim().length < 2) {
+      setPlaceResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    searchTimer.current = window.setTimeout(async () => {
+      const results = await searchPlaces(query);
+      if (!mounted.current) return;
+      setPlaceResults(results);
+      setSearching(false);
+    }, 300);
+  }, []);
+
+  const choosePlace = async (place: KnownPlace) => {
+    const location: WeatherLocation = {
+      latitude: place.latitude,
+      longitude: place.longitude,
+      label: placeLabel(place),
+      source: 'manual',
+    };
+    saveManualLocation(location);
+    setPickerOpen(false);
+    setPlaceResults([]);
+    setPlaceQuery('');
+    await applyLocation(location);
+  };
+
   const load = useCallback(
-    async (opts: { useDevice: boolean; force?: boolean } = { useDevice: allowDevice }) => {
+    async (opts: { useDevice: boolean; force?: boolean; forceDevice?: boolean } = { useDevice: allowDevice }) => {
       if (!opts.force) {
         const cached = loadCachedWeather();
-        if (cached) {
+        const manual = loadManualLocation();
+        const cacheMatches =
+          cached &&
+          (!manual ||
+            (Math.abs(cached.location.latitude - manual.latitude) < 1e-4 &&
+              Math.abs(cached.location.longitude - manual.longitude) < 1e-4));
+        if (cached && cacheMatches) {
           if (mounted.current) {
             setReport(cached);
             setLoading(false);
@@ -114,7 +178,10 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const location = await resolveWeatherLocation({ allowDevice: opts.useDevice });
+        const location = await resolveWeatherLocation({
+          allowDevice: opts.useDevice,
+          forceDevice: opts.forceDevice,
+        });
         const fresh = await fetchWeatherReport(location);
         if (!mounted.current) return;
         setReport(fresh);
@@ -143,7 +210,7 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
   const useMyLocation = async () => {
     setLocating(true);
     try {
-      await load({ useDevice: true, force: true });
+      await load({ useDevice: true, force: true, forceDevice: true });
     } finally {
       if (mounted.current) setLocating(false);
     }
@@ -182,10 +249,16 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
           <div>
             <div className={`text-sm font-black ${strong} flex items-center gap-1.5`}>
               Riding Weather
-              <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${shell} ${muted}`}>
+              <button
+                type="button"
+                onClick={() => setPickerOpen((v) => !v)}
+                title="Search for a place to forecast"
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider cursor-pointer hover:border-sky-500/50 ${shell} ${muted}`}
+              >
                 <MapPin className="w-2.5 h-2.5" />
                 {report?.location.label ?? 'Locating…'}
-              </span>
+                {report?.location.source === 'device' ? ' (GPS)' : ''}
+              </button>
             </div>
             <p className={`text-[11px] ${muted}`}>
               Next 7 days · {report ? `updated ${updatedLabel(report.fetchedAt)}` : 'loading…'}
@@ -230,6 +303,49 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
           </div>
         )}
       </div>
+
+      {pickerOpen && (
+        <div className={`rounded-2xl border p-3 ${shell}`} data-testid="weather-location-picker">
+          <div className="relative">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${muted}`} />
+            <input
+              type="text"
+              autoFocus
+              value={placeQuery}
+              onChange={(e) => {
+                setPlaceQuery(e.target.value);
+                runSearch(e.target.value);
+              }}
+              placeholder="Search town or city (e.g. Stockport)"
+              className={`w-full rounded-xl border pl-9 pr-3 py-2 text-xs font-semibold focus:outline-none focus:border-sky-500 ${shell} ${strong}`}
+            />
+          </div>
+          <div className="mt-2 max-h-56 overflow-y-auto">
+            {searching && <p className={`px-1 py-2 text-[11px] ${muted}`}>Searching…</p>}
+            {!searching && placeResults.length === 0 && placeQuery.trim().length >= 2 && (
+              <p className={`px-1 py-2 text-[11px] ${muted}`}>No matching places.</p>
+            )}
+            {placeResults.map((place) => (
+              <button
+                key={place.id}
+                type="button"
+                onClick={() => void choosePlace(place)}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold cursor-pointer hover:bg-sky-500/10 ${strong}`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <MapPin className={`w-3 h-3 ${muted}`} />
+                  {place.name}
+                  {place.region ? <span className={muted}>· {place.region}</span> : null}
+                </span>
+                {place.country && <span className={`text-[10px] uppercase ${muted}`}>{place.country}</span>}
+              </button>
+            ))}
+          </div>
+          <p className={`mt-1 px-1 text-[10px] ${muted}`}>
+            Pick your town for an accurate forecast even without GPS permission. Saved to this device.
+          </p>
+        </div>
+      )}
 
       {active && conditions && (
         <div className={`relative overflow-hidden rounded-2xl border ${shell}`}>

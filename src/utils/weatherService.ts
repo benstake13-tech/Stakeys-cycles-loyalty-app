@@ -550,16 +550,116 @@ export async function reverseGeocodeArea(
 
 export interface ResolveLocationOptions {
   allowDevice?: boolean;
+  /** Ignore a saved manual location and force a fresh device lookup. */
+  forceDevice?: boolean;
   fetchImpl?: typeof fetch;
 }
 
+/** localStorage key holding a rider-chosen location (manual override). */
+export const MANUAL_LOCATION_KEY = 'stakeys.weather.location.v1';
+
+/** A rider-chosen place, so location is accurate without GPS permission. */
+export function loadManualLocation(storage?: Storage | null): WeatherLocation | null {
+  const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store) return null;
+  try {
+    const raw = store.getItem(MANUAL_LOCATION_KEY);
+    if (!raw) return null;
+    const loc = JSON.parse(raw) as WeatherLocation;
+    if (!loc || !Number.isFinite(loc.latitude) || !Number.isFinite(loc.longitude)) return null;
+    return { ...loc, source: 'manual' };
+  } catch {
+    return null;
+  }
+}
+
+export function saveManualLocation(location: WeatherLocation, storage?: Storage | null): void {
+  const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store) return;
+  try {
+    store.setItem(MANUAL_LOCATION_KEY, JSON.stringify({ ...location, source: 'manual' }));
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function clearManualLocation(storage?: Storage | null): void {
+  const store = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
+  if (!store) return;
+  try {
+    store.removeItem(MANUAL_LOCATION_KEY);
+  } catch {
+    /* best-effort */
+  }
+}
+
+export interface KnownPlace {
+  id: number | string;
+  name: string;
+  region?: string;
+  country?: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** Open-Meteo's key-less, CORS-friendly geocoder. */
+export function buildGeocodeUrl(query: string): string {
+  const params = new URLSearchParams({
+    name: query,
+    count: '6',
+    language: 'en',
+    format: 'json',
+  });
+  return `https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`;
+}
+
+/** "Salford, England" — a short, human label for a place. */
+export function placeLabel(place: KnownPlace): string {
+  const parts = [place.name];
+  if (place.region && place.region !== place.name) parts.push(place.region);
+  return parts.join(', ');
+}
+
+/** Looks a place name up against the live geocoder. Never throws. */
+export async function searchPlaces(
+  query: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<KnownPlace[]> {
+  const q = String(query || '').trim();
+  if (q.length < 2) return [];
+  try {
+    const res = await fetchImpl(buildGeocodeUrl(q));
+    if (!res.ok) return [];
+    const data = await res.json();
+    const results: any[] = Array.isArray(data?.results) ? data.results : [];
+    return results
+      .filter((r) => r && r.latitude != null && r.longitude != null)
+      .map((r) => ({
+        id: r?.id ?? `${r?.latitude},${r?.longitude}`,
+        name: String(r?.name ?? '').trim(),
+        region: r?.admin1 ? String(r.admin1) : undefined,
+        country: r?.country_code ? String(r.country_code) : r?.country ? String(r.country) : undefined,
+        latitude: Number(r?.latitude),
+        longitude: Number(r?.longitude),
+      }))
+      .filter((p) => p.name && Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Resolves the area to forecast for: the device's location when the rider
- * allows it, otherwise the workshop. Always returns a usable location.
+ * Resolves the area to forecast for, in order of preference: a rider-chosen
+ * location, then the device's location when allowed, then the workshop. Always
+ * returns a usable location.
  */
 export async function resolveWeatherLocation(
   opts: ResolveLocationOptions = {}
 ): Promise<WeatherLocation> {
+  if (!opts.forceDevice) {
+    const manual = loadManualLocation();
+    if (manual) return manual;
+  }
   if (opts.allowDevice !== false) {
     const geo = await getBrowserLocation();
     if (geo) {

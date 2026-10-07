@@ -1,18 +1,25 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   DEFAULT_WEATHER_LOCATION,
+  WeatherLocation,
+  buildGeocodeUrl,
   buildOpenMeteoUrl,
+  clearManualLocation,
   dayLabel,
   fetchWeatherReport,
   loadCachedWeather,
+  loadManualLocation,
   localDateKey,
   nearestAreaName,
   parseOpenMeteo,
   pickBestRidingDay,
+  placeLabel,
   resolveWeatherLocation,
   reverseGeocodeArea,
   ridingConditionsFor,
   saveCachedWeather,
+  saveManualLocation,
+  searchPlaces,
   syntheticWeatherReport,
   weatherKindFor,
   weatherLabel,
@@ -262,5 +269,72 @@ describe('location resolution', () => {
       throw new Error('offline');
     }) as any;
     expect(await reverseGeocodeArea(1, 2, fetchImpl)).toBeNull();
+  });
+});
+
+describe('manual location + geocoding', () => {
+  beforeEach(() => localStorage.clear());
+
+  it('saves, loads and clears a manual location', () => {
+    const loc: WeatherLocation = { latitude: 53.41, longitude: -2.16, label: 'Stockport, England', source: 'manual' };
+    saveManualLocation(loc);
+    const loaded = loadManualLocation();
+    expect(loaded).toMatchObject({ latitude: 53.41, longitude: -2.16, label: 'Stockport, England', source: 'manual' });
+    clearManualLocation();
+    expect(loadManualLocation()).toBeNull();
+  });
+
+  it('prefers a saved manual location over the device', async () => {
+    saveManualLocation({ latitude: 51.5, longitude: -0.12, label: 'London', source: 'manual' });
+    vi.stubGlobal('navigator', {
+      geolocation: { getCurrentPosition: (ok: any) => ok({ coords: { latitude: 53.48, longitude: -2.24 } }) },
+    });
+    const loc = await resolveWeatherLocation({});
+    expect(loc.source).toBe('manual');
+    expect(loc.label).toBe('London');
+    vi.unstubAllGlobals();
+  });
+
+  it('forceDevice overrides the saved manual location', async () => {
+    saveManualLocation({ latitude: 51.5, longitude: -0.12, label: 'London', source: 'manual' });
+    vi.stubGlobal('navigator', {
+      geolocation: { getCurrentPosition: (ok: any) => ok({ coords: { latitude: 53.4808, longitude: -2.2426 } }) },
+    });
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({ city: 'Manchester' }) })) as any;
+    const loc = await resolveWeatherLocation({ forceDevice: true, fetchImpl });
+    expect(loc.source).toBe('device');
+    expect(loc.label).toBe('Manchester');
+    vi.unstubAllGlobals();
+  });
+
+  it('builds a key-less geocoding URL', () => {
+    const url = buildGeocodeUrl('Stockport');
+    expect(url).toContain('geocoding-api.open-meteo.com');
+    expect(url).toContain('name=Stockport');
+    expect(url).not.toContain('apikey');
+  });
+
+  it('maps geocoder results into places and labels them', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        results: [
+          { id: 1, name: 'Stockport', admin1: 'England', country_code: 'GB', latitude: 53.41, longitude: -2.16 },
+          { id: 2, name: 'Nowhere', latitude: null, longitude: null },
+        ],
+      }),
+    })) as any;
+    const places = await searchPlaces('Stockport', fetchImpl);
+    expect(places).toHaveLength(1);
+    expect(places[0]).toMatchObject({ name: 'Stockport', region: 'England', country: 'GB' });
+    expect(placeLabel(places[0])).toBe('Stockport, England');
+  });
+
+  it('returns [] for short queries and on geocoder failure', async () => {
+    expect(await searchPlaces('a', (async () => ({ ok: true, json: async () => ({}) })) as any)).toEqual([]);
+    const boom = (async () => {
+      throw new Error('offline');
+    }) as any;
+    expect(await searchPlaces('Manchester', boom)).toEqual([]);
   });
 });
