@@ -207,3 +207,13 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - Confirmed live (session 15): `/api/onesignal/config` returns `serverPush:true`, key from `ONESIGNAL_REST_API_KEY`. A real POST to `/api/onesignal/notify` reaches OneSignal and returns "not subscribed" → **the server pipeline works; simply no device has opted in yet**. Fix = open staff app on a phone and Allow notifications.
 - Tests: `push_repair.test.ts` (11, DI — no SDK mocks) + 2 not-subscribed regressions in `push_notifications.test.ts`. Note: `feature_diagnostics.test.tsx` mocks `./src/utils/pushNotifications` by hand, so **any new named export used by StaffDiagnosticsTab must be added to that mock** or the render tests throw "No X export is defined".
 - Heads: `staff-terminal` 487b1dc / `main-website` 362a251 / `customer-app` ad959f4 (parity = only `src/config/surface.ts`).
+
+## Session 16 (2026-10-06) — Repair & Configure Push (device opt-in + App ID)
+- The Test Bench push section is now **"Repair & Configure Push Notifications"**. Added two real config capabilities, not just diagnosis:
+  1. **Device opt-in** — `pushNotifications.isPushSubscribed()` + `optInPushSubscription()` (calls `os.User.PushSubscription.optIn()`). `pushRepair` now has an opt-in step: on repair, a permission-granted but `optedIn:false` device is opted back in (status `fixed`). This is the common "permission granted yet no pushes" case.
+  2. **App ID override** — `getConfiguredAppId()`/`setConfiguredAppId()` store `localStorage['stakeys.onesignal.appId']`; `index.html` reads it at load and passes it to `OneSignal.init({appId})`, falling back to the built-in default. Lets staff rotate/fix the App ID from the UI with no code change + reload.
+- `pushRepair` deps gained `isSubscribed`, `optInSubscription`, `getConfiguredAppId`; SDK step now prints the App ID in use.
+- REST key still cannot be set from the browser (server-only) — hints point at the Vercel env var.
+- Tests: push_repair.test.ts now 15 (opt-in gating incl. `denied` guard, app-id reporting); push_notifications.test.ts gained `isPushSubscribed`/`optInPushSubscription`/app-id-override units. Full suite 63 files / 446 tests.
+- Lesson kept: `feature_diagnostics.test.tsx` hand-mocks `./src/utils/pushNotifications`; every new named export the tab imports must be added there.
+- Heads: `staff-terminal` 7d43034 / `main-website` bf19b70 / `customer-app` d74c914.
