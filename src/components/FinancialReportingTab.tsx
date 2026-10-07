@@ -1,7 +1,28 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { supabase } from '../lib/supabase';
-import { FileText, Download, TrendingUp, ShoppingCart, Wrench, Store, Clock } from 'lucide-react';
+import {
+  FileText,
+  Download,
+  TrendingUp,
+  ShoppingCart,
+  Wrench,
+  Store,
+  Clock,
+  Printer,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
+import {
+  buildFinancialLedger,
+  summarizeLedger,
+  financialLedgerCsv,
+  financialSummaryCsv,
+  workshopPaymentLabel,
+  type FinancialChannel,
+  type FinancialLedgerRow,
+  type PaymentState,
+} from '../utils/financials';
 
 interface ShopOrder {
   id: string;
@@ -12,32 +33,6 @@ interface ShopOrder {
   created_at: string;
 }
 
-type Channel = 'till' | 'workshop' | 'online';
-
-interface LedgerRow {
-  id: string;
-  date: string;
-  channel: Channel;
-  customer: string;
-  detail: string;
-  total: number;
-}
-
-const inRange = (date: string, start: string, end: string) => {
-  const d = (date || '').slice(0, 10);
-  return d >= start && d <= end;
-};
-
-const toDate = (value: unknown): string => {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'object' && 'seconds' in (value as Record<string, unknown>)) {
-    return new Date((value as { seconds: number }).seconds * 1000).toISOString();
-  }
-  return '';
-};
-
 const money = (n: number) => `£${n.toFixed(2)}`;
 
 /**
@@ -46,7 +41,9 @@ const money = (n: number) => `£${n.toFixed(2)}`;
  *  - Workshop bookings (completed jobs with an invoice)
  *  - Online shop orders (click & collect from the website)
  *
- * Figures are cash-in only: quotes and declined/unsigned work are excluded but
+ * Each row is tagged paid or unpaid (from the invoice / sale payment method),
+ * split into net + VAT, and summarised so the figures can be handed to the
+ * accountant or printed. Quotes and declined/unsigned work are excluded but
  * surfaced separately so nothing silently disappears from the totals.
  */
 export const FinancialReportingTab: React.FC = () => {
@@ -60,7 +57,8 @@ export const FinancialReportingTab: React.FC = () => {
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [ordersState, setOrdersState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
-  const [channel, setChannel] = useState<'all' | Channel>('all');
+  const [channel, setChannel] = useState<'all' | FinancialChannel>('all');
+  const [payment, setPayment] = useState<'all' | PaymentState>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -84,92 +82,57 @@ export const FinancialReportingTab: React.FC = () => {
     };
   }, []);
 
-  const tillRows = useMemo<LedgerRow[]>(
-    () =>
-      (sales || [])
-        .filter((s) => s.status === 'completed' || s.status === undefined)
-        .filter((s) => inRange(toDate(s.createdAt), startDate, endDate))
-        .map((s) => ({
-          id: s.saleNumber || s.id,
-          date: toDate(s.createdAt).slice(0, 10),
-          channel: 'till' as const,
-          customer: s.customerName,
-          detail: `${s.items.length} item${s.items.length === 1 ? '' : 's'}${s.discount > 0 ? ` · discount −${money(s.discount)}` : ''}`,
-          total: s.grandTotal,
-        })),
-    [sales, startDate, endDate]
+  const fullLedger = useMemo(
+    () => buildFinancialLedger({ sales, bookings, orders, start: startDate, end: endDate }),
+    [sales, bookings, orders, startDate, endDate]
   );
 
-  const workshopRows = useMemo<LedgerRow[]>(
+  const ledger = useMemo(
     () =>
-      (bookings || [])
-        .filter((b) => b.status === 'completed' && b.invoice)
-        .filter((b) => inRange(b.preferredDate || toDate(b.invoice?.completedAt), startDate, endDate))
-        .map((b) => ({
-          id: b.invoice!.invoiceNumber || b.id,
-          date: (b.preferredDate || toDate(b.invoice?.completedAt)).slice(0, 10),
-          channel: 'workshop' as const,
-          customer: b.customerName,
-          detail: `${b.serviceTitle} · ${b.vehicleModel}`,
-          total: b.invoice!.grandTotal,
-        })),
-    [bookings, startDate, endDate]
+      fullLedger
+        .filter((r) => channel === 'all' || r.channel === channel)
+        .filter((r) => payment === 'all' || r.paymentState === payment),
+    [fullLedger, channel, payment]
   );
 
-  const onlineRows = useMemo<LedgerRow[]>(
-    () =>
-      orders
-        .filter((o) => inRange(o.created_at, startDate, endDate))
-        .map((o) => ({
-          id: `WEB-${o.id.slice(0, 6).toUpperCase()}`,
-          date: o.created_at.slice(0, 10),
-          channel: 'online' as const,
-          customer: o.customer_name,
-          detail: `${(o.items || []).length} item${(o.items || []).length === 1 ? '' : 's'} · click & collect`,
-          total: Number(o.total) || 0,
-        })),
-    [orders, startDate, endDate]
-  );
-
-  const ledger = useMemo(() => {
-    const all = [...tillRows, ...workshopRows, ...onlineRows];
-    return all
-      .filter((r) => channel === 'all' || r.channel === channel)
-      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [tillRows, workshopRows, onlineRows, channel]);
-
-  const totals = useMemo(
-    () =>
-      ledger.reduce(
-        (acc, r) => {
-          acc.total += r.total;
-          acc[r.channel] += r.total;
-          return acc;
-        },
-        { total: 0, till: 0, workshop: 0, online: 0 }
-      ),
-    [ledger]
-  );
+  const totals = useMemo(() => summarizeLedger(ledger), [ledger]);
+  const periodSummary = useMemo(() => summarizeLedger(fullLedger), [fullLedger]);
 
   const pendingQuotes = useMemo(
     () => (sales || []).filter((s) => s.status === 'quote' || s.status === 'approved'),
     [sales]
   );
 
-  const handleExportCSV = () => {
-    const headers = ['Reference', 'Date', 'Channel', 'Customer', 'Detail', 'Total'];
-    const rows = ledger.map((r) => [r.id, r.date, r.channel, r.customer, r.detail, r.total.toFixed(2)]);
-    const csvContent = [headers, ...rows].map((r) => r.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+  const download = (contents: string, filename: string) => {
+    const blob = new Blob([contents], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `financial_report_${startDate}_to_${endDate}.csv`;
+    link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const channelMeta: Record<Channel, { label: string; icon: React.ReactNode; tone: string }> = {
+  const handleExportCSV = () =>
+    download(financialLedgerCsv(ledger), `financial_ledger_${startDate}_to_${endDate}.csv`);
+
+  const handleExportSummary = () =>
+    download(financialSummaryCsv(periodSummary), `financial_summary_${startDate}_to_${endDate}.csv`);
+
+  const handlePrint = () => window.print();
+
+  const paymentBadge = (row: FinancialLedgerRow) =>
+    row.paymentState === 'paid' ? (
+      <span className="inline-flex items-center gap-1 font-bold text-emerald-400">
+        <CheckCircle2 className="w-3.5 h-3.5" /> Paid
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 font-bold text-amber-400">
+        <AlertCircle className="w-3.5 h-3.5" /> Unpaid
+      </span>
+    );
+
+  const channelMeta: Record<FinancialChannel, { label: string; icon: React.ReactNode; tone: string }> = {
     till: { label: 'Till', icon: <ShoppingCart className="w-4 h-4" />, tone: 'text-emerald-400' },
     workshop: { label: 'Workshop', icon: <Wrench className="w-4 h-4" />, tone: 'text-sky-400' },
     online: { label: 'Online', icon: <Store className="w-4 h-4" />, tone: 'text-amber-400' },
@@ -179,7 +142,7 @@ export const FinancialReportingTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-neutral-900 rounded-xl border border-neutral-800">
+      <div className="no-print flex flex-wrap items-center justify-between gap-4 p-4 bg-neutral-900 rounded-xl border border-neutral-800">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-col">
             <label className="text-[10px] text-neutral-400 uppercase font-mono">Start Date</label>
@@ -191,42 +154,90 @@ export const FinancialReportingTab: React.FC = () => {
           </div>
           <div className="flex flex-col">
             <label className="text-[10px] text-neutral-400 uppercase font-mono">Channel</label>
-            <select value={channel} onChange={(e) => setChannel(e.target.value as 'all' | Channel)} className="bg-neutral-800 border-neutral-700 text-white rounded-lg px-2 py-1 text-xs">
+            <select value={channel} onChange={(e) => setChannel(e.target.value as 'all' | FinancialChannel)} className="bg-neutral-800 border-neutral-700 text-white rounded-lg px-2 py-1 text-xs">
               <option value="all">All channels</option>
               <option value="till">Till</option>
               <option value="workshop">Workshop</option>
               <option value="online">Online shop</option>
             </select>
           </div>
-        </div>
-        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold rounded-lg text-xs transition-colors cursor-pointer">
-          <Download className="w-4 h-4" /> Export CSV
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className={card}>
-          <div className="text-[10px] text-neutral-400 uppercase">Grand Total</div>
-          <div className="text-xl font-bold text-[#05C147]">{money(totals.total)}</div>
-          <div className="text-[10px] text-neutral-500">{ledger.length} transactions</div>
-        </div>
-        <div className={card}>
-          <div className="text-[10px] text-neutral-400 uppercase flex items-center gap-1.5"><ShoppingCart className="w-3.5 h-3.5 text-emerald-400" /> Till</div>
-          <div className="text-xl font-bold text-white">{money(totals.till)}</div>
-          <div className="text-[10px] text-neutral-500">{tillRows.length} counter sales</div>
-        </div>
-        <div className={card}>
-          <div className="text-[10px] text-neutral-400 uppercase flex items-center gap-1.5"><Wrench className="w-3.5 h-3.5 text-sky-400" /> Workshop</div>
-          <div className="text-xl font-bold text-white">{money(totals.workshop)}</div>
-          <div className="text-[10px] text-neutral-500">{workshopRows.length} completed jobs</div>
-        </div>
-        <div className={card}>
-          <div className="text-[10px] text-neutral-400 uppercase flex items-center gap-1.5"><Store className="w-3.5 h-3.5 text-amber-400" /> Online Shop</div>
-          <div className="text-xl font-bold text-white">{money(totals.online)}</div>
-          <div className="text-[10px] text-neutral-500">
-            {ordersState === 'loading' ? 'Loading orders…' : ordersState === 'unavailable' ? 'Order table not set up' : `${onlineRows.length} web orders`}
+          <div className="flex flex-col">
+            <label className="text-[10px] text-neutral-400 uppercase font-mono">Payment</label>
+            <select value={payment} onChange={(e) => setPayment(e.target.value as 'all' | PaymentState)} className="bg-neutral-800 border-neutral-700 text-white rounded-lg px-2 py-1 text-xs">
+              <option value="all">All payments</option>
+              <option value="paid">Paid only</option>
+              <option value="unpaid">Unpaid only</option>
+            </select>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer">
+            <Printer className="w-4 h-4" /> Print
+          </button>
+          <button onClick={handleExportSummary} className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer">
+            <Download className="w-4 h-4" /> Tax Summary
+          </button>
+          <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold rounded-lg text-xs transition-colors cursor-pointer">
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={card}>
+          <div className="text-[10px] text-neutral-400 uppercase">Gross Income</div>
+          <div className="text-xl font-bold text-[#05C147]">{money(totals.gross)}</div>
+          <div className="text-[10px] text-neutral-500">{totals.count} transactions</div>
+        </div>
+        <div className={card}>
+          <div className="text-[10px] text-neutral-400 uppercase">Net of VAT</div>
+          <div className="text-xl font-bold text-white">{money(totals.net)}</div>
+          <div className="text-[10px] text-neutral-500">excl. VAT</div>
+        </div>
+        <div className={card}>
+          <div className="text-[10px] text-neutral-400 uppercase">VAT Collected</div>
+          <div className="text-xl font-bold text-white">{money(totals.vat)}</div>
+          <div className="text-[10px] text-neutral-500">to report &amp; pay</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className={`${card} border-emerald-500/30`}>
+          <div className="text-[10px] text-emerald-400 uppercase flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Paid</div>
+          <div className="text-xl font-bold text-emerald-400">{money(totals.paid)}</div>
+          <div className="text-[10px] text-neutral-500">{totals.count - totals.unpaidCount} settled transactions</div>
+        </div>
+        <div className={`${card} border-amber-500/30`}>
+          <div className="text-[10px] text-amber-400 uppercase flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" /> Outstanding</div>
+          <div className="text-xl font-bold text-amber-400">{money(totals.unpaid)}</div>
+          <div className="text-[10px] text-neutral-500">{totals.unpaidCount} awaiting payment</div>
+        </div>
+        <div className={card}>
+          <div className="text-[10px] text-neutral-400 uppercase flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5 text-[#05C147]" /> Net Paid (excl. VAT)</div>
+          <div className="text-xl font-bold text-white">{money(totals.netPaid)}</div>
+          <div className="text-[10px] text-neutral-500">cash received basis</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {(['till', 'workshop', 'online'] as FinancialChannel[]).map((ch) => (
+          <div key={ch} className={card}>
+            <div className="text-[10px] text-neutral-400 uppercase flex items-center gap-1.5">
+              <span className={channelMeta[ch].tone}>{channelMeta[ch].icon}</span> {channelMeta[ch].label}
+            </div>
+            <div className="text-xl font-bold text-white">{money(totals.byChannel[ch].gross)}</div>
+            <div className="text-[10px] text-neutral-500">
+              {ch === 'online' && ordersState === 'loading'
+                ? 'Loading orders…'
+                : ch === 'online' && ordersState === 'unavailable'
+                ? 'Order table not set up'
+                : `${totals.byChannel[ch].count} transactions · VAT ${money(totals.byChannel[ch].vat)}`}
+              {totals.byChannel[ch].unpaid > 0 && (
+                <span className="text-amber-400"> · {money(totals.byChannel[ch].unpaid)} unpaid</span>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
 
       {pendingQuotes.length > 0 && (
@@ -253,13 +264,16 @@ export const FinancialReportingTab: React.FC = () => {
               <th className="p-3">Channel</th>
               <th className="p-3">Customer</th>
               <th className="p-3">Detail</th>
+              <th className="p-3">Payment</th>
+              <th className="p-3 text-right">Net</th>
+              <th className="p-3 text-right">VAT</th>
               <th className="p-3 text-right">Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800">
             {ledger.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-6 text-center text-neutral-500">
+                <td colSpan={9} className="p-6 text-center text-neutral-500">
                   <FileText className="w-6 h-6 mx-auto mb-2 opacity-50" />
                   No income recorded in this period.
                 </td>
@@ -276,7 +290,15 @@ export const FinancialReportingTab: React.FC = () => {
                 </td>
                 <td className="p-3">{r.customer}</td>
                 <td className="p-3 text-neutral-500">{r.detail}</td>
-                <td className="p-3 font-mono text-[#05C147] text-right">{money(r.total)}</td>
+                <td className="p-3 whitespace-nowrap">
+                  {paymentBadge(r)}
+                  {r.channel === 'workshop' && r.method && (
+                    <span className="block text-[10px] text-neutral-500">{workshopPaymentLabel(r.method)}</span>
+                  )}
+                </td>
+                <td className="p-3 font-mono text-right">{money(r.net)}</td>
+                <td className="p-3 font-mono text-right">{money(r.vat)}</td>
+                <td className="p-3 font-mono text-[#05C147] text-right font-bold">{money(r.total)}</td>
               </tr>
             ))}
           </tbody>

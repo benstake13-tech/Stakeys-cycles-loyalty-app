@@ -41,6 +41,7 @@ import {
   voucherToDiscountState,
   roundMoney,
 } from '../utils/discountService';
+import { buildFinancialLedger, summarizeLedger, workshopPaymentLabel } from '../utils/financials';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { generateMembershipNumber, generateBarcodeValue } from '../api/firebaseService';
 import { planBalanceProbe } from '../utils/schemaSync';
@@ -1543,6 +1544,40 @@ export const FEATURE_TESTS: FeatureTest[] = [
       return report.days.length === 7 && graded
         ? { status: 'pass', detail: '7-day forecast built; every day has a riding grade + headline.' }
         : { status: 'fail', detail: `days=${report.days.length}, graded=${graded}` };
+    },
+  },
+  {
+    id: 'logic-financial-payment-split',
+    area: 'logic',
+    label: 'Financial ledger: paid vs unpaid + VAT',
+    description: 'A paid invoice counts as received, an unpaid one as outstanding, and VAT is split out.',
+    run: async () => {
+      const paid = buildFinancialLedger({
+        bookings: [
+          { id: 'b1', customerName: 'A', serviceTitle: 'S', vehicleModel: 'M', status: 'completed', preferredDate: '2026-10-06', invoice: { invoiceNumber: 'INV-1', grandTotal: 120, vatAmount: 20, paymentStatus: 'paid_card' } },
+        ],
+        start: '2026-10-01',
+        end: '2026-10-31',
+      });
+      const unpaid = buildFinancialLedger({
+        bookings: [
+          { id: 'b2', customerName: 'B', serviceTitle: 'S', vehicleModel: 'M', status: 'completed', preferredDate: '2026-10-06', invoice: { invoiceNumber: 'INV-2', grandTotal: 60, vatAmount: 10, paymentStatus: 'unpaid' } },
+        ],
+        start: '2026-10-01',
+        end: '2026-10-31',
+      });
+      const s = summarizeLedger([...paid, ...unpaid]);
+      const ok =
+        paid[0]?.paymentState === 'paid' &&
+        unpaid[0]?.paymentState === 'unpaid' &&
+        s.paid === 120 &&
+        s.unpaid === 60 &&
+        s.vat === 30 &&
+        s.net === 150 &&
+        workshopPaymentLabel('paid_card') === 'Paid · Card';
+      return ok
+        ? { status: 'pass', detail: `Paid £${s.paid}, outstanding £${s.unpaid}, VAT £${s.vat}.` }
+        : { status: 'fail', detail: JSON.stringify(s) };
     },
   },
 ];

@@ -698,6 +698,7 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
                     <option value="unpaid">Unpaid (Due on Collection)</option>
                     <option value="paid_card">Paid by Card</option>
                     <option value="paid_cash">Paid by Cash</option>
+                    <option value="paid_online">Paid Online</option>
                   </select>
                 </div>
               </div>
