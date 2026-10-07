@@ -18,6 +18,7 @@ import {
   FileText,
   Activity,
   Gift,
+  CloudRain,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
@@ -30,6 +31,7 @@ import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
 import { ReferAFriendCard } from './ReferAFriendCard';
+import { WeatherForecast } from './weather/WeatherForecast';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
 import { FaceAvatar } from './FaceAvatar';
 import { AvatarEditorModal } from './AvatarEditorModal';
@@ -57,7 +59,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     updateCustomerAvatar,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer'>('garage');
+  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>('garage');
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
@@ -91,13 +93,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer'>[] = [
+  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>[] = [
     { id: 'garage', label: `My Garage (${customerBikes.length})`, icon: Bike, tone: 'emerald', hint: 'Your registered bikes' },
     { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
     { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
     { id: 'repairs', label: `Repairs (${customerBookings.length})`, icon: Activity, tone: 'emerald', hint: 'Live repair progress tracker' },
     { id: 'bookings', label: `Bookings (${customerBookings.length})`, icon: Calendar, tone: 'emerald', hint: 'Your service bookings' },
     { id: 'stamps', label: `Loyalty Pass ${currentUser.stamps || 0}/10`, icon: Award, tone: 'emerald', hint: 'Your stamp card' },
+    { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
     { id: 'refer', label: 'Refer a Friend', icon: Gift, tone: 'amber', hint: 'Share your code and earn rewards' },
   ];
 
@@ -642,6 +645,22 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               <StampCard user={currentUser} onGoToBooking={() => setActiveTab('booking')} />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB: RIDING WEATHER */}
+      {activeTab === 'weather' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+              <CloudRain className="w-5 h-5 text-sky-400" /> Riding Weather
+            </h2>
+            <p className="text-xs text-neutral-400 mt-1">
+              Live seven-day forecast for your area, scored for riding — plan your commute or shift around the
+              weather.
+            </p>
+          </div>
+          <WeatherForecast isDark />
         </div>
       )}
 

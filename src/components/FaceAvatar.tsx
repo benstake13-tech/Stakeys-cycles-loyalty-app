@@ -192,7 +192,11 @@ export function parseConfigString(configString?: string, seed: string = 'Stakey'
   try {
     const trimmed = configString.trim();
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      return JSON.parse(trimmed) as FaceAvatarConfig;
+      const parsed = JSON.parse(trimmed) as Partial<FaceAvatarConfig>;
+      // Merge over the deterministic default so a partial config (or a saved
+      // config missing a newer field) never silently drops options to
+      // undefined and renders a broken avatar.
+      return { ...getDeterministicConfig(seed), ...parsed };
     }
   } catch (e) {
     // Fall back to deterministic options if parsing fails

@@ -2212,9 +2212,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrentUser(updatedUser);
     setUsers((prev) => prev.map((u) => (u.uid === currentUser.uid ? updatedUser : u)));
     try {
-      await updateUserProfileInDb(currentUser.uid, currentUser.membershipNumber, { avatarColor });
+      const saved = await updateUserProfileInDb(currentUser.uid, currentUser.membershipNumber, { avatarColor });
+      if (!saved) {
+        // Surface the failure instead of leaving the UI showing an avatar that
+        // will silently revert on the next profile reload.
+        toast.error('Could not save your avatar — please try again.');
+      }
     } catch (err) {
       console.error('[ShopContext] updateCustomerAvatar DB failed:', err);
+      toast.error('Could not save your avatar — please try again.');
     }
   };
 
