@@ -23,6 +23,8 @@ import {
   StaffMember,
   ShopPromotion,
   ReferralRecord,
+  ReminderChannel,
+  ReminderRecipients,
 } from '../types/bikeShop';
 
 export interface DatabaseSyncStatus {
@@ -373,6 +375,8 @@ export async function fetchServiceBookingsFromDb(
         createdAt: row.created_at || new Date().toISOString(),
         notifications: Array.isArray(row.notifications) ? row.notifications : [],
         reminder24hSent: Boolean(row.reminder_24h_sent),
+        reminderCount: row.reminder_count == null ? undefined : Number(row.reminder_count),
+        reminderLastSentAt: row.reminder_last_sent_at || undefined,
         repairStage: (row.repair_stage as RepairStageId) || undefined,
         progressEvents: normalizeProgressEvents(row.progress_events),
         estimateReadyAt: row.estimate_ready_at || null,
@@ -418,6 +422,8 @@ export async function insertServiceBookingToDb(
         notes: booking.notes || null,
         status: booking.status,
         reminder_24h_sent: Boolean(booking.reminder24hSent),
+        reminder_count: booking.reminderCount ?? 0,
+        reminder_last_sent_at: booking.reminderLastSentAt || null,
         repair_stage: booking.repairStage || null,
         progress_events: booking.progressEvents || [],
         estimate_ready_at: booking.estimateReadyAt || null,
@@ -518,6 +524,8 @@ export async function updateServiceBookingInDb(
     if (updates.quoteNote !== undefined) payload.quote_note = updates.quoteNote;
     if (updates.quoteSentAt) payload.quote_sent_at = updates.quoteSentAt;
     if (updates.reminder24hSent !== undefined) payload.reminder_24h_sent = updates.reminder24hSent;
+    if (updates.reminderCount !== undefined) payload.reminder_count = updates.reminderCount;
+    if (updates.reminderLastSentAt !== undefined) payload.reminder_last_sent_at = updates.reminderLastSentAt;
     if (updates.notifications !== undefined) payload.notifications = updates.notifications;
     if (updates.repairStage !== undefined) payload.repair_stage = updates.repairStage;
     if (updates.progressEvents !== undefined) payload.progress_events = updates.progressEvents;
@@ -541,6 +549,8 @@ export async function updateServiceBookingInDb(
     const OPTIONAL_COLUMNS = [
       'invoice',
       'notifications',
+      'reminder_count',
+      'reminder_last_sent_at',
       'is_sos',
       'sos_status',
       'sos_location_requested_at',
@@ -1372,6 +1382,13 @@ export interface AppSettings {
   automatedRemindersEnabled: boolean;
   remindersPushOnly: boolean;
   reminderOwnerEmail: string;
+  reminderChannel: ReminderChannel;
+  reminderRecipients: ReminderRecipients;
+  reminderLeadHours: number;
+  reminderRepeatHours: number;
+  reminderQuietStartHour: number;
+  reminderQuietEndHour: number;
+  reminderQuietHoursEnabled: boolean;
 }
 
 export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | null> {
@@ -1398,6 +1415,14 @@ export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | n
         row.automated_reminders_enabled == null ? undefined : row.automated_reminders_enabled === true,
       remindersPushOnly: row.reminders_push_only == null ? undefined : row.reminders_push_only === true,
       reminderOwnerEmail: row.reminder_owner_email || undefined,
+      reminderChannel: (row.reminder_channel as ReminderChannel) || undefined,
+      reminderRecipients: (row.reminder_recipients as ReminderRecipients) || undefined,
+      reminderLeadHours: row.reminder_lead_hours == null ? undefined : Number(row.reminder_lead_hours),
+      reminderRepeatHours: row.reminder_repeat_hours == null ? undefined : Number(row.reminder_repeat_hours),
+      reminderQuietStartHour: row.reminder_quiet_start_hour == null ? undefined : Number(row.reminder_quiet_start_hour),
+      reminderQuietEndHour: row.reminder_quiet_end_hour == null ? undefined : Number(row.reminder_quiet_end_hour),
+      reminderQuietHoursEnabled:
+        row.reminder_quiet_hours_enabled == null ? undefined : row.reminder_quiet_hours_enabled === true,
     };
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] fetchAppSettingsFromDb:', err);
@@ -1419,6 +1444,17 @@ export async function upsertAppSettingsToDb(settings: Partial<AppSettings>): Pro
     }
     if (settings.remindersPushOnly !== undefined) payload.reminders_push_only = settings.remindersPushOnly;
     if (settings.reminderOwnerEmail !== undefined) payload.reminder_owner_email = settings.reminderOwnerEmail;
+    if (settings.reminderChannel !== undefined) payload.reminder_channel = settings.reminderChannel;
+    if (settings.reminderRecipients !== undefined) payload.reminder_recipients = settings.reminderRecipients;
+    if (settings.reminderLeadHours !== undefined) payload.reminder_lead_hours = settings.reminderLeadHours;
+    if (settings.reminderRepeatHours !== undefined) payload.reminder_repeat_hours = settings.reminderRepeatHours;
+    if (settings.reminderQuietStartHour !== undefined) {
+      payload.reminder_quiet_start_hour = settings.reminderQuietStartHour;
+    }
+    if (settings.reminderQuietEndHour !== undefined) payload.reminder_quiet_end_hour = settings.reminderQuietEndHour;
+    if (settings.reminderQuietHoursEnabled !== undefined) {
+      payload.reminder_quiet_hours_enabled = settings.reminderQuietHoursEnabled;
+    }
     const { error } = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.error('[SUPABASE NET ERROR] upsert app_settings failed:', error.message);
