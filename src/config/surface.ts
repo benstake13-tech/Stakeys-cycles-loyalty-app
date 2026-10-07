@@ -24,3 +24,13 @@ export const isWebsiteSurface = APP_SURFACE === 'website';
 export const isStaffSurface = APP_SURFACE === 'staff';
 export const isCustomerSurface = APP_SURFACE === 'customer';
 export const isFullSurface = APP_SURFACE === 'full';
+
+/**
+ * The origin of the staff app. Staff push notifications must open here — never
+ * the surface that created the booking — so a booking made on the website or in
+ * the customer app still deep-links to the workshop terminal. Overridable with
+ * `VITE_STAFF_APP_ORIGIN` if the staff domain ever changes.
+ */
+export const STAFF_APP_ORIGIN = String(
+  import.meta.env.VITE_STAFF_APP_ORIGIN || 'https://www.stakeys-cycles.co.uk'
+).replace(/\/+$/, '');
