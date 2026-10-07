@@ -121,6 +121,14 @@ describe('deep link', () => {
     expect(target).toEqual({ staff: true, bookingId: 'bk-9' });
   });
 
+  it('targets the staff domain by default, not the booking creator origin', () => {
+    // A website or customer-app booking must still open the workshop terminal,
+    // so the default origin is the staff app (not window.location.origin).
+    const url = bookingDeepLink('bk-42');
+    expect(new URL(url).origin).toBe('https://www.stakeys-cycles.co.uk');
+    expect(new URL(url).searchParams.get('booking')).toBe('bk-42');
+  });
+
   it('returns nulls for an unrelated query string', () => {
     expect(parseBookingDeepLink('?theme=dark')).toEqual({ staff: false, bookingId: null });
   });

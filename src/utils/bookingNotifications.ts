@@ -15,6 +15,7 @@
  */
 import { ServiceBooking, VehicleCategory } from '../types/bikeShop';
 import { SOS_NOTES_MARKER } from './sosRepair';
+import { STAFF_APP_ORIGIN } from '../config/surface';
 
 export type BookingChannel = 'member' | 'guest' | 'staff';
 
@@ -22,8 +23,8 @@ export type BookingChannel = 'member' | 'guest' | 'staff';
 export const STAFF_DEEPLINK_PARAM = 'staff';
 export const BOOKING_DEEPLINK_PARAM = 'booking';
 
-/** Fallback origin when there is no browser location (tests, SSR). */
-export const DEFAULT_PUSH_ORIGIN = 'https://stakeys-cycle.co.uk';
+/** Last-resort origin if a computed origin cannot be parsed (tests, bad input). */
+export const DEFAULT_PUSH_ORIGIN = 'https://www.stakeys-cycles.co.uk';
 
 const CATEGORY_LABEL: Record<VehicleCategory, string> = {
   cycle: 'Cycle',
@@ -195,11 +196,13 @@ export function buildBookingNotification(
  * The staff-app URL a push should open. `?staff=1&booking=<id>` unlocks the
  * staff view (when the device already has a staff session) and focuses the
  * booking. Existing query params are preserved.
+ *
+ * The origin is always the staff app, NOT the surface that created the booking:
+ * a booking made on the website or in the customer app still has to open the
+ * workshop terminal when staff tap the notification.
  */
 export function bookingDeepLink(bookingId: string, origin?: string): string {
-  const base =
-    origin ||
-    (typeof window !== 'undefined' && window.location?.origin ? window.location.origin : DEFAULT_PUSH_ORIGIN);
+  const base = origin || STAFF_APP_ORIGIN;
   let url: URL;
   try {
     url = new URL(base);
