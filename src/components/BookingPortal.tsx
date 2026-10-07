@@ -16,10 +16,13 @@ import {
   ShieldCheck,
   MapPin,
   Gift,
+  Siren,
+  Truck,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
+import { SOS_SURCHARGE, SOS_NOTES_MARKER, isSosBooking } from '../utils/sosRepair';
 import { StakeysLogo } from './StakeysLogo';
 import { BikeIssuesChecklist } from './BikeIssuesChecklist';
 import {
@@ -54,6 +57,15 @@ interface BookingPortalProps {
    */
   onBookingComplete?: () => void;
 }
+
+const SOS_VEHICLE_USE_LABEL: Record<string, string> = {
+  uber_eats: 'Uber Eats delivery rider',
+  deliveroo: 'Deliveroo rider',
+  just_eat: 'Just Eat rider',
+  courier: 'Courier / parcel delivery',
+  commuter: 'Commuter — needs it to get to work',
+  other: 'Other (described below)',
+};
 
 export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes, onBookingComplete }) => {
   const { currentUser, createBooking, redeemServiceVoucher, ownerConfig } = useShop();
@@ -136,6 +148,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const [homeAddress, setHomeAddress] = useState<string>('');
   const [homeVisitTime, setHomeVisitTime] = useState<string>(TIME_SLOT_OPTIONS[0]);
   const [fixLocation, setFixLocation] = useState<'inside' | 'outside' | ''>('');
+
+  // SOS emergency repair: a priority call-out for couriers / delivery riders
+  // who can't be off the road. Still requested + described by the customer, but
+  // it skips the queue and carries an express surcharge.
+  const [isSos, setIsSos] = useState<boolean>(false);
+  const [sosVehicleUse, setSosVehicleUse] = useState<'uber_eats' | 'deliveroo' | 'just_eat' | 'courier' | 'commuter' | 'other'>('uber_eats');
+  const [sosIssue, setSosIssue] = useState<string>('');
+  const [sosRiderLocation, setSosRiderLocation] = useState<string>('');
 
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -297,6 +317,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       setFormError('Please enter the address where we should meet you for the call-out.');
       return;
     }
+    if (isSos && !sosIssue.trim()) {
+      setFormError('Please describe the fault so our SOS team can prepare to fix it on the spot.');
+      return;
+    }
+    if (isSos && !homeAddress.trim()) {
+      setFormError('SOS is a roadside call-out — please tell us where you are (or the nearest landmark).');
+      return;
+    }
     if (serviceType === 'in_shop' && !preferredDate) {
       setFormError('Please choose a preferred drop-off date.');
       return;
@@ -387,7 +415,18 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           }`
         : '';
 
+      const sosNote = isSos
+        ? [
+            `🚨 ${SOS_NOTES_MARKER} — PRIORITY CALL-OUT (skips the workshop queue)`,
+            `Rider use: ${SOS_VEHICLE_USE_LABEL[sosVehicleUse]}`,
+            `Fault: ${sosIssue.trim()}`,
+            `Rider location: ${(homeAddress || sosRiderLocation).trim()}`,
+            `Express surcharge: £${SOS_SURCHARGE.toFixed(2)} (added to the confirmed quote)`,
+          ].join('\n')
+        : '';
+
       const finalNotes = [
+        sosNote,
         serviceTypeBlock,
         bikeBlock,
         issuesBlock,
@@ -423,6 +462,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         referralCode: referralCode.trim() || undefined,
         selectedIssues: selectedIssueIds,
         otherNotes: problemNotes.trim() || undefined,
+        isSos: isSos || undefined,
+        sosStatus: isSos ? 'requested' : undefined,
+        sosLocationNote: isSos ? (homeAddress || sosRiderLocation).trim() || undefined : undefined,
       });
 
       if (selectedVoucher && currentUser) {
@@ -487,6 +529,20 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <Clock className="w-3.5 h-3.5" />
               <span>Awaiting Mechanic Review &amp; Approval</span>
             </div>
+            {isSosBooking(submittedBooking) && (
+              <div className="max-w-md mx-auto p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-left space-y-1.5">
+                <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
+                  <Siren className="w-4 h-4" />
+                  SOS EMERGENCY REPAIR — priority call-out
+                </div>
+                <p className="text-[11px] text-neutral-300 leading-relaxed">
+                  You've jumped the workshop queue. Once our team approves it, we'll message you on WhatsApp
+                  to get your <strong>live location</strong>, send your <strong>quote</strong> (includes the
+                  £{SOS_SURCHARGE.toFixed(0)} express surcharge), and set off the moment you confirm the price.
+                  Keep WhatsApp reachable on <strong className="text-neutral-100">{submittedBooking.customerPhone}</strong>.
+                </p>
+              </div>
+            )}
             <p className="text-xs text-neutral-300 max-w-md mx-auto">
               Staff will contact you and evaluate bench capacity. An automated email notification will be dispatched to inform you immediately once approved or declined.
             </p>
@@ -817,6 +873,112 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </span>
             <span className="font-mono">{Math.round((bookingProgress / 4) * 100)}%</span>
           </div>
+        </div>
+
+        {/* SOS EMERGENCY REPAIR — priority call-out for couriers / delivery riders */}
+        <div className={`scroll-mt-24 rounded-2xl border p-6 sm:p-8 space-y-4 transition-colors ${
+          isSos ? 'bg-rose-950/30 border-rose-500/50' : 'bg-[#0d1015] border-neutral-800'
+        }`}>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !isSos;
+              setIsSos(next);
+              if (next) {
+                setServiceType('home_visit');
+                setOpenSteps((prev) => ({ ...prev, schedule: true, issues: true }));
+              }
+            }}
+            className="w-full flex items-start gap-3 text-left cursor-pointer"
+          >
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+              isSos ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30' : 'bg-neutral-900 border border-neutral-700 text-rose-400'
+            }`}>
+              <Siren className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-display text-base font-bold text-white">SOS Emergency Repair</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                  Priority · Skips the queue
+                </span>
+              </div>
+              <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
+                Broken down mid-shift? For Uber Eats, Deliveroo, Just Eat and courier riders who can't be off the road.
+                We jump you to the front of the queue and set off to you — a fast call-out for a little extra
+                (£{SOS_SURCHARGE.toFixed(0)} express surcharge). Still a request: our team approves it first.
+              </p>
+            </div>
+            <span className={`text-[11px] font-bold shrink-0 mt-1 ${isSos ? 'text-rose-300' : 'text-neutral-500'}`}>
+              {isSos ? 'ON' : 'OFF'}
+            </span>
+          </button>
+
+          {isSos && (
+            <div className="space-y-4 pt-2 border-t border-rose-500/20">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-200 mb-1.5 flex items-center gap-1.5">
+                    <Truck className="w-3.5 h-3.5 text-rose-400" />
+                    What do you use it for?
+                  </label>
+                  <select
+                    value={sosVehicleUse}
+                    onChange={(e) => setSosVehicleUse(e.target.value as typeof sosVehicleUse)}
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500"
+                  >
+                    {Object.entries(SOS_VEHICLE_USE_LABEL).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-200 mb-1.5 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                    Where are you right now?
+                  </label>
+                  <input
+                    type="text"
+                    value={homeAddress}
+                    onChange={(e) => setHomeAddress(e.target.value)}
+                    placeholder="Nearest landmark, or what3words"
+                    className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-neutral-200 mb-1.5">
+                  Describe the fault <span className="text-rose-400">*</span>
+                </label>
+                <textarea
+                  value={sosIssue}
+                  onChange={(e) => setSosIssue(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Rear wheel won't turn, chain jammed — I'm stuck with an order waiting."
+                  className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500 resize-none"
+                />
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-neutral-950/80 border border-rose-500/30 text-[11px] text-neutral-300 space-y-2">
+                <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
+                  <Clock className="w-4 h-4" />
+                  How SOS works
+                </div>
+                <ol className="list-decimal list-inside space-y-1 leading-relaxed">
+                  <li>You send this request with the fault described.</li>
+                  <li>Our team approves it (we'll ping the workshop straight away).</li>
+                  <li>We ask for your <strong>live location over WhatsApp</strong> so we can reach you.</li>
+                  <li>We send you a <strong>quote</strong> — including the £{SOS_SURCHARGE.toFixed(0)} express surcharge.</li>
+                  <li>You reply to <strong>confirm the price</strong>, and we set off immediately.</li>
+                </ol>
+                <p className="text-neutral-400">
+                  Nothing is charged until you confirm the quote. Keep WhatsApp reachable on{' '}
+                  <strong className="text-neutral-200">{customerPhone || 'your mobile'}</strong>.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* STEP 1: Your bike (category + identity + e-bike conversion) */}
