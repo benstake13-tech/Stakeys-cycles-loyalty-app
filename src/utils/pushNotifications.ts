@@ -40,7 +40,18 @@ async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   if (runtimeConfig) return runtimeConfig;
   try {
     const res = await fetch('/api/onesignal/config');
-    runtimeConfig = (await res.json()) as OneSignalRuntimeConfig;
+    const data = (await res.json()) as Partial<OneSignalRuntimeConfig> & { appId?: string | null };
+    // A static host without the serverless function rewrites unknown paths to
+    // index.html, so a non-JSON body (or missing appId field) must not be
+    // treated as a configured backend.
+    if (data && typeof data === 'object' && 'appId' in data) {
+      runtimeConfig = {
+        appId: data.appId ?? null,
+        serverPush: Boolean(data.serverPush),
+      };
+    } else {
+      runtimeConfig = { appId: envAppId || null, serverPush: false };
+    }
   } catch {
     runtimeConfig = { appId: envAppId || null, serverPush: false };
   }
@@ -211,7 +222,11 @@ export async function sendPushToUser(
           ...(!userId && !target?.tag && !target?.email && target?.segment ? { segment: target.segment } : {}),
         }),
       });
-      if (res.ok) return { ok: true, via: 'server' };
+      // The function returns OneSignal's JSON envelope. A static host with no
+      // serverless function rewrites this path to index.html, so require a JSON
+      // body before trusting the 200 (otherwise we'd report a false success).
+      const data = await res.json().catch(() => null);
+      if (res.ok && data && typeof data === 'object') return { ok: true, via: 'server' };
     } catch {
       /* fall through to local */
     }
