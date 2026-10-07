@@ -82,6 +82,26 @@ export const inRange = (date: string, start: string, end: string): boolean => {
   return d >= start && d <= end;
 };
 
+const parseIsoDay = (value: string): Date | null => {
+  const [y, m, d] = (value || '').slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(Date.UTC(y, m - 1, d));
+};
+
+/** Human period label for a report, e.g. '1 – 31 October 2026'. */
+export function formatPeriodLabel(start: string, end: string): string {
+  const a = parseIsoDay(start);
+  const b = parseIsoDay(end);
+  if (!a || !b) return `${start} → ${end}`;
+  const month = (d: Date) => d.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' });
+  const full = (d: Date) => `${d.getUTCDate()} ${month(d)} ${d.getUTCFullYear()}`;
+  if (start === end) return full(a);
+  if (a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth()) {
+    return `${a.getUTCDate()} – ${b.getUTCDate()} ${month(b)} ${b.getUTCFullYear()}`;
+  }
+  return `${full(a)} – ${full(b)}`;
+}
+
 export const isPaidWorkshopStatus = (status?: WorkshopPaymentStatus | string): boolean =>
   status === 'paid_card' || status === 'paid_cash' || status === 'paid_online';
 
