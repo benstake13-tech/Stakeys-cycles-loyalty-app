@@ -124,6 +124,33 @@ describe('pushNotifications (OneSignal)', () => {
     expect(JSON.parse(call[1].body).segment).toBe('staff');
   });
 
+  it('sendPushToUser reports ok:false when OneSignal says nothing is subscribed', async () => {
+    const { sendPushToUser } = await load();
+    (fetch as any).mockImplementation(async (url: string) => {
+      if (String(url).includes('/api/onesignal/config')) {
+        return { ok: true, json: async () => ({ appId: APP_ID, serverPush: true }) };
+      }
+      return { ok: true, json: async () => ({ id: '', errors: ['All included players are not subscribed'] }) };
+    });
+    const res = await sendPushToUser('uid-9', 'T', 'B');
+    expect(res.ok).toBe(false);
+    expect(res.via).toBe('server');
+    expect(res.envelope?.errors?.[0]).toMatch(/not subscribed/i);
+  });
+
+  it('sendPushToUser reports ok:true when OneSignal accepts and delivers', async () => {
+    const { sendPushToUser } = await load();
+    (fetch as any).mockImplementation(async (url: string) => {
+      if (String(url).includes('/api/onesignal/config')) {
+        return { ok: true, json: async () => ({ appId: APP_ID, serverPush: true }) };
+      }
+      return { ok: true, json: async () => ({ id: 'msg-1', recipients: 1 }) };
+    });
+    const res = await sendPushToUser('uid-9', 'T', 'B');
+    expect(res.ok).toBe(true);
+    expect(res.envelope?.recipients).toBe(1);
+  });
+
   it('initOneSignal resolves the SDK from the deferred queue and is idempotent', async () => {
     installSdk(fakeSdk());
     const { initOneSignal } = await load();
