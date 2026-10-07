@@ -192,6 +192,13 @@ export async function getSubscriptionId(): Promise<string | null> {
   return (id as string) || null;
 }
 
+export interface PushSendResult {
+  ok: boolean;
+  via: 'server' | 'local' | 'none';
+  /** OneSignal's raw response, when the server push path was reached. */
+  envelope?: { id?: string; recipients?: number; errors?: string[] } | null;
+}
+
 /**
  * Sends a push through the backend so it lands even when the tab is closed.
  * Targets, in order of preference: a specific profile (external_id), an email
@@ -204,7 +211,7 @@ export async function sendPushToUser(
   body: string,
   url?: string,
   target?: { segment?: string; email?: string; tag?: { key: string; value: string } }
-): Promise<{ ok: boolean; via: 'server' | 'local' | 'none' }> {
+): Promise<PushSendResult> {
   const cfg = await getRuntimeConfig();
 
   if (cfg.serverPush) {
@@ -226,7 +233,13 @@ export async function sendPushToUser(
       // serverless function rewrites this path to index.html, so require a JSON
       // body before trusting the 200 (otherwise we'd report a false success).
       const data = await res.json().catch(() => null);
-      if (res.ok && data && typeof data === 'object') return { ok: true, via: 'server' };
+      if (data && typeof data === 'object') {
+        const errors = Array.isArray((data as any).errors) ? (data as any).errors : [];
+        // OneSignal answers 200 with `errors:["All included players are not
+        // subscribed"]` when nothing is opted in — that is NOT a delivery.
+        const ok = res.ok && errors.length === 0;
+        return { ok, via: 'server', envelope: data as any };
+      }
     } catch {
       /* fall through to local */
     }
