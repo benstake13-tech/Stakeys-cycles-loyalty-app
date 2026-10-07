@@ -8,7 +8,8 @@
  *
  * The REST API key is server-only and never reaches the browser.
  */
-const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
+import { resolveAppId, resolveRestKey, resolveOrigin } from './_shared.js';
+
 const ONESIGNAL_ENDPOINT = 'https://onesignal.com/api/v1/notifications';
 
 export default async function handler(req, res) {
@@ -18,11 +19,13 @@ export default async function handler(req, res) {
   }
 
   const { title, body, url, externalUserId, email, segment, tag } = req.body || {};
-  const appId =
-    process.env.VITE_ONESIGNAL_APP_ID || process.env.ONESIGNAL_APP_ID || DEFAULT_APP_ID;
-  const apiKey = process.env.ONESIGNAL_REST_API_KEY || process.env.ONESIGNAL_API_KEY;
+  const appId = resolveAppId();
+  const { key: apiKey } = resolveRestKey();
   if (!appId || !apiKey) {
-    return res.status(500).json({ error: 'OneSignal server push is not configured' });
+    return res.status(500).json({
+      error: 'OneSignal server push is not configured',
+      hint: 'Set ONESIGNAL_REST_API_KEY (or ONESIGNAL_API_KEY) in the deployment environment.',
+    });
   }
 
   // OneSignal allows exactly one targeting method per message.
@@ -30,7 +33,7 @@ export default async function handler(req, res) {
     app_id: appId,
     headings: { en: title || "Stakey's Cycles" },
     contents: { en: body || '' },
-    url: url || process.env.APP_ORIGIN || 'https://stakeyscycles.co.uk',
+    url: url || resolveOrigin(req),
   };
   if (externalUserId) {
     message.include_aliases = { external_id: [String(externalUserId)] };

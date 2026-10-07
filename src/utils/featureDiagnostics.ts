@@ -1219,7 +1219,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
         ownerName: 'Diagnostics Probe',
         ownerMembership: 'STK-DIAG',
         code: 'STK-REF-DIAG',
-        link: 'https://stakeyscycles.co.uk/?ref=STK-REF-DIAG',
+        link: 'https://stakey-cycles.co.uk/?ref=STK-REF-DIAG',
         timesShared: 0,
         rewardsEarned: 0,
         rewards: [],
@@ -1382,13 +1382,13 @@ export const FEATURE_TESTS: FeatureTest[] = [
           };
         }
         if (data.appId && data.serverPush) {
-          return { status: 'pass', detail: `App ID ${String(data.appId).slice(0, 8)}… and server push configured.` };
+          return { status: 'pass', detail: `App ID ${String(data.appId).slice(0, 8)}… and server push configured${data.restKeyEnv ? ` (key from ${data.restKeyEnv})` : ''}.` };
         }
         if (data.appId) {
           return {
             status: 'warn',
-            detail: 'App ID resolved but serverPush=false.',
-            hint: 'Set ONESIGNAL_REST_API_KEY (server-only) so pushes can be delivered while the app is closed.',
+            detail: 'App ID resolved but serverPush=false — the REST key is missing on the server.',
+            hint: `Set the OneSignal REST key in the deployment environment under one of: ${(data.restKeyEnvNames || ['ONESIGNAL_REST_API_KEY', 'ONESIGNAL_API_KEY', 'VITE_ONESIGNAL_REST_API_KEY']).join(', ')}. In Vercel, add it to ALL environments, then Redeploy.`,
           };
         }
         return { status: 'fail', detail: 'No OneSignal App ID returned.', hint: 'Set VITE_ONESIGNAL_APP_ID / ONESIGNAL_APP_ID.' };

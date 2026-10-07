@@ -206,30 +206,46 @@ async function startServer() {
    * the target (profile, email subscription or tag segment) and we dispatch
    * server-to-server so pushes arrive even when the app is closed.
    * ------------------------------------------------------------------ */
+  const REST_KEY_ENV_NAMES = ['ONESIGNAL_REST_API_KEY', 'ONESIGNAL_API_KEY', 'VITE_ONESIGNAL_REST_API_KEY'];
   const ONESIGNAL_APP_ID = () => process.env.VITE_ONESIGNAL_APP_ID || process.env.ONESIGNAL_APP_ID;
-  const ONESIGNAL_API_KEY = () => process.env.ONESIGNAL_REST_API_KEY || process.env.ONESIGNAL_API_KEY;
+  const resolveRestKey = (): { key: string | null; source: string | null } => {
+    for (const name of REST_KEY_ENV_NAMES) {
+      const raw = process.env[name];
+      if (typeof raw === 'string' && raw.trim()) {
+        return { key: raw.trim().replace(/^["']|["']$/g, ''), source: name };
+      }
+    }
+    return { key: null, source: null };
+  };
 
   app.get('/api/onesignal/config', (_req, res) => {
+    const { key, source } = resolveRestKey();
     res.json({
       appId: ONESIGNAL_APP_ID() || null,
-      serverPush: Boolean(ONESIGNAL_APP_ID() && ONESIGNAL_API_KEY()),
+      serverPush: Boolean(ONESIGNAL_APP_ID() && key),
+      restKeyEnv: source,
+      restKeyEnvNames: REST_KEY_ENV_NAMES,
     });
   });
 
   app.post('/api/onesignal/notify', async (req, res) => {
     const { title, body, url, externalUserId, email, segment, tag } = req.body || {};
     const appId = ONESIGNAL_APP_ID();
-    const apiKey = ONESIGNAL_API_KEY();
+    const { key: apiKey } = resolveRestKey();
     if (!appId || !apiKey) {
       return res.status(500).json({ error: 'OneSignal server push is not configured' });
     }
 
-    // OneSignal allows exactly one targeting method per message.
+    // OneSignal allows exactly one targeting method per message. The
+    // click-through origin follows the request unless APP_ORIGIN overrides it.
+    const origin =
+      process.env.APP_ORIGIN ||
+      `${req.headers['x-forwarded-proto'] || req.protocol || 'https'}://${req.headers['x-forwarded-host'] || req.get('host')}`;
     const message: Record<string, any> = {
       app_id: appId,
       headings: { en: title || 'Stakey’s Cycles' },
       contents: { en: body || '' },
-      url: url || process.env.APP_ORIGIN || 'https://stakeyscycles.co.uk',
+      url: url || origin,
     };
     if (externalUserId) {
       // Target a signed-in profile's push subscriptions.
