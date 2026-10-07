@@ -631,12 +631,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   </div>
                   <div>
                     <div className="font-bold text-white mb-0.5">
-                      {serviceType === 'home_visit' ? 'Call-Out Confirmation' : 'Automated 24-Hour Email Reminder Active'}
+                      {serviceType === 'home_visit' ? 'Call-Out Confirmation' : 'Automated 24-Hour Reminder Active'}
                     </div>
                     <div className="text-neutral-300 leading-relaxed text-[11px]">
                       {serviceType === 'home_visit'
                         ? `We'll contact you on your number to confirm the arrival slot for your call-out on ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}).`
-                        : `An automated reminder email will be delivered to your inbox (${submittedBooking.customerEmail}) 24 hours prior to your scheduled service slot on ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}).`}
+                        : `An automated reminder will be sent to your app 24 hours before your scheduled service slot on ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}). Enable notifications so you don't miss it.`}
                     </div>
                   </div>
                 </div>

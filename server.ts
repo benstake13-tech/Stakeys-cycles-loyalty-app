@@ -202,48 +202,63 @@ async function startServer() {
   });
 
   /* ------------------------------------------------------------------ *
-   * PushEngage web push. The REST API key is server-only; the browser sends
-   * the target profile/segment and we dispatch server-to-server so pushes
-   * arrive even when the app is closed.
+   * OneSignal web push. The REST API key is server-only; the browser sends
+   * the target (profile, email subscription or tag segment) and we dispatch
+   * server-to-server so pushes arrive even when the app is closed.
    * ------------------------------------------------------------------ */
-  const PUSHENGAGE_APP_ID = () => process.env.VITE_PUSHENGAGE_APP_ID || process.env.PUSHENGAGE_APP_ID;
-  const PUSHENGAGE_API_KEY = () => process.env.PUSHENGAGE_API_KEY;
+  const ONESIGNAL_APP_ID = () => process.env.VITE_ONESIGNAL_APP_ID || process.env.ONESIGNAL_APP_ID;
+  const ONESIGNAL_API_KEY = () => process.env.ONESIGNAL_REST_API_KEY || process.env.ONESIGNAL_API_KEY;
 
-  app.get('/api/pushengage/config', (_req, res) => {
+  app.get('/api/onesignal/config', (_req, res) => {
     res.json({
-      appId: PUSHENGAGE_APP_ID() || null,
-      serverPush: Boolean(PUSHENGAGE_APP_ID() && PUSHENGAGE_API_KEY()),
+      appId: ONESIGNAL_APP_ID() || null,
+      serverPush: Boolean(ONESIGNAL_APP_ID() && ONESIGNAL_API_KEY()),
     });
   });
 
-  app.post('/api/pushengage/notify', async (req, res) => {
-    const { title, body, url, profileId, segment } = req.body || {};
-    const apiKey = PUSHENGAGE_API_KEY();
-    if (!PUSHENGAGE_APP_ID() || !apiKey) {
-      return res.status(500).json({ error: 'PushEngage server push is not configured' });
+  app.post('/api/onesignal/notify', async (req, res) => {
+    const { title, body, url, externalUserId, email, segment, tag } = req.body || {};
+    const appId = ONESIGNAL_APP_ID();
+    const apiKey = ONESIGNAL_API_KEY();
+    if (!appId || !apiKey) {
+      return res.status(500).json({ error: 'OneSignal server push is not configured' });
+    }
+
+    // OneSignal allows exactly one targeting method per message.
+    const message: Record<string, any> = {
+      app_id: appId,
+      headings: { en: title || 'Stakey’s Cycles' },
+      contents: { en: body || '' },
+      url: url || process.env.APP_ORIGIN || 'https://stakeyscycles.co.uk',
+    };
+    if (externalUserId) {
+      // Target a signed-in profile's push subscriptions.
+      message.include_aliases = { external_id: [String(externalUserId)] };
+      message.target_channel = 'push';
+    } else if (tag?.key && tag?.value) {
+      // e.g. every device tagged with owner_email = the workshop Gmail.
+      message.filters = [{ field: 'tag', key: String(tag.key), value: String(tag.value) }];
+    } else if (email) {
+      // Email channel subscription (requires the Email channel to be set up).
+      message.include_email_tokens = [String(email)];
+      message.target_channel = 'email';
+    } else {
+      message.included_segments = [String(segment || 'Subscribed Users')];
     }
 
     try {
-      const form = new URLSearchParams();
-      form.set('notification_title', title || 'Stakey’s Cycles');
-      form.set('notification_message', body || '');
-      form.set('notification_url', url || process.env.APP_ORIGIN || 'https://stakeyscycles.co.uk');
-      form.set('notification_type', 'now');
-      if (profileId) form.append('profile_id[]', profileId);
-      else if (segment) form.append('include_segments[]', segment);
-
-      const upstream = await fetch('https://api.pushengage.com/apiv1/notifications', {
+      const upstream = await fetch('https://onesignal.com/api/v1/notifications', {
         method: 'POST',
         headers: {
-          'Api-Key': apiKey,
-          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${apiKey}`,
+          'Content-Type': 'application/json',
         },
-        body: form.toString(),
+        body: JSON.stringify(message),
       });
       const data = await upstream.json().catch(() => ({}));
       res.status(upstream.status).json(data);
     } catch (error: any) {
-      console.error('PushEngage push error:', error);
+      console.error('OneSignal push error:', error);
       res.status(500).json({ error: 'Push dispatch failed' });
     }
   });

@@ -1,49 +1,50 @@
 /**
- * PushEngage Web Push integration.
+ * OneSignal Web Push integration.
  *
- * The PushEngage snippet in index.html loads the SDK and queues `init`, so this
- * module waits for `window.PushEngage` to appear instead of initialising a
- * second time. It identifies each signed-in user (profile_id) and puts them in
- * a role segment so pushes can be targeted, and exposes the helpers the booking
- * flow uses. Real delivery to a phone requires a configured app id and, for
- * background/server sends, the REST API key on the backend.
+ * The v16 SDK is initialised from the page head (index.html) via the
+ * `OneSignalDeferred` queue, so this module never calls `init` a second time —
+ * the live SDK instance is only reachable through that queue. It identifies
+ * each signed-in user (external_id = uid) so pushes can be targeted, attaches
+ * the workshop owner's email so reminders can reach their devices, and exposes
+ * the helpers the booking / reminder flows use. Real delivery to a phone
+ * requires a configured app id and, for background/server sends, the REST key
+ * on the backend.
  */
 
 export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured';
 
 declare global {
   interface Window {
-    PushEngage?: any;
-    /** V2 command queue / legacy API, replaced by the SDK once it initialises. */
-    _peq?: any;
-    /** V1 legacy API. */
-    _pe?: any;
+    /** Set by the inline <head> snippet in index.html. */
+    __oneSignalHeadInit?: boolean;
+    /** Command queue that hands the live SDK instance to callbacks. */
+    OneSignalDeferred?: Array<(oneSignal: any) => void>;
   }
 }
 
-interface PushEngageRuntimeConfig {
+interface OneSignalRuntimeConfig {
   appId: string | null;
   serverPush: boolean;
 }
 
-const envAppId = (import.meta as any).env?.VITE_PUSHENGAGE_APP_ID as string | undefined;
+const envAppId = (import.meta as any).env?.VITE_ONESIGNAL_APP_ID as string | undefined;
 
-let runtimeConfig: PushEngageRuntimeConfig | null = null;
-let readyPromise: Promise<any | null> | null = null;
+let runtimeConfig: OneSignalRuntimeConfig | null = null;
+let initPromise: Promise<boolean> | null = null;
 
 function browserReady(): boolean {
   return typeof window !== 'undefined' && typeof document !== 'undefined';
 }
 
-async function getRuntimeConfig(): Promise<PushEngageRuntimeConfig> {
+async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   if (runtimeConfig) return runtimeConfig;
   try {
-    const res = await fetch('/api/pushengage/config');
-    runtimeConfig = (await res.json()) as PushEngageRuntimeConfig;
+    const res = await fetch('/api/onesignal/config');
+    runtimeConfig = (await res.json()) as OneSignalRuntimeConfig;
   } catch {
     runtimeConfig = { appId: envAppId || null, serverPush: false };
   }
-  const resolved: PushEngageRuntimeConfig = runtimeConfig ?? {
+  const resolved: OneSignalRuntimeConfig = runtimeConfig ?? {
     appId: envAppId || null,
     serverPush: false,
   };
@@ -52,43 +53,48 @@ async function getRuntimeConfig(): Promise<PushEngageRuntimeConfig> {
   return resolved;
 }
 
-/** Pushes a command onto the PushEngage queue if the SDK exposes it. */
-function peq(command: any[]) {
-  try {
-    window._peq?.push?.(command);
-  } catch {
-    /* SDK not ready / queue frozen */
-  }
+/**
+ * Runs `fn` with the live OneSignal SDK instance. The v16 SDK is only handed
+ * out through the `OneSignalDeferred` queue (window.OneSignal is a stub), so
+ * every SDK call must go through here. Resolves `null` when the SDK never
+ * loads (unsupported browser, blocked script, tests).
+ */
+function withOneSignal<T>(fn: (oneSignal: any) => Promise<T> | T): Promise<T | null> {
+  if (!browserReady()) return Promise.resolve(null);
+  return new Promise<T | null>((resolve) => {
+    const timer = window.setTimeout(() => resolve(null), 8000);
+    try {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async (oneSignal: any) => {
+        window.clearTimeout(timer);
+        try {
+          resolve(await fn(oneSignal));
+        } catch (err) {
+          console.warn('[OneSignal] call failed:', err);
+          resolve(null);
+        }
+      });
+    } catch {
+      window.clearTimeout(timer);
+      resolve(null);
+    }
+  });
 }
 
 /**
- * Resolves with the live PushEngage API once the SDK has initialised, or null
- * when it never loads (unsupported browser, blocked script, tests).
+ * Resolves once the SDK is initialised. index.html already initialises it in the
+ * <head>, so we only wait for the instance — calling `init` again is rejected.
  */
-export async function initPushEngage(): Promise<any | null> {
-  if (readyPromise) return readyPromise;
-  readyPromise = (async () => {
-    if (!browserReady()) return null;
+export async function initOneSignal(): Promise<boolean> {
+  if (initPromise) return initPromise;
+  initPromise = (async () => {
+    if (!browserReady()) return false;
     const cfg = await getRuntimeConfig();
-    if (!cfg.appId) return null;
-    if (window.PushEngage) return window.PushEngage;
-
-    // The head snippet drives init; the SDK invokes queued callbacks once ready.
-    return await new Promise<any | null>((resolve) => {
-      const timer = window.setTimeout(() => resolve(window.PushEngage ?? null), 8000);
-      try {
-        window._peq = window._peq || [];
-        window._peq.push(() => {
-          window.clearTimeout(timer);
-          resolve(window.PushEngage ?? null);
-        });
-      } catch {
-        window.clearTimeout(timer);
-        resolve(window.PushEngage ?? null);
-      }
-    });
+    if (!cfg.appId) return false;
+    const ok = await withOneSignal((os) => Boolean(os));
+    return Boolean(ok);
   })();
-  return readyPromise;
+  return initPromise;
 }
 
 export async function getPushPermission(): Promise<PushPermission> {
@@ -96,15 +102,9 @@ export async function getPushPermission(): Promise<PushPermission> {
   if (!cfg.appId) return 'not_configured';
   if (!browserReady() || !('Notification' in window)) return 'unsupported';
 
-  const api = await initPushEngage();
-  if (api?.getPermission) {
-    try {
-      const perm = await api.getPermission();
-      if (perm) return perm as PushPermission;
-    } catch {
-      /* fall back to the raw browser permission */
-    }
-  }
+  const perm = await withOneSignal((os) => os?.Notifications?.permission ?? null);
+  if (perm === true) return 'granted';
+  if (perm === false) return 'denied';
   if (Notification.permission === 'granted' || Notification.permission === 'denied') {
     return Notification.permission;
   }
@@ -112,90 +112,103 @@ export async function getPushPermission(): Promise<PushPermission> {
 }
 
 /**
- * Requests permission through the native single-step opt-in and subscribes the
- * device. Returns the effective permission state; 'granted' means the device is
- * registered for push.
+ * Requests permission and opts the device into push. Returns the effective
+ * permission state; 'granted' means the device is registered for push.
  */
 export async function requestPushPermission(): Promise<PushPermission> {
   const cfg = await getRuntimeConfig();
   if (!cfg.appId) return 'not_configured';
 
-  const api = await initPushEngage();
-  if (!api) return 'unsupported';
-
-  try {
-    const res = await api.showNativePermissionPrompt?.();
-    if (res?.permission) return res.permission as PushPermission;
-  } catch (err) {
-    console.warn('[PushEngage] permission request failed:', err);
-  }
+  await withOneSignal(async (os) => {
+    try {
+      await os?.Notifications?.requestPermission?.();
+    } catch (err) {
+      console.warn('[OneSignal] permission request failed:', err);
+    }
+  });
 
   return getPushPermission();
 }
 
 /** Identifies the signed-in user and tags them so targeted pushes can reach them. */
 export async function linkUser(userId: string, tags?: Record<string, string | number>) {
-  const configured = await initPushEngage();
+  const configured = await initOneSignal();
   if (!configured) return;
-  try {
-    peq(['identify', { profile_id: userId }]);
-    if (tags) {
-      const attributes: Record<string, string> = {};
-      for (const [k, v] of Object.entries(tags)) attributes[k] = String(v);
-      peq(['set-attributes', attributes]);
+  await withOneSignal(async (os) => {
+    try {
+      await os?.login?.(userId);
+      if (tags) {
+        const stringTags: Record<string, string> = {};
+        for (const [k, v] of Object.entries(tags)) stringTags[k] = String(v);
+        await os?.User?.addTags?.(stringTags);
+      }
+    } catch (err) {
+      console.warn('[OneSignal] linkUser failed:', err);
     }
-    // Role segment (e.g. 'staff') so pushes can target a group. The segment must
-    // exist in the PushEngage dashboard.
-    const role = tags?.role;
-    if (role) peq(['add-to-segment', String(role)]);
-  } catch (err) {
-    console.warn('[PushEngage] linkUser failed:', err);
-  }
+  });
 }
 
 /** Clears the personal identifiers added by linkUser. */
 export async function unlinkUser() {
-  try {
-    if (browserReady()) peq(['logout']);
-  } catch {
-    /* ignore */
-  }
+  await withOneSignal(async (os) => {
+    try {
+      await os?.logout?.();
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+/**
+ * Attaches an email to this device's OneSignal subscription so pushes addressed
+ * to that email (e.g. the workshop owner's Gmail) reach this device. Safe to
+ * call repeatedly; the SDK de-duplicates.
+ */
+export async function registerEmailSubscription(email: string) {
+  const clean = String(email || '').trim();
+  if (!clean) return;
+  await withOneSignal(async (os) => {
+    try {
+      await os?.User?.addEmail?.(clean);
+    } catch (err) {
+      console.warn('[OneSignal] addEmail failed:', err);
+    }
+  });
 }
 
 export async function getSubscriptionId(): Promise<string | null> {
-  try {
-    const api = await initPushEngage();
-    if (!api?.getSubscriberId) return null;
-    return (await api.getSubscriberId()) || null;
-  } catch {
-    return null;
-  }
+  const id = await withOneSignal((os) => os?.User?.PushSubscription?.id ?? null);
+  return (id as string) || null;
 }
 
 /**
  * Sends a push through the backend so it lands even when the tab is closed.
- * Falls back to a foreground local notification when the server isn't configured.
+ * Targets, in order of preference: a specific profile (external_id), an email
+ * subscription, or a tag segment. Falls back to a foreground local notification
+ * when the server isn't configured.
  */
 export async function sendPushToUser(
   userId: string | undefined,
   title: string,
   body: string,
   url?: string,
-  tagFallback?: { key: string; value: string }
+  target?: { segment?: string; email?: string; tag?: { key: string; value: string } }
 ): Promise<{ ok: boolean; via: 'server' | 'local' | 'none' }> {
   const cfg = await getRuntimeConfig();
 
   if (cfg.serverPush) {
     try {
-      const res = await fetch('/api/pushengage/notify', {
+      const res = await fetch('/api/onesignal/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           body,
           url,
-          ...(userId ? { profileId: userId } : {}),
-          ...(userId ? {} : tagFallback ? { segment: tagFallback.value } : {}),
+          ...(userId ? { externalUserId: userId } : {}),
+          ...(!userId && target?.tag ? { tag: target.tag } : {}),
+          ...(!userId && !target?.tag && target?.email ? { email: target.email } : {}),
+          ...(!userId && !target?.tag && !target?.email && target?.segment ? { segment: target.segment } : {}),
         }),
       });
       if (res.ok) return { ok: true, via: 'server' };

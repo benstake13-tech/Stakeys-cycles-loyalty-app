@@ -36,7 +36,7 @@ import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
 import { Toaster } from 'react-hot-toast';
-import { initPushEngage, linkUser, unlinkUser } from './utils/pushNotifications';
+import { initOneSignal, linkUser, unlinkUser, registerEmailSubscription } from './utils/pushNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
 
 // The entire staff area is only ever bundled into the full/staff surfaces; the
@@ -47,7 +47,7 @@ const StaffPortal: React.LazyExoticComponent<React.ComponentType> = React.lazy(a
 });
 
 function AppContent() {
-  const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
+  const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme, reminderOwnerEmail } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   // Logged-out visitors land on the public marketing website, not the login form.
@@ -91,18 +91,26 @@ function AppContent() {
     setMobileMenuOpen(false);
   }, [activeTab]);
 
-  // PushEngage: initialise once and target pushes at the signed-in user.
+  // OneSignal: initialise once and target pushes at the signed-in user.
   useEffect(() => {
-    void initPushEngage();
+    void initOneSignal();
   }, []);
 
   useEffect(() => {
     if (currentUser) {
-      void linkUser(currentUser.uid, { role: currentUser.role || 'customer' });
+      const isStaffUser = currentUser.role === 'staff' || currentUser.role === 'admin';
+      const tags: Record<string, string> = { role: currentUser.role || 'customer' };
+      // Tag staff devices with the workshop owner email so the 24-hour reminder
+      // push can reach every device attached to it (see notificationService).
+      if (isStaffUser && reminderOwnerEmail) tags.owner_email = reminderOwnerEmail;
+      void linkUser(currentUser.uid, tags);
+      if (isStaffUser && reminderOwnerEmail) {
+        void registerEmailSubscription(reminderOwnerEmail);
+      }
     } else {
       void unlinkUser();
     }
-  }, [currentUser?.uid, currentUser?.role]);
+  }, [currentUser?.uid, currentUser?.role, reminderOwnerEmail]);
 
   const openStaffUnlock = () => {
     setStaffError(null);
