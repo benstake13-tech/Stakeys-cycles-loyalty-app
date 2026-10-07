@@ -78,7 +78,7 @@ WARRANTY & ASSURANCE:
 ${invoice.warrantyPeriod} on all fitted genuine components and adjustments.
 
 COLLECTION INSTRUCTIONS:
-Your cycle is fully serviced, safety tested, and ready for pickup at Stakey's Cycles workshop bench (14 High Street).
+Your cycle is fully serviced, safety tested, and ready for pickup at Stakey's Cycles workshop bench (Salford, M6 6QS).
 Please present your invoice number or membership card upon collection.
 =====================================================
 `;
