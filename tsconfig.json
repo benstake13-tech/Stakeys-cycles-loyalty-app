@@ -1,6 +1,7 @@
 {
   "exclude": [
-    "supabase/functions"
+    "supabase/functions",
+    "api"
   ],
   "compilerOptions": {
     "target": "ES2022",

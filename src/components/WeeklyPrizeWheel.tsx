@@ -537,13 +537,67 @@ export const WeeklyPrizeWheel: React.FC<WeeklyPrizeWheelProps> = ({
             <div
               className={`relative flex items-center justify-center p-3 rounded-full transition-all duration-700 select-none ${
                 isSpinning
-                  ? 'shadow-[0_0_50px_rgba(5,193,71,0.35),0_0_90px_rgba(245,158,11,0.15)] ring-4 ring-emerald-500/40'
-                  : 'shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_30px_rgba(5,193,71,0.1)] ring-2 ring-neutral-700/60'
+                  ? 'shadow-[0_0_50px_rgba(5,193,71,0.4),0_0_110px_rgba(245,158,11,0.28)] ring-4 ring-emerald-500/50'
+                  : 'shadow-[0_20px_60px_rgba(0,0,0,0.8),0_0_45px_rgba(5,193,71,0.18)] ring-2 ring-emerald-500/20'
               }`}
               style={{
                 background: 'radial-gradient(circle, #1a202c 0%, #0d1117 70%, #06090e 100%)',
               }}
             >
+              {/* Faint breathing glow haze + rotating rays */}
+              <div
+                className="pointer-events-none absolute -inset-10 rounded-full wheel-glow-haze"
+                style={{
+                  background:
+                    'radial-gradient(circle, rgba(5,193,71,0.35) 0%, rgba(245,158,11,0.18) 45%, transparent 72%)',
+                  filter: 'blur(18px)',
+                  animation: 'wheel-glow-pulse 3.6s ease-in-out infinite',
+                }}
+              />
+              <div
+                className="pointer-events-none absolute -inset-6 rounded-full overflow-hidden"
+                style={{
+                  background:
+                    'repeating-conic-gradient(from 0deg, rgba(255,255,255,0.10) 0deg 6deg, transparent 6deg 24deg)',
+                  WebkitMaskImage: 'radial-gradient(circle, transparent 58%, black 78%, transparent 92%)',
+                  maskImage: 'radial-gradient(circle, transparent 58%, black 78%, transparent 92%)',
+                  opacity: isSpinning ? 0.55 : 0.22,
+                  transition: 'opacity 0.7s ease',
+                }}
+              >
+                <div
+                  className="w-full h-full"
+                  style={{ animation: 'spin 26s linear infinite' }}
+                />
+              </div>
+
+              {/* Chasing bulbs around the rim */}
+              <div className="pointer-events-none absolute inset-0 z-30">
+                {Array.from({ length: 18 }).map((_, i) => {
+                  const angle = (i * 360) / 18;
+                  const delay = (i / 18) * 1.5;
+                  return (
+                    <span
+                      key={i}
+                      className="wheel-bulb absolute rounded-full"
+                      style={{
+                        width: 9,
+                        height: 9,
+                        top: '50%',
+                        left: '50%',
+                        backgroundColor: i % 2 === 0 ? '#22c55e' : '#fbbf24',
+                        boxShadow:
+                          i % 2 === 0
+                            ? '0 0 10px 2px rgba(34,197,94,0.9)'
+                            : '0 0 10px 2px rgba(251,191,36,0.9)',
+                        transform: `translate(-50%, -50%) rotate(${angle}deg) translate(0, -186px)`,
+                        animation: `wheel-bulb-flash 1.5s linear ${delay}s infinite`,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
               {/* Outer Precision Bicycle Rim with 24 Brass Spoke Nipples / Chrome Rivets */}
               <div
                 className="relative w-76 h-76 sm:w-96 sm:h-96 md:w-104 md:h-104 rounded-full overflow-hidden border-8 border-[#222730] shadow-inner flex items-center justify-center"
