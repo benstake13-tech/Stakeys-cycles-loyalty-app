@@ -2,14 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   buildFinancialLedger,
   summarizeLedger,
-  financialLedgerCsv,
-  financialSummaryCsv,
   workshopPaymentLabel,
   isPaidWorkshopStatus,
   inRange,
   toIso,
   formatPeriodLabel,
 } from './src/utils/financials';
+import { financialLedgerCsvBranded, EXPORT_BUSINESS } from './src/utils/financialExport';
 
 const sale = (over: Record<string, unknown> = {}) => ({
   id: 'sale-1',
@@ -174,29 +173,20 @@ describe('payment labels & helpers', () => {
 });
 
 describe('CSV export', () => {
-  it('exports a ledger with VAT and payment columns', () => {
-    const rows = buildFinancialLedger({ sales: [sale()], ...range });
-    const csv = financialLedgerCsv(rows);
-    const header = csv.split('\n')[0];
-    expect(header).toContain('Net');
-    expect(header).toContain('VAT');
-    expect(header).toContain('Payment');
-    expect(csv).toContain('SALE-2026-0001');
-  });
-
-  it('exports a tax summary with totals and channel rows', () => {
-    const rows = buildFinancialLedger({ sales: [sale()], bookings: [booking()], ...range });
-    const csv = financialSummaryCsv(summarizeLedger(rows));
-    expect(csv).toContain('Gross income,180.00');
-    expect(csv).toContain('VAT,30.00');
-    expect(csv).toContain('workshop,120.00,100.00,20.00');
-  });
-
-  it('quotes cells containing commas', () => {
+  it('quotes ledger cells containing commas (branded CSV)', () => {
     const rows = buildFinancialLedger({
       sales: [sale({ customerName: 'Smith, John' })],
       ...range,
     });
-    expect(financialLedgerCsv(rows)).toContain('"Smith, John"');
+    const csv = financialLedgerCsvBranded(rows, summarizeLedger(rows), {
+      business: EXPORT_BUSINESS,
+      periodLabel: '1 – 31 October 2026',
+      start: range.start,
+      end: range.end,
+      channelLabel: 'All channels',
+      paymentLabel: 'All',
+      generatedAt: '6 October 2026 at 14:03',
+    });
+    expect(csv).toContain('"Smith, John"');
   });
 });

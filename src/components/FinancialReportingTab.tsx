@@ -16,14 +16,20 @@ import {
 import {
   buildFinancialLedger,
   summarizeLedger,
-  financialLedgerCsv,
-  financialSummaryCsv,
   workshopPaymentLabel,
   formatPeriodLabel,
   type FinancialChannel,
   type FinancialLedgerRow,
   type PaymentState,
 } from '../utils/financials';
+import {
+  financialLedgerCsvBranded,
+  buildFinancialWorkbook,
+  buildTaxSummaryPdf,
+  loadLogoDataUrl,
+  EXPORT_BUSINESS,
+  type FinancialExportMeta,
+} from '../utils/financialExport';
 import { StakeysLogo } from './StakeysLogo';
 
 interface ShopOrder {
@@ -61,6 +67,7 @@ export const FinancialReportingTab: React.FC = () => {
   const [ordersState, setOrdersState] = useState<'loading' | 'ready' | 'unavailable'>('loading');
   const [channel, setChannel] = useState<'all' | FinancialChannel>('all');
   const [payment, setPayment] = useState<'all' | PaymentState>('all');
+  const [exportBusy, setExportBusy] = useState<'csv' | 'xlsx' | 'pdf' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,15 +105,14 @@ export const FinancialReportingTab: React.FC = () => {
   );
 
   const totals = useMemo(() => summarizeLedger(ledger), [ledger]);
-  const periodSummary = useMemo(() => summarizeLedger(fullLedger), [fullLedger]);
 
   const pendingQuotes = useMemo(
     () => (sales || []).filter((s) => s.status === 'quote' || s.status === 'approved'),
     [sales]
   );
 
-  const download = (contents: string, filename: string) => {
-    const blob = new Blob([contents], { type: 'text/csv' });
+  const download = (contents: Blob | string, filename: string, type = 'text/csv') => {
+    const blob = typeof contents === 'string' ? new Blob([contents], { type }) : contents;
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -115,11 +121,45 @@ export const FinancialReportingTab: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleExportCSV = () =>
-    download(financialLedgerCsv(ledger), `financial_ledger_${startDate}_to_${endDate}.csv`);
+  const downloadBytes = (bytes: ArrayBuffer, filename: string, type: string) =>
+    download(new Blob([bytes], { type }), filename, type);
 
-  const handleExportSummary = () =>
-    download(financialSummaryCsv(periodSummary), `financial_summary_${startDate}_to_${endDate}.csv`);
+  const handleExportCSV = () =>
+    download(
+      financialLedgerCsvBranded(ledger, totals, exportMeta),
+      `stakeys_financial_summary_${startDate}_to_${endDate}.csv`,
+      'text/csv;charset=utf-8'
+    );
+
+  const handleExportXlsx = async () => {
+    setExportBusy('xlsx');
+    try {
+      const logoDataUrl = await loadLogoDataUrl();
+      const bytes = await buildFinancialWorkbook(ledger, totals, { ...exportMeta, logoDataUrl });
+      downloadBytes(
+        bytes,
+        `stakeys_financial_summary_${startDate}_to_${endDate}.xlsx`,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+    } catch (e: any) {
+      console.warn('[FINANCIALS] Excel export failed:', e?.message || e);
+    } finally {
+      setExportBusy(null);
+    }
+  };
+
+  const handleExportTaxSummary = async () => {
+    setExportBusy('pdf');
+    try {
+      const logoDataUrl = await loadLogoDataUrl();
+      const bytes = await buildTaxSummaryPdf(ledger, totals, { ...exportMeta, logoDataUrl });
+      downloadBytes(bytes, `stakeys_tax_summary_${startDate}_to_${endDate}.pdf`, 'application/pdf');
+    } catch (e: any) {
+      console.warn('[FINANCIALS] Tax summary export failed:', e?.message || e);
+    } finally {
+      setExportBusy(null);
+    }
+  };
 
   const handlePrint = () => window.print();
 
@@ -176,15 +216,20 @@ export const FinancialReportingTab: React.FC = () => {
   const periodLabel = formatPeriodLabel(startDate, endDate);
   const generatedAt = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
 
-  // The workshop is call-out-only, so the printed document carries the public
+  // The workshop is call-out-only, so exported documents carry the public
   // postcode only — never a customer's name, address or contact details.
-  const BUSINESS = {
-    name: "Stakey's Cycles",
-    tagline: 'Bicycle & Scooter Workshop · Repairs, Servicing & Parts',
-    location: 'Salford, Greater Manchester M6 6QS',
-    phone: '+44 7388 209102',
-    email: 'workshop@stakeyscycles.co.uk',
-    vat: 'GB 892 1049 82',
+  const BUSINESS = EXPORT_BUSINESS;
+
+  // Shared metadata stamped on the CSV, Excel and PDF deliverables so all three
+  // read as the same official statement.
+  const exportMeta: FinancialExportMeta = {
+    business: BUSINESS,
+    periodLabel,
+    start: startDate,
+    end: endDate,
+    channelLabel: channel === 'all' ? 'All channels' : channelMeta[channel].label,
+    paymentLabel: payment === 'all' ? 'All payments' : payment === 'paid' ? 'Paid only' : 'Unpaid only',
+    generatedAt,
   };
 
   const card = 'p-4 bg-neutral-900 rounded-xl border border-neutral-800 space-y-1';
@@ -255,8 +300,19 @@ export const FinancialReportingTab: React.FC = () => {
           <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer">
             <Printer className="w-4 h-4" /> Print
           </button>
-          <button onClick={handleExportSummary} className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer">
-            <Download className="w-4 h-4" /> Tax Summary
+          <button
+            onClick={handleExportTaxSummary}
+            disabled={exportBusy !== null}
+            className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <FileText className="w-4 h-4" /> {exportBusy === 'pdf' ? 'Preparing…' : 'Tax Summary PDF'}
+          </button>
+          <button
+            onClick={handleExportXlsx}
+            disabled={exportBusy !== null}
+            className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <Download className="w-4 h-4" /> {exportBusy === 'xlsx' ? 'Preparing…' : 'Excel (.xlsx)'}
           </button>
           <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold rounded-lg text-xs transition-colors cursor-pointer">
             <Download className="w-4 h-4" /> Export CSV
@@ -504,7 +560,7 @@ export const FinancialReportingTab: React.FC = () => {
             {pendingQuotes.length > 0 && (
               <li>{pendingQuotes.length} till {pendingQuotes.length === 1 ? 'quote is' : 'quotes are'} awaiting approval ({money(pendingQuotes.reduce((s, q) => s + q.grandTotal, 0))}) and is not included above.</li>
             )}
-            <li>This printed copy is anonymised — customer names, addresses and contact details appear only in the CSV export, never on paper.</li>
+            <li>This printed copy is anonymised — customer names, addresses and contact details appear only in the downloadable CSV, Excel and PDF exports, never on paper.</li>
           </ul>
         </div>
 
