@@ -581,7 +581,7 @@ DECLARE
   tbls text[] := ARRAY[
     'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
     'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
-    'app_theme_config', 'staff_members', 'promotions', 'app_settings'
+    'referrals', 'app_theme_config', 'staff_members', 'promotions', 'app_settings'
   ];
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon')
@@ -624,7 +624,7 @@ DECLARE
   tbls text[] := ARRAY[
     'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
     'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
-    'app_theme_config', 'staff_members', 'promotions', 'app_settings'
+    'referrals', 'app_theme_config', 'staff_members', 'promotions', 'app_settings'
   ];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
@@ -734,7 +734,7 @@ DECLARE
   tbls text[] := ARRAY[
     'profiles', 'stamp_logs', 'customer_bikes', 'service_bookings',
     'prize_wheels', 'prize_draws', 'service_vouchers', 'discount_codes', 'counter_sales',
-    'app_theme_config', 'staff_members', 'promotions', 'app_settings'
+    'referrals', 'app_theme_config', 'staff_members', 'promotions', 'app_settings'
   ];
 BEGIN
   FOREACH t IN ARRAY tbls LOOP
