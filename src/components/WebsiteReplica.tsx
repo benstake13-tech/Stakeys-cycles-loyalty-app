@@ -485,6 +485,54 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
     </div>
   );
 
+  const discountStrip = liveDiscountCodes.length > 0 && (
+    <div className={`rounded-3xl border p-5 sm:p-6 shadow-lg ${isDark ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <BadgePoundSterling className="w-5 h-5 text-emerald-500" />
+          <h3 className={`text-base font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+            Current discount codes
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => setPage('offers')}
+          className="pressable inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/50 px-3 py-1.5 text-[11px] font-bold text-emerald-500 cursor-pointer"
+        >
+          <Tag className="w-3.5 h-3.5" /> See all offers
+        </button>
+      </div>
+      <p className={`text-xs leading-relaxed mt-1.5 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+        Tap a code to drop it straight into your basket — public codes work for everyone, member codes unlock when you sign in.
+      </p>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        {liveDiscountCodes.slice(0, 4).map((coupon) => (
+          <button
+            key={coupon.id}
+            type="button"
+            onClick={() => useCoupon(coupon)}
+            className={`pressable text-left rounded-2xl border p-3 space-y-1 cursor-pointer transition-colors ${
+              isDark
+                ? 'border-neutral-800 bg-neutral-900/70 hover:border-emerald-500/50'
+                : 'border-neutral-200 bg-white/80 hover:border-emerald-500/50'
+            }`}
+          >
+            <span className="block rounded-lg border border-dashed border-emerald-500/50 px-2 py-1 font-mono text-[11px] font-black text-emerald-500 text-center">
+              {coupon.code}
+            </span>
+            <span className={`block text-[11px] font-bold leading-snug ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>
+              {coupon.title}
+            </span>
+            <span className={`block text-[10px] font-bold ${coupon.audience === 'member' ? 'text-emerald-400' : isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+              {coupon.type === 'percent' ? `${coupon.value}% off` : `£${coupon.value} off`}
+              {coupon.audience === 'member' ? ' · Members' : ''}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const reviewCard = (
     <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-gradient-to-br from-neutral-900 to-neutral-950 border-neutral-800' : 'bg-gradient-to-br from-white to-neutral-50 border-neutral-200'}`}>
       <div className="flex items-center gap-2 mb-3">
@@ -1148,6 +1196,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         return (
           <div className="space-y-6">
             {heroCard}
+            {discountStrip}
             {valueBand}
             {reviewCard}
             {footerBar}
