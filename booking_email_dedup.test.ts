@@ -29,6 +29,12 @@ vi.mock('./src/utils/bookingEmailLedger', () => ({
   rehydrateBookingEmailLedger: () => {},
 }));
 
+vi.mock('./src/utils/pushNotifications', () => ({
+  sendPushToUser: vi.fn(async () => ({ ok: true, via: 'server' })),
+}));
+
+import { sendPushToUser } from './src/utils/pushNotifications';
+
 import {
   dispatchBookingNotifications,
   dispatchBookingApprovalNotification,
@@ -46,6 +52,7 @@ const config: OwnerNotificationConfig = {
 
 const booking: ServiceBooking = {
   id: 'bk-4242',
+  customerId: 'cust-4242',
   customerName: 'Sam Carter',
   customerEmail: 'sam@example.com',
   customerPhone: '+44 7911 000000',
@@ -84,7 +91,7 @@ describe('booking email de-duplication', () => {
     expect(hoisted.invokes).toHaveLength(2);
   });
 
-  it('still sends the separate lifecycle emails (approval, decline, reminder) once each', async () => {
+  it('still sends the separate lifecycle emails (approval, decline) once each', async () => {
     await dispatchBookingNotifications(booking, config);
     await dispatchBookingApprovalNotification({ ...booking, approvalStatus: 'approved' }, 'Bring the key', config);
     await dispatchBookingApprovalNotification({ ...booking, approvalStatus: 'approved' }, 'Bring the key', config);
@@ -98,6 +105,30 @@ describe('booking email de-duplication', () => {
     expect(count("New Booking #bk-4242")).toBe(1); // workshop alert
     expect(count('APPROVED')).toBe(1); // approval (duplicate suppressed)
     expect(count('could not be approved')).toBe(1); // decline
-    expect(count('24-Hour')).toBe(2); // customer + workshop reminder
+    // Reminders default to push, so no reminder email is sent.
+    expect(count('24-Hour')).toBe(0);
+  });
+
+  it('sends reminder emails when email mode is explicitly requested', async () => {
+    await dispatch24hReminderNotification(booking, config, { pushOnly: false });
+
+    const subjects = hoisted.invokes.map((i) => i.body.subject as string);
+    expect(subjects.filter((s) => s.includes('24-Hour')).length).toBe(2); // customer + workshop
+  });
+
+  it('dispatches the 24h reminder as a push to the customer and owner-email devices', async () => {
+    await dispatch24hReminderNotification(booking, config, {
+      ownerReminderEmail: 'stakeyscycle95@gmail.com',
+    });
+
+    const calls = (sendPushToUser as any).mock.calls;
+    // Customer push (targeted by profile) …
+    expect(calls.some((c: any[]) => c[0] === booking.customerId)).toBe(true);
+    // … and a workshop push to every device tagged with the owner email.
+    expect(
+      calls.some(
+        (c: any[]) => c[4]?.tag?.key === 'owner_email' && c[4]?.tag?.value === 'stakeyscycle95@gmail.com'
+      )
+    ).toBe(true);
   });
 });

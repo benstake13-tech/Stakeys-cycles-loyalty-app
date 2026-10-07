@@ -65,6 +65,7 @@ import {
 import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/pushNotifications';
+import { isStaffSurface, isFullSurface } from '../config/surface';
 import { generateMembershipNumber } from '../api/firebaseService';
 import {
   STAMPS_PER_CARD,
@@ -150,6 +151,12 @@ interface ShopContextType {
   // 24-Hour Reminder & SMS Actions
   automatedRemindersEnabled: boolean;
   setAutomatedRemindersEnabled: (enabled: boolean) => void;
+  /** When true (default) reminders go out as push, not email. */
+  remindersPushOnly: boolean;
+  setRemindersPushOnly: (enabled: boolean) => void;
+  /** Email whose devices receive the workshop reminder push. */
+  reminderOwnerEmail: string;
+  setReminderOwnerEmail: (email: string) => void;
   bookingsDueIn24h: ServiceBooking[];
   dispatch24hReminderForBooking: (bookingId: string) => Promise<boolean>;
   latestSmsAlert: {
@@ -1286,7 +1293,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else if (perm === 'denied') {
       toast.error('Push notification permission was denied in your browser settings.');
     } else if (perm === 'not_configured') {
-      toast.error('PushEngage is not configured yet. Add VITE_PUSHENGAGE_APP_ID to enable push.');
+      toast.error('OneSignal is not configured yet. Add VITE_ONESIGNAL_APP_ID to enable push.');
     }
     return perm;
   };
@@ -1325,7 +1332,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `🚨 New Workshop Booking #${latest.id}`,
         `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`,
         undefined,
-        { key: 'role', value: 'staff' }
+        { segment: 'staff' }
       );
 
       toast(
@@ -1462,6 +1469,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         smsAlertsEnabled: remoteSettings.smsAlertsEnabled ?? prev.smsAlertsEnabled,
         businessName: remoteSettings.businessName ?? prev.businessName,
       }));
+      applyRemoteReminderSettings(remoteSettings);
     }
 
     if (currentUser) {
@@ -1534,6 +1542,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (typeof settings.automatedRemindersEnabled === 'boolean') {
           setAutomatedRemindersEnabled(settings.automatedRemindersEnabled);
         }
+        applyRemoteReminderSettings(settings);
       }
     }).catch(() => {});
 
@@ -1667,6 +1676,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  // Staff choice: reminders arrive as push notifications (default) rather than
+  // email, so customers/owner aren't flooded with reminder emails.
+  const [remindersPushOnly, setRemindersPushOnly] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_reminders_push_only`);
+      return saved ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  // Which email's devices should receive the workshop reminder push (defaults
+  // to the shop Gmail; staff can change it).
+  const [reminderOwnerEmail, setReminderOwnerEmail] = useState<string>(() => {
+    try {
+      return localStorage.getItem(`${STORAGE_KEY}_reminder_owner_email`) || 'stakeyscycle95@gmail.com';
+    } catch {
+      return 'stakeyscycle95@gmail.com';
+    }
+  });
+
+  // Read inside the reminder effect without making settings changes re-run it
+  // (which would restart the interval on every toggle).
+  const remindersPushOnlyRef = useRef(remindersPushOnly);
+  const reminderOwnerEmailRef = useRef(reminderOwnerEmail);
+  remindersPushOnlyRef.current = remindersPushOnly;
+  reminderOwnerEmailRef.current = reminderOwnerEmail;
+
   // Recent SMS alert toast / banner state
   const [latestSmsAlert, setLatestSmsAlert] = useState<{
     title: string;
@@ -1683,11 +1720,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     try {
       localStorage.setItem(`${STORAGE_KEY}_automated_reminders`, JSON.stringify(automatedRemindersEnabled));
+      localStorage.setItem(`${STORAGE_KEY}_reminders_push_only`, JSON.stringify(remindersPushOnly));
+      localStorage.setItem(`${STORAGE_KEY}_reminder_owner_email`, reminderOwnerEmail);
     } catch (e) {
       console.warn('Storage failed', e);
     }
-    upsertAppSettingsToDb({ automatedRemindersEnabled }).catch(() => {});
-  }, [automatedRemindersEnabled]);
+    upsertAppSettingsToDb({ automatedRemindersEnabled, remindersPushOnly, reminderOwnerEmail }).catch(() => {});
+  }, [automatedRemindersEnabled, remindersPushOnly, reminderOwnerEmail]);
+
+  // Adopt reminder settings pushed from the database (e.g. changed on another
+  // staff device) without clobbering a missing column with a default.
+  const applyRemoteReminderSettings = (settings: {
+    remindersPushOnly?: boolean;
+    reminderOwnerEmail?: string;
+  }) => {
+    if (typeof settings.remindersPushOnly === 'boolean') setRemindersPushOnly(settings.remindersPushOnly);
+    if (settings.reminderOwnerEmail) setReminderOwnerEmail(settings.reminderOwnerEmail);
+  };
 
   // Loyalty data (profiles/stamps, wheel + draws, logs, bookings, config) is
   // Supabase-backed only — intentionally not cached in localStorage, so the app
@@ -2888,7 +2937,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       `🚨 New Workshop Booking #${completedBooking.id}`,
       `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`,
       undefined,
-      { key: 'role', value: 'staff' }
+      { segment: 'staff' }
     );
 
     // Trigger instant email alert confirmation banner
@@ -3600,15 +3649,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { customerReminderLog, ownerReminderLog, updatedBooking } = await dispatch24hReminderNotification(
       target,
-      ownerConfig
+      ownerConfig,
+      { pushOnly: remindersPushOnlyRef.current, ownerReminderEmail: reminderOwnerEmailRef.current }
     );
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updatedBooking : b)));
 
+    // Persist so every other client stops re-sending the reminder.
+    updateServiceBookingInDb(bookingId, {
+      reminder24hSent: true,
+      notifications: updatedBooking.notifications,
+    }).catch((e) => console.warn('[DB SYNC] Error persisting 24h reminder:', e));
+
+    const pushOnly = remindersPushOnlyRef.current;
+    const channel = pushOnly ? 'push notification' : 'email';
     setLatestSmsAlert({
-      title: '⏰ 24-Hour Reminder Email Sent',
-      message: `Delivered 24-hour reminder email to ${target.customerName} (${target.customerEmail}) & Stakey's Cycles (${ownerConfig.ownerEmail}) for ${target.preferredDate} (${target.preferredTimeSlot}).`,
-      recipient: `${target.customerEmail} & ${ownerConfig.ownerEmail}`,
+      title: `⏰ 24-Hour Reminder Sent (${pushOnly ? 'Push' : 'Email'})`,
+      message: `Delivered 24-hour reminder ${channel} to ${target.customerName} (${target.customerEmail}) & Stakey's Cycles (${reminderOwnerEmailRef.current}) for ${target.preferredDate} (${target.preferredTimeSlot}).`,
+      recipient: `${target.customerEmail} & ${reminderOwnerEmailRef.current}`,
       time: new Date().toLocaleTimeString(),
       recipientType: 'both',
     });
@@ -3616,9 +3674,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  // Background automated 24-hour reminder check
+  // Background automated 24-hour reminder check. Reminders are a staff concern
+  // (owner notifications), so only the staff surface (and the combined local-dev
+  // 'full' surface) runs the engine — the website/customer builds never dispatch
+  // them. Keeping it in one place is what stops several open clients from
+  // dispatching the same reminder.
   useEffect(() => {
-    if (!automatedRemindersEnabled) return;
+    if (!automatedRemindersEnabled || !(isStaffSurface || isFullSurface)) return;
 
     const runAutomatedRemindersCheck = async () => {
       // Find eligible bookings:
@@ -3673,6 +3735,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateBikeComponent,
         automatedRemindersEnabled,
         setAutomatedRemindersEnabled,
+        remindersPushOnly,
+        setRemindersPushOnly,
+        reminderOwnerEmail,
+        setReminderOwnerEmail,
         bookingsDueIn24h,
         dispatch24hReminderForBooking,
         latestSmsAlert,

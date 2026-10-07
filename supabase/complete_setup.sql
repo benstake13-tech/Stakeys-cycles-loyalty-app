@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS public.service_bookings (
   notes TEXT,
   status TEXT DEFAULT 'pending',
   reminder_24h_sent BOOLEAN DEFAULT FALSE,
+  notifications JSONB DEFAULT '[]'::jsonb,
   repair_stage TEXT DEFAULT 'received',
   progress_events JSONB DEFAULT '[]'::jsonb,
   estimate_ready_at TEXT,
@@ -336,6 +337,7 @@ ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS preferred_time_slot
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS reminder_24h_sent BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS repair_stage TEXT DEFAULT 'received';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS progress_events JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS estimate_ready_at TEXT;
@@ -557,6 +559,8 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   sms_alerts_enabled BOOLEAN DEFAULT FALSE,
   business_name TEXT,
   automated_reminders_enabled BOOLEAN DEFAULT TRUE,
+  reminders_push_only BOOLEAN DEFAULT TRUE,
+  reminder_owner_email TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS owner_email TEXT;
@@ -565,6 +569,8 @@ ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS email_alerts_enabled BO
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS sms_alerts_enabled BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS business_name TEXT;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS automated_reminders_enabled BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminders_push_only BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_owner_email TEXT;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 INSERT INTO public.app_settings (id)

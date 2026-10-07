@@ -300,7 +300,7 @@ export interface RepairProgressEvent {
 
 export interface BookingNotificationLog {
   id: string;
-  type: 'email' | 'sms';
+  type: 'email' | 'sms' | 'push';
   recipient: string;
   recipientRole?: 'customer' | 'owner' | 'workshop';
   subject?: string;

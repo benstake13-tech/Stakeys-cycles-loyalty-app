@@ -2,6 +2,7 @@ import { ServiceBooking, OwnerNotificationConfig, BookingNotificationLog } from 
 import { getSupabaseClient } from '../lib/supabase';
 import { vehicleNouns } from './vehicleType';
 import { shouldSendBookingEmail } from './bookingEmailLedger';
+import { sendPushToUser } from './pushNotifications';
 
 export interface DispatchResult {
   emailLog: BookingNotificationLog;
@@ -595,40 +596,51 @@ export async function dispatchTestEmail(
 }
 
 /**
- * Dispatches 24-Hour Automated Reminder Email exclusively to both Customer & Stakey's Workshop
+ * Dispatches the 24-Hour reminder. By default this is a push notification: one
+ * to the customer's device (targeted by profile) and one to every device tagged
+ * with the workshop owner's email, so the reminder reaches the phone without an
+ * email. Staff can switch back to the legacy email dispatch, or turn reminders
+ * off entirely, from the staff app (see `automatedRemindersEnabled`).
  */
 export async function dispatch24hReminderNotification(
   booking: ServiceBooking,
-  config: OwnerNotificationConfig
+  config: OwnerNotificationConfig,
+  options: { pushOnly?: boolean; ownerReminderEmail?: string } = {}
 ): Promise<{
   customerReminderLog: BookingNotificationLog;
   ownerReminderLog: BookingNotificationLog;
   updatedBooking: ServiceBooking;
 }> {
   const now = new Date();
+  const pushOnly = options.pushOnly !== false;
+  const ownerReminderEmail = (options.ownerReminderEmail || config.ownerEmail || '').trim();
 
-  // 1. Customer 24h Reminder Email
+  const customerSubject = `⏰ 24-Hour Service Slot Reminder: Stakey's Cycles Workshop (#${booking.id})`;
+  const ownerSubject = `⏰ 24-Hour Workshop Slot Reminder: ${booking.customerName} (${booking.preferredDate})`;
+  const pushBody = `${booking.serviceTitle} for ${booking.vehicleModel} is scheduled ${booking.preferredDate} (${booking.preferredTimeSlot}).`;
+
+  // 1. Customer 24h Reminder
   const customerReminderLog: BookingNotificationLog = {
-    id: `notif-24h-cust-email-${Date.now()}-1`,
-    type: 'email',
+    id: `notif-24h-cust-${pushOnly ? 'push' : 'email'}-${Date.now()}-1`,
+    type: pushOnly ? 'push' : 'email',
     recipient: booking.customerEmail,
     recipientRole: 'customer',
     category: 'reminder_24h',
-    subject: `⏰ 24-Hour Service Slot Reminder: Stakey's Cycles Workshop (#${booking.id})`,
-    content: generateCustomer24hReminderEmailHtml(booking, config),
+    subject: customerSubject,
+    content: pushOnly ? pushBody : generateCustomer24hReminderEmailHtml(booking, config),
     timestamp: now,
     status: 'delivered',
   };
 
-  // 2. Stakey's Cycles Workshop 24h Reminder Email
+  // 2. Stakey's Cycles Workshop 24h Reminder
   const ownerReminderLog: BookingNotificationLog = {
-    id: `notif-24h-owner-email-${Date.now()}-2`,
-    type: 'email',
-    recipient: config.ownerEmail,
+    id: `notif-24h-owner-${pushOnly ? 'push' : 'email'}-${Date.now()}-2`,
+    type: pushOnly ? 'push' : 'email',
+    recipient: ownerReminderEmail,
     recipientRole: 'owner',
     category: 'reminder_24h',
-    subject: `⏰ 24-Hour Workshop Slot Reminder: ${booking.customerName} (${booking.preferredDate})`,
-    content: generateOwner24hReminderEmailHtml(booking, config),
+    subject: ownerSubject,
+    content: pushOnly ? pushBody : generateOwner24hReminderEmailHtml(booking, config),
     timestamp: now,
     status: 'delivered',
   };
@@ -648,6 +660,29 @@ export async function dispatch24hReminderNotification(
     return { customerReminderLog, ownerReminderLog, updatedBooking };
   }
 
+  if (pushOnly) {
+    // Customer device (profile-targeted when they have an account).
+    await sendPushToUser(
+      booking.customerId,
+      customerSubject,
+      pushBody
+    ).catch((err) => console.error('[24H REMINDER ENGINE] customer push failed:', err));
+
+    // Every device attached to the workshop owner's email.
+    if (ownerReminderEmail) {
+      await sendPushToUser(
+        undefined,
+        ownerSubject,
+        `${booking.customerName}: ${pushBody}`,
+        undefined,
+        { tag: { key: 'owner_email', value: ownerReminderEmail } }
+      ).catch((err) => console.error('[24H REMINDER ENGINE] owner push failed:', err));
+    }
+
+    console.log(`[24H REMINDER ENGINE] 🔔 Sent 24h reminder push for booking #${booking.id}`);
+    return { customerReminderLog, ownerReminderLog, updatedBooking };
+  }
+
   const supabase = getSupabaseClient();
   const reminderHtml: Record<string, string> = {
     customer: generateCustomer24hReminderEmailHtml(booking, config),
@@ -656,8 +691,8 @@ export async function dispatch24hReminderNotification(
 
   const sends = [
     { to: booking.customerEmail, subject: customerReminderLog.subject, html: reminderHtml.customer, who: 'customer' },
-    ...(config.ownerEmail
-      ? [{ to: config.ownerEmail, subject: ownerReminderLog.subject, html: reminderHtml.owner, who: 'workshop' }]
+    ...(ownerReminderEmail
+      ? [{ to: ownerReminderEmail, subject: ownerReminderLog.subject, html: reminderHtml.owner, who: 'workshop' }]
       : []),
   ].filter((send): send is { to: string; subject: string; html: string; who: string } => Boolean(send.to));
 
