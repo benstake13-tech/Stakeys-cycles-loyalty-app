@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Wrench,
   Mail,
@@ -41,7 +41,12 @@ import { PhoneBookingPanel } from './PhoneBookingPanel';
 import { StaffSosPanel } from './StaffSosPanel';
 import { isSosBooking } from '../utils/sosRepair';
 
-export const StaffBookingsTab: React.FC = () => {
+interface StaffBookingsTabProps {
+  /** Booking id to scroll to and highlight after a notification tap. */
+  focusBookingId?: string | null;
+}
+
+export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBookingId }) => {
   const {
     bookings,
     approveBooking,
@@ -75,6 +80,10 @@ export const StaffBookingsTab: React.FC = () => {
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('all');
   const [bookingView, setBookingView] = useState<'queue' | 'sos' | 'phone'>('queue');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
+
+  // Highlighted booking from a notification deep link (auto-clears).
+  const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null);
+  const focusRef = useRef<HTMLDivElement | null>(null);
 
   // Invoice & Repair Completion Modal States
   const [completingBooking, setCompletingBooking] = useState<ServiceBooking | null>(null);
@@ -126,6 +135,26 @@ export const StaffBookingsTab: React.FC = () => {
   const pendingCount = bookings.filter(
     (b) => b.status === 'pending' || b.approvalStatus === 'pending_approval'
   ).length;
+
+  // Notification deep link: reveal the target booking regardless of the active
+  // filters, scroll it into view and flash a highlight so staff spot it.
+  useEffect(() => {
+    if (!focusBookingId) return;
+    const target = bookings.find((b) => b.id === focusBookingId);
+    if (!target) return;
+    setSelectedStatusFilter('all');
+    setSelectedVehicleFilter('all');
+    setBookingView('queue');
+    setHighlightedBookingId(focusBookingId);
+    const scroll = setTimeout(() => {
+      focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 120);
+    const clear = setTimeout(() => setHighlightedBookingId(null), 6000);
+    return () => {
+      clearTimeout(scroll);
+      clearTimeout(clear);
+    };
+  }, [focusBookingId, bookings]);
 
   // SOS jobs still needing action (anything not yet confirmed).
   const sosOpenCount = bookings.filter(
@@ -825,11 +854,15 @@ export const StaffBookingsTab: React.FC = () => {
         ) : (
           filteredBookings.map((b) => {
             const isFresh = b.status === 'pending' || b.approvalStatus === 'pending_approval';
+            const isHighlighted = highlightedBookingId === b.id;
             return (
               <div
                 key={b.id}
+                ref={isHighlighted ? focusRef : undefined}
                 className={`transition-all rounded-3xl p-5 sm:p-6 shadow-lg space-y-4 relative ${
-                  isFresh
+                  isHighlighted
+                    ? 'bg-[#0b1a2e] border-2 border-sky-400 ring-4 ring-sky-400/40 shadow-[0_0_35px_rgba(56,189,248,0.55)]'
+                    : isFresh
                     ? 'bg-[#12100d] border-2 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.25)] ring-1 ring-amber-400/50'
                     : 'bg-neutral-900 hover:bg-neutral-850/80 border border-neutral-800'
                 }`}

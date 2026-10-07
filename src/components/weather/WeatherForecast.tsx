@@ -3,6 +3,7 @@ import {
   CloudRain,
   Compass,
   Droplets,
+  Gauge,
   LocateFixed,
   MapPin,
   Navigation,
@@ -388,6 +389,8 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
               {stat(Wind, 'Wind', `${active.windMaxKph} km/h`)}
               {stat(Navigation, 'Gusts', `${active.windGustKph} km/h`)}
               {stat(Thermometer, 'Feels like', `${toDisplayTemp(report?.current.feelsLikeC ?? active.tempMax, unit)}${unitLabel}`)}
+              {stat(Droplets, 'Humidity', `${report?.current.humidity ?? 0}%`)}
+              {stat(Gauge, 'Pressure', `${report?.current.pressureHpa ?? 0} hPa`)}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-[11px]">
               {active.sunrise && (

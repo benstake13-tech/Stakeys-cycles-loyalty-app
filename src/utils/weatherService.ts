@@ -59,6 +59,10 @@ export interface CurrentWeather {
   label: string;
   windKph: number;
   precipMm: number;
+  /** Relative humidity, 0-100. */
+  humidity: number;
+  /** Mean sea-level pressure in hPa. */
+  pressureHpa: number;
   isDay: boolean;
 }
 
@@ -323,7 +327,7 @@ export function buildOpenMeteoUrl(lat: number, lon: number): string {
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-    current: 'temperature_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m',
+    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,pressure_msl,wind_speed_10m',
     daily:
       'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset',
     timezone: 'auto',
@@ -379,6 +383,8 @@ export function parseOpenMeteo(data: any, location: WeatherLocation, now: number
       label: weatherLabel(currentKind),
       windKph: round(num([cur.wind_speed_10m], 0)),
       precipMm: round(num([cur.precipitation], 0), 1),
+      humidity: round(num([cur.relative_humidity_2m], 0)),
+      pressureHpa: round(num([cur.pressure_msl], 0), 1),
       isDay: cur.is_day === 0 ? false : cur.is_day === 1 ? true : true,
     },
     days,
@@ -459,6 +465,8 @@ export function syntheticWeatherReport(
       label: weatherLabel('partly'),
       windKph: 12,
       precipMm: 0,
+      humidity: 68,
+      pressureHpa: 1014,
       isDay: true,
     },
     days,
