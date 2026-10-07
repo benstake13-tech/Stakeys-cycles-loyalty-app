@@ -18,6 +18,7 @@ import {
   Gift,
   Siren,
   Truck,
+  Tag,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
@@ -47,6 +48,8 @@ import {
   createBookingMailtoUrl,
   createCustomerMailtoUrl,
 } from '../utils/notificationService';
+import { findDiscountCode, validateDiscountCode } from '../utils/discountService';
+import { websiteDiscountCatalogue, discountCodeFromSearch } from '../utils/websiteDiscounts';
 import confetti from 'canvas-confetti';
 
 interface BookingPortalProps {
@@ -69,7 +72,7 @@ const SOS_VEHICLE_USE_LABEL: Record<string, string> = {
 };
 
 export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes, onBookingComplete }) => {
-  const { currentUser, createBooking, redeemServiceVoucher, ownerConfig } = useShop();
+  const { currentUser, createBooking, redeemServiceVoucher, ownerConfig, discountCodes } = useShop();
   const todayIso = new Date().toISOString().split('T')[0];
 
   // If user has saved bikes in profile, check if initialBikeId is set
@@ -122,6 +125,43 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     (v) => v.status === 'available' && v.type === 'service_credit'
   );
   const [applyVoucher, setApplyVoucher] = useState<boolean>(availableServiceVouchers.length > 0);
+
+  // Optional discount code. Repairs are priced by staff on completion, so the
+  // code is captured here and honoured on the final invoice (see the "Discount
+  // code" note added to the booking notes) rather than taken off a £0 estimate.
+  const [discountInput, setDiscountInput] = useState<string>(() => discountCodeFromSearch());
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; title: string } | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const discountCatalogue = useMemo(() => websiteDiscountCatalogue(discountCodes), [discountCodes]);
+
+  const applyDiscountCode = () => {
+    setDiscountError(null);
+    const found = findDiscountCode(discountInput, discountCatalogue);
+    if (!found) {
+      setDiscountError('That code was not recognised.');
+      return;
+    }
+    const res = validateDiscountCode(found, {
+      subtotal: 0,
+      isMember: Boolean(currentUser),
+      customerUid: currentUser?.uid,
+      customerMembership: currentUser?.membershipNumber,
+      categories: [bikeIdentity.category],
+      skipSubtotalChecks: true,
+    });
+    if (!res.ok) {
+      setDiscountError(res.reason || 'That code cannot be used on this booking.');
+      return;
+    }
+    setAppliedDiscount({ code: found.code, title: found.title });
+    setDiscountInput('');
+  };
+
+  const clearDiscountCode = () => {
+    setAppliedDiscount(null);
+    setDiscountError(null);
+    setDiscountInput('');
+  };
 
   // Contact & Schedule
   const [customerName, setCustomerName] = useState<string>(currentUser?.displayName || '');
@@ -363,6 +403,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         ? `Applied £40 Service Voucher: ${selectedVoucher.code} (To be credited on final repair invoice)`
         : '';
 
+      const discountNote = appliedDiscount
+        ? `Discount code: ${appliedDiscount.code} (${appliedDiscount.title}) — to be honoured on the final repair invoice`
+        : '';
+
       const issueItems = selectedIssueIds
         .map((id) => ALL_BIKE_ISSUES_MAP.get(id))
         .filter(Boolean);
@@ -434,6 +478,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
         notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
         voucherNote,
+        discountNote,
         referralNote,
       ]
         .filter(Boolean)
@@ -1529,6 +1574,48 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             )}
           </div>
         )}
+
+        {/* Optional discount code — honoured on the final repair invoice */}
+        <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-white">
+            <Tag className="w-4 h-4 text-emerald-400" />
+            <span>Have a discount code?</span>
+          </div>
+          {appliedDiscount ? (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold text-emerald-400">
+                {appliedDiscount.code} applied — {appliedDiscount.title}
+              </span>
+              <button
+                type="button"
+                onClick={clearDiscountCode}
+                className="text-[11px] font-semibold text-neutral-400 hover:text-rose-400 cursor-pointer"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                value={discountInput}
+                onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
+                placeholder="Discount code"
+                className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
+              />
+              <button
+                type="button"
+                onClick={applyDiscountCode}
+                className="shrink-0 rounded-lg border border-emerald-500/50 px-3 py-2 text-xs font-bold text-emerald-500 cursor-pointer"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+          {discountError && <p className="text-[10px] text-rose-400">{discountError}</p>}
+          <p className="text-[10px] text-neutral-500">
+            Applied to your final repair invoice — we&apos;ll confirm it when we send your quote.
+          </p>
+        </div>
 
         {/* Error Notice */}
         {formError && (

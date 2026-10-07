@@ -52,6 +52,13 @@ export function validateDiscountCode(
     isMember?: boolean;
     categories?: (VehicleCategory | string)[];
     now?: Date;
+    /**
+     * Skip the checks that need a known basket total (minimum spend, and the
+     * "nothing to discount" guard). Used for a repair booking, which is priced
+     * by staff on completion, so the code is captured and honoured on the final
+     * invoice rather than discounted against a £0 basket.
+     */
+    skipSubtotalChecks?: boolean;
   }
 ): DiscountEvaluation {
   if (!code) return { ok: false, reason: 'Discount code not found.' };
@@ -93,7 +100,7 @@ export function validateDiscountCode(
   }
 
   const subtotal = roundMoney(opts.subtotal);
-  if (code.minimumSpend && subtotal < code.minimumSpend) {
+  if (!opts.skipSubtotalChecks && code.minimumSpend && subtotal < code.minimumSpend) {
     return {
       ok: false,
       reason: `Requires a minimum spend of £${Number(code.minimumSpend).toFixed(2)} (basket is £${subtotal.toFixed(2)}).`,
@@ -109,7 +116,9 @@ export function validateDiscountCode(
   }
 
   const amountOff = computeDiscountAmount(code, subtotal, opts.lines);
-  if (amountOff <= 0) return { ok: false, reason: 'Nothing to discount on this basket.' };
+  if (amountOff <= 0 && !opts.skipSubtotalChecks) {
+    return { ok: false, reason: 'Nothing to discount on this basket.' };
+  }
 
   return { ok: true, amountOff };
 }
