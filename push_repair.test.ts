@@ -27,7 +27,7 @@ const CTX = { userId: 'uid-12345678', displayName: 'Ben', membershipNumber: '124
 
 describe('runPushRepair — diagnostics', () => {
   it('reports every step working on a healthy setup', async () => {
-    const steps = await runPushRepair(makeDeps(), CTX);
+    const steps = await runPushRepair(makeDeps(), CTX, { repair: true });
     expect(steps.find((s) => s.id === 'server-config')?.status).toBe('pass');
     expect(steps.find((s) => s.id === 'sdk-loaded')?.status).toBe('pass');
     expect(steps.find((s) => s.id === 'permission')?.status).toBe('pass');
@@ -168,7 +168,8 @@ describe('runPushRepair — dispatch probe', () => {
       makeDeps({
         sendTestPush: async () => ({ ok: false, via: 'server', envelope: { id: '', errors: ['All included players are not subscribed'] } }),
       }),
-      CTX
+      CTX,
+      { repair: true }
     );
     const dispatch = steps.find((s) => s.id === 'dispatch');
     expect(dispatch?.status).toBe('warn');
@@ -178,14 +179,24 @@ describe('runPushRepair — dispatch probe', () => {
   it('fails on a hard OneSignal error', async () => {
     const steps = await runPushRepair(
       makeDeps({ sendTestPush: async () => ({ ok: false, via: 'server', envelope: { errors: ['Invalid app_id'] } }) }),
-      CTX
+      CTX,
+      { repair: true }
     );
     expect(steps.find((s) => s.id === 'dispatch')?.status).toBe('fail');
   });
 
+  it('never sends a test push during a read-only check', async () => {
+    const sendTestPush = vi.fn(async () => ({ ok: true, via: 'server' as const }));
+    const steps = await runPushRepair(makeDeps({ sendTestPush }), CTX, { repair: false });
+    expect(sendTestPush).not.toHaveBeenCalled();
+    const dispatch = steps.find((s) => s.id === 'dispatch');
+    expect(dispatch?.status).toBe('warn');
+    expect(dispatch?.detail).toMatch(/check/i);
+  });
+
   it('skips the dispatch probe when server push is off', async () => {
     const sendTestPush = vi.fn(async () => ({ ok: true, via: 'server' as const }));
-    const steps = await runPushRepair(makeDeps({ sendTestPush }, { serverPush: false }), CTX);
+    const steps = await runPushRepair(makeDeps({ sendTestPush }, { serverPush: false }), CTX, { repair: true });
     expect(sendTestPush).not.toHaveBeenCalled();
     expect(steps.find((s) => s.id === 'dispatch')?.status).toBe('warn');
   });

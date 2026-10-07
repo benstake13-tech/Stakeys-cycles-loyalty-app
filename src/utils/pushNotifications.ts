@@ -217,6 +217,22 @@ export async function optInPushSubscription(): Promise<string | null> {
 /** localStorage key holding a staff-set App ID override. */
 export const APP_ID_OVERRIDE_KEY = 'stakeys.onesignal.appId';
 
+/**
+ * The single admin inbox every workshop alert is addressed to. Booking and
+ * system pushes are targeted at the devices tagged with this email so they
+ * reach the owner only — never a broadcast to every subscriber.
+ */
+export const ADMIN_NOTIFICATION_EMAIL = 'stakeyscycle95@gmail.com';
+
+/**
+ * OneSignal target for admin-only pushes: the `owner_email` tag group. Devices
+ * get this tag on sign-in when they belong to the admin or a staff member
+ * (see App.tsx). Pass `undefined` as the profile id to use it.
+ */
+export function adminPushTarget(email: string = ADMIN_NOTIFICATION_EMAIL) {
+  return { tag: { key: 'owner_email', value: email } };
+}
+
 /** The App ID the app is currently configured to use (override or env). */
 export function getConfiguredAppId(): string {
   const override = readAppIdOverride();
