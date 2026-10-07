@@ -95,4 +95,12 @@ describe('FinancialReportingTab — branded, informative, anonymised print docum
     render(<FinancialReportingTab />);
     expect(screen.getByText('Takings by payment method')).toBeTruthy();
   });
+
+  it('offers branded CSV, Excel and Tax Summary PDF exports', () => {
+    hoisted.sales = [sale()];
+    render(<FinancialReportingTab />);
+    expect(screen.getByText('Export CSV')).toBeTruthy();
+    expect(screen.getByText('Excel (.xlsx)')).toBeTruthy();
+    expect(screen.getByText('Tax Summary PDF')).toBeTruthy();
+  });
 });
