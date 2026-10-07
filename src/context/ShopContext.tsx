@@ -23,6 +23,8 @@ import {
   SalePaymentMethod,
   RepairStageId,
   RepairProgressEvent,
+  ReferralRecord,
+  ReferralReward,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
@@ -41,6 +43,17 @@ import {
 } from '../utils/repairProgress';
 import { DEFAULT_PRIZE_WHEEL } from '../utils/prizeWheelHelper';
 import { roundMoney } from '../utils/discountService';
+import {
+  REFERRER_REWARD,
+  FRIEND_REWARD,
+  buildReferralCode,
+  buildReferralLink,
+  normaliseReferralCode,
+  findReferralByCode,
+  findReferralByOwner,
+  isFullService,
+  applyReferralReward,
+} from '../utils/referral';
 import { resolveCustomer } from '../utils/membershipCode';
 import {
   dispatchBookingNotifications,
@@ -92,6 +105,8 @@ import {
   upsertDiscountCodeToDb,
   deleteDiscountCodeFromDb,
   incrementDiscountUsageInDb,
+  fetchReferralsFromDb,
+  upsertReferralToDb,
   fetchCounterSalesFromDb,
   insertCounterSaleToDb,
   updateCounterSaleInDb,
@@ -148,7 +163,7 @@ interface ShopContextType {
   // Auth actions
   loginWithCredentials: (email: string, password?: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
   loginStaff: (email: string, password: string) => Promise<{ success: boolean; message?: string; user?: UserProfile }>;
-  registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string) => Promise<{ success: boolean; message?: string }>;
+  registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string, referralCode?: string) => Promise<{ success: boolean; message?: string }>;
   resendConfirmationEmail: (email: string) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
   logoutUser: () => void;
@@ -271,6 +286,22 @@ interface ShopContextType {
   processSale: (saleId: string, paymentMethod: SalePaymentMethod) => Promise<{ success: boolean; message?: string }>;
   /** Bump a discount code's usage counter in local state + DB. */
   recordDiscountUsage: (discountCodeId: string) => Promise<void>;
+
+  // Refer a Friend
+  referrals: ReferralRecord[];
+  /** Get (or lazily create) the signed-in customer's own referral record. */
+  ensureMyReferral: () => Promise<ReferralRecord | null>;
+  /** Record that a referral link was shared (increments the share counter). */
+  markReferralShared: (code: string) => Promise<void>;
+  /** Resolve a referral code to the owning record, or null. */
+  resolveReferral: (code: string) => ReferralRecord | null;
+  /** Attach a referred friend to a code (called when they sign up). */
+  registerReferredFriend: (
+    code: string,
+    friend: { uid?: string; name: string; email?: string }
+  ) => Promise<void>;
+  /** Grant the friend's £15 reward + the referrer's £5 credit when a booking is approved. */
+  grantReferralRewards: (booking: ServiceBooking) => Promise<void>;
   // Prize Draw CRUD
   updateDraw: (drawId: string, updates: Partial<PrizeDraw>) => Promise<void>;
   deleteDraw: (drawId: string) => Promise<void>;
@@ -611,6 +642,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * ------------------------------------------------------------------ */
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [sales, setSales] = useState<SaleTransaction[]>([]);
+  const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
+
+  const refreshReferrals = async () => {
+    const remote = await fetchReferralsFromDb();
+    if (remote) setReferrals(remote);
+  };
 
   const refreshDiscountCodes = async () => {
     const remote = await fetchDiscountCodesFromDb();
@@ -667,6 +704,174 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
     void incrementDiscountUsageInDb(discountCodeId, nextCount);
+  };
+
+  /* ------------------------------------------------------------------ *
+   * Refer a Friend
+   * ------------------------------------------------------------------ */
+  const resolveReferral = (code: string): ReferralRecord | null =>
+    findReferralByCode(code, referrals);
+
+  /** Mint a fresh referral record for a customer, with a unique code. */
+  const buildReferralRecord = (
+    owner: { uid: string; displayName: string; membershipNumber?: string }
+  ): ReferralRecord => {
+    // Derive a stable code from the membership number when we have one so the
+    // same customer keeps the same code across devices; fall back to random.
+    let code = buildReferralCode(owner.membershipNumber);
+    const taken = new Set(referrals.map((r) => normaliseReferralCode(r.code)));
+    let guard = 0;
+    while (taken.has(code) && guard < 20) {
+      code = buildReferralCode(Date.now() + guard);
+      guard += 1;
+    }
+    return {
+      id: `ref-${owner.uid}`,
+      ownerUid: owner.uid,
+      ownerName: owner.displayName,
+      ownerMembership: owner.membershipNumber,
+      code,
+      link: buildReferralLink(code),
+      timesShared: 0,
+      rewardsEarned: 0,
+      rewards: [],
+      referredFriends: [],
+      createdAt: new Date().toISOString(),
+    };
+  };
+
+  const ensureMyReferral = async (): Promise<ReferralRecord | null> => {
+    if (!currentUser) return null;
+    const existing = findReferralByOwner(currentUser.uid, referrals);
+    if (existing) return existing;
+    const fresh = buildReferralRecord({
+      uid: currentUser.uid,
+      displayName: currentUser.displayName,
+      membershipNumber: currentUser.membershipNumber,
+    });
+    setReferrals((prev) => [fresh, ...prev]);
+    void upsertReferralToDb(fresh);
+    return fresh;
+  };
+
+  const markReferralShared = async (code: string): Promise<void> => {
+    const existing = findReferralByCode(code, referrals);
+    if (!existing) return;
+    const updated: ReferralRecord = { ...existing, timesShared: (existing.timesShared || 0) + 1 };
+    setReferrals((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    void upsertReferralToDb(updated);
+  };
+
+  const registerReferredFriend = async (
+    code: string,
+    friend: { uid?: string; name: string; email?: string }
+  ): Promise<void> => {
+    const clean = normaliseReferralCode(code);
+    if (!clean) return;
+    // The owner's record may not be in state yet (the friend has just signed
+    // in), so pull the latest referrals before giving up.
+    let list = referrals;
+    if (!findReferralByCode(clean, list)) {
+      const remote = await fetchReferralsFromDb();
+      if (remote && remote.length > 0) {
+        list = remote;
+        setReferrals(remote);
+      }
+    }
+    const owner = findReferralByCode(clean, list);
+    if (!owner) return;
+
+    // A referrer cannot refer themselves.
+    if (friend.uid && friend.uid === owner.ownerUid) return;
+    // Don't double-add the same friend.
+    const already = owner.referredFriends.some(
+      (f) => (friend.uid && f.friendUid === friend.uid) || (friend.email && f.friendEmail === friend.email)
+    );
+    if (already) return;
+
+    const updated: ReferralRecord = {
+      ...owner,
+      referredFriends: [
+        ...owner.referredFriends,
+        {
+          friendUid: friend.uid,
+          friendName: friend.name,
+          friendEmail: friend.email,
+          joinedAt: new Date().toISOString(),
+          bookingApproved: false,
+          rewardGranted: false,
+        },
+      ],
+    };
+    setReferrals((prev) =>
+      prev.some((r) => r.id === updated.id)
+        ? prev.map((r) => (r.id === updated.id ? updated : r))
+        : [updated, ...prev]
+    );
+    void upsertReferralToDb(updated);
+  };
+
+  /**
+   * Called when a booking is approved. If it carried a referral code and is a
+   * full service, the friend's £15 reward is marked redeemed and the referrer
+   * earns a £5 credit. Idempotent: the same booking is never paid twice.
+   */
+  const grantReferralRewards = async (booking: ServiceBooking): Promise<void> => {
+    const code = booking.referralCode;
+    if (!code) return;
+
+    // The referrer's record may not be in state yet on this device (e.g. staff
+    // approving a booking before the friend's signup has synced here), so pull
+    // the latest referrals before giving up.
+    let list = referrals;
+    let owner = findReferralByCode(code, list);
+    if (!owner) {
+      const remote = await fetchReferralsFromDb();
+      if (remote && remote.length > 0) {
+        list = remote;
+        setReferrals(remote);
+        owner = findReferralByCode(code, list);
+      }
+    }
+    if (!owner) return;
+    // A referrer cannot refer themselves.
+    if (booking.customerId && booking.customerId === owner.ownerUid) return;
+
+    const friendName = booking.customerName;
+    const now = new Date().toISOString();
+
+    const applied = applyReferralReward(owner, booking, now);
+    if (!applied) return; // Already paid for this booking.
+    const { record: updated, reward } = applied;
+
+    setReferrals((prev) =>
+      prev.some((r) => r.id === updated.id)
+        ? prev.map((r) => (r.id === updated.id ? updated : r))
+        : [updated, ...prev]
+    );
+    void upsertReferralToDb(updated);
+
+    // Credit the referrer's own profile so the £5 shows in their account.
+    const ownerProfile = users.find((u) => u.uid === owner.ownerUid);
+    if (ownerProfile) {
+      const existing = ownerProfile.referralRewards || [];
+      if (!existing.some((rw) => rw.id === reward.id)) {
+        const nextRewards = [...existing, reward];
+        setUsers((prev) =>
+          prev.map((u) => (u.uid === owner.ownerUid ? { ...u, referralRewards: nextRewards } : u))
+        );
+        if (currentUser?.uid === owner.ownerUid) {
+          setCurrentUser((prev) => (prev ? { ...prev, referralRewards: nextRewards } : prev));
+        }
+        // The referrals table is the durable record of the reward; the profile
+        // field above is only a convenience mirror for the signed-in session.
+      }
+    }
+
+    toast.success(
+      `Refer a Friend: ${friendName}'s booking is approved — ${owner.ownerName} earned a £${REFERRER_REWARD} credit!`,
+      { icon: '🎉', duration: 6000 }
+    );
   };
 
   const completeSale = async (
@@ -1298,6 +1503,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (codes && codes.length > 0) setDiscountCodes(codes);
     }).catch(() => {});
 
+    fetchReferralsFromDb().then((remoteReferrals) => {
+      if (remoteReferrals && remoteReferrals.length > 0) setReferrals(remoteReferrals);
+    }).catch(() => {});
+
     fetchCounterSalesFromDb().then((remoteSales) => {
       if (remoteSales && remoteSales.length > 0) setSales(remoteSales);
     }).catch(() => {});
@@ -1393,6 +1602,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await ensureProfileRowInDb(userProfile);
       setCurrentUser(userProfile);
       setUsers((prev) => (prev.some((u) => u.uid === userProfile.uid) ? prev : [userProfile, ...prev]));
+
+      // Link the referral captured at signup (kept in auth metadata so it
+      // survives the email-confirmation round trip).
+      if (meta.referred_by) {
+        await registerReferredFriend(meta.referred_by, {
+          uid: authUser.id,
+          name: userProfile.displayName,
+          email: userProfile.email,
+        }).catch(() => {});
+      }
+
       await syncUserFromDatabase(userProfile);
     };
 
@@ -1597,6 +1817,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Some projects have no `on auth.users` trigger, so a freshly registered
       // customer may not have a profiles row yet — create it, then sync.
       await ensureProfileRowInDb(userProfile);
+
+      // A friend who signed up from a referral link carries the code in their
+      // auth metadata. Attach them to the referrer's record on first sign-in.
+      const referredBy = (data.user.user_metadata as any)?.referred_by;
+      if (referredBy) {
+        await registerReferredFriend(referredBy, {
+          uid: userProfile.uid,
+          name: userProfile.displayName,
+          email: userProfile.email,
+        }).catch(() => {});
+      }
+
       await syncUserFromDatabase(userProfile);
       return { success: true, user: userProfile };
     } catch (err: any) {
@@ -1659,14 +1891,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string,
     password: string,
     name: string,
-    phoneNumber?: string
+    phoneNumber?: string,
+    referralCode?: string
   ) => {
     try {
+      const cleanReferral = referralCode ? normaliseReferralCode(referralCode) : '';
       const { data, error } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
-          data: { full_name: name.trim(), phone: phoneNumber?.trim() },
+          data: {
+            full_name: name.trim(),
+            phone: phoneNumber?.trim(),
+            // Stored in user metadata so the referral survives the email
+            // confirmation step, when there is no session to attach it to yet.
+            referred_by: cleanReferral || undefined,
+          },
           // Send the confirmation link back to the app itself. Without this the
           // link falls back to the project Site URL, which may be a different
           // origin and leaves the customer unable to complete the flow here.
@@ -1687,6 +1927,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           success: false,
           message: 'An account with this email already exists. Please sign in, or reset your password if you have forgotten it.',
         };
+      }
+
+      // Attach the friend to the referrer's record now, while we still have the
+      // code in hand. If confirmation is on they will sign in shortly and the
+      // referral is already waiting on the referrer's account.
+      if (cleanReferral) {
+        await registerReferredFriend(cleanReferral, {
+          uid: data.user?.id,
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+        }).catch(() => {});
       }
 
       return {
@@ -2788,6 +3039,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updated : b)));
 
+    // Refer a Friend: an approved full-service booking carrying a referral code
+    // pays the referrer their £5 and closes out the friend's £15 reward.
+    if (updated.referralCode) {
+      void grantReferralRewards(updated);
+    }
+
     // Remote Database Mutation: UPDATE service_bookings table
     const persisted = await updateServiceBookingInDb(bookingId, {
       status: 'confirmed',
@@ -3476,6 +3733,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         declineSale,
         processSale,
         recordDiscountUsage,
+        referrals,
+        ensureMyReferral,
+        markReferralShared,
+        resolveReferral,
+        registerReferredFriend,
+        grantReferralRewards,
         updateDraw,
         deleteDraw,
         deleteCustomerAccount,

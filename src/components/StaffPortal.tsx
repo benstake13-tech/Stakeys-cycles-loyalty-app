@@ -44,6 +44,7 @@ import {
   ShoppingCart,
   BadgePercent,
   FlaskConical,
+  Gift,
   DatabaseZap,
   Cable,
 } from 'lucide-react';
@@ -64,6 +65,7 @@ import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
 import { AssistantManagerTab } from './AssistantManagerTab';
 import { PerformanceTracker } from './PerformanceTracker';
+import { StaffReferralsTab } from './StaffReferralsTab';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
@@ -117,6 +119,7 @@ export const StaffPortal: React.FC = () => {
     | 'financials'
     | 'google_business'
     | 'business_performance'
+    | 'referrals'
     | 'assistant'
     | 'diagnostics'
   >('till');
@@ -340,6 +343,7 @@ export const StaffPortal: React.FC = () => {
     | 'financials'
     | 'google_business'
     | 'business_performance'
+    | 'referrals'
     | 'assistant'
     | 'diagnostics';
 
@@ -357,6 +361,7 @@ export const StaffPortal: React.FC = () => {
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
     { id: 'assistant', label: 'Assistant', icon: Bot, tone: 'emerald', hint: 'Customer shop assistant' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
+    { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
     { id: 'business_performance', label: 'Performance', icon: Gauge, tone: 'emerald', hint: 'Requests, calls & growth' },
@@ -683,6 +688,7 @@ export const StaffPortal: React.FC = () => {
 
       {/* VIEW 1C-B: Discount Codes Manager (Full CRUD) */}
       {staffTab === 'discount_codes' && <DiscountCodesTab />}
+      {staffTab === 'referrals' && <StaffReferralsTab />}
 
       {/* VIEW 1C-C: Counter Sale / Till — scanned discounts auto-apply */}
       {staffTab === 'till' && <CounterSaleTab />}

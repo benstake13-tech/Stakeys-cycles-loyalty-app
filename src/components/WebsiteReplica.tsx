@@ -4,6 +4,8 @@ import {
   BadgePoundSterling,
   Bike,
   CalendarCheck,
+  Check,
+  Copy,
   Globe,
   MapPin,
   MessageCircle,
@@ -30,6 +32,8 @@ import {
 } from '../utils/discountService';
 import { websiteDiscountCatalogue } from '../utils/websiteDiscounts';
 import type { DiscountCode } from '../types/bikeShop';
+import { PolicyDisclaimers } from './PolicyDisclaimers';
+import { DISCOUNT_DISCLAIMERS } from '../utils/workshopPolicy';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
@@ -74,6 +78,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
   const [promoInput, setPromoInput] = useState('');
   const [appliedCode, setAppliedCode] = useState<{ id: string; code: string; amountOff: number } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const cartCount = cart.reduce((sum, item) => sum + item.qty, 0);
   const cartSubtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -127,6 +132,17 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
   const clearPromoCode = () => {
     setAppliedCode(null);
     setPromoError(null);
+  };
+
+  /** Copy a code to the clipboard so it can be used in-store or at checkout. */
+  const copyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      window.prompt('Copy this discount code:', code);
+    }
+    setCopiedCode(code);
+    window.setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 1800);
   };
 
   const addToCart = (product: WebProduct) => {
@@ -299,9 +315,22 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                   </p>
                 ) : null}
                 <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className={'rounded-lg border border-dashed px-2 py-0.5 text-[10px] font-mono font-bold ' + (isDark ? 'border-neutral-700 text-neutral-200' : 'border-neutral-300 text-neutral-700')}>
-                    {coupon.code}
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyCode(coupon.code)}
+                    title="Copy code"
+                    className={'pressable inline-flex items-center gap-1.5 rounded-lg border border-dashed px-2 py-0.5 text-[10px] font-mono font-bold cursor-pointer ' + (isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-300 text-neutral-700 hover:border-emerald-500/50')}
+                  >
+                    {copiedCode === coupon.code ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" /> {coupon.code}
+                      </>
+                    )}
+                  </button>
                   <span className="text-[10px] text-emerald-400 dark:text-emerald-400 light:text-emerald-600 font-bold">
                     {coupon.type === 'percent' ? coupon.value + '% Off' : '£' + coupon.value + ' Off'}
                   </span>
@@ -1158,6 +1187,15 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                 >
                   <Store className="w-4 h-4" /> Browse the shop
                 </button>
+              </div>
+
+              <div className="mt-5">
+                <PolicyDisclaimers
+                  items={DISCOUNT_DISCLAIMERS}
+                  title="Discount code terms"
+                  tone={isDark ? 'neutral' : 'neutral'}
+                  compact
+                />
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Lock,
   Mail,
@@ -16,11 +16,13 @@ import {
   KeyRound,
   ShieldCheck,
   Check,
+  Gift,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { StakeysLogo } from './StakeysLogo';
 import { ThemeToggle } from './ThemeToggle';
 import { VehicleCategory } from '../types/bikeShop';
+import { referralCodeFromSearch } from '../utils/referral';
 import confetti from 'canvas-confetti';
 
 interface LoginScreenProps {
@@ -58,6 +60,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
   const [registerPhone, setRegisterPhone] = useState('');
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
+  const [registerReferralCode, setRegisterReferralCode] = useState('');
   const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [initialBikeCategory, setInitialBikeCategory] = useState<VehicleCategory | 'none'>('cycle');
   const [initialBikeBrand, setInitialBikeBrand] = useState('Trek');
@@ -65,6 +68,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
 
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Prefill a Refer a Friend code when the visitor arrives from a ?ref= link.
+  useEffect(() => {
+    const code = referralCodeFromSearch();
+    if (code) setRegisterReferralCode((prev) => prev || code);
+  }, []);
 
   // Customer Sign In with strict password verification
   const handleCustomerSignIn = async (e: React.FormEvent) => {
@@ -167,7 +176,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
         cleanEmail,
         registerPassword,
         cleanName,
-        registerPhone.trim() || undefined
+        registerPhone.trim() || undefined,
+        registerReferralCode.trim() || undefined
       );
 
       if (!res.success) {
@@ -748,6 +758,27 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
                     />
                   ) : null}
                 </div>
+              </div>
+
+              {/* Optional: Refer a Friend code from a friend's link */}
+              <div className="pt-2 border-t border-neutral-800">
+                <label className="block text-xs font-semibold text-neutral-300 mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Gift className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Refer a Friend Code (Optional)</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-500 font-normal">£15 off a full service</span>
+                </label>
+                <input
+                  type="text"
+                  value={registerReferralCode}
+                  onChange={(e) => setRegisterReferralCode(e.target.value.toUpperCase())}
+                  placeholder="e.g. STK-REF-123456"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 tracking-wider"
+                />
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  Been sent a code by a friend? Add it here to get £15 off your first full service. Subject to minimum spend.
+                </p>
               </div>
 
               <button

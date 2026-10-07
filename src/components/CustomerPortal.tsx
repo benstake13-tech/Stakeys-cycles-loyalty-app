@@ -17,6 +17,7 @@ import {
   Info,
   FileText,
   Activity,
+  Gift,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
@@ -28,6 +29,7 @@ import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
+import { ReferAFriendCard } from './ReferAFriendCard';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
 import { FaceAvatar } from './FaceAvatar';
 import { AvatarEditorModal } from './AvatarEditorModal';
@@ -55,7 +57,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     updateCustomerAvatar,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps'>('garage');
+  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer'>('garage');
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
@@ -89,13 +91,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps'>[] = [
+  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer'>[] = [
     { id: 'garage', label: `My Garage (${customerBikes.length})`, icon: Bike, tone: 'emerald', hint: 'Your registered bikes' },
     { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
     { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
     { id: 'repairs', label: `Repairs (${customerBookings.length})`, icon: Activity, tone: 'emerald', hint: 'Live repair progress tracker' },
     { id: 'bookings', label: `Bookings (${customerBookings.length})`, icon: Calendar, tone: 'emerald', hint: 'Your service bookings' },
     { id: 'stamps', label: `Loyalty Pass ${currentUser.stamps || 0}/10`, icon: Award, tone: 'emerald', hint: 'Your stamp card' },
+    { id: 'refer', label: 'Refer a Friend', icon: Gift, tone: 'amber', hint: 'Share your code and earn rewards' },
   ];
 
   const handleStartBookingForBike = (bikeId: string) => {
@@ -639,6 +642,19 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               <StampCard user={currentUser} onGoToBooking={() => setActiveTab('booking')} />
             </div>
           </div>
+        </div>
+      )}
+
+      {/* TAB: REFER A FRIEND */}
+      {activeTab === 'refer' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-display text-xl font-bold text-white">Refer a Friend</h2>
+            <p className="text-xs text-neutral-400 mt-1">
+              Share your personal code with friends. They get £15 off a full service and you earn a £5 credit once their booking is approved.
+            </p>
+          </div>
+          <ReferAFriendCard isDark />
         </div>
       )}
 
