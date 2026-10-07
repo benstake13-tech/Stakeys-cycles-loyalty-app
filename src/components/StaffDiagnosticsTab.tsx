@@ -14,6 +14,7 @@ import {
   Database,
   Mail,
   Bell,
+  BellRing,
   Volume2,
   Smartphone,
   Copy,
@@ -153,7 +154,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [fixSql, setFixSql] = useState<{ title: string; sql: string } | null>(null);
   const [pushSteps, setPushSteps] = useState<PushRepairStep[]>([]);
-  const [pushBusy, setPushBusy] = useState<'check' | 'repair' | null>(null);
+  const [pushBusy, setPushBusy] = useState<'check' | 'repair' | 'device' | null>(null);
   const [appIdDraft, setAppIdDraft] = useState<string>(() => getConfiguredAppId());
 
   const summary = useMemo(() => summarize(results), [results]);
@@ -321,6 +322,41 @@ export const StaffDiagnosticsTab: React.FC = () => {
       return;
     }
     flash({ kind: 'ok', text: 'App ID saved. Reload the page to re-initialise OneSignal with it.' });
+  };
+
+  /**
+   * The phone-side action: prompt for permission, force this device to opt in,
+   * then immediately run the full check so the operator sees the subscription
+   * appear in the step list.
+   */
+  const handleEnableDevice = async () => {
+    setPushBusy('device');
+    try {
+      const perm = await requestPushPermission();
+      if (perm !== 'granted') {
+        flash({
+          kind: 'err',
+          text:
+            perm === 'not_configured'
+              ? 'OneSignal App ID is missing — set it below and reload.'
+              : 'Notifications are blocked. Allow them in your browser/phone settings, then retry.',
+        });
+        return;
+      }
+      await optInPushSubscription();
+      const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: true });
+      setPushSteps(steps);
+      const sub = steps.find((s) => s.id === 'subscription');
+      flash(
+        sub && sub.status !== 'warn'
+          ? { kind: 'ok', text: 'This device is now subscribed — run the test dispatch to confirm.' }
+          : { kind: 'err', text: 'Permission granted, but the device has not registered yet. Re-run in a few seconds.' }
+      );
+    } catch (e: any) {
+      flash({ kind: 'err', text: e?.message || 'Could not enable push on this device.' });
+    } finally {
+      setPushBusy(null);
+    }
   };
 
   const handleHealth = async () => {
@@ -553,6 +589,15 @@ export const StaffDiagnosticsTab: React.FC = () => {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleEnableDevice}
+              disabled={pushBusy !== null}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 disabled:opacity-60 border border-emerald-500/40 text-emerald-200 text-sm font-bold flex items-center gap-2 cursor-pointer"
+            >
+              <BellRing className="w-4 h-4" />
+              <span>Enable on This Device</span>
+            </button>
             <button
               type="button"
               onClick={handlePushCheck}
