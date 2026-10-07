@@ -68,6 +68,8 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   }
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
 function identityTags(ctx: PushRepairContext): Record<string, string | number> {
   const tags: Record<string, string | number> = {};
   if (ctx.membershipNumber) tags.membership = ctx.membershipNumber;
@@ -198,17 +200,29 @@ export async function runPushRepair(
   steps.push(permissionStep(perm, repair && sdkOk));
 
   // 4. This device's push subscription — id + opt-in state (repairable).
+  //    Two failure shapes are common: the device has an id but is soft
+  //    unsubscribed (optedIn:false), or permission was just granted and the
+  //    SDK has not registered a device token yet. Both are fixed by an
+  //    explicit optIn(), then giving OneSignal a moment to register.
+  const granted = perm === 'granted';
   let subId = sdkOk ? await safe(() => deps.getSubscriptionId(), null) : null;
   let subscribed = sdkOk ? await safe(() => deps.isSubscribed(), null) : null;
-  if (repair && sdkOk && perm === 'granted' && subscribed === false) {
-    subId = await safe(() => deps.optInSubscription(), subId);
-    subscribed = true;
+  let optedInNow = false;
+  if (repair && sdkOk && granted && (subscribed === false || !subId)) {
+    await safe(() => deps.optInSubscription(), null);
+    optedInNow = true;
+    for (let i = 0; i < 6 && (!subId || subscribed === false); i++) {
+      if (i) await sleep(250);
+      subId = await safe(() => deps.getSubscriptionId(), subId);
+      subscribed = await safe(() => deps.isSubscribed(), subscribed);
+    }
   }
+
   if (subId && subscribed !== false) {
     steps.push({
       id: 'subscription',
       label: 'Device push subscription',
-      status: repair && subscribed === true ? 'fixed' : 'pass',
+      status: optedInNow ? 'fixed' : 'pass',
       detail: `Subscription ${String(subId).slice(0, 8)}… registered and opted in.`,
     });
   } else if (subId && subscribed === false) {
@@ -224,11 +238,12 @@ export async function runPushRepair(
       id: 'subscription',
       label: 'Device push subscription',
       status: 'warn',
-      detail:
-        perm === 'granted'
-          ? 'No subscription id yet — OneSignal may need a moment to register this device.'
-          : 'No subscription id until notification permission is granted.',
-      hint: perm === 'granted' ? 'Re-run the repair in a few seconds.' : 'Grant permission on this device, then re-run.',
+      detail: granted
+        ? 'Permission is granted but OneSignal has not registered this device yet.'
+        : 'No subscription id until notification permission is granted.',
+      hint: granted
+        ? 'Tap “Enable Push” in the staff header (or Allow on the prompt), then re-run in a few seconds.'
+        : 'Tap “Enable Push” in the staff header and allow notifications on this device.',
     });
   }
 

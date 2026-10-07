@@ -63,9 +63,13 @@ describe('runPushRepair — diagnostics', () => {
 
 describe('runPushRepair — device opt-in & app id', () => {
   it('opts a permission-granted but unsubscribed device back in', async () => {
-    const optInSubscription = vi.fn(async () => 'sub-xyz');
+    let subscribed = false;
+    const optInSubscription = vi.fn(async () => {
+      subscribed = true;
+      return 'sub-xyz';
+    });
     const deps = makeDeps({
-      isSubscribed: async () => false,
+      isSubscribed: async () => subscribed,
       optInSubscription,
     });
     const steps = await runPushRepair(deps, CTX, { repair: true });
@@ -73,6 +77,22 @@ describe('runPushRepair — device opt-in & app id', () => {
     const sub = steps.find((s) => s.id === 'subscription');
     expect(sub?.status).toBe('fixed');
     expect(sub?.detail).toMatch(/opted in/i);
+  });
+
+  it('waits for a device token that appears just after opting in', async () => {
+    let subId: string | null = null;
+    const deps = makeDeps({
+      getSubscriptionId: async () => subId,
+      isSubscribed: async () => (subId ? true : null),
+      optInSubscription: async () => {
+        subId = 'sub-late-123456';
+        return subId;
+      },
+    });
+    const steps = await runPushRepair(deps, CTX, { repair: true });
+    const sub = steps.find((s) => s.id === 'subscription');
+    expect(sub?.status).toBe('fixed');
+    expect(sub?.detail).toContain('sub-late');
   });
 
   it('warns about an unsubscribed device in check-only mode and does not opt in', async () => {
