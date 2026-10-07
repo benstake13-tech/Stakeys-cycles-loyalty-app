@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  Copy,
   Eye,
   EyeOff,
   Globe,
@@ -7,25 +11,24 @@ import {
   QrCode,
   RotateCcw,
   Save,
+  Search,
   Trash2,
+  X,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import {
-  resetWebsiteContent,
-  updateWebsiteContent,
-  useWebsiteContent,
-} from '../context/WebsiteContentStore';
+import { updateWebsiteContent, useWebsiteContent } from '../context/WebsiteContentStore';
 import { DEFAULT_WEBSITE_CONTENT } from '../data/websiteContent';
 import { ItemQrModal } from './ItemQrModal';
 import { DriveImagePicker } from './DriveImagePicker';
 import { DriveFolderKey } from '../utils/googleDrive';
 import {
   WebFaq,
+  WebFaqSection,
   WebPriceItem,
   WebProduct,
   WebProductCategory,
   WebSocialLink,
-  WebFaqSection,
+  WebsiteContent,
 } from '../types/websiteContent';
 
 const inputCls = (isDark: boolean): string =>
@@ -38,7 +41,21 @@ const inputCls = (isDark: boolean): string =>
 const labelCls = 'text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1';
 
 function uid(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}}.${Math.random().toString(36).slice(2, 7)}`;
+  return `${prefix}-${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function moveItem<T>(arr: T[], from: number, to: number): T[] {
+  if (to < 0 || to >= arr.length) return arr;
+  const next = arr.slice();
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+function makeMatcher(query: string) {
+  const q = query.trim().toLowerCase();
+  if (!q) return () => true;
+  return (...fields: unknown[]) => fields.some((f) => String(f ?? '').toLowerCase().includes(q));
 }
 
 interface FieldProps {
@@ -46,31 +63,33 @@ interface FieldProps {
   value: string;
   onChange: (value: string) => void;
   textarea?: boolean;
+  hint?: string;
+  placeholder?: string;
   isDark: boolean;
 }
 
-function Field({ label, value, onChange, textarea, isDark }: FieldProps) {
-  if (textarea) {
-    return (
-      <label className="block">
-        <span className={labelCls}>{label}</span>
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          rows={3}
-          className={`${inputCls(isDark)} resize-y`}
-        />
-      </label>
-    );
-  }
+function Field({ label, value, onChange, textarea, hint, placeholder, isDark }: FieldProps) {
+  const control = textarea ? (
+    <textarea
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      rows={3}
+      className={`${inputCls(isDark)} resize-y`}
+    />
+  ) : (
+    <input
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className={inputCls(isDark)}
+    />
+  );
   return (
     <label className="block">
       <span className={labelCls}>{label}</span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className={inputCls(isDark)}
-      />
+      {control}
+      {hint && <span className={`mt-1 block text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{hint}</span>}
     </label>
   );
 }
@@ -79,61 +98,135 @@ interface SectionCardProps {
   title: string;
   subtitle?: string;
   isDark: boolean;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }
 
-function SectionCard({ title, subtitle, isDark, children }: SectionCardProps) {
+function SectionCard({ title, subtitle, isDark, action, children }: SectionCardProps) {
   return (
     <section className={`rounded-2xl border p-5 space-y-4 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
-      <div>
-        <h4 className={`text-sm font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-neutral-900'}`}>{title}</h4>
-        {subtitle && <p className={`text-[11px] mt-0.5 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{subtitle}</p>}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className={`text-sm font-black uppercase tracking-wider ${isDark ? 'text-white' : 'text-neutral-900'}`}>{title}</h4>
+          {subtitle && <p className={`text-[11px] mt-0.5 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{subtitle}</p>}
+        </div>
+        {action}
       </div>
       {children}
     </section>
   );
 }
 
-function ListItemEditor<T>({
-  item,
-  index,
-  fields,
-  isDark,
-  onField,
-  onRemove,
-}: {
-  item: T;
-  index: number;
-  fields: { key: keyof T; label: string; textarea?: boolean }[];
+interface CollapsibleItemProps {
+  title: string;
+  subtitle?: string;
+  badge?: React.ReactNode;
   isDark: boolean;
-  onField: (index: number, key: keyof T, value: string) => void;
-  onRemove: (index: number) => void;
-}) {
+  open: boolean;
+  onToggle: () => void;
+  onRemove: () => void;
+  onDuplicate?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  extraActions?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+function CollapsibleItem({
+  title,
+  subtitle,
+  badge,
+  isDark,
+  open,
+  onToggle,
+  onRemove,
+  onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  extraActions,
+  children,
+}: CollapsibleItemProps) {
+  const iconBtn = `pressable inline-flex items-center justify-center rounded-lg border p-1.5 cursor-pointer ${
+    isDark ? 'border-neutral-800 text-neutral-400 hover:bg-neutral-800/60' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'
+  }`;
   return (
-    <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-neutral-950/40 border-neutral-800' : 'bg-neutral-50 border-neutral-200'}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-          #{index + 1}
-        </span>
+    <div className={`rounded-xl border ${isDark ? 'bg-neutral-950/40 border-neutral-800' : 'bg-neutral-50 border-neutral-200'}`}>
+      <div className="flex items-center gap-1.5 p-2.5">
         <button
           type="button"
-          onClick={() => onRemove(index)}
-          className="pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
         >
-          <Trash2 className="w-3 h-3" /> Remove
+          <ChevronRight className={`w-4 h-4 shrink-0 text-neutral-500 transition-transform ${open ? 'rotate-90' : ''}`} />
+          <span className="min-w-0">
+            <span className={`block truncate text-xs font-bold ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>
+              {title || 'Untitled'}
+            </span>
+            {subtitle && <span className="block truncate text-[10px] text-neutral-500">{subtitle}</span>}
+          </span>
+        </button>
+        {badge}
+        {extraActions}
+        {onDuplicate && (
+          <button type="button" onClick={onDuplicate} className={iconBtn} title="Duplicate" aria-label="Duplicate item">
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {onMoveUp && (
+          <button type="button" onClick={onMoveUp} className={iconBtn} title="Move up" aria-label="Move item up">
+            <ArrowUp className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {onMoveDown && (
+          <button type="button" onClick={onMoveDown} className={iconBtn} title="Move down" aria-label="Move item down">
+            <ArrowDown className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          className="pressable inline-flex items-center justify-center rounded-lg border border-rose-900 p-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+          title="Remove"
+          aria-label="Remove item"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
         </button>
       </div>
-      {fields.map((f) => (
-        <Field
-          key={String(f.key)}
-          label={f.label}
-          isDark={isDark}
-          textarea={f.textarea}
-          value={String(item[f.key] ?? '')}
-          onChange={(v) => onField(index, f.key, v)}
-        />
-      ))}
+      {open && <div className={`space-y-2.5 border-t px-3 py-3 ${isDark ? 'border-neutral-800' : 'border-neutral-200'}`}>{children}</div>}
     </div>
+  );
+}
+
+const WEBSITE_SECTIONS = [
+  { id: 'hero', label: 'Hero & Contact' },
+  { id: 'location', label: 'Location' },
+  { id: 'join', label: 'Join the Team' },
+  { id: 'faqs', label: 'FAQs' },
+  { id: 'prices', label: 'Price List' },
+  { id: 'socials', label: 'Socials' },
+] as const;
+
+type WebsiteSectionId = (typeof WEBSITE_SECTIONS)[number]['id'];
+
+const FAQ_SECTIONS: { value: WebFaqSection; label: string }[] = [
+  { value: 'repairs', label: 'Repairs & Service' },
+  { value: 'parts', label: 'Parts & Accessories' },
+  { value: 'general', label: 'General Information' },
+];
+
+const CATEGORY_OPTIONS: WebProductCategory[] = [
+  'Second hand parts',
+  'Mens Bikes',
+  "women's Bikes",
+  "Children's bikes",
+];
+
+function StatChip({ children, isDark }: { children: React.ReactNode; isDark: boolean }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold ${isDark ? 'bg-neutral-950/60 border-neutral-800 text-neutral-400' : 'bg-neutral-100 border-neutral-200 text-neutral-500'}`}>
+      {children}
+    </span>
   );
 }
 
@@ -141,15 +234,21 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const { theme } = useShop();
   const isDark = theme === 'dark';
   const content = useWebsiteContent();
-  const [showPreview, setShowPreview] = useState(false);
+
+  const [draft, setDraft] = useState<WebsiteContent>(content);
   const [editorTab, setEditorTab] = useState<'website' | 'shop' | 'gallery'>('website');
-  // The "website" area used to be one long scroll; it is split into focused
-  // sub-sections so an editor never scrolls past FAQs to reach the price list.
-  const [siteSection, setSiteSection] = useState<'hero' | 'location' | 'join' | 'faqs' | 'prices' | 'socials'>('hero');
-  const [drivePicker, setDrivePicker] = useState<null | { folder: DriveFolderKey; apply: (url: string) => void }>(null);
-  const [draft, setDraft] = useState(content);
+  const [search, setSearch] = useState('');
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(true);
   const [savedSink, setSavedSink] = useState(0);
   const [qrProduct, setQrProduct] = useState<WebProduct | null>(null);
+  const [drivePicker, setDrivePicker] = useState<null | { folder: DriveFolderKey; apply: (url: string) => void }>(null);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(content), [draft, content]);
+  const match = useMemo(() => makeMatcher(search), [search]);
+  const searching = search.trim().length > 0;
 
   const openDrivePicker = (folder: DriveFolderKey, apply: (url: string) => void) => {
     setDrivePicker({ folder, apply });
@@ -158,60 +257,86 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const save = () => {
     // Publishing a brand-new item should hand staff its QR label straight away.
     const publishedIds = new Set(content.products.map((p) => p.id));
-    const newlyAdded = draft.products.filter(
-      (p) => !publishedIds.has(p.id) && (p.name.trim() || p.price > 0)
-    );
+    const newlyAdded = draft.products.filter((p) => !publishedIds.has(p.id) && (p.name.trim() || p.price > 0));
     updateWebsiteContent(draft);
     setSavedSink((n) => n + 1);
     if (newlyAdded.length > 0) setQrProduct(newlyAdded[0]);
   };
 
-  const applyDraft = (patch: Partial<typeof draft>) => {
-    setDraft((prev) => ({ ...prev, ...patch }));
+  const discard = () => {
+    setDraft(content);
+    setExpanded({});
   };
 
-  const setTextField = (key: keyof typeof draft, value: string) => {
-    applyDraft({ [key]: value } as Partial<typeof draft>);
+  // Cmd/Ctrl+S publishes from anywhere in the editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  const applyDraft = (patch: Partial<WebsiteContent>) => setDraft((prev) => ({ ...prev, ...patch }));
+  const setTextField = (key: keyof WebsiteContent, value: string) => applyDraft({ [key]: value } as Partial<WebsiteContent>);
+
+  const isOpen = (id: string, defaultOpen = false) => expanded[id] ?? defaultOpen;
+  const toggle = (id: string, defaultOpen = false) =>
+    setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? defaultOpen) }));
+
+  const jumpTo = (id: WebsiteSectionId) => {
+    const el = sectionRefs.current[id];
+    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
+  // ---- FAQs -------------------------------------------------------------
   const setFaqField = (index: number, key: keyof WebFaq, value: string) => {
-    const faqs = draft.faqs.map((f,i) => (i === index ? { ...f, [key]: value } as WebFaq: f));
-    applyDraft({ faqs } as Partial<typeof draft>);
+    applyDraft({ faqs: draft.faqs.map((f, i) => (i === index ? ({ ...f, [key]: value } as WebFaq) : f)) });
   };
-
   const addFaq = () => {
     const faq: WebFaq = { id: uid('faq'), section: 'general', q: '', a: '' };
-    applyDraft({ faqs: [...draft.faqs, faq] } as Partial<typeof draft>);
+    applyDraft({ faqs: [...draft.faqs, faq] });
+    setExpanded((prev) => ({ ...prev, [faq.id]: true }));
   };
-
-  const removeFaq = (index: number) => {
-    applyDraft({ faqs: draft.faqs.filter((_,i) => i !== index) } as Partial<typeof draft>);
+  const removeFaq = (index: number) => applyDraft({ faqs: draft.faqs.filter((_, i) => i !== index) });
+  const duplicateFaq = (index: number) => {
+    const copy = { ...draft.faqs[index], id: uid('faq') };
+    const faqs = draft.faqs.slice();
+    faqs.splice(index + 1, 0, copy);
+    applyDraft({ faqs });
+    setExpanded((prev) => ({ ...prev, [copy.id]: true }));
   };
+  const moveFaq = (index: number, to: number) => applyDraft({ faqs: moveItem(draft.faqs, index, to) });
 
+  // ---- Price list -------------------------------------------------------
   const setPriceField = (index: number, key: keyof WebPriceItem, value: string) => {
-    const priceList = draft.priceList.map((r,i) => (i === index ? { ...r, [key]: value } as WebPriceItem: r));
-    applyDraft({ priceList } as Partial<typeof draft>);
+    applyDraft({ priceList: draft.priceList.map((r, i) => (i === index ? ({ ...r, [key]: value } as WebPriceItem) : r)) });
   };
-
   const addPriceRow = (scope: WebPriceItem['scope']) => {
     const row: WebPriceItem = { id: uid('p'), scope, group: '', item: '', desc: '', price: '', note: '' };
-    applyDraft({ priceList: [...draft.priceList, row] } as Partial<typeof draft>);
+    applyDraft({ priceList: [...draft.priceList, row] });
+    setExpanded((prev) => ({ ...prev, [row.id]: true }));
   };
-
-  const removePriceRow = (index: number) => {
-    applyDraft({ priceList: draft.priceList.filter((_,i) => i !== index) } as Partial<typeof draft>);
+  const removePriceRow = (index: number) => applyDraft({ priceList: draft.priceList.filter((_, i) => i !== index) });
+  const duplicatePriceRow = (index: number) => {
+    const copy = { ...draft.priceList[index], id: uid('p') };
+    const priceList = draft.priceList.slice();
+    priceList.splice(index + 1, 0, copy);
+    applyDraft({ priceList });
+    setExpanded((prev) => ({ ...prev, [copy.id]: true }));
   };
+  const movePriceRow = (index: number, to: number) => applyDraft({ priceList: moveItem(draft.priceList, index, to) });
 
+  // ---- Products ---------------------------------------------------------
   const setProductField = (index: number, key: keyof WebProduct, value: string) => {
-    const products = draft.products.map((p, i) => (i === index ? { ...p, [key]: value } : p));
-    applyDraft({ products } as Partial<typeof draft>);
+    applyDraft({ products: draft.products.map((p, i) => (i === index ? { ...p, [key]: value } : p)) });
   };
-
   const setProductNum = (index: number, key: 'price' | 'stock', value: number) => {
-    const products = draft.products.map((p, i) => (i === index ? { ...p, [key]: value } : p));
-    applyDraft({ products } as Partial<typeof draft>);
+    applyDraft({ products: draft.products.map((p, i) => (i === index ? { ...p, [key]: value } : p)) });
   };
-
   const addProduct = () => {
     const product: WebProduct = {
       id: uid('prod'),
@@ -221,47 +346,114 @@ export const WebsiteContentManagerTab: React.FC = () => {
       image: '',
       stock: 1,
     };
-    applyDraft({ products: [...draft.products, product] } as Partial<typeof draft>);
+    applyDraft({ products: [...draft.products, product] });
+    setExpanded((prev) => ({ ...prev, [product.id]: true }));
   };
-
-  const removeProduct = (index: number) => {
-    applyDraft({ products: draft.products.filter((_,i) => i !== index) } as Partial<typeof draft>);
+  const removeProduct = (index: number) => applyDraft({ products: draft.products.filter((_, i) => i !== index) });
+  const duplicateProduct = (index: number) => {
+    const copy = { ...draft.products[index], id: uid('prod') };
+    const products = draft.products.slice();
+    products.splice(index + 1, 0, copy);
+    applyDraft({ products });
+    setExpanded((prev) => ({ ...prev, [copy.id]: true }));
   };
+  const moveProduct = (index: number, to: number) => applyDraft({ products: moveItem(draft.products, index, to) });
 
+  // ---- Socials ----------------------------------------------------------
   const setSocialField = (index: number, key: keyof WebSocialLink, value: string) => {
-    const socials = draft.socials.map((s,i) => (i === index ? { ...s, [key]: value } as WebSocialLink: s));
-    applyDraft({ socials } as Partial<typeof draft>);
+    applyDraft({ socials: draft.socials.map((s, i) => (i === index ? ({ ...s, [key]: value } as WebSocialLink) : s)) });
   };
-
   const addSocial = () => {
     const social: WebSocialLink = { id: uid('soc'), platform: '', url: '' };
-    applyDraft({ socials: [...draft.socials, social] } as Partial<typeof draft>);
+    applyDraft({ socials: [...draft.socials, social] });
+    setExpanded((prev) => ({ ...prev, [social.id]: true }));
   };
+  const removeSocial = (index: number) => applyDraft({ socials: draft.socials.filter((_, i) => i !== index) });
+  const moveSocial = (index: number, to: number) => applyDraft({ socials: moveItem(draft.socials, index, to) });
 
-  const removeSocial = (index: number) => {
-    applyDraft({ socials: draft.socials.filter((_,i) => i !== index) } as Partial<typeof draft>);
+  // ---- Gallery ----------------------------------------------------------
+  const setGalleryUrl = (index: number, url: string) =>
+    applyDraft({ galleryImages: draft.galleryImages.map((g, i) => (i === index ? { ...g, url } : g)) });
+  const addGalleryImage = () => {
+    const image = { id: uid('gallery'), url: '' };
+    applyDraft({ galleryImages: [...draft.galleryImages, image] });
+    setExpanded((prev) => ({ ...prev, [image.id]: true }));
   };
+  const removeGalleryImage = (index: number) =>
+    applyDraft({ galleryImages: draft.galleryImages.filter((_, i) => i !== index) });
+  const moveGalleryImage = (index: number, to: number) => applyDraft({ galleryImages: moveItem(draft.galleryImages, index, to) });
+
+  // ---- Repeatable text lists -------------------------------------------
+  const setAnnouncement = (index: number, value: string) =>
+    applyDraft({ siteAnnouncements: draft.siteAnnouncements.map((a, i) => (i === index ? value : a)) });
+  const addAnnouncement = () => applyDraft({ siteAnnouncements: [...draft.siteAnnouncements, ''] });
+  const removeAnnouncement = (index: number) =>
+    applyDraft({ siteAnnouncements: draft.siteAnnouncements.filter((_, i) => i !== index) });
+
+  const setDisclaimer = (index: number, value: string) =>
+    applyDraft({ shopDisclaimers: draft.shopDisclaimers.map((d, i) => (i === index ? value : d)) });
+  const addDisclaimer = () => applyDraft({ shopDisclaimers: [...draft.shopDisclaimers, ''] });
+  const removeDisclaimer = (index: number) =>
+    applyDraft({ shopDisclaimers: draft.shopDisclaimers.filter((_, i) => i !== index) });
 
   const resetDefaults = () => {
-    const next = JSON.parse(JSON.stringify(DEFAULT_WEBSITE_CONTENT)) as typeof content;
-    setDraft(next);
+    setDraft(JSON.parse(JSON.stringify(DEFAULT_WEBSITE_CONTENT)) as WebsiteContent);
+    setExpanded({});
   };
 
-  const faqSections: { value: WebFaqSection; label: string }[] = [
-    { value: 'repairs', label: 'Repairs & Service' },
-    { value: 'parts', label: 'Parts & Accessories' },
-    { value: 'general', label: 'General Information' },
-  ];
+  // ---- Filtered rows ----------------------------------------------------
+  const faqRows = draft.faqs
+    .map((faq, index) => ({ faq, index }))
+    .filter(({ faq }) => match(faq.q, faq.a, faq.section));
+  const priceRows = draft.priceList
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => match(row.group, row.item, row.desc, row.price, row.note));
+  const productRows = draft.products
+    .map((product, index) => ({ product, index }))
+    .filter(({ product }) => match(product.name, product.description, product.category));
+  const socialRows = draft.socials
+    .map((social, index) => ({ social, index }))
+    .filter(({ social }) => match(social.platform, social.url));
+  const galleryRows = draft.galleryImages
+    .map((image, index) => ({ image, index }))
+    .filter(({ image }) => match(image.url));
 
-  const categoryOptions: WebProductCategory[] = [
-    'Second hand parts',
-    'Mens Bikes',
-    "women's Bikes",
-    "Children's bikes",
-  ];
+  // Prose sections hide when a search cannot reach them; list sections stay
+  // mounted so their "no match" message can explain an empty result.
+  const sectionVisible: Record<WebsiteSectionId, boolean> = {
+    hero: match(
+      'Hero & Contact',
+      draft.heroBadge,
+      draft.heroTitle,
+      draft.heroSubtitle,
+      draft.calloutCta,
+      draft.calloutUrl,
+      draft.phone,
+      draft.email,
+      draft.heroBlurb,
+      draft.reviewBlurb,
+      draft.feedbackBody,
+      draft.feedbackTitle,
+      draft.siteAnnouncements.join(' ')
+    ),
+    location: match('Location', draft.locationQuote, draft.mobileTitle, draft.mobileBody, draft.locationImage),
+    join: match('Join the Team', draft.joinTitle, draft.joinBody, draft.joinCtaLabel, draft.joinBullets.join(' ')),
+    faqs: true,
+    prices: true,
+    socials: true,
+  };
+
+  const expandAll = (ids: string[]) => setExpanded(Object.fromEntries(ids.map((id) => [id, true])));
+  const collapseAll = () => setExpanded({});
+
+  const statusChip = (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold ${dirty ? 'border-amber-500/40 bg-amber-500/10 text-amber-300' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'}`}>
+      {dirty ? 'Unsaved changes' : 'All changes published'}
+    </span>
+  );
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-5 animate-fade-in pb-20">
       <div className={`rounded-2xl border p-5 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -269,16 +461,14 @@ export const WebsiteContentManagerTab: React.FC = () => {
               <Globe className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <h3 className={`text-lg font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                Marketing Website Manager
-              </h3>
+              <h3 className={`text-lg font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Marketing Website Manager</h3>
               <p className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                Edit the content shown on the public Website tab (recreated from stakeyscycles.square.site). Changes save to this device and auto-publish to the site preview.
-
+                Edit the public website. Use the search box to jump straight to a field, click a row to open it, and publish when you are done.
               </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {statusChip}
             <button
               type="button"
               onClick={() => setShowPreview((v) => !v)}
@@ -290,7 +480,8 @@ export const WebsiteContentManagerTab: React.FC = () => {
             <button
               type="button"
               onClick={save}
-              className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer"
+              disabled={!dirty}
+              className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
               Publish Changes
@@ -298,61 +489,71 @@ export const WebsiteContentManagerTab: React.FC = () => {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 mt-3">
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${isDark ? 'bg-neutral-950/60 border border-neutral-800 text-neutral-400' : 'bg-neutral-100 border border-neutral-200 text-neutral-500'}`}>
-            {content.faqs.length} FAQs · {content.priceList.length} price rows · {content.products.length} products · {content.socials.length} socials
-          </span>
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${isDark ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300' : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
-            Saved {savedSink > 0 ? `${savedSink}×` : 'locally'} · publishes via Staff Station
-          </span>
+          <StatChip isDark={isDark}>{content.faqs.length} FAQs</StatChip>
+          <StatChip isDark={isDark}>{content.priceList.length} price rows</StatChip>
+          <StatChip isDark={isDark}>{content.products.length} products</StatChip>
+          <StatChip isDark={isDark}>{content.socials.length} socials</StatChip>
+          <StatChip isDark={isDark}>Published {content.updatedAt ? new Date(content.updatedAt).toLocaleString() : 'never'}</StatChip>
         </div>
       </div>
 
-      {/* Separate the three publishing concerns so an editor never has to
-          scroll past shop stock to change the gallery. */}
-      <div className={`rounded-2xl border p-1.5 grid grid-cols-3 gap-1.5 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
-        {([
-          { id: 'website', label: 'Main Website', hint: 'Hero, pages, FAQs, prices, socials' },
-          { id: 'shop', label: 'Shop & Stock', hint: 'Products, prices, stock levels' },
-          { id: 'gallery', label: 'Gallery', hint: 'Photos shown on the site' },
-        ] as const).map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setEditorTab(t.id)}
-            className={`rounded-xl px-3 py-2.5 text-left transition-all cursor-pointer border ${
-              editorTab === t.id
-                ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 border-emerald-400 shadow-lg shadow-emerald-500/25'
-                : isDark
-                  ? 'border-transparent text-neutral-300 hover:bg-neutral-800/60'
-                  : 'border-transparent text-neutral-600 hover:bg-neutral-100'
-            }`}
-          >
-            <span className="block text-xs font-black uppercase tracking-wider">{t.label}</span>
-            <span className={`block text-[10px] font-medium mt-0.5 ${editorTab === t.id ? 'text-neutral-900/80' : isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{t.hint}</span>
-          </button>
-        ))}
-      </div>
-
-      {editorTab === 'website' && (
-        <div className={`rounded-2xl border p-1.5 flex flex-wrap gap-1.5 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
-          {([
-            { id: 'hero', label: 'Hero & Contact' },
-            { id: 'location', label: 'Location' },
-            { id: 'join', label: 'Join the Team' },
-            { id: 'faqs', label: 'FAQs' },
-            { id: 'prices', label: 'Price List' },
-            { id: 'socials', label: 'Socials' },
-          ] as const).map((s) => (
+      {/* Search + area switcher */}
+      <div className={`rounded-2xl border p-3 space-y-3 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search website content — e.g. brake, opening hours, price, Instagram…"
+            aria-label="Search website content"
+            className={`${inputCls(isDark)} !pl-9 !pr-9`}
+          />
+          {searching && (
             <button
-              key={s.id}
               type="button"
-              onClick={() => setSiteSection(s.id)}
-              className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer border ${
-                siteSection === s.id
-                  ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1 text-neutral-500 hover:text-neutral-200 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {([
+            { id: 'website', label: 'Main Website', hint: 'Hero, pages, FAQs, prices, socials' },
+            { id: 'shop', label: 'Shop & Stock', hint: 'Products, prices, stock levels' },
+            { id: 'gallery', label: 'Gallery', hint: 'Photos shown on the site' },
+          ] as const).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setEditorTab(t.id)}
+              className={`rounded-xl px-3 py-2.5 text-left transition-all cursor-pointer border ${
+                editorTab === t.id
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 border-emerald-400 shadow-lg shadow-emerald-500/25'
                   : isDark
                     ? 'border-transparent text-neutral-300 hover:bg-neutral-800/60'
                     : 'border-transparent text-neutral-600 hover:bg-neutral-100'
+              }`}
+            >
+              <span className="block text-xs font-black uppercase tracking-wider">{t.label}</span>
+              <span className={`block text-[10px] font-medium mt-0.5 ${editorTab === t.id ? 'text-neutral-900/80' : isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{t.hint}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Sticky quick-nav for the Main Website area */}
+      {editorTab === 'website' && (
+        <div className={`sticky top-2 z-20 flex flex-wrap gap-1.5 rounded-2xl border p-1.5 backdrop-blur ${isDark ? 'bg-neutral-900/85 border-neutral-800' : 'bg-white/85 border-neutral-200'}`}>
+          {WEBSITE_SECTIONS.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => jumpTo(s.id)}
+              className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer border ${
+                isDark ? 'border-transparent text-neutral-300 hover:bg-neutral-800/60' : 'border-transparent text-neutral-600 hover:bg-neutral-100'
               }`}
             >
               {s.label}
@@ -363,492 +564,523 @@ export const WebsiteContentManagerTab: React.FC = () => {
 
       {showPreview && (
         <div className={`rounded-2xl border p-4 ${isDark ? 'bg-neutral-900/50 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
-          <details open>
+          <details open={previewOpen} onToggle={(e) => setPreviewOpen((e.target as HTMLDetailsElement).open)}>
             <summary className={`text-xs font-black uppercase tracking-widest cursor-pointer ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
               Draft preview — {draft.heroTitle}
             </summary>
-            <div className="mt-3 text-xs">
+            <div className="mt-3 text-xs space-y-1">
               <p className={isDark ? 'text-neutral-300' : 'text-neutral-600'}>Hero blurb: {draft.heroBlurb}</p>
-              <p className={isDark ? 'text-neutral-400' : 'text-neutral-500'} mt-1>Phone: {draft.phone} · Email: {draft.email} · Book CTA: {draft.calloutCta}</p>
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                <span className="rounded-full border px-2 py-0.5 text-[10px]">Promotions shown on Home come from the Promotions manager</span>
-              </div>
+              <p className={isDark ? 'text-neutral-400' : 'text-neutral-500'}>Phone: {draft.phone} · Email: {draft.email} · Book CTA: {draft.calloutCta}</p>
+              <p className="rounded-full border px-2 py-0.5 text-[10px] inline-block">Promotions shown on Home come from the Promotions manager</p>
             </div>
           </details>
         </div>
       )}
 
-      {editorTab === 'website' && siteSection === 'hero' && (
-      <SectionCard title="Hero & Contact" subtitle="Shown on Home and reused across every page." isDark={isDark}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label="Hero badge" isDark={isDark} value={draft.heroBadge} onChange={(v) => setTextField('heroBadge', v)} />
-          <Field label="Hero title" isDark={isDark} value={draft.heroTitle} onChange={(v) => setTextField('heroTitle', v)} />
-          <Field label="Hero subtitle" isDark={isDark} value={draft.heroSubtitle} onChange={(v) => setTextField('heroSubtitle', v)} />
-          <Field label="Call-out CTA label" isDark={isDark} value={draft.calloutCta} onChange={(v) => setTextField('calloutCta', v)} />
-          <Field label="External booking URL" isDark={isDark} value={draft.calloutUrl} onChange={(v) => setTextField('calloutUrl', v)} />
-          <Field label="Phone (call-out number)" isDark={isDark} value={draft.phone} onChange={(v) => setTextField('phone', v)} />
-          <Field label="Email" isDark={isDark} value={draft.email} onChange={(v) => setTextField('email', v)} />
-        </div>
-        <Field label="Hero blurb — call-out-only pitch (Home)" isDark={isDark} textarea value={draft.heroBlurb} onChange={(v) => setTextField('heroBlurb', v)} />
-        <Field label='Review / feedback intro (Home "Leave a Review")' isDark={isDark} textarea value={draft.reviewBlurb} onChange={(v) => setTextField('reviewBlurb', v)} />
-        <Field label="Feedback body" isDark={isDark} textarea value={draft.feedbackBody} onChange={(v) => setTextField('feedbackBody', v)} />
-        <Field label="Feedback section title" isDark={isDark} value={draft.feedbackTitle} onChange={(v) => setTextField('feedbackTitle', v)} />
-        <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-neutral-950/40 border-neutral-800' : 'bg-neutral-50 border-neutral-200'}`}>
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-neutral-200' : 'text-neutral-800'}`}>Announcement ribbon</span>
-              <span className={`block text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>Rotates at the top of the public site — the website's own voice, separate from in-store notices.</span>
+      {/* ---- Main Website ---- */}
+      {editorTab === 'website' && sectionVisible.hero && (
+        <div ref={(el) => { sectionRefs.current.hero = el; }}>
+          <SectionCard title="Hero & Contact" subtitle="Shown on Home and reused across every page." isDark={isDark}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Hero badge" isDark={isDark} value={draft.heroBadge} onChange={(v) => setTextField('heroBadge', v)} />
+              <Field label="Hero title" isDark={isDark} value={draft.heroTitle} onChange={(v) => setTextField('heroTitle', v)} />
+              <Field label="Hero subtitle" isDark={isDark} value={draft.heroSubtitle} onChange={(v) => setTextField('heroSubtitle', v)} />
+              <Field label="Call-out CTA label" isDark={isDark} value={draft.calloutCta} onChange={(v) => setTextField('calloutCta', v)} />
+              <Field label="External booking URL" isDark={isDark} value={draft.calloutUrl} onChange={(v) => setTextField('calloutUrl', v)} />
+              <Field label="Phone (call-out number)" isDark={isDark} value={draft.phone} onChange={(v) => setTextField('phone', v)} />
+              <Field label="Email" isDark={isDark} value={draft.email} onChange={(v) => setTextField('email', v)} />
             </div>
-            <button
-              type="button"
-              onClick={() => applyDraft({ siteAnnouncements: [...draft.siteAnnouncements, ''] } as Partial<typeof draft>)}
-              className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer"
-            >
-              <Plus className="w-3 h-3" /> Add
-            </button>
-          </div>
-          {draft.siteAnnouncements.length === 0 && (
-            <p className={`text-[11px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>No announcements — the ribbon is hidden.</p>
-          )}
-          {draft.siteAnnouncements.map((a, i) => (
-            <div key={i} className="flex items-end gap-2">
-              <div className="flex-1">
-                <Field
-                  label={`Announcement ${i + 1}`}
-                  isDark={isDark}
-                  value={a}
-                  onChange={(v) => {
-                    const siteAnnouncements = draft.siteAnnouncements.map((x, idx) => (idx === i ? v : x));
-                    applyDraft({ siteAnnouncements } as Partial<typeof draft>);
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => applyDraft({ siteAnnouncements: draft.siteAnnouncements.filter((_, idx) => idx !== i) } as Partial<typeof draft>)}
-                className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-                aria-label={`Remove announcement ${i + 1}`}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      </SectionCard>
-      )}
-
-      {editorTab === 'website' && siteSection === 'location' && (
-      <SectionCard title="Location Page" isDark={isDark}>
-        <Field label="Location quote (overlaid on image)" isDark={isDark} textarea value={draft.locationQuote} onChange={(v) => setTextField('locationQuote', v)} />
-        <Field label="Mobile-only heading" isDark={isDark} value={draft.mobileTitle} onChange={(v) => setTextField('mobileTitle', v)} />
-        <Field label="Mobile-only body" isDark={isDark} textarea value={draft.mobileBody} onChange={(v) => setTextField('mobileBody', v)} />
-        <Field label="Location hero image URL" isDark={isDark} value={draft.locationImage} onChange={(v) => setTextField('locationImage', v)} />
-      </SectionCard>
-      )}
-
-      {editorTab === 'website' && siteSection === 'join' && (
-      <SectionCard title="Join the Team" isDark={isDark}>
-        <Field label="Heading" isDark={isDark} value={draft.joinTitle} onChange={(v) => setTextField('joinTitle', v)} />
-        <Field label="Pitch" isDark={isDark} textarea value={draft.joinBody} onChange={(v) => setTextField('joinBody', v)} />
-        <Field label="CTA label (links to phone call)" isDark={isDark} value={draft.joinCtaLabel} onChange={(v) => setTextField('joinCtaLabel', v)} />
-        <div className="space-y-2">
-          <span className={labelCls}>Bullet points (one per line)</span>
-          <textarea
-            rows={4}
-            className={`${inputCls(isDark)} resize-y`}
-            value={draft.joinBullets.join('\n')}
-            onChange={(e) => applyDraft({ joinBullets: e.target.value.split('\n') })}
-          />
-        </div>
-      </SectionCard>
-      )}
-
-      {editorTab === 'website' && siteSection === 'faqs' && (
-      <SectionCard title="FAQs" subtitle="Repairs & Service · Parts & Accessories · General." isDark={isDark}>
-        <div className="space-y-3">
-          {draft.faqs.map((faq, i) => (
-            <div key={faq.id} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase text-neutral-500">#{i + 1}</span>
-                <select
-                  value={faq.section}
-                  onChange={(e) => setFaqField(i, 'section', e.target.value as WebFaqSection)}
-                  className={`${inputCls(isDark)} !w-auto`}
-                >
-                  {faqSections.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => removeFaq(i)}
-                  className="ml-auto pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-                >
-                  <Trash2 className="w-3 h-3" /> Remove
-                </button>
-              </div>
-              <Field label="Question" isDark={isDark} value={faq.q} onChange={(v) => setFaqField(i, 'q', v)} />
-              <Field label="Answer" isDark={isDark} textarea value={faq.a} onChange={(v) => setFaqField(i, 'a', v)} />
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={addFaq}
-          className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer w-full justify-center"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add FAQ
-        </button>
-      </SectionCard>
-      )}
-
-      {editorTab === 'website' && siteSection === 'prices' && (
-      <SectionCard title="Price List" subtitle="Ballpark UK labour-only prices for bicycles and e-scooters." isDark={isDark}>
-        <Field label="Intro title" isDark={isDark} value={draft.priceIntroTitle} onChange={(v) => setTextField('priceIntroTitle', v)} />
-        <Field label="Intro body" isDark={isDark} textarea value={draft.priceIntroBody} onChange={(v) => setTextField('priceIntroBody', v)} />
-        <div className="space-y-2">
-          <span className={labelCls}>General pricing notes (one per line)</span>
-          <textarea
-            rows={4}
-            className={`${inputCls(isDark)} resize-y`}
-            value={draft.priceNotes.join('\n')}
-            onChange={(e) => applyDraft({ priceNotes: e.target.value.split('\n') })}
-          />
-        </div>
-        <div className="space-y-3">
-          {draft.priceList.map((row, i) => (
-            <div key={row.id} className="space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase text-neutral-500">#{i + 1}</span>
-                <select
-                  value={row.scope}
-                  onChange={(e) => setPriceField(i, 'scope', e.target.value as WebPriceItem['scope'])}
-                  className={`${inputCls(isDark)} !w-auto`}
-                >
-                  <option value="bike">Bicycle</option>
-                  <option value="scooter">E-Scooter</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={() => removePriceRow(i)}
-                  className="ml-auto pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-                >
-                  <Trash2 className="w-3 h-3" /> Remove
-                </button>
-              </div>
-              <Field label="Group heading" isDark={isDark} value={row.group} onChange={(v) => setPriceField(i, 'group', v)} />
-              <Field label="Item" isDark={isDark} value={row.item} onChange={(v) => setPriceField(i, 'item', v)} />
-              <Field label="Description" isDark={isDark} value={row.desc} onChange={(v) => setPriceField(i, 'desc', v)} />
-              <Field label="Ballpark price" isDark={isDark} value={row.price} onChange={(v) => setPriceField(i, 'price', v)} />
-              <Field label="Footnote / note (optional)" isDark={isDark} value={row.note ?? ''} onChange={(v) => setPriceField(i, 'note', v)} />
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => addPriceRow('bike')}
-            className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add Bicycle Row
-          </button>
-          <button
-            type="button"
-            onClick={() => addPriceRow('scooter')}
-            className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" /> Add E-Scooter Row
-          </button>
-        </div>
-      </SectionCard>
-      )}
-
-      {editorTab === 'shop' && (
-      <SectionCard title="Shop Products" subtitle="Every item you add here appears on the public Shop and as a one-tap button on the staff Till — prices and stock stay in sync." isDark={isDark}>
-        <div className={`rounded-xl border p-3.5 text-[11px] leading-relaxed ${isDark ? 'bg-emerald-500/5 border-emerald-500/30 text-emerald-200/90' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
-          Add an item below and it is instantly sellable at the counter: the Till builds one button per product, priced and stock-capped, and selling it decrements this shelf count.
-        </div>
-        <Field label="Suspension notice title" isDark={isDark} value={draft.shopNoticeTitle} onChange={(v) => setTextField('shopNoticeTitle', v)} />
-        <Field label="Suspension notice body" isDark={isDark} textarea value={draft.shopNoticeBody} onChange={(v) => setTextField('shopNoticeBody', v)} />
-        <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-amber-500/5 border-amber-500/30' : 'bg-amber-50 border-amber-300'}`}>
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-amber-200' : 'text-amber-900'}`}>Customer disclaimers</span>
-              <span className={`block text-[10px] ${isDark ? 'text-amber-200/70' : 'text-amber-800/80'}`}>Shown above the shop and again at checkout before the customer can order.</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => applyDraft({ shopDisclaimers: [...draft.shopDisclaimers, ''] } as Partial<typeof draft>)}
-              className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer"
-            >
-              <Plus className="w-3 h-3" /> Add
-            </button>
-          </div>
-          {draft.shopDisclaimers.length === 0 && (
-            <p className={`text-[11px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>No disclaimers — customers will see nothing at checkout.</p>
-          )}
-          {draft.shopDisclaimers.map((d, i) => (
-            <div key={i} className="flex items-end gap-2">
-              <div className="flex-1">
-                <Field
-                  label={`Disclaimer ${i + 1}`}
-                  isDark={isDark}
-                  textarea
-                  value={d}
-                  onChange={(v) => {
-                    const shopDisclaimers = draft.shopDisclaimers.map((x, idx) => (idx === i ? v : x));
-                    applyDraft({ shopDisclaimers } as Partial<typeof draft>);
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => applyDraft({ shopDisclaimers: draft.shopDisclaimers.filter((_, idx) => idx !== i) } as Partial<typeof draft>)}
-                className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-                aria-label={`Remove disclaimer ${i + 1}`}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="space-y-3">
-          {draft.products.map((product, i) => (
-            <div key={product.id} className="space-y-2">
+            <Field label="Hero blurb — call-out-only pitch (Home)" isDark={isDark} textarea value={draft.heroBlurb} onChange={(v) => setTextField('heroBlurb', v)} />
+            <Field label='Review / feedback intro (Home "Leave a Review")' isDark={isDark} textarea value={draft.reviewBlurb} onChange={(v) => setTextField('reviewBlurb', v)} />
+            <Field label="Feedback body" isDark={isDark} textarea value={draft.feedbackBody} onChange={(v) => setTextField('feedbackBody', v)} />
+            <Field label="Feedback section title" isDark={isDark} value={draft.feedbackTitle} onChange={(v) => setTextField('feedbackTitle', v)} />
+            <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-neutral-950/40 border-neutral-800' : 'bg-neutral-50 border-neutral-200'}`}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] font-bold uppercase text-neutral-500">#{i + 1}</span>
-                <div className="flex items-center gap-2">
+                <div>
+                  <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-neutral-200' : 'text-neutral-800'}`}>Announcement ribbon</span>
+                  <span className="block text-[10px] text-neutral-500">Rotates at the top of the public site — the website's own voice, separate from in-store notices.</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={addAnnouncement}
+                  className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" /> Add
+                </button>
+              </div>
+              {draft.siteAnnouncements.length === 0 && (
+                <p className="text-[11px] text-neutral-500">No announcements — the ribbon is hidden.</p>
+              )}
+              {draft.siteAnnouncements.map((a, i) => (
+                <div key={i} className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Field label={`Announcement ${i + 1}`} isDark={isDark} value={a} onChange={(v) => setAnnouncement(i, v)} />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeAnnouncement(i)}
+                    className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+                    aria-label={`Remove announcement ${i + 1}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {editorTab === 'website' && sectionVisible.location && (
+        <div ref={(el) => { sectionRefs.current.location = el; }}>
+          <SectionCard title="Location Page" isDark={isDark}>
+            <Field label="Location quote (overlaid on image)" isDark={isDark} textarea value={draft.locationQuote} onChange={(v) => setTextField('locationQuote', v)} />
+            <Field label="Mobile-only heading" isDark={isDark} value={draft.mobileTitle} onChange={(v) => setTextField('mobileTitle', v)} />
+            <Field label="Mobile-only body" isDark={isDark} textarea value={draft.mobileBody} onChange={(v) => setTextField('mobileBody', v)} />
+            <Field label="Location hero image URL" isDark={isDark} value={draft.locationImage} onChange={(v) => setTextField('locationImage', v)} />
+          </SectionCard>
+        </div>
+      )}
+
+      {editorTab === 'website' && sectionVisible.join && (
+        <div ref={(el) => { sectionRefs.current.join = el; }}>
+          <SectionCard title="Join the Team" isDark={isDark}>
+            <Field label="Heading" isDark={isDark} value={draft.joinTitle} onChange={(v) => setTextField('joinTitle', v)} />
+            <Field label="Pitch" isDark={isDark} textarea value={draft.joinBody} onChange={(v) => setTextField('joinBody', v)} />
+            <Field label="CTA label (links to phone call)" isDark={isDark} value={draft.joinCtaLabel} onChange={(v) => setTextField('joinCtaLabel', v)} />
+            <div>
+              <span className={labelCls}>Bullet points (one per line)</span>
+              <textarea
+                rows={4}
+                className={`${inputCls(isDark)} resize-y`}
+                value={draft.joinBullets.join('\n')}
+                onChange={(e) => applyDraft({ joinBullets: e.target.value.split('\n') })}
+              />
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {editorTab === 'website' && sectionVisible.faqs && (
+        <div ref={(el) => { sectionRefs.current.faqs = el; }}>
+          <SectionCard
+            title="FAQs"
+            subtitle="Repairs & Service · Parts & Accessories · General."
+            isDark={isDark}
+            action={
+              <div className="flex items-center gap-1.5">
+                <StatChip isDark={isDark}>{faqRows.length} shown</StatChip>
+                <button type="button" onClick={() => expandAll(draft.faqs.map((f) => f.id))} className="pressable rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-bold text-neutral-300 hover:bg-neutral-800/60 cursor-pointer">Expand all</button>
+                <button type="button" onClick={collapseAll} className="pressable rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-bold text-neutral-300 hover:bg-neutral-800/60 cursor-pointer">Collapse all</button>
+              </div>
+            }
+          >
+            <div className="space-y-2">
+              {faqRows.length === 0 && <p className="text-[11px] text-neutral-500">No FAQs match “{search}”.</p>}
+              {faqRows.map(({ faq, index }) => (
+                <CollapsibleItem
+                  key={faq.id}
+                  title={faq.q || 'New question'}
+                  subtitle={FAQ_SECTIONS.find((s) => s.value === faq.section)?.label}
+                  isDark={isDark}
+                  open={isOpen(faq.id, !faq.q && !faq.a)}
+                  onToggle={() => toggle(faq.id, !faq.q && !faq.a)}
+                  onDuplicate={() => duplicateFaq(index)}
+                  onMoveUp={index > 0 ? () => moveFaq(index, index - 1) : undefined}
+                  onMoveDown={index < draft.faqs.length - 1 ? () => moveFaq(index, index + 1) : undefined}
+                  onRemove={() => removeFaq(index)}
+                >
+                  <div>
+                    <span className={labelCls}>Section</span>
+                    <select
+                      value={faq.section}
+                      onChange={(e) => setFaqField(index, 'section', e.target.value as WebFaqSection)}
+                      className={`${inputCls(isDark)} !w-auto`}
+                    >
+                      {FAQ_SECTIONS.map((s) => (
+                        <option key={s.value} value={s.value}>{s.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Field label="Question" isDark={isDark} value={faq.q} onChange={(v) => setFaqField(index, 'q', v)} />
+                  <Field label="Answer" isDark={isDark} textarea value={faq.a} onChange={(v) => setFaqField(index, 'a', v)} />
+                </CollapsibleItem>
+              ))}
+            </div>
+            <button type="button" onClick={addFaq} className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer">
+              <Plus className="w-3.5 h-3.5" /> Add FAQ
+            </button>
+          </SectionCard>
+        </div>
+      )}
+
+      {editorTab === 'website' && sectionVisible.prices && (
+        <div ref={(el) => { sectionRefs.current.prices = el; }}>
+          <SectionCard
+            title="Price List"
+            subtitle="Ballpark UK labour-only prices for bicycles and e-scooters."
+            isDark={isDark}
+            action={
+              <div className="flex items-center gap-1.5">
+                <StatChip isDark={isDark}>{priceRows.length} shown</StatChip>
+                <button type="button" onClick={() => expandAll(draft.priceList.map((r) => r.id))} className="pressable rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-bold text-neutral-300 hover:bg-neutral-800/60 cursor-pointer">Expand all</button>
+                <button type="button" onClick={collapseAll} className="pressable rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-bold text-neutral-300 hover:bg-neutral-800/60 cursor-pointer">Collapse all</button>
+              </div>
+            }
+          >
+            <Field label="Intro title" isDark={isDark} value={draft.priceIntroTitle} onChange={(v) => setTextField('priceIntroTitle', v)} />
+            <Field label="Intro body" isDark={isDark} textarea value={draft.priceIntroBody} onChange={(v) => setTextField('priceIntroBody', v)} />
+            <div>
+              <span className={labelCls}>General pricing notes (one per line)</span>
+              <textarea
+                rows={4}
+                className={`${inputCls(isDark)} resize-y`}
+                value={draft.priceNotes.join('\n')}
+                onChange={(e) => applyDraft({ priceNotes: e.target.value.split('\n') })}
+              />
+            </div>
+            <div className="space-y-2">
+              {priceRows.length === 0 && <p className="text-[11px] text-neutral-500">No price rows match “{search}”.</p>}
+              {priceRows.map(({ row, index }) => (
+                <CollapsibleItem
+                  key={row.id}
+                  title={row.item || 'New price row'}
+                  subtitle={`${row.scope === 'bike' ? 'Bicycle' : 'E-Scooter'}${row.price ? ` · ${row.price}` : ''}`}
+                  isDark={isDark}
+                  open={isOpen(row.id, !row.item && !row.price)}
+                  onToggle={() => toggle(row.id, !row.item && !row.price)}
+                  onDuplicate={() => duplicatePriceRow(index)}
+                  onMoveUp={index > 0 ? () => movePriceRow(index, index - 1) : undefined}
+                  onMoveDown={index < draft.priceList.length - 1 ? () => movePriceRow(index, index + 1) : undefined}
+                  onRemove={() => removePriceRow(index)}
+                >
+                  <div>
+                    <span className={labelCls}>Applies to</span>
+                    <select
+                      value={row.scope}
+                      onChange={(e) => setPriceField(index, 'scope', e.target.value as WebPriceItem['scope'])}
+                      className={`${inputCls(isDark)} !w-auto`}
+                    >
+                      <option value="bike">Bicycle</option>
+                      <option value="scooter">E-Scooter</option>
+                    </select>
+                  </div>
+                  <Field label="Group heading" isDark={isDark} value={row.group} onChange={(v) => setPriceField(index, 'group', v)} />
+                  <Field label="Item" isDark={isDark} value={row.item} onChange={(v) => setPriceField(index, 'item', v)} />
+                  <Field label="Description" isDark={isDark} value={row.desc} onChange={(v) => setPriceField(index, 'desc', v)} />
+                  <Field label="Ballpark price" isDark={isDark} value={row.price} onChange={(v) => setPriceField(index, 'price', v)} />
+                  <Field label="Footnote / note (optional)" isDark={isDark} value={row.note ?? ''} onChange={(v) => setPriceField(index, 'note', v)} />
+                </CollapsibleItem>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => addPriceRow('bike')} className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer">
+                <Plus className="w-3.5 h-3.5" /> Add Bicycle Row
+              </button>
+              <button type="button" onClick={() => addPriceRow('scooter')} className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer">
+                <Plus className="w-3.5 h-3.5" /> Add E-Scooter Row
+              </button>
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {editorTab === 'website' && sectionVisible.socials && (
+        <div ref={(el) => { sectionRefs.current.socials = el; }}>
+          <SectionCard title="Social Links" subtitle="Footer + contact strip; used across every page." isDark={isDark}>
+            <div className="space-y-2">
+              {socialRows.length === 0 && <p className="text-[11px] text-neutral-500">No social links match “{search}”.</p>}
+              {socialRows.map(({ social, index }) => (
+                <CollapsibleItem
+                  key={social.id}
+                  title={social.platform || 'New social link'}
+                  subtitle={social.url}
+                  isDark={isDark}
+                  open={isOpen(social.id, !social.platform && !social.url)}
+                  onToggle={() => toggle(social.id, !social.platform && !social.url)}
+                  onMoveUp={index > 0 ? () => moveSocial(index, index - 1) : undefined}
+                  onMoveDown={index < draft.socials.length - 1 ? () => moveSocial(index, index + 1) : undefined}
+                  onRemove={() => removeSocial(index)}
+                >
+                  <Field label="Platform" isDark={isDark} value={social.platform} onChange={(v) => setSocialField(index, 'platform', v)} />
+                  <Field label="URL" isDark={isDark} value={social.url} onChange={(v) => setSocialField(index, 'url', v)} />
+                </CollapsibleItem>
+              ))}
+            </div>
+            <button type="button" onClick={addSocial} className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer">
+              <Plus className="w-3.5 h-3.5" /> Add Social Link
+            </button>
+          </SectionCard>
+        </div>
+      )}
+
+      {/* ---- Shop & Stock ---- */}
+      {editorTab === 'shop' && (
+        <SectionCard
+          title="Shop Products"
+          subtitle="Every item you add here appears on the public Shop and as a one-tap button on the staff Till — prices and stock stay in sync."
+          isDark={isDark}
+          action={
+            <div className="flex items-center gap-1.5">
+              <StatChip isDark={isDark}>{productRows.length} shown</StatChip>
+              <button type="button" onClick={() => expandAll(draft.products.map((p) => p.id))} className="pressable rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-bold text-neutral-300 hover:bg-neutral-800/60 cursor-pointer">Expand all</button>
+              <button type="button" onClick={collapseAll} className="pressable rounded-lg border border-neutral-700 px-2 py-1 text-[10px] font-bold text-neutral-300 hover:bg-neutral-800/60 cursor-pointer">Collapse all</button>
+            </div>
+          }
+        >
+          <div className={`rounded-xl border p-3.5 text-[11px] leading-relaxed ${isDark ? 'bg-emerald-500/5 border-emerald-500/30 text-emerald-200/90' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
+            Add an item below and it is instantly sellable at the counter: the Till builds one button per product, priced and stock-capped, and selling it decrements this shelf count.
+          </div>
+          <Field label="Suspension notice title" isDark={isDark} value={draft.shopNoticeTitle} onChange={(v) => setTextField('shopNoticeTitle', v)} />
+          <Field label="Suspension notice body" isDark={isDark} textarea value={draft.shopNoticeBody} onChange={(v) => setTextField('shopNoticeBody', v)} />
+          <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-amber-500/5 border-amber-500/30' : 'bg-amber-50 border-amber-300'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-amber-200' : 'text-amber-900'}`}>Customer disclaimers</span>
+                <span className={`block text-[10px] ${isDark ? 'text-amber-200/70' : 'text-amber-800/80'}`}>Shown above the shop and again at checkout before the customer can order.</span>
+              </div>
+              <button type="button" onClick={addDisclaimer} className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer">
+                <Plus className="w-3 h-3" /> Add
+              </button>
+            </div>
+            {draft.shopDisclaimers.length === 0 && <p className="text-[11px] text-neutral-500">No disclaimers — customers will see nothing at checkout.</p>}
+            {draft.shopDisclaimers.map((d, i) => (
+              <div key={i} className="flex items-end gap-2">
+                <div className="flex-1">
+                  <Field label={`Disclaimer ${i + 1}`} isDark={isDark} textarea value={d} onChange={(v) => setDisclaimer(i, v)} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeDisclaimer(i)}
+                  className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
+                  aria-label={`Remove disclaimer ${i + 1}`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2">
+            {productRows.length === 0 && <p className="text-[11px] text-neutral-500">No products match “{search}”.</p>}
+            {productRows.map(({ product, index }) => (
+              <CollapsibleItem
+                key={product.id}
+                title={product.name || 'New product'}
+                subtitle={[product.category, product.price ? `£${product.price}` : '', `${product.stock} in stock`].filter(Boolean).join(' · ')}
+                isDark={isDark}
+                open={isOpen(product.id, !product.name)}
+                onToggle={() => toggle(product.id, !product.name)}
+                badge={
+                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold ${product.stock > 0 ? 'border-emerald-800 text-emerald-400' : 'border-rose-900 text-rose-400'}`}>
+                    {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
+                  </span>
+                }
+                extraActions={
                   <button
                     type="button"
                     onClick={() => setQrProduct(product)}
                     className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-800 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer"
                     title="Generate and print this item's QR code"
                   >
-                    <QrCode className="w-3 h-3" /> QR code
+                    <QrCode className="w-3 h-3" /> QR
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => removeProduct(i)}
-                    className="pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-                  >
-                    <Trash2 className="w-3 h-3" /> Remove
-                  </button>
-                </div>
-              </div>
-              <Field label="Product name" isDark={isDark} value={product.name} onChange={(v) => setProductField(i, 'name', v)} />
-              <Field label="Description" isDark={isDark} textarea value={product.description ?? ''} onChange={(v) => setProductField(i, 'description', v)} />
-              <div className="grid grid-cols-3 gap-3">
-                <Field label="Price (£)" isDark={isDark} value={String(product.price ?? '')} onChange={(v) => {
-                  const parsed = Number.parseFloat(v);
-                  if (!Number.isNaN(parsed)) setProductNum(i, 'price', parsed);
-                }} />
-                <Field label="Was price (£, optional)"isDark={isDark} value={product.wasPrice != null ? String(product.wasPrice) : ''} onChange={(v) => {
-                  if (v.trim() === '') {
-                    const products = draft.products.map((p, idx) => (idx === i ? { ...p, wasPrice: undefined } : p));
-                    applyDraft({ products } as Partial<typeof draft>);
-                  } else {
-                    const parsedd = Number.parseFloat(v);
-                    if (!Number.isNaN(parsedd)) {
-                      const products = draft.products.map((p, idx) => (idx === i ? { ...p, wasPrice: parsedd } : p));
-                      applyDraft({ products } as Partial<typeof draft>);
-                    }
-                  }
-                }} />
-                <Field label="Stock" isDark={isDark} value={String(product.stock ?? 0)} onChange={(v) => {
-                  const parsedStock = Number.parseInt(v, 10);
-                  if (!Number.isNaN(parsedStock)) setProductNum(i, 'stock', parsedStock);
-                }} />
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="flex-1">
-                  <Field label="Image URL" isDark={isDark} value={product.image} onChange={(v) => setProductField(i, "image", v)} />
-                </div>
-                {product.image && (
-                  <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 bg-neutral-900 mt-5">
-                    <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
-                  </div>
-                )}
-                <label className="shrink-0 px-3.5 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-all font-bold cursor-pointer h-[38px] mt-5 flex items-center justify-center">
-                  <span>Upload</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                          if (typeof reader.result === "string") {
-                            setProductField(i, "image", reader.result);
-                          }
-                        };
-                        reader.readAsDataURL(file);
+                }
+                onDuplicate={() => duplicateProduct(index)}
+                onMoveUp={index > 0 ? () => moveProduct(index, index - 1) : undefined}
+                onMoveDown={index < draft.products.length - 1 ? () => moveProduct(index, index + 1) : undefined}
+                onRemove={() => removeProduct(index)}
+              >
+                <Field label="Product name" isDark={isDark} value={product.name} onChange={(v) => setProductField(index, 'name', v)} />
+                <Field label="Description" isDark={isDark} textarea value={product.description ?? ''} onChange={(v) => setProductField(index, 'description', v)} />
+                <div className="grid grid-cols-3 gap-3">
+                  <Field
+                    label="Price (£)"
+                    isDark={isDark}
+                    value={String(product.price ?? '')}
+                    onChange={(v) => {
+                      const parsed = Number.parseFloat(v);
+                      if (!Number.isNaN(parsed)) setProductNum(index, 'price', parsed);
+                    }}
+                  />
+                  <Field
+                    label="Was price (£)"
+                    isDark={isDark}
+                    hint="Optional"
+                    value={product.wasPrice != null ? String(product.wasPrice) : ''}
+                    onChange={(v) => {
+                      if (v.trim() === '') {
+                        applyDraft({ products: draft.products.map((p, idx) => (idx === index ? { ...p, wasPrice: undefined } : p)) });
+                      } else {
+                        const parsed = Number.parseFloat(v);
+                        if (!Number.isNaN(parsed)) {
+                          applyDraft({ products: draft.products.map((p, idx) => (idx === index ? { ...p, wasPrice: parsed } : p)) });
+                        }
                       }
                     }}
                   />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => openDrivePicker('stock', (url) => setProductField(i, 'image', url))}
-                  className="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-800 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-400 transition-all font-bold cursor-pointer h-[38px] mt-5 flex items-center justify-center"
-                >
-                  Drive
-                </button>
-              </div>
-              <div>
-                <span className={labelCls}>Category</span>
-                <select
-                  value={product.category}
-                  onChange={(e) => setProductField(i, 'category', e.target.value)}
-                  className={`${inputCls(isDark)} !w-auto`}
-                >
-                  {categoryOptions.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={addProduct}
-          className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer w-full justify-center"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add Product
-        </button>
-      </SectionCard>
-      )}
-
-      {editorTab === 'gallery' && (
-      <SectionCard title="Gallery" isDark={isDark}>
-        <div className="space-y-3">
-          {draft.galleryImages.map((img, i) => (
-            <div key={img.id} className="flex items-end gap-3">
-              <div className="flex-1">
-                <Field label={"Gallery image " + (i + 1)} isDark={isDark} value={img.url} onChange={(v) => {
-                  const galleryImages = draft.galleryImages.map((g, idx) => (idx === i ? { ...g, url: v } : g));
-                  applyDraft({ galleryImages } as Partial<typeof draft>);
-                }} />
-              </div>
-              {img.url && (
-                <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 bg-neutral-900 mb-1">
-                  <img src={img.url} alt={"Gallery " + (i + 1)} className="w-full h-full object-cover" />
+                  <Field
+                    label="Stock"
+                    isDark={isDark}
+                    value={String(product.stock ?? 0)}
+                    onChange={(v) => {
+                      const parsedStock = Number.parseInt(v, 10);
+                      if (!Number.isNaN(parsedStock)) setProductNum(index, 'stock', parsedStock);
+                    }}
+                  />
                 </div>
-              )}
-              <label className="shrink-0 px-3.5 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-all font-bold cursor-pointer h-[38px] mb-1 flex items-center justify-center">
-                <span>Upload</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        if (typeof reader.result === 'string') {
-                          const galleryImages = draft.galleryImages.map((g, idx) => (idx === i ? { ...g, url: reader.result } : g));
-                          applyDraft({ galleryImages } as Partial<typeof draft>);
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <Field label="Image URL" isDark={isDark} value={product.image} onChange={(v) => setProductField(index, 'image', v)} />
+                  </div>
+                  {product.image && (
+                    <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 bg-neutral-900 mt-5">
+                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <label className="shrink-0 px-3.5 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-all font-bold cursor-pointer h-[38px] mt-5 flex items-center justify-center">
+                    <span>Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (typeof reader.result === 'string') setProductField(index, 'image', reader.result);
+                          };
+                          reader.readAsDataURL(file);
                         }
-                      };
-                      reader.readAsDataURL(file);
-                    }
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => openDrivePicker('gallery', (url) => {
-                  const galleryImages = draft.galleryImages.map((g, idx) => (idx === i ? { ...g, url } : g));
-                  applyDraft({ galleryImages } as Partial<typeof draft>);
-                })}
-                className="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-800 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-400 transition-all font-bold cursor-pointer h-[38px] mb-1 flex items-center justify-center"
-              >
-                Drive
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const galleryImages = draft.galleryImages.filter((g) => g.id !== img.id);
-                  applyDraft({ galleryImages } as Partial<typeof draft>);
-                }}
-                className="pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1.5 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-              >
-                <Trash2 className="w-3 h-3" /> Remove
-              </button>
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={() => {
-            const galleryImages = [...draft.galleryImages, { id: uid('gallery'), url: '' }];
-            applyDraft({ galleryImages } as Partial<typeof draft>);
-          }}
-          className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add Gallery Image
-        </button>
-      </SectionCard>
-      )}
-
-      {editorTab === 'website' && siteSection === 'socials' && (
-      <SectionCard title="Social Links" subtitle="Footer + contact strip; used across every page." isDark={isDark}>
-        <div className="space-y-3">
-          {draft.socials.map((social, i) => (
-            <div key={social.id} className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Field label="Platform" isDark={isDark} value={social.platform} onChange={(v) => setSocialField(i, 'platform', v)} />
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <Field label="URL" isDark={isDark} value={social.url} onChange={(v) => setSocialField(i, 'url', v)} />
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => openDrivePicker('stock', (url) => setProductField(index, 'image', url))}
+                    className="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-800 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-400 transition-all font-bold cursor-pointer h-[38px] mt-5 flex items-center justify-center"
+                  >
+                    Drive
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeSocial(i)}
-                  className="pressable inline-flex items-center gap-1 rounded-lg border border-rose-900 px-2 py-1.5 text-[10px] font-bold text-rose-400 hover:bg-rose-950/40 cursor-pointer"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button
-          type="button"
-          onClick={addSocial}
-          className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add Social Link
-        </button>
-      </SectionCard>
+                <div>
+                  <span className={labelCls}>Category</span>
+                  <select
+                    value={product.category}
+                    onChange={(e) => setProductField(index, 'category', e.target.value)}
+                    className={`${inputCls(isDark)} !w-auto`}
+                  >
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+              </CollapsibleItem>
+            ))}
+          </div>
+          <button type="button" onClick={addProduct} className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer">
+            <Plus className="w-3.5 h-3.5" /> Add Product
+          </button>
+        </SectionCard>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 pt-2">
+      {/* ---- Gallery ---- */}
+      {editorTab === 'gallery' && (
+        <SectionCard
+          title="Gallery"
+          subtitle="Photos shown on the public site."
+          isDark={isDark}
+          action={<StatChip isDark={isDark}>{galleryRows.length} shown</StatChip>}
+        >
+          <div className="space-y-2">
+            {galleryRows.length === 0 && <p className="text-[11px] text-neutral-500">No gallery images match “{search}”.</p>}
+            {galleryRows.map(({ image, index }) => (
+              <CollapsibleItem
+                key={image.id}
+                title={image.url ? `Image ${index + 1}` : 'New image'}
+                subtitle={image.url}
+                isDark={isDark}
+                open={isOpen(image.id, !image.url)}
+                onToggle={() => toggle(image.id, !image.url)}
+                onMoveUp={index > 0 ? () => moveGalleryImage(index, index - 1) : undefined}
+                onMoveDown={index < draft.galleryImages.length - 1 ? () => moveGalleryImage(index, index + 1) : undefined}
+                onRemove={() => removeGalleryImage(index)}
+              >
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <Field label={`Gallery image ${index + 1}`} isDark={isDark} value={image.url} onChange={(v) => setGalleryUrl(index, v)} />
+                  </div>
+                  {image.url && (
+                    <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden border border-neutral-800 bg-neutral-900 mb-1">
+                      <img src={image.url} alt={`Gallery ${index + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  )}
+                  <label className="shrink-0 px-3.5 py-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white transition-all font-bold cursor-pointer h-[38px] mb-1 flex items-center justify-center">
+                    <span>Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (typeof reader.result === 'string') setGalleryUrl(index, reader.result);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => openDrivePicker('gallery', (url) => setGalleryUrl(index, url))}
+                    className="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-800 bg-emerald-950/30 hover:bg-emerald-950/60 text-emerald-400 transition-all font-bold cursor-pointer h-[38px] mb-1 flex items-center justify-center"
+                  >
+                    Drive
+                  </button>
+                </div>
+              </CollapsibleItem>
+            ))}
+          </div>
+          <button type="button" onClick={addGalleryImage} className="pressable inline-flex items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-[11px] font-bold cursor-pointer">
+            <Plus className="w-3.5 h-3.5" /> Add Gallery Image
+          </button>
+        </SectionCard>
+      )}
+
+      {/* Sticky action bar — publish/discard are always reachable. */}
+      <div className={`sticky bottom-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl border p-3 backdrop-blur ${isDark ? 'bg-neutral-900/90 border-neutral-800' : 'bg-white/90 border-neutral-200'}`}>
         <button
           type="button"
           onClick={save}
-          className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer"
+          disabled={!dirty}
+          className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Save className="w-4 h-4" /> Publish Changes
+        </button>
+        <button
+          type="button"
+          onClick={discard}
+          disabled={!dirty}
+          className="pressable inline-flex items-center gap-2 rounded-xl border border-neutral-700 px-4 py-2.5 text-xs font-bold text-neutral-300 hover:bg-neutral-800/60 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <RotateCcw className="w-4 h-4" /> Discard changes
         </button>
         <button
           type="button"
           onClick={resetDefaults}
           className="pressable inline-flex items-center gap-2 rounded-xl border border-amber-900 px-4 py-2.5 text-xs font-bold text-amber-400 hover:bg-amber-950/40 cursor-pointer"
         >
-          <RotateCcw className="w-4 h-4" /> Discard Draft &amp; Reload Defaults
+          <RotateCcw className="w-4 h-4" /> Reload Defaults
         </button>
-        <span className={`text-[10px] font-mono ml-auto ${isDark ? 'text-neutral-600' : 'text-neutral-400'}`}>
-          Saved {savedSink}× this session · Last published {content.updatedAt ? new Date(content.updatedAt).toLocaleString() : 'never'}
+        <span className={`text-[10px] font-mono ml-auto ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+          {dirty ? 'Unsaved changes · ⌘/Ctrl+S to publish' : 'Saved'} · published {savedSink}× this session
         </span>
       </div>
 
-      {qrProduct && (
-        <ItemQrModal product={qrProduct} isDark={isDark} onClose={() => setQrProduct(null)} />
-      )}
+      {qrProduct && <ItemQrModal product={qrProduct} isDark={isDark} onClose={() => setQrProduct(null)} />}
 
       {drivePicker && (
         <DriveImagePicker
