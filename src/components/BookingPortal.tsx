@@ -35,6 +35,7 @@ import {
 } from './BikeIdentityFields';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { PolicyDisclaimers } from './PolicyDisclaimers';
+import { BookingRidingWeather } from './weather/BookingRidingWeather';
 import { BOOKING_POLICY_DISCLAIMERS } from '../utils/workshopPolicy';
 import {
   referralCodeFromSearch,
@@ -1381,6 +1382,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <p className="text-[11px] text-neutral-500 mt-1">
                 Workshop hours Mon–Fri 09:00–18:00, Sat 09:30–13:00.
               </p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <BookingRidingWeather date={preferredDate} />
             </div>
           </div>
           )}

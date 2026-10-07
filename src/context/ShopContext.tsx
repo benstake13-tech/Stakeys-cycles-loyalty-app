@@ -66,6 +66,7 @@ import {
 import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { sendPushToUser, requestPushPermission, getPushPermission, adminPushTarget } from '../utils/pushNotifications';
+import { buildBookingNotification } from '../utils/bookingNotifications';
 import { isSosBooking, sosStatusOf } from '../utils/sosRepair';
 import { isStaffSurface, isFullSurface } from '../config/surface';
 import { generateMembershipNumber } from '../api/firebaseService';
@@ -1342,36 +1343,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       staffBookingAudio.playLoudBookingPing();
 
       const latest = brandNewBookings[0];
-      staffBookingAudio.dispatchPushNotification(
-        `🚨 New Workshop Booking: #${latest.id}`,
-        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`
-      );
+      // PII-free alert: booking details + source surface, never the customer's
+      // name or contact details. Tapping it opens the booking in the staff app.
+      const alert = buildBookingNotification(latest);
+      staffBookingAudio.dispatchPushNotification(alert.title, alert.body);
       // Server-to-server push to the admin inbox so the booking reaches the
       // workshop phone even when the app is closed. Targeted by owner_email tag
       // (the whole staff group), never a broadcast segment.
-      void sendPushToUser(
-        undefined,
-        `🚨 New Workshop Booking #${latest.id}`,
-        `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`,
-        undefined,
-        adminPushTarget()
-      );
+      void sendPushToUser(undefined, alert.title, alert.body, alert.url, adminPushTarget());
 
-      toast(
-        `🚨 NEW WORKSHOP BOOKING #${latest.id}!\n${latest.customerName} • ${latest.serviceTitle}`,
-        {
-          icon: '🔔',
-          duration: 9000,
-          style: {
-            background: '#071d12',
-            color: '#4ade80',
-            border: '2px solid #22c55e',
-            boxShadow: '0 10px 25px -5px rgba(34, 197, 94, 0.4)',
-            fontSize: '13px',
-            fontWeight: 700,
-          },
-        }
-      );
+      toast(`🚨 NEW WORKSHOP BOOKING #${latest.id}!\n${alert.sourceLabel} • ${latest.serviceTitle}`, {
+        icon: '🔔',
+        duration: 9000,
+        style: {
+          background: '#071d12',
+          color: '#4ade80',
+          border: '2px solid #22c55e',
+          boxShadow: '0 10px 25px -5px rgba(34, 197, 94, 0.4)',
+          fontSize: '13px',
+          fontWeight: 700,
+        },
+      });
     }
   };
 
@@ -3045,20 +3037,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // push is sent by whoever creates the booking so staff phones are reached
     // even when the terminal isn't open.
     const isStaff = currentUser?.role === 'staff' || currentUser?.role === 'admin';
+    // A booking created from the staff terminal is a counter/phone entry; one
+    // created by anyone else is a member (customer app) or guest (website) job.
+    const alert = buildBookingNotification(completedBooking, { staffCreated: isStaff });
     if (isStaff) {
       staffBookingAudio.playLoudBookingPing();
-      staffBookingAudio.dispatchPushNotification(
-        `🚨 New Workshop Booking #${completedBooking.id}`,
-        `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`
-      );
+      staffBookingAudio.dispatchPushNotification(alert.title, alert.body);
     }
-    void sendPushToUser(
-      undefined,
-      `🚨 New Workshop Booking #${completedBooking.id}`,
-      `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`,
-      undefined,
-      adminPushTarget()
-    );
+    void sendPushToUser(undefined, alert.title, alert.body, alert.url, adminPushTarget());
 
     // SOS emergency repair: fire an owner-only OneSignal push (and a loud ping
     // on any staff device that has the terminal open) the moment it lands.

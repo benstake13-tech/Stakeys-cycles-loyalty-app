@@ -66,6 +66,8 @@ function openMeteoFixture() {
       precipitation: 0.2,
       weather_code: 3,
       wind_speed_10m: 14.2,
+      relative_humidity_2m: 82,
+      pressure_msl: 1009.4,
     },
     daily: {
       time,
@@ -169,6 +171,8 @@ describe('open-meteo parsing', () => {
     expect(report.synthetic).toBe(false);
     expect(report.current.tempC).toBe(13);
     expect(report.current.isDay).toBe(true);
+    expect(report.current.humidity).toBe(82);
+    expect(report.current.pressureHpa).toBe(1009.4);
     expect(report.days[0]).toMatchObject({ date: '2026-10-06', kind: 'overcast', tempMax: 16, tempMin: 9 });
     expect(report.days[1].kind).toBe('rain');
     expect(report.days[5].kind).toBe('thunder');

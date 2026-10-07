@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Search,
@@ -76,7 +76,13 @@ import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
 
-export const StaffPortal: React.FC = () => {
+interface StaffPortalProps {
+  /** Booking id from a notification deep link that should be opened on arrival. */
+  focusBookingId?: string | null;
+  onFocusHandled?: () => void;
+}
+
+export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocusHandled }) => {
   const {
     currentUser,
     users = [], // Default to empty array
@@ -124,6 +130,14 @@ export const StaffPortal: React.FC = () => {
     | 'diagnostics'
     | 'weather'
   >('till');
+
+  // Notification deep link: when App hands us a booking id, jump to the Bookings
+  // tab so the booking is on screen, then let App clear the request.
+  useEffect(() => {
+    if (!focusBookingId) return;
+    setStaffTab('bookings');
+    onFocusHandled?.();
+  }, [focusBookingId]);
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isBackendRepairOpen, setIsBackendRepairOpen] = useState(false);
@@ -670,7 +684,7 @@ export const StaffPortal: React.FC = () => {
       )}
 
       {/* VIEW 1: Service Bookings Management */}
-      {staffTab === 'bookings' && <StaffBookingsTab />}
+      {staffTab === 'bookings' && <StaffBookingsTab focusBookingId={focusBookingId} />}
 
       {/* VIEW 1B: Staff Management Module (Full CRUD) */}
       {staffTab === 'staff_roster' && <StaffManagementTab />}

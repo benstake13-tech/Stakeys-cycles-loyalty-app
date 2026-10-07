@@ -37,12 +37,19 @@ import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
 import { Toaster } from 'react-hot-toast';
 import { initOneSignal, linkUser, unlinkUser, registerEmailSubscription, ADMIN_NOTIFICATION_EMAIL } from './utils/pushNotifications';
+import { parseBookingDeepLink } from './utils/bookingNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
+
+interface StaffPortalProps {
+  /** Booking id from a notification deep link that should be opened on arrival. */
+  focusBookingId?: string | null;
+  onFocusHandled?: () => void;
+}
 
 // The entire staff area is only ever bundled into the full/staff surfaces; the
 // customer build lazily splits it out and never ships the staff code.
-const StaffPortal: React.LazyExoticComponent<React.ComponentType> = React.lazy(async () => {
-  if (!isFullSurface && !isStaffSurface) return { default: (() => null) as React.ComponentType };
+const StaffPortal: React.LazyExoticComponent<React.ComponentType<StaffPortalProps>> = React.lazy(async () => {
+  if (!isFullSurface && !isStaffSurface) return { default: (() => null) as React.ComponentType<StaffPortalProps> };
   return import('./components/StaffPortal').then((m) => ({ default: m.StaffPortal }));
 });
 
@@ -54,6 +61,17 @@ function AppContent() {
   const [publicView, setPublicView] = useState<'website' | 'login'>('website');
   const [activeTab, setActiveTab] = useState<NavTabId>('customer');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Push deep link: `?staff=1&booking=<id>` (from a tapped notification) opens
+  // the staff view and focuses that booking. Parsed once on mount.
+  const [focusBookingId, setFocusBookingId] = useState<string | null>(null);
+  const [staffDeepLinkRequested, setStaffDeepLinkRequested] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const target = parseBookingDeepLink(window.location.search);
+    if (target.bookingId) setFocusBookingId(target.bookingId);
+    if (target.staff) setStaffDeepLinkRequested(true);
+  }, []);
 
   // Secure staff unlock modal (Supabase email + password, role verified server-side)
   const [showStaffPinModal, setShowStaffPinModal] = useState(false);
@@ -122,6 +140,23 @@ function AppContent() {
     setShowStaffPassword(false);
     setShowStaffPinModal(true);
   };
+
+  // A staff-notification deep link lands here. If the device is already signed
+  // in as staff, go straight to the booking; otherwise prompt the staff unlock
+  // so the tap still routes the user to the right place after they sign in.
+  useEffect(() => {
+    if (!staffDeepLinkRequested) return;
+    const isStaffUser = currentUser?.role === 'staff' || currentUser?.role === 'admin';
+    if (isStaffUser) {
+      setActiveTab('staff');
+      setStaffDeepLinkRequested(false);
+    } else if (currentUser === null) {
+      // No session at all — offer the staff sign-in (openStaffUnlock is stable
+      // enough for this one-shot prompt).
+      openStaffUnlock();
+      setStaffDeepLinkRequested(false);
+    }
+  }, [staffDeepLinkRequested, currentUser?.uid, currentUser?.role]);
 
   const handleStaffUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -492,7 +527,10 @@ function AppContent() {
           {activeTab === 'staff' &&
             (isStaff ? (
               <React.Suspense fallback={null}>
-                <StaffPortal />
+                <StaffPortal
+                  focusBookingId={focusBookingId}
+                  onFocusHandled={() => setFocusBookingId(null)}
+                />
               </React.Suspense>
             ) : showStaffEntry ? (
               <div className={`max-w-md mx-auto rounded-3xl border p-8 text-center space-y-4 ${isDark ? 'bg-[#0d1015] border-amber-500/40' : 'bg-white border-amber-400'}`}>
