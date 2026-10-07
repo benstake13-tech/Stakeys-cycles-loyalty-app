@@ -13,6 +13,9 @@ function makeDeps(overrides: Partial<PushRepairDeps> = {}, cfg?: Partial<PushRep
     getPermission: async () => 'granted',
     requestPermission: async () => 'granted',
     getSubscriptionId: async () => 'sub-abcdef123456',
+    isSubscribed: async () => true,
+    optInSubscription: async () => 'sub-abcdef123456',
+    getConfiguredAppId: () => 'app-123',
     linkUser: vi.fn(async () => undefined),
     registerEmail: vi.fn(async () => undefined),
     sendTestPush: async () => ({ ok: true, via: 'server', envelope: { id: 'msg-1', recipients: 1 } }),
@@ -55,6 +58,46 @@ describe('runPushRepair — diagnostics', () => {
   it('warns rather than fails when permission is merely unrequested', async () => {
     const steps = await runPushRepair(makeDeps({ getPermission: async () => 'default' }), CTX);
     expect(steps.find((s) => s.id === 'permission')?.status).toBe('warn');
+  });
+});
+
+describe('runPushRepair — device opt-in & app id', () => {
+  it('opts a permission-granted but unsubscribed device back in', async () => {
+    const optInSubscription = vi.fn(async () => 'sub-xyz');
+    const deps = makeDeps({
+      isSubscribed: async () => false,
+      optInSubscription,
+    });
+    const steps = await runPushRepair(deps, CTX, { repair: true });
+    expect(optInSubscription).toHaveBeenCalledOnce();
+    const sub = steps.find((s) => s.id === 'subscription');
+    expect(sub?.status).toBe('fixed');
+    expect(sub?.detail).toMatch(/opted in/i);
+  });
+
+  it('warns about an unsubscribed device in check-only mode and does not opt in', async () => {
+    const optInSubscription = vi.fn(async () => 'sub-xyz');
+    const steps = await runPushRepair(makeDeps({ isSubscribed: async () => false, optInSubscription }), CTX, {
+      repair: false,
+    });
+    expect(optInSubscription).not.toHaveBeenCalled();
+    expect(steps.find((s) => s.id === 'subscription')?.status).toBe('warn');
+  });
+
+  it('does not opt in when permission is not granted', async () => {
+    const optInSubscription = vi.fn(async () => 'sub-xyz');
+    const steps = await runPushRepair(
+      makeDeps({ isSubscribed: async () => false, optInSubscription, getPermission: async () => 'denied' }),
+      CTX,
+      { repair: true }
+    );
+    expect(optInSubscription).not.toHaveBeenCalled();
+    expect(steps.find((s) => s.id === 'subscription')?.status).toBe('warn');
+  });
+
+  it('reports the configured App ID in the SDK step', async () => {
+    const steps = await runPushRepair(makeDeps({ getConfiguredAppId: () => 'abcd1234-efgh' }), CTX);
+    expect(steps.find((s) => s.id === 'sdk-loaded')?.detail).toContain('abcd1234');
   });
 });
 

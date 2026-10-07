@@ -35,6 +35,9 @@ export interface PushRepairDeps {
   getPermission: () => Promise<PushPermission>;
   requestPermission: () => Promise<PushPermission>;
   getSubscriptionId: () => Promise<string | null>;
+  isSubscribed: () => Promise<boolean | null>;
+  optInSubscription: () => Promise<string | null>;
+  getConfiguredAppId: () => string;
   linkUser: (userId: string, tags?: Record<string, string | number>) => Promise<void>;
   registerEmail: (email: string) => Promise<void>;
   sendTestPush: () => Promise<{
@@ -165,17 +168,25 @@ export async function runPushRepair(
     });
   }
 
-  // 2. SDK loaded.
+  // 2. SDK loaded + which App ID it is using.
   const sdkOk = await safe(() => deps.initSdk(), false);
+  const appId = deps.getConfiguredAppId();
   steps.push(
     sdkOk
-      ? { id: 'sdk-loaded', label: 'OneSignal SDK loaded', status: 'pass', detail: 'The v16 web SDK initialised.' }
+      ? {
+          id: 'sdk-loaded',
+          label: 'OneSignal SDK loaded',
+          status: 'pass',
+          detail: `The v16 web SDK initialised${appId ? ` with App ID ${appId.slice(0, 8)}…` : ''}.`,
+        }
       : {
           id: 'sdk-loaded',
           label: 'OneSignal SDK loaded',
           status: 'fail',
           detail: 'The OneSignal SDK did not initialise.',
-          hint: 'Check that index.html loads the OneSignal SDK and the app ID is correct.',
+          hint: appId
+            ? `Check that App ID ${appId.slice(0, 8)}… is a valid OneSignal app, then reload.`
+            : 'Set the App ID in the Configure Push section below, then reload.',
         }
   );
 
@@ -186,14 +197,27 @@ export async function runPushRepair(
   }
   steps.push(permissionStep(perm, repair && sdkOk));
 
-  // 4. This device's push subscription id.
-  const subId = sdkOk ? await safe(() => deps.getSubscriptionId(), null) : null;
-  if (subId) {
+  // 4. This device's push subscription — id + opt-in state (repairable).
+  let subId = sdkOk ? await safe(() => deps.getSubscriptionId(), null) : null;
+  let subscribed = sdkOk ? await safe(() => deps.isSubscribed(), null) : null;
+  if (repair && sdkOk && perm === 'granted' && subscribed === false) {
+    subId = await safe(() => deps.optInSubscription(), subId);
+    subscribed = true;
+  }
+  if (subId && subscribed !== false) {
     steps.push({
       id: 'subscription',
       label: 'Device push subscription',
-      status: 'pass',
-      detail: `Subscription ${String(subId).slice(0, 8)}… registered.`,
+      status: repair && subscribed === true ? 'fixed' : 'pass',
+      detail: `Subscription ${String(subId).slice(0, 8)}… registered and opted in.`,
+    });
+  } else if (subId && subscribed === false) {
+    steps.push({
+      id: 'subscription',
+      label: 'Device push subscription',
+      status: 'warn',
+      detail: 'This device has a subscription id but is not opted in, so it will not receive pushes.',
+      hint: 'Press “Repair & Configure Push” to opt this device back in.',
     });
   } else {
     steps.push({

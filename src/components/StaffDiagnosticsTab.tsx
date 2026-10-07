@@ -30,6 +30,10 @@ import {
   getPushPermission,
   requestPushPermission,
   getSubscriptionId,
+  isPushSubscribed,
+  optInPushSubscription,
+  getConfiguredAppId,
+  setConfiguredAppId,
   linkUser,
   registerEmailSubscription,
 } from '../utils/pushNotifications';
@@ -150,6 +154,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [fixSql, setFixSql] = useState<{ title: string; sql: string } | null>(null);
   const [pushSteps, setPushSteps] = useState<PushRepairStep[]>([]);
   const [pushBusy, setPushBusy] = useState<'check' | 'repair' | null>(null);
+  const [appIdDraft, setAppIdDraft] = useState<string>(() => getConfiguredAppId());
 
   const summary = useMemo(() => summarize(results), [results]);
 
@@ -253,6 +258,9 @@ export const StaffDiagnosticsTab: React.FC = () => {
     getPermission: getPushPermission,
     requestPermission: requestPushPermission,
     getSubscriptionId,
+    isSubscribed: isPushSubscribed,
+    optInSubscription: optInPushSubscription,
+    getConfiguredAppId,
     linkUser,
     registerEmail: registerEmailSubscription,
     sendTestPush: () =>
@@ -304,6 +312,15 @@ export const StaffDiagnosticsTab: React.FC = () => {
     } finally {
       setPushBusy(null);
     }
+  };
+
+  const handleSaveAppId = () => {
+    const changed = setConfiguredAppId(appIdDraft);
+    if (!changed) {
+      flash({ kind: 'ok', text: 'App ID unchanged.' });
+      return;
+    }
+    flash({ kind: 'ok', text: 'App ID saved. Reload the page to re-initialise OneSignal with it.' });
   };
 
   const handleHealth = async () => {
@@ -525,13 +542,13 @@ export const StaffDiagnosticsTab: React.FC = () => {
             </div>
             <div>
               <h3 className="text-base font-black text-white flex items-center gap-2">
-                Repair Push Notifications
+                Repair &amp; Configure Push Notifications
               </h3>
               <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl">
                 Runs one ordered pass over the whole push chain — server config, the OneSignal SDK, this
-                device's permission and subscription, your sign-in identity, and a live test dispatch — and
-                fixes what the browser can (permission, sign-in, email). Anything it can't fix is flagged
-                with the exact setting to change.
+                device's permission, subscription and opt-in, your sign-in identity, and a live test dispatch.
+                It fixes what the browser can (permission, device opt-in, sign-in, email) and flags the exact
+                setting to change for the rest. Use the App ID box to correct or rotate the app without a code change.
               </p>
             </div>
           </div>
@@ -552,9 +569,39 @@ export const StaffDiagnosticsTab: React.FC = () => {
               className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 disabled:cursor-wait text-neutral-950 text-sm font-black flex items-center gap-2 shadow-md shadow-sky-500/20 cursor-pointer"
             >
               {pushBusy === 'repair' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
-              <span>{pushBusy === 'repair' ? 'Repairing…' : 'Repair Push'}</span>
+              <span>{pushBusy === 'repair' ? 'Repairing…' : 'Repair & Configure Push'}</span>
             </button>
           </div>
+        </div>
+
+        {/* App ID configuration */}
+        <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+            <label className="flex-1 min-w-0">
+              <span className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
+                OneSignal App ID
+              </span>
+              <input
+                type="text"
+                value={appIdDraft}
+                onChange={(e) => setAppIdDraft(e.target.value)}
+                spellCheck={false}
+                placeholder="7f67ab94-3c85-4702-9cd8-d158cf294593"
+                className="w-full px-3 py-2 rounded-xl bg-[#0b0e12] border border-neutral-700 text-sm font-mono text-neutral-100 focus:outline-none focus:border-sky-500"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={handleSaveAppId}
+              className="shrink-0 px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-sm font-bold cursor-pointer"
+            >
+              Save App ID
+            </button>
+          </div>
+          <p className="text-[11px] text-neutral-500 mt-2">
+            Saved to this browser and applied on the next reload. Leave it blank to fall back to the
+            built-in default. The server-to-server REST key stays on the deployment only.
+          </p>
         </div>
 
         {pushSteps.length > 0 && (

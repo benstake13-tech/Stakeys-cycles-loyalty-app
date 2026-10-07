@@ -34,7 +34,7 @@ function fakeSdk(overrides: Record<string, any> = {}) {
     User: {
       addTags: vi.fn(async () => {}),
       addEmail: vi.fn(async () => {}),
-      PushSubscription: { id: 'sub-1' },
+      PushSubscription: { id: 'sub-1', optedIn: true, optIn: vi.fn(async () => {}) },
     },
     ...overrides,
   };
@@ -86,6 +86,28 @@ describe('pushNotifications (OneSignal)', () => {
     installSdk(fakeSdk());
     const { getSubscriptionId } = await load();
     expect(await getSubscriptionId()).toBe('sub-1');
+  });
+
+  it('isPushSubscribed reflects the SDK opted-in flag', async () => {
+    installSdk(fakeSdk({ User: { PushSubscription: { id: 'sub-1', optedIn: false } } }));
+    const { isPushSubscribed } = await load();
+    expect(await isPushSubscribed()).toBe(false);
+  });
+
+  it('optInPushSubscription calls optIn and returns the subscription id', async () => {
+    const sdk = installSdk(fakeSdk());
+    const { optInPushSubscription } = await load();
+    expect(await optInPushSubscription()).toBe('sub-1');
+    expect(sdk.User.PushSubscription.optIn).toHaveBeenCalled();
+  });
+
+  it('setConfiguredAppId stores, reports change, and can clear the override', async () => {
+    const { setConfiguredAppId, getConfiguredAppId } = await load();
+    expect(setConfiguredAppId('override-app')).toBe(true);
+    expect(getConfiguredAppId()).toBe('override-app');
+    expect(setConfiguredAppId('override-app')).toBe(false);
+    expect(setConfiguredAppId('')).toBe(true);
+    expect(getConfiguredAppId()).not.toBe('override-app');
   });
 
   it('getPushPermission reflects the SDK permission', async () => {

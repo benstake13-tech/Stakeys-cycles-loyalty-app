@@ -20,14 +20,24 @@
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       window.__oneSignalHeadInit = true;
-      OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.init({
-          appId: '7f67ab94-3c85-4702-9cd8-d158cf294593',
-          allowLocalhostAsSecureOrigin: true,
-          serviceWorkerPath: '/OneSignalSDKWorker.js',
-          serviceWorkerParam: { scope: '/' },
+      // A staff-set App ID override (Feature Test Bench > Repair Push) takes
+      // priority over the default so a wrong/rotated App ID can be corrected
+      // from the UI without a code change.
+      (function () {
+        var appId = '7f67ab94-3c85-4702-9cd8-d158cf294593';
+        try {
+          var override = window.localStorage.getItem('stakeys.onesignal.appId');
+          if (override && override.trim()) appId = override.trim();
+        } catch (e) {}
+        OneSignalDeferred.push(async function (OneSignal) {
+          await OneSignal.init({
+            appId: appId,
+            allowLocalhostAsSecureOrigin: true,
+            serviceWorkerPath: '/OneSignalSDKWorker.js',
+            serviceWorkerParam: { scope: '/' },
+          });
         });
-      });
+      })();
     </script>
   </head>
   <body class="bg-[#090b0e] text-neutral-100 antialiased selection:bg-[#05C147] selection:text-neutral-950 font-['Plus_Jakarta_Sans',sans-serif]">
