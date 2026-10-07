@@ -38,7 +38,7 @@ import {
   linkUser,
   registerEmailSubscription,
 } from '../utils/pushNotifications';
-import { runPushRepair, PushRepairStep, PushRepairStatus } from '../utils/pushRepair';
+import { runPushRepair, PushRepairStep, PushRepairStatus, PUSH_STEP_FIX_ACTION } from '../utils/pushRepair';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
 import {
@@ -154,7 +154,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [fixSql, setFixSql] = useState<{ title: string; sql: string } | null>(null);
   const [pushSteps, setPushSteps] = useState<PushRepairStep[]>([]);
-  const [pushBusy, setPushBusy] = useState<'check' | 'repair' | 'device' | null>(null);
+  const [pushBusy, setPushBusy] = useState<'check' | 'repair' | 'device' | string | null>(null);
   const [appIdDraft, setAppIdDraft] = useState<string>(() => getConfiguredAppId());
 
   const summary = useMemo(() => summarize(results), [results]);
@@ -310,6 +310,29 @@ export const StaffDiagnosticsTab: React.FC = () => {
       }
     } catch (e: any) {
       flash({ kind: 'err', text: e?.message || 'Push repair failed.' });
+    } finally {
+      setPushBusy(null);
+    }
+  };
+
+  /**
+   * Repairs a single step of the chain in isolation. Every step's probe is still
+   * evaluated (so the list stays complete) but only this step's repair
+   * side-effect runs — a precise "fix just this" action.
+   */
+  const handleFixStep = async (stepId: string) => {
+    setPushBusy(stepId);
+    try {
+      const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: true, only: stepId });
+      setPushSteps(steps);
+      const step = steps.find((s) => s.id === stepId);
+      if (step && (step.status === 'fail' || step.status === 'warn')) {
+        flash({ kind: 'err', text: `${step.label}: ${step.detail}` });
+      } else {
+        flash({ kind: 'ok', text: `${step?.label ?? 'Step'} repaired.` });
+      }
+    } catch (e: any) {
+      flash({ kind: 'err', text: e?.message || 'Step repair failed.' });
     } finally {
       setPushBusy(null);
     }
@@ -650,21 +673,59 @@ export const StaffDiagnosticsTab: React.FC = () => {
         </div>
 
         {pushSteps.length > 0 && (
-          <div className="mt-5 space-y-2.5">
+          <div className="mt-5 space-y-2.5" data-testid="push-steps">
             {pushSteps.map((step) => {
               const meta = PUSH_STEP_META[step.status];
+              const canFix = step.status !== 'pass' && step.status !== 'fixed';
               return (
-                <div key={step.id} className={`rounded-2xl border p-3.5 ${meta.ring}`}>
+                <div key={step.id} data-testid={`push-step-${step.id}`} className={`rounded-2xl border p-3.5 ${meta.ring}`}>
                   <div className="flex items-start gap-3">
                     <span className={`mt-0.5 shrink-0 ${meta.text}`}>{meta.icon}</span>
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-bold text-white">{step.label}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.chip}`}>
-                          {meta.label}
-                        </span>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold text-white">{step.label}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.chip}`}>
+                            {meta.label}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleFixStep(step.id)}
+                          disabled={pushBusy !== null}
+                          data-testid={`push-fix-${step.id}`}
+                          className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-bold cursor-pointer disabled:opacity-50 ${
+                            canFix
+                              ? 'border-sky-500/50 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20'
+                              : 'border-neutral-700 bg-neutral-800/40 text-neutral-400 hover:bg-neutral-800'
+                          }`}
+                        >
+                          {pushBusy === step.id ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          ) : (
+                            <Wrench className="w-3 h-3" />
+                          )}
+                          <span>{PUSH_STEP_FIX_ACTION[step.id] ?? 'Fix this step'}</span>
+                        </button>
                       </div>
                       <p className="text-xs text-neutral-300 mt-1 break-words">{step.detail}</p>
+                      {step.facts && step.facts.length > 0 && (
+                        <dl className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                          {step.facts.map((f) => (
+                            <div key={f.label} className="flex items-baseline justify-between gap-2 border-b border-neutral-800/60 pb-0.5">
+                              <dt className="text-[10px] uppercase tracking-wider text-neutral-500">{f.label}</dt>
+                              <dd
+                                className={`text-[11px] font-mono truncate ${
+                                  f.ok === false ? 'text-rose-300' : f.ok === true ? 'text-emerald-300' : 'text-neutral-300'
+                                }`}
+                                title={f.value}
+                              >
+                                {f.value}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
                       {step.hint && (
                         <p className="text-[11px] text-amber-300/90 mt-1.5 flex items-start gap-1.5">
                           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />

@@ -81,6 +81,7 @@ import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../
 import { supabase, AUTH_LINK_ON_LOAD } from '../lib/supabase';
 import {
   fetchCustomerBikesFromDb,
+  fetchCustomerBikesFromDbDetailed,
   insertCustomerBikeToDb,
   deleteCustomerBikeFromDb,
   reassignBikesToOwner,
@@ -199,6 +200,16 @@ interface ShopContextType {
   ) => Promise<CustomerBike>;
   removeCustomerBike: (bikeId: string) => Promise<void>;
   repairCustomerGarage: () => Promise<{ scanned: number; removed: number; reassigned: number }>;
+  /**
+   * Staff "Fix My Garage" for a specific customer: re-fetches their bikes
+   * strictly by UUID/membership, re-homes legacy rows, and refreshes the roster
+   * so the dossier shows the true garage. Optional `expectedMin` flags the
+   * "more bikes exist in the database than are showing" case.
+   */
+  refreshCustomerGarageForStaff: (
+    userId: string,
+    opts?: { expectedMin?: number; deleteStale?: boolean }
+  ) => Promise<{ found: number; removed: number; reassigned: number; error?: string }>;
   // Core actions
   addStamp: (customerId: string, staffId: string, bypassLimit?: boolean) => Promise<{ success: boolean; message: string }>;
   redeemReward: (customerId: string, staffId: string, rewardDescription: string) => Promise<{ success: boolean; message: string }>;
@@ -2866,7 +2877,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     }
 
-    insertCustomerBikeToDb(newBike, userId).catch((e) =>
+    insertCustomerBikeToDb(newBike, userId).then((ok) => {
+      if (!ok) {
+        // The optimistic bike would vanish on the next profile refresh (e.g. an
+        // RLS-blocked insert), so reconcile with the database truth immediately.
+        console.warn('[DB SYNC] Bike insert was rejected; re-reading the garage.');
+        refreshCustomerGarageForStaff(userId).catch(() => {});
+      }
+    }).catch((e) =>
       console.warn('[DB SYNC] Error inserting bike in DB:', e)
     );
 
@@ -2930,6 +2948,50 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUsers((prev) => prev.map((u) => (u.uid === userId ? { ...u, bikes: finalBikes } : u)));
 
     return { scanned: fresh.length, removed, reassigned };
+  };
+
+  /**
+   * Staff-side "Fix My Garage" for one customer. A persistent "bikes exist but
+   * are not showing" is almost always one of: legacy rows still keyed by the
+   * membership number instead of the profile UUID, or a local `users` entry
+   * whose `bikes` array was never refreshed. This re-homes legacy rows, re-reads
+   * strictly by UUID, updates both `users` and (when it is the signed-in user)
+   * `currentUser`, and reports any RLS/query error verbatim.
+   */
+  const refreshCustomerGarageForStaff = async (
+    userId: string,
+    opts: { expectedMin?: number; deleteStale?: boolean } = {}
+  ): Promise<{ found: number; removed: number; reassigned: number; error?: string }> => {
+    const target = users.find((u) => u.uid === userId);
+    const membership = (target?.membershipNumber || '').trim();
+
+    // 1. Re-home any rows still keyed by the bare membership number.
+    const reassigned = membership ? await reassignBikesToOwner(userId, membership) : 0;
+
+    // 2. Read strictly by UUID (+ legacy membership), reporting the raw error.
+    const { bikes: fresh, error } = await fetchCustomerBikesFromDbDetailed(userId, membership || undefined);
+
+    // 3. Drop from this customer's gallery anything the strict read did not
+    //    return (it belongs to someone else, e.g. a past leak). Skipped on the
+    //    read-only refresh the dossier runs when a profile is opened.
+    const deleteStale = opts.deleteStale !== false;
+    let removed = 0;
+    if (deleteStale) {
+      const freshIds = new Set(fresh.map((b) => b.id));
+      const staleIds = (target?.bikes || []).filter((b) => !freshIds.has(b.id)).map((b) => b.id);
+      removed = await deleteBikesByIds(userId, staleIds);
+    }
+
+    // 4. Apply the truth to the roster (and currentUser when it is the same account).
+    setUsers((prev) => prev.map((u) => (u.uid === userId ? { ...u, bikes: fresh } : u)));
+    setCurrentUser((prev) => (prev && prev.uid === userId ? { ...prev, bikes: fresh } : prev));
+
+    return {
+      found: fresh.length,
+      removed,
+      reassigned,
+      error: opts.expectedMin && fresh.length < opts.expectedMin && !error ? 'fewer-bikes-than-expected' : error,
+    };
   };
 
   const createBooking = async (
@@ -3931,6 +3993,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addCustomerBikeForUser,
         removeCustomerBike,
         repairCustomerGarage,
+        refreshCustomerGarageForStaff,
         addStamp,
         redeemReward,
         updateCustomerAvatar,

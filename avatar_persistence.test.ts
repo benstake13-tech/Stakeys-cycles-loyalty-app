@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expectedColumns, generateRepairSqlForTables } from './src/utils/schemaSync';
@@ -44,5 +44,31 @@ describe('avatar config parsing', () => {
     const parsed = parseConfigString('#05C147', 'Legacy Rider');
     expect(parsed.backdrop).toBe('emerald');
     expect(parsed.hairStyle).toBeDefined();
+  });
+});
+
+describe('avatar roster mapping', () => {
+  // The avatar editor writes profiles.avatar_color, but if the roster mapper
+  // (fetchAllProfilesFromDbDetailed) drops the column, the save looks lost after
+  // the next profiles re-fetch resets `users`. This guard pins the mapping.
+  it('maps avatar_color when copying every profile row', async () => {
+    vi.resetModules();
+    const rows = [
+      { id: 'u1', email: 'a@x.co', display_name: 'A', avatar_color: '#05C147', stamps: 0, completed_cards: 0, merit_points: 0 },
+    ];
+    vi.doMock('./src/lib/supabase', () => ({
+      getSupabaseClient: () => ({
+        from: () => {
+          const chain: any = {
+            select: () => Promise.resolve({ data: rows, error: null }),
+          };
+          return chain;
+        },
+      }),
+    }));
+    const { fetchAllProfilesFromDbDetailed } = await import('./src/api/backendDataService');
+    const { profiles } = await fetchAllProfilesFromDbDetailed();
+    expect(profiles[0].avatarColor).toBe('#05C147');
+    vi.doUnmock('./src/lib/supabase');
   });
 });
