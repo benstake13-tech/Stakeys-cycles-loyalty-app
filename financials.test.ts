@@ -8,6 +8,7 @@ import {
   isPaidWorkshopStatus,
   inRange,
   toIso,
+  formatPeriodLabel,
 } from './src/utils/financials';
 
 const sale = (over: Record<string, unknown> = {}) => ({
@@ -162,6 +163,13 @@ describe('payment labels & helpers', () => {
     expect(inRange('2026-10-06T12:00:00.000Z', '2026-10-01', '2026-10-31')).toBe(true);
     expect(inRange('2026-11-01', '2026-10-01', '2026-10-31')).toBe(false);
     expect(toIso({ seconds: 0 })).toContain('1970-01-01');
+  });
+
+  it('formats a report period label', () => {
+    expect(formatPeriodLabel('2026-10-01', '2026-10-31')).toBe('1 – 31 October 2026');
+    expect(formatPeriodLabel('2026-10-06', '2026-10-06')).toBe('6 October 2026');
+    expect(formatPeriodLabel('2026-09-15', '2026-10-14')).toBe('15 September 2026 – 14 October 2026');
+    expect(formatPeriodLabel('', '')).toBe(' → ');
   });
 });
 

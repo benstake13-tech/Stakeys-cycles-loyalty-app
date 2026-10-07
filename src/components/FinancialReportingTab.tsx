@@ -19,10 +19,12 @@ import {
   financialLedgerCsv,
   financialSummaryCsv,
   workshopPaymentLabel,
+  formatPeriodLabel,
   type FinancialChannel,
   type FinancialLedgerRow,
   type PaymentState,
 } from '../utils/financials';
+import { StakeysLogo } from './StakeysLogo';
 
 interface ShopOrder {
   id: string;
@@ -132,16 +134,95 @@ export const FinancialReportingTab: React.FC = () => {
       </span>
     );
 
+  // How the money was actually taken, so the printed report reads as a cash
+  // book rather than a single headline number.
+  const methodBreakdown = useMemo(() => {
+    const acc: Record<string, { count: number; gross: number }> = {};
+    ledger.forEach((r) => {
+      const key = r.method || 'unpaid';
+      if (!acc[key]) acc[key] = { count: 0, gross: 0 };
+      acc[key].count += 1;
+      acc[key].gross += r.total;
+    });
+    return Object.entries(acc)
+      .map(([method, v]) => ({ method, count: v.count, gross: Math.round(v.gross * 100) / 100 }))
+      .sort((a, b) => b.gross - a.gross);
+  }, [ledger]);
+
+  const methodLabel = (m: string) => {
+    switch ((m || 'unpaid').toLowerCase()) {
+      case 'unpaid':
+        return 'Unpaid / on account';
+      case 'card':
+      case 'paid_card':
+        return 'Card';
+      case 'cash':
+      case 'paid_cash':
+        return 'Cash';
+      case 'online':
+      case 'paid_online':
+        return 'Online';
+      default:
+        return workshopPaymentLabel(m);
+    }
+  };
+
   const channelMeta: Record<FinancialChannel, { label: string; icon: React.ReactNode; tone: string }> = {
     till: { label: 'Till', icon: <ShoppingCart className="w-4 h-4" />, tone: 'text-emerald-400' },
     workshop: { label: 'Workshop', icon: <Wrench className="w-4 h-4" />, tone: 'text-sky-400' },
     online: { label: 'Online', icon: <Store className="w-4 h-4" />, tone: 'text-amber-400' },
   };
 
+  const periodLabel = formatPeriodLabel(startDate, endDate);
+  const generatedAt = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+
+  // The workshop is call-out-only, so the printed document carries the public
+  // postcode only — never a customer's name, address or contact details.
+  const BUSINESS = {
+    name: "Stakey's Cycles",
+    tagline: 'Bicycle & Scooter Workshop · Repairs, Servicing & Parts',
+    location: 'Salford, Greater Manchester M6 6QS',
+    phone: '+44 7388 209102',
+    email: 'workshop@stakeyscycles.co.uk',
+    vat: 'GB 892 1049 82',
+  };
+
   const card = 'p-4 bg-neutral-900 rounded-xl border border-neutral-800 space-y-1';
 
   return (
     <div className="space-y-6">
+      {/* Print-only branded letterhead. Screen chrome (filters, buttons) is
+          dropped by the `no-print` rule; this is the reverse. */}
+      <div className="print-only hidden">
+        <div className="flex items-start justify-between gap-6 border-b-4 border-black pb-4">
+          <div className="flex items-center gap-3">
+            <StakeysLogo className="w-14 h-14" />
+            <div>
+              <div className="text-2xl font-black tracking-tight uppercase text-black">{BUSINESS.name}</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-black">{BUSINESS.tagline}</div>
+            </div>
+          </div>
+          <div className="text-right text-[11px] font-mono text-black leading-relaxed">
+            <div>{BUSINESS.location}</div>
+            <div>{BUSINESS.phone}</div>
+            <div>{BUSINESS.email}</div>
+            <div>VAT Reg: {BUSINESS.vat}</div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-end justify-between gap-6">
+          <div>
+            <div className="text-xl font-black uppercase tracking-tight text-black">Financial Report</div>
+            <div className="text-sm text-black">Income ledger &amp; tax summary</div>
+          </div>
+          <div className="text-right text-[11px] font-mono text-black leading-relaxed">
+            <div>Period: {periodLabel}</div>
+            <div>Generated: {generatedAt}</div>
+            <div>Channel: {channel === 'all' ? 'All channels' : channelMeta[channel].label} · Payment: {payment === 'all' ? 'All' : payment}</div>
+          </div>
+        </div>
+      </div>
+
       <div className="no-print flex flex-wrap items-center justify-between gap-4 p-4 bg-neutral-900 rounded-xl border border-neutral-800">
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex flex-col">
@@ -240,6 +321,25 @@ export const FinancialReportingTab: React.FC = () => {
         ))}
       </div>
 
+      {methodBreakdown.length > 0 && (
+        <div className="bg-neutral-900 rounded-xl border border-neutral-800 overflow-hidden">
+          <div className="flex items-center gap-2 p-3 border-b border-neutral-800 text-neutral-300">
+            <TrendingUp className="w-4 h-4 text-[#05C147]" />
+            <span className="text-xs font-bold uppercase tracking-wider">Takings by payment method</span>
+            <span className="text-[10px] text-neutral-500 ml-auto">money received basis</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-neutral-800">
+            {methodBreakdown.map((m) => (
+              <div key={m.method} className="p-4 bg-neutral-900 space-y-1">
+                <div className="text-[10px] text-neutral-400 uppercase">{methodLabel(m.method)}</div>
+                <div className="text-lg font-bold text-white">{money(m.gross)}</div>
+                <div className="text-[10px] text-neutral-500">{m.count} transaction{m.count === 1 ? '' : 's'}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {pendingQuotes.length > 0 && (
         <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200">
           <Clock className="w-4 h-4 shrink-0" />
@@ -262,7 +362,7 @@ export const FinancialReportingTab: React.FC = () => {
               <th className="p-3">Reference</th>
               <th className="p-3">Date</th>
               <th className="p-3">Channel</th>
-              <th className="p-3">Customer</th>
+              <th className="p-3 no-print">Customer</th>
               <th className="p-3">Detail</th>
               <th className="p-3">Payment</th>
               <th className="p-3 text-right">Net</th>
@@ -288,7 +388,7 @@ export const FinancialReportingTab: React.FC = () => {
                     {channelMeta[r.channel].icon} {channelMeta[r.channel].label}
                   </span>
                 </td>
-                <td className="p-3">{r.customer}</td>
+                <td className="p-3 no-print">{r.customer}</td>
                 <td className="p-3 text-neutral-500">{r.detail}</td>
                 <td className="p-3 whitespace-nowrap">
                   {paymentBadge(r)}
@@ -303,6 +403,115 @@ export const FinancialReportingTab: React.FC = () => {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Print-only recap and notes: the paper copy must stand alone, so it
+          repeats the headline figures and explains every term and exclusion. */}
+      <div className="print-only hidden space-y-4">
+        <div className="border-2 border-black">
+          <div className="bg-black text-white print-solid px-3 py-2 text-xs font-black uppercase tracking-widest">
+            Period totals
+          </div>
+          <table className="w-full text-left text-xs border-collapse">
+            <tbody>
+              <tr className="border-b border-black">
+                <td className="p-2 font-bold">Gross income (VAT inclusive)</td>
+                <td className="p-2 text-right font-mono">{money(totals.gross)}</td>
+                <td className="p-2 font-bold border-l border-black">Transactions</td>
+                <td className="p-2 text-right font-mono">{totals.count}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <td className="p-2">Net of VAT</td>
+                <td className="p-2 text-right font-mono">{money(totals.net)}</td>
+                <td className="p-2 border-l border-black">Paid</td>
+                <td className="p-2 text-right font-mono">{money(totals.paid)}</td>
+              </tr>
+              <tr className="border-b border-black">
+                <td className="p-2">VAT collected</td>
+                <td className="p-2 text-right font-mono">{money(totals.vat)}</td>
+                <td className="p-2 border-l border-black">Outstanding ({totals.unpaidCount})</td>
+                <td className="p-2 text-right font-mono">{money(totals.unpaid)}</td>
+              </tr>
+              <tr>
+                <td className="p-2">Net paid (cash received basis)</td>
+                <td className="p-2 text-right font-mono">{money(totals.netPaid)}</td>
+                <td className="p-2 border-l border-black">&nbsp;</td>
+                <td className="p-2">&nbsp;</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 text-xs">
+          <div className="border border-black">
+            <div className="px-2 py-1 font-black uppercase tracking-wider border-b border-black">By channel</div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-black text-[10px] uppercase">
+                  <th className="p-1.5">Channel</th>
+                  <th className="p-1.5 text-right">Gross</th>
+                  <th className="p-1.5 text-right">VAT</th>
+                  <th className="p-1.5 text-right">Unpaid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(['till', 'workshop', 'online'] as FinancialChannel[]).map((ch) => (
+                  <tr key={ch} className="border-b border-black/40">
+                    <td className="p-1.5">{channelMeta[ch].label}</td>
+                    <td className="p-1.5 text-right font-mono">{money(totals.byChannel[ch].gross)}</td>
+                    <td className="p-1.5 text-right font-mono">{money(totals.byChannel[ch].vat)}</td>
+                    <td className="p-1.5 text-right font-mono">{money(totals.byChannel[ch].unpaid)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="border border-black">
+            <div className="px-2 py-1 font-black uppercase tracking-wider border-b border-black">By payment method</div>
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-black text-[10px] uppercase">
+                  <th className="p-1.5">Method</th>
+                  <th className="p-1.5 text-right">Gross</th>
+                  <th className="p-1.5 text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {methodBreakdown.length === 0 && (
+                  <tr>
+                    <td className="p-1.5" colSpan={3}>No takings in this period.</td>
+                  </tr>
+                )}
+                {methodBreakdown.map((m) => (
+                  <tr key={m.method} className="border-b border-black/40">
+                    <td className="p-1.5">{methodLabel(m.method)}</td>
+                    <td className="p-1.5 text-right font-mono">{money(m.gross)}</td>
+                    <td className="p-1.5 text-right font-mono">{m.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="border border-black p-3 text-[10px] leading-relaxed">
+          <div className="font-black uppercase tracking-wider mb-1">Notes &amp; basis of preparation</div>
+          <ul className="list-disc pl-4 space-y-0.5">
+            <li>Figures cover the period <strong>{periodLabel}</strong> ({startDate} to {endDate}) and the filters shown above.</li>
+            <li>Counted when the work or sale is completed: till sales marked completed, workshop jobs with a signed-off invoice, and placed online shop orders. Quotes, declined and unsigned work are excluded.</li>
+            <li>Paid means settled at the time of the sale; outstanding is invoiced or sold on account and still to be collected.</li>
+            <li>VAT is taken from the stored amount where present, otherwise derived from the sale rate. Net = gross − VAT.</li>
+            {pendingQuotes.length > 0 && (
+              <li>{pendingQuotes.length} till {pendingQuotes.length === 1 ? 'quote is' : 'quotes are'} awaiting approval ({money(pendingQuotes.reduce((s, q) => s + q.grandTotal, 0))}) and is not included above.</li>
+            )}
+            <li>This printed copy is anonymised — customer names, addresses and contact details appear only in the CSV export, never on paper.</li>
+          </ul>
+        </div>
+
+        <div className="border-t-2 border-black pt-2 flex items-center justify-between text-[10px] font-mono">
+          <span>{BUSINESS.name} · {BUSINESS.location} · VAT {BUSINESS.vat}</span>
+          <span>Generated {generatedAt} · Page report</span>
+        </div>
       </div>
     </div>
   );

@@ -211,6 +211,9 @@
   .no-print {
     display: none !important;
   }
+  .print-only {
+    display: block !important;
+  }
   body {
     background: #fff !important;
   }
@@ -218,6 +221,12 @@
     color: #000 !important;
     background: transparent !important;
     box-shadow: none !important;
+  }
+  /* The universal rule above strips backgrounds; re-assert the few solid
+     branded bars so the printed report keeps its letterhead identity. */
+  .print-solid {
+    background: #000 !important;
+    color: #fff !important;
   }
 }
 
