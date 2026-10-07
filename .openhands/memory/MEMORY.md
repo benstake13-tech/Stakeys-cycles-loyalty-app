@@ -224,3 +224,10 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - pushRepair subscription step now: on repair, if granted and (optedIn===false or no sub id) it calls optInSubscription() then polls getSubscriptionId()/isSubscribed() briefly (<=1.25s) for a late device token; status fixed vs warn. Fixed a stale branch that read the pre-opt-in perm after mutation.
 - Tests: 63 files / 447. push_repair.test.ts covers optedIn:false repair AND late-token-after-optin.
 - Heads: staff-terminal 86a0c35 / main-website 9ee8c2d / customer-app b516104.
+
+## Session 18 (2026-10-06) — Weather accuracy via real place search
+- The weather widget (`src/components/weather/WeatherForecast.tsx`, rendered on all three surfaces incl. the website's 'weather' section) was ALREADY live: `src/utils/weatherService.ts` fetches Open-Meteo (key-less, CORS) with device geolocation + BigDataCloud reverse geocode. So "use real live data" was satisfied; the real gap was LOCATION accuracy — denying GPS silently fell back to Salford with no correction.
+- Fix: added manual-location support. `load/save/clearManualLocation` (localStorage `stakeys.weather.location.v1`), live place lookup via Open-Meteo's key-less geocoder (`buildGeocodeUrl`, `searchPlaces`, `placeLabel`), and `resolveWeatherLocation` precedence = saved manual → device GPS → workshop (`forceDevice` re-triggers GPS). UI: tappable location badge opens a debounced search box; choosing a place fetches + persists. Cache is now location-aware.
+- Lesson: `Number(null) === 0` (finite!) — filter geocoder rows with `r.latitude != null` BEFORE Number() or null-coordinate rows leak in as (0,0).
+- Tests: 63 files / 453. Weather endpoints verified live by curl (api.open-meteo.com, geocoding-api.open-meteo.com).
+- Heads: staff-terminal 0381417 / main-website 102cd90 / customer-app 07051fd.
