@@ -65,7 +65,7 @@ import {
 } from '../utils/notificationService';
 import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
-import { sendPushToUser, requestPushPermission, getPushPermission } from '../utils/pushNotifications';
+import { sendPushToUser, requestPushPermission, getPushPermission, adminPushTarget } from '../utils/pushNotifications';
 import { isSosBooking, sosStatusOf } from '../utils/sosRepair';
 import { isStaffSurface, isFullSurface } from '../config/surface';
 import { generateMembershipNumber } from '../api/firebaseService';
@@ -1346,13 +1346,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `🚨 New Workshop Booking: #${latest.id}`,
         `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`
       );
-      // Server-to-server push so it reaches the phone even when the app is closed.
+      // Server-to-server push to the admin inbox so the booking reaches the
+      // workshop phone even when the app is closed. Targeted by owner_email tag
+      // (the whole staff group), never a broadcast segment.
       void sendPushToUser(
-        currentUserRef.current?.uid,
+        undefined,
         `🚨 New Workshop Booking #${latest.id}`,
         `${latest.customerName} booked ${latest.serviceTitle} for ${latest.preferredDate} (${latest.preferredTimeSlot})`,
         undefined,
-        { segment: 'staff' }
+        adminPushTarget()
       );
 
       toast(
@@ -3051,11 +3053,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     }
     void sendPushToUser(
-      isStaff ? currentUser?.uid : undefined,
+      undefined,
       `🚨 New Workshop Booking #${completedBooking.id}`,
       `${completedBooking.customerName} booked ${completedBooking.serviceTitle} for ${completedBooking.preferredDate}`,
       undefined,
-      { segment: 'staff' }
+      adminPushTarget()
     );
 
     // SOS emergency repair: fire an owner-only OneSignal push (and a loud ping

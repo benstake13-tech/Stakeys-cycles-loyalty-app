@@ -37,6 +37,7 @@ import {
   setConfiguredAppId,
   linkUser,
   registerEmailSubscription,
+  adminPushTarget,
 } from '../utils/pushNotifications';
 import { runPushRepair, PushRepairStep, PushRepairStatus, PUSH_STEP_FIX_ACTION } from '../utils/pushRepair';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
@@ -209,7 +210,9 @@ export const StaffDiagnosticsTab: React.FC = () => {
       const res = await sendPushToUser(
         undefined,
         "Stakey's Cycles — Test Push",
-        'Push notifications are working on this device.'
+        'Push notifications are working on this device.',
+        undefined,
+        adminPushTarget()
       );
       if (res.ok) {
         flash({ kind: 'ok', text: `Test push sent (via ${res.via}).` });
@@ -265,7 +268,13 @@ export const StaffDiagnosticsTab: React.FC = () => {
     linkUser,
     registerEmail: registerEmailSubscription,
     sendTestPush: () =>
-      sendPushToUser(undefined, "Stakey's Cycles — Push Repair", 'Push notifications are working on this device.'),
+      sendPushToUser(
+        undefined,
+        "Stakey's Cycles — Push Repair",
+        'Push notifications are working on this device.',
+        undefined,
+        adminPushTarget()
+      ),
   };
 
   const pushRepairContext = {
