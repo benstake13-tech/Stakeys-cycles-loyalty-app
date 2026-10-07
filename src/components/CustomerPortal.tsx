@@ -541,7 +541,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                           <span className="text-emerald-400 font-bold block">Estimated Quote: £{b.quotedPrice.toFixed(2)}</span>
                           <p className="text-neutral-300 italic">"{b.quoteNote}"</p>
                           <a
-                            href={`https://wa.me/447911882910?text=${encodeURIComponent(`Hi Stakey's Cycles, regarding my booking #${b.id}. I have questions about the quote of £${b.quotedPrice.toFixed(2)} and would like to share more info/photos.`)}`}
+                            href={`https://wa.me/447388209102?text=${encodeURIComponent(`Hi Stakey's Cycles, regarding my booking #${b.id}. I have questions about the quote of £${b.quotedPrice.toFixed(2)} and would like to share more info/photos.`)}`}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-block mt-2 px-3 py-1 bg-[#25D366] text-white rounded-lg font-bold text-[10px]"

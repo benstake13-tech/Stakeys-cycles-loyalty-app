@@ -13,6 +13,9 @@ import {
   modelsForBrand,
   brandProfileFor,
   isCustomModel,
+  brandSections,
+  isScooterBrand,
+  UNKNOWN_BRAND_NAMES,
 } from './src/data/bikeCatalog';
 import {
   toBikeDetails,
@@ -85,6 +88,37 @@ describe('bike catalogue integrity', () => {
     Object.entries(BRAND_MODELS_MAP).forEach(([brand, models]) => {
       expect(models.length, `${brand} has no models`).toBeGreaterThan(0);
     });
+  });
+
+  it('splits the brands into alphabetical e-scooter and bike sections', () => {
+    const { scooters, bikes, unknown } = brandSections();
+    expect(scooters.length).toBeGreaterThan(0);
+    expect(bikes.length).toBeGreaterThan(scooters.length);
+    // Every real brand appears in at least one section; the escape hatches are kept apart.
+    const known = BIKE_BRAND_PROFILES.filter((b) => !UNKNOWN_BRAND_NAMES.includes(b.name));
+    const covered = new Set([...scooters, ...bikes].map((b) => b.name));
+    known.forEach((b) => expect(covered.has(b.name)).toBe(true));
+    expect(unknown.map((b) => b.name)).toContain('Other / Not Listed');
+    // Both sections are sorted A→Z, ignoring case.
+    const alphabetical = (list: typeof scooters) =>
+      list.every((b, i) => i === 0 || list[i - 1].name.localeCompare(b.name, 'en', { sensitivity: 'base' }) <= 0);
+    expect(alphabetical(scooters)).toBe(true);
+    expect(alphabetical(bikes)).toBe(true);
+    // Xiaomi is a scooter-only maker, so it must not appear in the bike section.
+    expect(scooters.some((b) => b.name === 'Xiaomi')).toBe(true);
+    expect(bikes.some((b) => b.name === 'Xiaomi')).toBe(false);
+    // Pure Electric builds both, so it shows in each section.
+    expect(scooters.some((b) => b.name === 'Pure Electric')).toBe(true);
+    expect(bikes.some((b) => b.name === 'Pure Electric')).toBe(true);
+  });
+
+  it('never treats the "not sure" escape hatches as real brands', () => {
+    const { scooters, bikes } = brandSections();
+    [...scooters, ...bikes].forEach((b) => {
+      expect(UNKNOWN_BRAND_NAMES).not.toContain(b.name);
+    });
+    expect(isScooterBrand(brandProfileFor('Xiaomi')!)).toBe(true);
+    expect(isScooterBrand(brandProfileFor('Trek')!)).toBe(false);
   });
 });
 

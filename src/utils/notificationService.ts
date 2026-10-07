@@ -1,5 +1,7 @@
 import { ServiceBooking, OwnerNotificationConfig, BookingNotificationLog } from '../types/bikeShop';
 import { getSupabaseClient } from '../lib/supabase';
+import { vehicleNouns } from './vehicleType';
+import { shouldSendBookingEmail } from './bookingEmailLedger';
 
 export interface DispatchResult {
   emailLog: BookingNotificationLog;
@@ -142,7 +144,7 @@ export function generateBookingEmailHtml(booking: ServiceBooking, config: OwnerN
  * Generates branded HTML email sent to customer confirming booking submission
  */
 export function generateCustomerBookingEmailHtml(booking: ServiceBooking, config: OwnerNotificationConfig): string {
-  const shopPhone = config.ownerPhone || '+44 7700 900821';
+  const shopPhone = config.ownerPhone || '+44 7388 209102';
   const shopEmail = config.ownerEmail || 'workshop@stakeyscycles.com';
 
   return `
@@ -243,8 +245,9 @@ export function generateCustomerBookingEmailHtml(booking: ServiceBooking, config
  * Generates 24-Hour Automated Reminder Email for Customer
  */
 export function generateCustomer24hReminderEmailHtml(booking: ServiceBooking, config: OwnerNotificationConfig): string {
-  const shopPhone = config.ownerPhone || '+44 7700 900821';
+  const shopPhone = config.ownerPhone || '+44 7388 209102';
   const shopEmail = config.ownerEmail || 'workshop@stakeyscycles.com';
+  const v = vehicleNouns(booking.vehicleCategory);
 
   return `
 <!DOCTYPE html>
@@ -275,7 +278,7 @@ export function generateCustomer24hReminderEmailHtml(booking: ServiceBooking, co
       <td style="padding: 28px 24px;">
         <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 8px 0;">Hi ${booking.customerName},</h2>
         <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
-          This is a friendly reminder that your scheduled service slot is in approximately 24 hours at <strong>Stakey's Cycles &amp; Scooter Workshop</strong>.
+          This is a friendly reminder that the scheduled service slot for your ${v.noun} is in approximately 24 hours at <strong>Stakey's Cycles &amp; Scooter Workshop</strong>.
         </p>
 
         <!-- Slot Card -->
@@ -304,7 +307,7 @@ export function generateCustomer24hReminderEmailHtml(booking: ServiceBooking, co
         <h3 style="color: #d4d4d8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">Drop-Off Information</h3>
         <ul style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 24px 0; padding-left: 20px;">
           <li>Location: <strong>Unit 4, Workshop Lane, Stakey's Workshop</strong>.</li>
-          <li>For E-Bikes and E-Scooters, please bring your battery key and charger.</li>
+          ${v.category === 'ebike' || v.category === 'electric_scooter' ? '<li>Please bring your battery key and charger for your ' + v.noun + '.</li>' : ''}
           <li>Need to reschedule? Reply directly to this email or call <strong style="color: #ffffff;">${shopPhone}</strong>.</li>
         </ul>
 
@@ -508,6 +511,9 @@ export async function dispatchBookingNotifications(
       : 'email alerts are turned off in workshop settings';
     failures.push(`Workshop booking alert not sent: ${reason}.`);
     console.warn(`[STAKEYS EMAIL ENGINE] ⚠️ Skipped workshop alert — ${reason}.`);
+  } else if (!shouldSendBookingEmail(booking.id, 'booking_confirmation')) {
+    // This booking's confirmation has already been dispatched — never send twice.
+    console.log(`[STAKEYS EMAIL ENGINE] ↺ Skipped duplicate confirmation for booking #${booking.id}.`);
   } else {
     try {
       const supabase = getSupabaseClient();
@@ -635,8 +641,45 @@ export async function dispatch24hReminderNotification(
     notifications: [...(booking.notifications || []), customerReminderLog, ownerReminderLog],
   };
 
-  console.log(`[24H REMINDER ENGINE] ⏰ Sent 24h Reminder Email to Customer (${booking.customerEmail})`);
-  console.log(`[24H REMINDER ENGINE] ⏰ Sent 24h Reminder Email to Workshop (${config.ownerEmail})`);
+  // The 24h reminder is dispatched at most once per booking, even if several
+  // devices run the background reminder check at the same time.
+  if (!shouldSendBookingEmail(booking.id, 'reminder_24h')) {
+    console.log(`[24H REMINDER ENGINE] ↺ Skipped duplicate reminder for booking #${booking.id}.`);
+    return { customerReminderLog, ownerReminderLog, updatedBooking };
+  }
+
+  const supabase = getSupabaseClient();
+  const reminderHtml: Record<string, string> = {
+    customer: generateCustomer24hReminderEmailHtml(booking, config),
+    owner: generateOwner24hReminderEmailHtml(booking, config),
+  };
+
+  const sends = [
+    { to: booking.customerEmail, subject: customerReminderLog.subject, html: reminderHtml.customer, who: 'customer' },
+    ...(config.ownerEmail
+      ? [{ to: config.ownerEmail, subject: ownerReminderLog.subject, html: reminderHtml.owner, who: 'workshop' }]
+      : []),
+  ].filter((send): send is { to: string; subject: string; html: string; who: string } => Boolean(send.to));
+
+  for (const send of sends) {
+    try {
+      const { error } = await supabase.functions.invoke('send-email', {
+        body: {
+          from: 'noreply@stakeyscycles.co.uk',
+          to: send.to,
+          subject: send.subject,
+          html: send.html,
+        },
+      });
+      if (error) {
+        console.error(`[24H REMINDER ENGINE] ❌ ${send.who} reminder failed: ${error.message}`);
+      } else {
+        console.log(`[24H REMINDER ENGINE] ⏰ Sent 24h Reminder Email to ${send.who} (${send.to})`);
+      }
+    } catch (err) {
+      console.error(`[24H REMINDER ENGINE] Failed to send ${send.who} reminder:`, err);
+    }
+  }
 
   return {
     customerReminderLog,
@@ -653,8 +696,9 @@ export function generateBookingApprovalEmailHtml(
   staffNote?: string,
   config?: OwnerNotificationConfig
 ): string {
-  const shopPhone = config?.ownerPhone || '+44 7700 900821';
+  const shopPhone = config?.ownerPhone || '+44 7388 209102';
   const shopEmail = config?.ownerEmail || 'workshop@stakeyscycles.com';
+  const v = vehicleNouns(booking.vehicleCategory);
 
   return `
 <!DOCTYPE html>
@@ -685,7 +729,7 @@ export function generateBookingApprovalEmailHtml(
       <td style="padding: 28px 24px;">
         <h2 style="color: #ffffff; font-size: 20px; margin: 0 0 8px 0;">Great news, ${booking.customerName}!</h2>
         <p style="color: #d4d4d8; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
-          Our workshop mechanics have reviewed your service request. Your repair appointment has been <strong style="color: #05C147;">OFFICIALLY APPROVED</strong> and scheduled on our workbench.
+          Our workshop mechanics have reviewed your service request. Your ${v.noun} repair appointment has been <strong style="color: #05C147;">OFFICIALLY APPROVED</strong> and scheduled on our workbench.
         </p>
 
         <!-- Booking Summary Card -->
@@ -719,7 +763,7 @@ export function generateBookingApprovalEmailHtml(
           <div style="color: #6ee7b7; font-size: 12px; font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Your Estimated Quote</div>
           ${booking.quoteNote ? `<div style="color: #ecfdf5; font-size: 13px; line-height: 1.6;">${booking.quoteNote}</div>` : ''}
           <div style="margin-top: 8px; color: #34d399; font-size: 16px; font-weight: 800;">Estimated Total: £${booking.quotedPrice.toFixed(2)}</div>
-          <div style="margin-top: 4px; color: #a7f3d0; font-size: 11px;">This is an estimate. The final price is confirmed once we have inspected your vehicle.</div>
+          <div style="margin-top: 4px; color: #a7f3d0; font-size: 11px;">This is an estimate. The final price is confirmed once we have inspected your ${v.noun}.</div>
         </div>
         ` : ''}
 
@@ -733,8 +777,8 @@ export function generateBookingApprovalEmailHtml(
         <!-- Drop-off instructions -->
         <h3 style="color: #d4d4d8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">Drop-Off Instructions</h3>
         <ul style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 24px 0; padding-left: 20px;">
-          <li>Please bring your vehicle to <strong>Stakey's Workshop (Unit 4, Workshop Lane)</strong> during your booked window.</li>
-          <li>For E-Bikes and E-Scooters, remember to bring the battery key and charging cable.</li>
+          <li>Please bring your ${v.noun} to <strong>Stakey's Workshop (Unit 4, Workshop Lane)</strong> during your booked window.</li>
+          ${v.category === 'ebike' || v.category === 'electric_scooter' ? '<li>Remember to bring the battery key and charging cable for your ' + v.noun + '.</li>' : ''}
           <li>All notifications and status updates are communicated exclusively via email to <strong style="color: #ffffff;">${booking.customerEmail}</strong>.</li>
         </ul>
 
@@ -774,8 +818,9 @@ export function generateBookingDeclinedEmailHtml(
   reason?: string,
   config?: OwnerNotificationConfig
 ): string {
-  const shopPhone = config?.ownerPhone || '+44 7700 900821';
+  const shopPhone = config?.ownerPhone || '+44 7388 209102';
   const shopEmail = config?.ownerEmail || 'workshop@stakeyscycles.com';
+  const v = vehicleNouns(booking.vehicleCategory);
   const declineExplanation = reason || 'Our workshop workbench is currently at maximum capacity for the requested date and time.';
 
   return `
@@ -822,7 +867,7 @@ export function generateBookingDeclinedEmailHtml(
         <!-- Next Steps -->
         <h3 style="color: #d4d4d8; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px 0;">How We Can Still Help You</h3>
         <p style="color: #a1a1aa; font-size: 13px; line-height: 1.6; margin: 0 0 20px 0;">
-          We would love to get your ${booking.vehicleModel} repaired as soon as possible. Please reply directly to this email or call our workshop to choose an alternative date. We often have walk-in emergency slots or dates later in the week!
+          We would love to get your ${v.noun} repaired as soon as possible. Please reply directly to this email or call our workshop to choose an alternative date. We often have walk-in emergency slots or dates later in the week!
         </p>
 
         <!-- Action Buttons -->
@@ -875,6 +920,12 @@ export async function dispatchBookingApprovalNotification(
     status: 'delivered',
   };
 
+  // Approving the same booking twice must not email the customer twice.
+  if (!shouldSendBookingEmail(booking.id, 'booking_approved')) {
+    console.log(`[APPROVAL NOTIFICATION] ↺ Skipped duplicate approval email for booking #${booking.id}.`);
+    return { emailLog, sent: true };
+  }
+
   try {
     const supabase = getSupabaseClient();
     const { error } = await supabase.functions.invoke('send-email', {
@@ -920,6 +971,12 @@ export async function dispatchBookingDeclinedNotification(
     timestamp: now,
     status: 'delivered',
   };
+
+  // Declining the same booking twice must not email the customer twice.
+  if (!shouldSendBookingEmail(booking.id, 'booking_declined')) {
+    console.log(`[DECLINE NOTIFICATION] ↺ Skipped duplicate decline email for booking #${booking.id}.`);
+    return { emailLog };
+  }
 
   try {
     const supabase = getSupabaseClient();

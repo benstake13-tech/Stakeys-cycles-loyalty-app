@@ -1039,3 +1039,30 @@ export function isCustomModel(model: string): boolean {
   const m = (model || '').toLowerCase();
   return m.includes('other') || m.includes('custom build') || m.includes('vintage');
 }
+
+/** Brands that are really "not sure" escape hatches rather than real makers. */
+export const UNKNOWN_BRAND_NAMES = ['Other / Not Listed', 'I Don’t Know My Brand'];
+
+/** True when a brand builds e-scooters (a brand can build both, e.g. Pure Electric). */
+export function isScooterBrand(profile: BikeBrandProfile): boolean {
+  return profile.types.includes('E-Scooter');
+}
+
+/**
+ * Splits the brand catalogue into the two digestible sections the picker shows:
+ * e-scooter makers and bike makers (bikes, e-bikes, cargo). Each list is sorted
+ * alphabetically so a rider can scan it quickly. A brand that builds both — e.g.
+ * Pure Electric — appears in each section; a scooter-only maker (Xiaomi) does
+ * not show under Bikes. Both keep the "Other / Not Listed" escape hatches apart.
+ */
+export function brandSections(): { scooters: BikeBrandProfile[]; bikes: BikeBrandProfile[]; unknown: BikeBrandProfile[] } {
+  const byName = (a: BikeBrandProfile, b: BikeBrandProfile) =>
+    a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+  const known = BIKE_BRAND_PROFILES.filter((b) => !UNKNOWN_BRAND_NAMES.includes(b.name));
+  const isScooterOnly = (b: BikeBrandProfile) => b.types.every((t) => t === 'E-Scooter');
+  return {
+    scooters: known.filter(isScooterBrand).sort(byName),
+    bikes: known.filter((b) => !isScooterOnly(b)).sort(byName),
+    unknown: BIKE_BRAND_PROFILES.filter((b) => UNKNOWN_BRAND_NAMES.includes(b.name)),
+  };
+}

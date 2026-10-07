@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RotateCcw, Wrench, Phone, Mail } from 'lucide-react';
 import { StakeysLogo } from './StakeysLogo';
+import { isStaffSurface } from '../config/surface';
 
 interface Props {
   children: ReactNode;
@@ -53,9 +54,15 @@ export class ErrorBoundary extends Component<Props, State> {
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 <span>An unexpected issue occurred:</span>
               </div>
-              <p className="font-mono text-[11px] text-neutral-300 break-words">
-                {this.state.error?.message || 'Unknown render error'}
-              </p>
+              {isStaffSurface ? (
+                <p className="font-mono text-[11px] text-neutral-300 break-words">
+                  {this.state.error?.message || 'Unknown render error'}
+                </p>
+              ) : (
+                <p className="text-[11px] text-neutral-300">
+                  Something went wrong loading this page. Please refresh, or contact us using the details below and we will help you straight away.
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col gap-2.5">

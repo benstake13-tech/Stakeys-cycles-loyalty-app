@@ -209,6 +209,13 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
     { id: 'home', label: 'Home', icon: Globe, tone: 'emerald' },
     { id: 'location', label: 'Location', icon: MapPin, tone: 'sky' },
     { id: 'shop', label: 'Shop', icon: Store, tone: 'amber' },
+    {
+      id: 'offers',
+      label: 'Offers',
+      icon: Tag,
+      tone: 'emerald',
+      badge: liveDiscountCodes.length > 0 ? liveDiscountCodes.length : undefined,
+    },
     { id: 'faqs', label: 'FAQs', icon: MessageCircle, tone: 'neutral' },
     { id: 'gallery', label: 'Gallery', icon: Bike, tone: 'sky' },
     { id: 'priceList', label: 'price list', icon: BadgePoundSterling, tone: 'amber' },
@@ -217,6 +224,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
 
   const call = `tel:${content.phone}`;
   const mail = `mailto:${content.email}`;
+  const whatsapp = `https://wa.me/447388209102?text=${encodeURIComponent(
+    "Hi Stakey's Cycles, I'd like to ask about a repair."
+  )}`;
 
   const groupedPriceRows = (scope: 'bike' | 'scooter') =>
     content.priceList.filter((r) => r.scope === scope).reduce<Record<string, typeof content.priceList>>((acc, row) => {
@@ -319,6 +329,52 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
 
 
 
+  const promotionsPanel = (
+    <div className={`rounded-2xl border p-4 shadow-sm space-y-3 ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Tag className="w-4 h-4 text-emerald-400" />
+          <span className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>
+            Live Promotions
+          </span>
+        </div>
+        <span className={`text-[10px] font-bold ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+          {livePromotions.length} running
+        </span>
+      </div>
+      {livePromotions.length === 0 ? (
+        <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+          No promotions running right now — check back soon.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {livePromotions.map((promo) => (
+            <div
+              key={promo.id}
+              className="rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-transparent p-3 space-y-1"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className={`text-[11px] font-black uppercase tracking-wider ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+                  {promo.title}
+                </span>
+                <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-neutral-950">
+                  {promo.badgeText}
+                </span>
+              </div>
+              <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>{promo.subtitle}</p>
+              <div className="flex items-center gap-2 pt-0.5">
+                <span className={`rounded-lg border border-dashed px-2 py-0.5 text-[10px] font-mono font-bold ${isDark ? 'border-neutral-600 text-neutral-200' : 'border-neutral-300 text-neutral-700'}`}>
+                  {promo.code}
+                </span>
+                <span className={`text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>Ends {promo.endDate}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const heroCard = (
     <div className={`relative overflow-hidden rounded-[2rem] border shadow-2xl ${isDark ? 'border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black' : 'border-neutral-200 bg-gradient-to-br from-white via-emerald-50/40 to-white'}`}>
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
@@ -377,50 +433,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
             </a>
           </div>
         </div>
-        <div className={`rounded-2xl border p-4 shadow-sm space-y-3 ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Tag className="w-4 h-4 text-emerald-400" />
-              <span className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>
-                Live Promotions
-              </span>
-            </div>
-            <span className={`text-[10px] font-bold ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-              {livePromotions.length} running
-            </span>
-          </div>
-          {livePromotions.length === 0 ? (
-            <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-              No promotions running right now — check back soon.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {livePromotions.map((promo) => (
-                <div
-                  key={promo.id}
-                  className="rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-transparent p-3 space-y-1"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-[11px] font-black uppercase tracking-wider ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                      {promo.title}
-                    </span>
-                    <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-neutral-950">
-                      {promo.badgeText}
-                    </span>
-                  </div>
-                  <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>{promo.subtitle}</p>
-                  <div className="flex items-center gap-2 pt-0.5">
-                    <span className={`rounded-lg border border-dashed px-2 py-0.5 text-[10px] font-mono font-bold ${isDark ? 'border-neutral-600 text-neutral-200' : 'border-neutral-300 text-neutral-700'}`}>
-                      {promo.code}
-                    </span>
-                    <span className={`text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>Ends {promo.endDate}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
+        {promotionsPanel}
         {couponPanel}
       </div>
     </div>
@@ -469,6 +482,54 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
           <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{body}</p>
         </div>
       ))}
+    </div>
+  );
+
+  const discountStrip = liveDiscountCodes.length > 0 && (
+    <div className={`rounded-3xl border p-5 sm:p-6 shadow-lg ${isDark ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <BadgePoundSterling className="w-5 h-5 text-emerald-500" />
+          <h3 className={`text-base font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+            Current discount codes
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={() => setPage('offers')}
+          className="pressable inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/50 px-3 py-1.5 text-[11px] font-bold text-emerald-500 cursor-pointer"
+        >
+          <Tag className="w-3.5 h-3.5" /> See all offers
+        </button>
+      </div>
+      <p className={`text-xs leading-relaxed mt-1.5 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+        Tap a code to drop it straight into your basket — public codes work for everyone, member codes unlock when you sign in.
+      </p>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        {liveDiscountCodes.slice(0, 4).map((coupon) => (
+          <button
+            key={coupon.id}
+            type="button"
+            onClick={() => useCoupon(coupon)}
+            className={`pressable text-left rounded-2xl border p-3 space-y-1 cursor-pointer transition-colors ${
+              isDark
+                ? 'border-neutral-800 bg-neutral-900/70 hover:border-emerald-500/50'
+                : 'border-neutral-200 bg-white/80 hover:border-emerald-500/50'
+            }`}
+          >
+            <span className="block rounded-lg border border-dashed border-emerald-500/50 px-2 py-1 font-mono text-[11px] font-black text-emerald-500 text-center">
+              {coupon.code}
+            </span>
+            <span className={`block text-[11px] font-bold leading-snug ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>
+              {coupon.title}
+            </span>
+            <span className={`block text-[10px] font-bold ${coupon.audience === 'member' ? 'text-emerald-400' : isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+              {coupon.type === 'percent' ? `${coupon.value}% off` : `£${coupon.value} off`}
+              {coupon.audience === 'member' ? ' · Members' : ''}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 
@@ -904,8 +965,11 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
                 </ul>
               )}
               <div className="flex flex-wrap gap-2.5 mt-4">
+                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pressable inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 cursor-pointer">
+                  <MessageCircle className="w-4 h-4" /> WhatsApp Us
+                </a>
                 <a href={call} className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer">
-                  <Phone className="w-4 h-4" /> Call / Text / WhatsApp
+                  <Phone className="w-4 h-4" /> Call / Text
                 </a>
                 <a href={mail} className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer">
                   <MessageCircle className="w-4 h-4" /> Email Us
@@ -1045,6 +1109,61 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
             {footerBar}
           </div>
         );
+      case 'offers':
+        return (
+          <div className="space-y-6">
+            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
+              <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${isDark ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                <Tag className="w-3.5 h-3.5" />
+                Save on repairs &amp; parts
+              </span>
+              <h3 className={`mt-3 text-2xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                Discount codes &amp; offers
+              </h3>
+              <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                Use a code below at the basket, or mention it when you drop your bike in. Every code is checked
+                against your basket automatically — no need to remember the small print.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+              {promotionsPanel}
+              {couponPanel}
+            </div>
+
+            <div className={`rounded-2xl border p-5 ${isDark ? 'border-neutral-800 bg-neutral-900/50' : 'border-neutral-200 bg-white/70'}`}>
+              <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>How to use a code</h4>
+              <ol className={`mt-3 space-y-2 text-sm ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
+                <li className="flex gap-2.5">
+                  <span className="text-emerald-500 font-bold shrink-0">1.</span>
+                  <span>Add the parts or bikes you want to the basket, or start a repair booking.</span>
+                </li>
+                <li className="flex gap-2.5">
+                  <span className="text-emerald-500 font-bold shrink-0">2.</span>
+                  <span>Tap <strong>Use this code</strong> on an offer, or type it into the basket code box.</span>
+                </li>
+                <li className="flex gap-2.5">
+                  <span className="text-emerald-500 font-bold shrink-0">3.</span>
+                  <span>Watch the discount come off your total before you check out.</span>
+                </li>
+              </ol>
+              <div className="flex flex-wrap gap-2.5 mt-5">
+                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pressable inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 cursor-pointer">
+                  <MessageCircle className="w-4 h-4" /> Ask about an offer
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPage('shop')}
+                  className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer"
+                >
+                  <Store className="w-4 h-4" /> Browse the shop
+                </button>
+              </div>
+            </div>
+
+            {footerBar}
+          </div>
+        );
       case 'join':
         return (
           <div className="space-y-6">
@@ -1077,6 +1196,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         return (
           <div className="space-y-6">
             {heroCard}
+            {discountStrip}
             {valueBand}
             {reviewCard}
             {footerBar}

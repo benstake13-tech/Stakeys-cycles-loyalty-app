@@ -47,6 +47,12 @@ describe('website coupon panel', () => {
     expect(screen.getAllByText(/Use this code/i).length).toBeGreaterThan(0);
   });
 
+  it('surfaces the current codes on the home page with a route to all offers', () => {
+    render(<WebsiteReplica onBookService={vi.fn()} />);
+    expect(screen.getByText(/Current discount codes/i)).toBeTruthy();
+    expect(screen.getByText(/See all offers/i)).toBeTruthy();
+  });
+
   it('recovers codes on a pre-migration DB where the audience column is missing', () => {
     // The live rows exist but read back with no audience tag (42703 on the
     // column), which previously made the panel show "0 available".

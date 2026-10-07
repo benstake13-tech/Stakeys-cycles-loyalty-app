@@ -135,14 +135,14 @@ export const ServiceStatusBadge: React.FC<ServiceStatusBadgeProps> = ({ variant 
           type="button"
           onClick={() => setIsModalOpen(true)}
           className="flex items-center gap-1.5 px-2 py-1 bg-slate-900/60 border border-slate-800 rounded-md text-[10px] text-slate-400 font-mono transition-all hover:bg-slate-800/60 cursor-pointer"
-          title="Click to view Supabase & Backend Diagnostics"
+          title="Click to view backend diagnostics"
         >
           <span
             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
               isSupaOnline || isPbOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400'
             }`}
           />
-          <span>{isSupaOnline ? 'Supabase: Online' : isPbOnline ? 'PocketBase: Online' : 'Backend Setup'}</span>
+          <span>{isSupaOnline || isPbOnline ? 'Backend: Online' : 'Backend Setup'}</span>
           {isSupaOnline && supabaseStatus.latencyMs !== undefined && (
             <span className="text-slate-600">({supabaseStatus.latencyMs}ms)</span>
           )}

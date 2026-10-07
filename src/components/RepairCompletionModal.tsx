@@ -30,6 +30,7 @@ import {
 } from '../data/repairChecklistCatalog';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { calculateInvoiceTotals } from '../utils/invoiceService';
+import { auditInvoiceAgainstBooking, bookingSymptomLabels, seedInvoiceLineItemsFromBooking } from '../utils/invoiceAccuracy';
 import {
   validateDiscountCode,
   findDiscountCode,
@@ -75,17 +76,10 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
     if (existingInvoice && existingInvoice.items.length > 0) {
       return existingInvoice.items;
     }
-    // Default initial labour item
-    return [
-      {
-        id: `item-${Date.now()}-1`,
-        description: `${booking.serviceTitle || 'Workshop Service & Inspection'} (Labour)`,
-        category: 'Labour',
-        quantity: 1,
-        unitPrice: 35.0,
-        total: 35.0,
-      },
-    ];
+    // Seed a line per reported symptom so the invoice starts from the actual
+    // completed job, not a single generic labour line. Prices stay at 0 for the
+    // mechanic to complete.
+    return seedInvoiceLineItemsFromBooking(booking, (i) => `item-${Date.now()}-${i + 1}`);
   });
 
   // 3. Tax, Vouchers & Mechanic Info
@@ -113,6 +107,20 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
   const totals = useMemo(() => {
     return calculateInvoiceTotals(lineItems, vatRate, combinedDiscount);
   }, [lineItems, vatRate, combinedDiscount]);
+
+  // Live check that the invoice still accounts for the completed job: every
+  // reported symptom is covered and the job is actually priced.
+  const accuracyAudit = useMemo(
+    () =>
+      auditInvoiceAgainstBooking(booking, {
+        items: lineItems,
+        reportedSymptoms: bookingSymptomLabels(booking),
+        subtotal: totals.subtotal,
+        grandTotal: totals.grandTotal,
+        voucherDiscount: totals.voucherDiscount,
+      } as RepairInvoice),
+    [booking, lineItems, totals.subtotal, totals.grandTotal, totals.voucherDiscount]
+  );
 
   const applyInvoiceDiscount = (raw: string) => {
     const code = findDiscountCode(raw, discountCodes || []);
@@ -235,6 +243,15 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
       return;
     }
 
+    // The invoice must be an accurate record of the completed job.
+    if (!accuracyAudit.ok) {
+      toast.error(
+        `Invoice does not yet match the completed job:\n• ${accuracyAudit.issues.join('\n• ')}`,
+        { duration: 7000 }
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const invoiceNumber = existingInvoice?.invoiceNumber || `INV-2026-${Date.now().toString().slice(-4)}`;
@@ -254,6 +271,7 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
         vehicleCategory: booking.vehicleCategory,
         items: lineItems,
         checklistSignoff: checklist,
+        reportedSymptoms: bookingSymptomLabels(booking),
         labourSubtotal: totals.labourSubtotal,
         partsSubtotal: totals.partsSubtotal,
         subtotal: totals.subtotal,
@@ -372,6 +390,49 @@ export const RepairCompletionModal: React.FC<RepairCompletionModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Live accuracy check: does the invoice bill the completed job? */}
+          <div
+            className={`p-3.5 rounded-2xl border space-y-1.5 ${
+              accuracyAudit.ok
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : 'bg-amber-500/10 border-amber-500/30'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {accuracyAudit.ok ? (
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-amber-400" />
+              )}
+              <span
+                className={`text-[11px] font-bold uppercase tracking-wider ${
+                  accuracyAudit.ok ? 'text-emerald-300' : 'text-amber-300'
+                }`}
+              >
+                {accuracyAudit.ok
+                  ? 'Invoice matches the completed job'
+                  : `Invoice needs attention (${accuracyAudit.issues.length})`}
+              </span>
+            </div>
+            {!accuracyAudit.ok && (
+              <ul className="space-y-1 pl-1">
+                {accuracyAudit.issues.map((issue, idx) => (
+                  <li key={idx} className="text-[11px] text-amber-200 flex gap-1.5">
+                    <span aria-hidden="true">•</span>
+                    <span>{issue}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {accuracyAudit.ok && accuracyAudit.coveredSymptoms.length > 0 && (
+              <p className="text-[11px] text-emerald-200/90">
+                All {accuracyAudit.coveredSymptoms.length} reported symptom
+                {accuracyAudit.coveredSymptoms.length === 1 ? '' : 's'} covered · Total £
+                {totals.grandTotal.toFixed(2)}
+              </p>
+            )}
+          </div>
 
           {/* SECTION 1: Repair Completion & Safety Checklist */}
           <div className="space-y-3">

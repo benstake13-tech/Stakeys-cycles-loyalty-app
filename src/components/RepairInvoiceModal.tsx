@@ -178,7 +178,7 @@ export const RepairInvoiceModal: React.FC<RepairInvoiceModalProps> = ({
 
               <div className="text-xs text-neutral-600 mt-3 space-y-0.5 font-mono">
                 <div>14 High Street, Bideford, Devon EX39 2AA</div>
-                <div>Tel: +44 7911 882910 · workshop@stakeyscycles.co.uk</div>
+                <div>Tel: +44 7388 209102 · workshop@stakeyscycles.co.uk</div>
                 <div>VAT Reg: GB 892 1049 82 · Master Bench #412</div>
               </div>
             </div>

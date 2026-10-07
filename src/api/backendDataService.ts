@@ -19,6 +19,7 @@ import {
   SaleTransaction,
   RepairStageId,
   RepairProgressEvent,
+  RepairInvoice,
   StaffMember,
   ShopPromotion,
 } from '../types/bikeShop';
@@ -286,6 +287,7 @@ export async function fetchServiceBookingsFromDb(
         repairStage: (row.repair_stage as RepairStageId) || undefined,
         progressEvents: normalizeProgressEvents(row.progress_events),
         estimateReadyAt: row.estimate_ready_at || null,
+        invoice: (row.invoice as RepairInvoice) || undefined,
       }));
     }
   } catch (err) {
@@ -414,11 +416,22 @@ export async function updateServiceBookingInDb(
     if (updates.progressEvents !== undefined) payload.progress_events = updates.progressEvents;
     if (updates.estimateReadyAt !== undefined) payload.estimate_ready_at = updates.estimateReadyAt;
     if (updates.bikeDetails !== undefined) payload.bike_details = updates.bikeDetails;
+    if (updates.invoice !== undefined) payload.invoice = updates.invoice;
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('service_bookings')
       .update(payload)
       .eq('id', bookingId);
+
+    if (error && payload.invoice !== undefined) {
+      // Older project without the invoice column — persist everything else.
+      const { invoice: _drop, ...withoutInvoice } = payload;
+      const retry = await supabase
+        .from('service_bookings')
+        .update(withoutInvoice)
+        .eq('id', bookingId);
+      error = retry.error;
+    }
 
     if (!error) {
       console.log(`[SUPABASE NET SUCCESS] UPDATE service_bookings succeeded for id=${bookingId}`);
