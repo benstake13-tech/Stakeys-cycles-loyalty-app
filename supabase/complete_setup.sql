@@ -179,12 +179,30 @@ CREATE TABLE IF NOT EXISTS public.discount_codes (
   assigned_to_name TEXT,
   eligible_categories JSONB DEFAULT '[]'::jsonb,
   minimum_spend NUMERIC,
+  audience TEXT,
   created_by TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 1i. Completed over-the-counter sales.
+-- 1i. Refer a Friend. One row per customer; the owner shares `code`/`link`,
+-- the referred friends and the £5 rewards they have earned are stored as JSONB.
+CREATE TABLE IF NOT EXISTS public.referrals (
+  id TEXT PRIMARY KEY,
+  owner_uid TEXT,
+  owner_name TEXT,
+  owner_membership TEXT,
+  code TEXT NOT NULL,
+  link TEXT,
+  times_shared INTEGER DEFAULT 0,
+  rewards_earned INTEGER DEFAULT 0,
+  rewards JSONB DEFAULT '[]'::jsonb,
+  referred_friends JSONB DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 1j. Completed over-the-counter sales.
 CREATE TABLE IF NOT EXISTS public.counter_sales (
   id TEXT PRIMARY KEY,
   sale_number TEXT,
@@ -332,6 +350,7 @@ ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quoted_price NUMERI
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_note TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_at TIMESTAMPTZ;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS quote_sent_by TEXT;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS referral_code TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2e. prize_wheels
@@ -380,9 +399,23 @@ ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS assigned_to_membershi
 ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS assigned_to_name TEXT;
 ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS eligible_categories JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS minimum_spend NUMERIC;
+ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS audience TEXT;
 ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS created_by TEXT;
 ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.discount_codes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+-- 2h2. referrals
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS owner_uid TEXT;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS owner_name TEXT;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS owner_membership TEXT;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS code TEXT;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS link TEXT;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS times_shared INTEGER DEFAULT 0;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS rewards_earned INTEGER DEFAULT 0;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS rewards JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS referred_friends JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.referrals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2i. counter_sales
 ALTER TABLE public.counter_sales ADD COLUMN IF NOT EXISTS sale_number TEXT;

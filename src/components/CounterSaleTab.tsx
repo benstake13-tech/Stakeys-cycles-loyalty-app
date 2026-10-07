@@ -46,6 +46,8 @@ import {
 } from '../utils/discountService';
 import { normalizeScannedCode, resolveCustomer, membershipBalance, MembershipBalance } from '../utils/membershipCode';
 import { stockLabel, qtyInBasket, tillStockRows } from '../utils/tillStock';
+import { PolicyDisclaimers } from './PolicyDisclaimers';
+import { SALES_POLICY_DISCLAIMERS } from '../utils/workshopPolicy';
 
 const QUICK_ITEMS: Omit<SaleLineItem, 'id'>[] = [
   { description: 'Standard Workshop Labour (30 min)', category: 'Labour', quantity: 1, unitPrice: 30 },
@@ -704,6 +706,13 @@ export const CounterSaleTab: React.FC = () => {
               <span>{discountMessage.text}</span>
             </div>
           )}
+
+          <PolicyDisclaimers
+            items={SALES_POLICY_DISCLAIMERS}
+            title="Counter policy"
+            tone="neutral"
+            compact
+          />
 
           {/* Available codes for one-tap apply */}
           {discountCodes.filter((c) => c.status === 'active').length > 0 && (
