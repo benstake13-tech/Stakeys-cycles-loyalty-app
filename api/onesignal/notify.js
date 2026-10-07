@@ -8,7 +8,7 @@
  *
  * The REST API key is server-only and never reaches the browser.
  */
-import { resolveAppId, resolveRestKey, resolveOrigin } from './_shared.js';
+import { resolveAppId, resolveRestKey, resolveOrigin, buildTagFilter } from './_shared.js';
 
 const ONESIGNAL_ENDPOINT = 'https://onesignal.com/api/v1/notifications';
 
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
     message.include_aliases = { external_id: [String(externalUserId)] };
     message.target_channel = 'push';
   } else if (tag?.key && tag?.value) {
-    message.filters = [{ field: 'tag', key: String(tag.key), value: String(tag.value) }];
+    message.filters = [buildTagFilter(tag)];
   } else if (email) {
     message.include_email_tokens = [String(email)];
     message.target_channel = 'email';

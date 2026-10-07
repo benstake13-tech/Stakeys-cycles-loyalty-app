@@ -566,6 +566,10 @@ export interface ServiceBooking {
   reminder24hSent?: boolean;
   reminder24hSentAt?: any;
   reminder24hDeliveryStatus?: 'scheduled' | 'sent' | 'delivered';
+  /** How many reminders have been dispatched for this booking. */
+  reminderCount?: number;
+  /** When the most recent reminder went out (repeat scheduling anchor). */
+  reminderLastSentAt?: any;
   invoice?: RepairInvoice;
   // Live workshop progress for the customer-facing repair tracker.
   repairStage?: RepairStageId;
@@ -585,5 +589,52 @@ export interface OwnerNotificationConfig {
   emailAlertsEnabled: boolean;
   smsAlertsEnabled?: boolean;
   businessName: string;
+}
+
+/** How a reminder reaches the customer / workshop. */
+export type ReminderChannel = 'push' | 'email' | 'both';
+/** Which parties a reminder is sent to. */
+export type ReminderRecipients = 'both' | 'customer' | 'owner';
+
+/**
+ * Workshop-configurable reminder behaviour. Controls *how* reminders are sent
+ * (channel + recipients), *how long before* the slot the first one goes out,
+ * *how often* to repeat until the slot, and the quiet window during which no
+ * reminders are ever dispatched.
+ */
+export interface ReminderSettings {
+  /** Push, email, or both. */
+  channel: ReminderChannel;
+  /** Customer, workshop, or both. */
+  recipients: ReminderRecipients;
+  /** Hours before the appointment slot to send the first reminder. */
+  leadHours: number;
+  /** Hours between repeats; 0 = send once. */
+  repeatHours: number;
+  /** No reminders sent between these hours (local time, 24h clock). */
+  quietStartHour: number;
+  quietEndHour: number;
+  /** Master switch for quiet hours. */
+  quietHoursEnabled: boolean;
+  /** Which email's devices receive the workshop push. */
+  ownerEmail: string;
+}
+
+export const DEFAULT_REMINDER_SETTINGS: ReminderSettings = {
+  channel: 'push',
+  recipients: 'both',
+  leadHours: 24,
+  repeatHours: 0,
+  quietStartHour: 21,
+  quietEndHour: 8,
+  quietHoursEnabled: true,
+  ownerEmail: 'stakeyscycle95@gmail.com',
+};
+
+/** Clamps a numeric setting into a safe range with a fallback default. */
+export function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
 }
 

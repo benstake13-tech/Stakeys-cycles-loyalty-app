@@ -25,6 +25,10 @@ import {
   RepairProgressEvent,
   ReferralRecord,
   ReferralReward,
+  ReminderChannel,
+  ReminderRecipients,
+  ReminderSettings,
+  DEFAULT_REMINDER_SETTINGS,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import {
@@ -61,7 +65,8 @@ import {
   dispatchBookingApprovalNotification,
   dispatchBookingDeclinedNotification,
   dispatchSosNotification,
-  isBookingDueIn24Hours,
+  isBookingDueForReminder,
+  getHoursUntilBooking,
 } from '../utils/notificationService';
 import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
@@ -130,6 +135,7 @@ import {
   deletePromotionFromDb,
   fetchAppSettingsFromDb,
   upsertAppSettingsToDb,
+  AppSettings,
 } from '../api/backendDataService';
 
 interface ShopContextType {
@@ -163,6 +169,9 @@ interface ShopContextType {
   /** Email whose devices receive the workshop reminder push. */
   reminderOwnerEmail: string;
   setReminderOwnerEmail: (email: string) => void;
+  /** Fully configurable reminder behaviour (channel, timing, quiet hours). */
+  reminderSettings: ReminderSettings;
+  setReminderSettings: (updates: Partial<ReminderSettings>) => void;
   bookingsDueIn24h: ServiceBooking[];
   dispatch24hReminderForBooking: (bookingId: string) => Promise<boolean>;
   latestSmsAlert: {
@@ -1690,33 +1699,48 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  // Staff choice: reminders arrive as push notifications (default) rather than
-  // email, so customers/owner aren't flooded with reminder emails.
-  const [remindersPushOnly, setRemindersPushOnly] = useState<boolean>(() => {
+  // Configurable reminder behaviour. Stored as one object so the staff UI has a
+  // single source of truth; the legacy pushOnly/ownerEmail fields are kept in
+  // sync for older callers and the DB columns that predate this.
+  const [reminderSettings, setReminderSettingsState] = useState<ReminderSettings>(() => {
     try {
-      const saved = localStorage.getItem(`${STORAGE_KEY}_reminders_push_only`);
-      return saved ? JSON.parse(saved) : true;
+      const saved = localStorage.getItem(`${STORAGE_KEY}_reminder_settings`);
+      if (saved) return { ...DEFAULT_REMINDER_SETTINGS, ...JSON.parse(saved) };
     } catch {
-      return true;
+      /* ignore */
     }
+    return { ...DEFAULT_REMINDER_SETTINGS };
   });
 
-  // Which email's devices should receive the workshop reminder push (defaults
-  // to the shop Gmail; staff can change it).
-  const [reminderOwnerEmail, setReminderOwnerEmail] = useState<string>(() => {
-    try {
-      return localStorage.getItem(`${STORAGE_KEY}_reminder_owner_email`) || 'stakeyscycle95@gmail.com';
-    } catch {
-      return 'stakeyscycle95@gmail.com';
-    }
-  });
+  const setReminderSettings = (updates: Partial<ReminderSettings>) => {
+    setReminderSettingsState((prev) => ({ ...prev, ...updates }));
+  };
+
+  // Legacy single-field setters now write through to the settings object.
+  const setRemindersPushOnly = (enabled: boolean) =>
+    setReminderSettingsState((prev) => ({ ...prev, channel: enabled ? 'push' : 'email' }));
+  const setReminderOwnerEmail = (email: string) =>
+    setReminderSettingsState((prev) => ({ ...prev, ownerEmail: email }));
 
   // Read inside the reminder effect without making settings changes re-run it
   // (which would restart the interval on every toggle).
+  const reminderSettingsRef = useRef(reminderSettings);
+  reminderSettingsRef.current = reminderSettings;
+
+  // Legacy single-field mirrors (kept for the DB columns and existing callers).
+  const [remindersPushOnly, setRemindersPushOnlyState] = useState<boolean>(reminderSettings.channel === 'push');
+  const [reminderOwnerEmail, setReminderOwnerEmailState] = useState<string>(reminderSettings.ownerEmail);
   const remindersPushOnlyRef = useRef(remindersPushOnly);
   const reminderOwnerEmailRef = useRef(reminderOwnerEmail);
   remindersPushOnlyRef.current = remindersPushOnly;
   reminderOwnerEmailRef.current = reminderOwnerEmail;
+
+  // Keep the legacy single-field settings mirrored to the object, so code and
+  // DB columns that still read them stay correct.
+  useEffect(() => {
+    setRemindersPushOnlyState(reminderSettings.channel === 'push');
+    setReminderOwnerEmailState(reminderSettings.ownerEmail);
+  }, [reminderSettings.channel, reminderSettings.ownerEmail]);
 
   // Recent SMS alert toast / banner state
   const [latestSmsAlert, setLatestSmsAlert] = useState<{
@@ -1736,20 +1760,48 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(`${STORAGE_KEY}_automated_reminders`, JSON.stringify(automatedRemindersEnabled));
       localStorage.setItem(`${STORAGE_KEY}_reminders_push_only`, JSON.stringify(remindersPushOnly));
       localStorage.setItem(`${STORAGE_KEY}_reminder_owner_email`, reminderOwnerEmail);
+      localStorage.setItem(`${STORAGE_KEY}_reminder_settings`, JSON.stringify(reminderSettings));
     } catch (e) {
       console.warn('Storage failed', e);
     }
-    upsertAppSettingsToDb({ automatedRemindersEnabled, remindersPushOnly, reminderOwnerEmail }).catch(() => {});
-  }, [automatedRemindersEnabled, remindersPushOnly, reminderOwnerEmail]);
+    upsertAppSettingsToDb({
+      automatedRemindersEnabled,
+      remindersPushOnly,
+      reminderOwnerEmail,
+      reminderChannel: reminderSettings.channel,
+      reminderRecipients: reminderSettings.recipients,
+      reminderLeadHours: reminderSettings.leadHours,
+      reminderRepeatHours: reminderSettings.repeatHours,
+      reminderQuietStartHour: reminderSettings.quietStartHour,
+      reminderQuietEndHour: reminderSettings.quietEndHour,
+      reminderQuietHoursEnabled: reminderSettings.quietHoursEnabled,
+    }).catch(() => {});
+  }, [automatedRemindersEnabled, remindersPushOnly, reminderOwnerEmail, reminderSettings]);
 
   // Adopt reminder settings pushed from the database (e.g. changed on another
   // staff device) without clobbering a missing column with a default.
-  const applyRemoteReminderSettings = (settings: {
-    remindersPushOnly?: boolean;
-    reminderOwnerEmail?: string;
-  }) => {
-    if (typeof settings.remindersPushOnly === 'boolean') setRemindersPushOnly(settings.remindersPushOnly);
-    if (settings.reminderOwnerEmail) setReminderOwnerEmail(settings.reminderOwnerEmail);
+  const applyRemoteReminderSettings = (settings: Partial<AppSettings>) => {
+    if (typeof settings.remindersPushOnly === 'boolean') setRemindersPushOnlyState(settings.remindersPushOnly);
+    if (settings.reminderOwnerEmail) setReminderOwnerEmailState(settings.reminderOwnerEmail);
+    setReminderSettingsState((prev) => {
+      const next: ReminderSettings = { ...prev };
+      if (settings.reminderChannel) next.channel = settings.reminderChannel;
+      if (settings.reminderRecipients) next.recipients = settings.reminderRecipients;
+      if (typeof settings.reminderLeadHours === 'number') next.leadHours = settings.reminderLeadHours;
+      if (typeof settings.reminderRepeatHours === 'number') next.repeatHours = settings.reminderRepeatHours;
+      if (typeof settings.reminderQuietStartHour === 'number') next.quietStartHour = settings.reminderQuietStartHour;
+      if (typeof settings.reminderQuietEndHour === 'number') next.quietEndHour = settings.reminderQuietEndHour;
+      if (typeof settings.reminderQuietHoursEnabled === 'boolean') {
+        next.quietHoursEnabled = settings.reminderQuietHoursEnabled;
+      }
+      if (settings.reminderOwnerEmail) next.ownerEmail = settings.reminderOwnerEmail;
+      // Keep the same object when nothing changed so the persist effect (which
+      // depends on this object) doesn't write back on every 4s poll.
+      const unchanged = (Object.keys(next) as Array<keyof ReminderSettings>).every(
+        (k) => next[k] === prev[k]
+      );
+      return unchanged ? prev : next;
+    });
   };
 
   // Loyalty data (profiles/stamps, wheel + draws, logs, bookings, config) is
@@ -3871,47 +3923,51 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = bookings.find((b) => b.id === bookingId);
     if (!target) return false;
 
-    const { customerReminderLog, ownerReminderLog, updatedBooking } = await dispatch24hReminderNotification(
-      target,
-      ownerConfig,
-      { pushOnly: remindersPushOnlyRef.current, ownerReminderEmail: reminderOwnerEmailRef.current }
-    );
+    const settings = reminderSettingsRef.current;
+    const { updatedBooking } = await dispatch24hReminderNotification(target, ownerConfig, {
+      settings,
+      reminderNumber: (target.reminderCount ?? (target.reminder24hSent ? 1 : 0)) + 1,
+    });
 
     setBookings((prev) => prev.map((b) => (b.id === bookingId ? updatedBooking : b)));
 
     // Persist so every other client stops re-sending the reminder.
     updateServiceBookingInDb(bookingId, {
       reminder24hSent: true,
+      reminderCount: updatedBooking.reminderCount,
+      reminderLastSentAt: updatedBooking.reminderLastSentAt,
       notifications: updatedBooking.notifications,
-    }).catch((e) => console.warn('[DB SYNC] Error persisting 24h reminder:', e));
+    }).catch((e) => console.warn('[DB SYNC] Error persisting reminder:', e));
 
-    const pushOnly = remindersPushOnlyRef.current;
-    const channel = pushOnly ? 'push notification' : 'email';
+    const channelLabel =
+      settings.channel === 'email' ? 'email' : settings.channel === 'both' ? 'push + email' : 'push notification';
+    const recipientLabel =
+      settings.recipients === 'customer'
+        ? target.customerEmail
+        : settings.recipients === 'owner'
+        ? settings.ownerEmail
+        : `${target.customerEmail} & ${settings.ownerEmail}`;
     setLatestSmsAlert({
-      title: `⏰ 24-Hour Reminder Sent (${pushOnly ? 'Push' : 'Email'})`,
-      message: `Delivered 24-hour reminder ${channel} to ${target.customerName} (${target.customerEmail}) & Stakey's Cycles (${reminderOwnerEmailRef.current}) for ${target.preferredDate} (${target.preferredTimeSlot}).`,
-      recipient: `${target.customerEmail} & ${reminderOwnerEmailRef.current}`,
+      title: `⏰ Reminder #${updatedBooking.reminderCount} Sent (${channelLabel})`,
+      message: `Delivered reminder via ${channelLabel} to ${recipientLabel} for ${target.preferredDate} (${target.preferredTimeSlot}).`,
+      recipient: recipientLabel,
       time: new Date().toLocaleTimeString(),
-      recipientType: 'both',
+      recipientType: settings.recipients,
     });
 
     return true;
   };
 
-  // Background automated 24-hour reminder check. Reminders are a staff concern
-  // (owner notifications), so only the staff surface (and the combined local-dev
-  // 'full' surface) runs the engine — the website/customer builds never dispatch
-  // them. Keeping it in one place is what stops several open clients from
-  // dispatching the same reminder.
+  // Background automated reminder check. Reminders are a staff concern (owner
+  // notifications), so only the staff surface (and the combined local-dev 'full'
+  // surface) runs the engine — the website/customer builds never dispatch them.
+  // Keeping it in one place is what stops several open clients from dispatching
+  // the same reminder.
   useEffect(() => {
     if (!automatedRemindersEnabled || !(isStaffSurface || isFullSurface)) return;
 
     const runAutomatedRemindersCheck = async () => {
-      // Find eligible bookings:
-      // status !== 'completed' && status !== 'cancelled' && !reminder24hSent && isBookingDueIn24Hours(b)
-      const dueBookings = bookings.filter(
-        (b) => !b.reminder24hSent && b.status !== 'completed' && b.status !== 'cancelled' && isBookingDueIn24Hours(b)
-      );
+      const dueBookings = bookings.filter((b) => isBookingDueForReminder(b, reminderSettingsRef.current));
 
       if (dueBookings.length === 0) return;
 
@@ -3932,9 +3988,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [bookings, automatedRemindersEnabled, ownerConfig]);
 
-  const bookingsDueIn24h = bookings.filter(
-    (b) => isBookingDueIn24Hours(b) && b.status !== 'completed' && b.status !== 'cancelled'
-  );
+  const bookingsDueIn24h = bookings.filter((b) => {
+    if (b.status === 'completed' || b.status === 'cancelled') return false;
+    const hours = getHoursUntilBooking(b);
+    return hours > -2 && hours <= reminderSettings.leadHours;
+  });
 
   return (
     <ShopContext.Provider
@@ -3963,6 +4021,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRemindersPushOnly,
         reminderOwnerEmail,
         setReminderOwnerEmail,
+        reminderSettings,
+        setReminderSettings,
         bookingsDueIn24h,
         dispatch24hReminderForBooking,
         latestSmsAlert,

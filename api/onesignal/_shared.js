@@ -42,3 +42,15 @@ export function resolveOrigin(req, env = process.env) {
   const host = req?.headers?.['x-forwarded-host'] || req?.headers?.host;
   return host ? `${proto}://${host}` : 'https://www.stakeys-cycles.co.uk';
 }
+
+/**
+ * Builds a OneSignal tag filter. `relation` is REQUIRED by the API — a tag
+ * filter without it is accepted but matches nobody ("delivered to 0 devices"),
+ * so an owner-tagged alert would silently reach no device.
+ */
+export function buildTagFilter(tag) {
+  const key = String(tag?.key ?? '').trim();
+  const value = String(tag?.value ?? '').trim();
+  if (!key || !value) return null;
+  return { field: 'tag', key, relation: '=', value };
+}

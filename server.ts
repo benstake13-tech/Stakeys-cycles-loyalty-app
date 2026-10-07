@@ -253,7 +253,9 @@ async function startServer() {
       message.target_channel = 'push';
     } else if (tag?.key && tag?.value) {
       // e.g. every device tagged with owner_email = the workshop Gmail.
-      message.filters = [{ field: 'tag', key: String(tag.key), value: String(tag.value) }];
+      // `relation` is required by OneSignal; without it the filter is accepted
+      // but matches nobody (delivered to 0 devices).
+      message.filters = [{ field: 'tag', key: String(tag.key), relation: '=', value: String(tag.value) }];
     } else if (email) {
       // Email channel subscription (requires the Email channel to be set up).
       message.include_email_tokens = [String(email)];

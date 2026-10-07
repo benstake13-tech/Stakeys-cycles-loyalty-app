@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS public.service_bookings (
   notes TEXT,
   status TEXT DEFAULT 'pending',
   reminder_24h_sent BOOLEAN DEFAULT FALSE,
+  reminder_count INTEGER DEFAULT 0,
+  reminder_last_sent_at TIMESTAMPTZ,
   notifications JSONB DEFAULT '[]'::jsonb,
   repair_stage TEXT DEFAULT 'received',
   progress_events JSONB DEFAULT '[]'::jsonb,
@@ -344,6 +346,8 @@ ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS preferred_time_slot
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS reminder_24h_sent BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS reminder_count INTEGER DEFAULT 0;
+ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS reminder_last_sent_at TIMESTAMPTZ;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS repair_stage TEXT DEFAULT 'received';
 ALTER TABLE public.service_bookings ADD COLUMN IF NOT EXISTS progress_events JSONB DEFAULT '[]'::jsonb;
@@ -573,6 +577,13 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   automated_reminders_enabled BOOLEAN DEFAULT TRUE,
   reminders_push_only BOOLEAN DEFAULT TRUE,
   reminder_owner_email TEXT,
+  reminder_channel TEXT DEFAULT 'push',
+  reminder_recipients TEXT DEFAULT 'both',
+  reminder_lead_hours INTEGER DEFAULT 24,
+  reminder_repeat_hours INTEGER DEFAULT 0,
+  reminder_quiet_start_hour INTEGER DEFAULT 21,
+  reminder_quiet_end_hour INTEGER DEFAULT 8,
+  reminder_quiet_hours_enabled BOOLEAN DEFAULT TRUE,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS owner_email TEXT;
@@ -583,6 +594,13 @@ ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS business_name TEXT;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS automated_reminders_enabled BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminders_push_only BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_owner_email TEXT;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_channel TEXT DEFAULT 'push';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_recipients TEXT DEFAULT 'both';
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_lead_hours INTEGER DEFAULT 24;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_repeat_hours INTEGER DEFAULT 0;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_quiet_start_hour INTEGER DEFAULT 21;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_quiet_end_hour INTEGER DEFAULT 8;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_quiet_hours_enabled BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 INSERT INTO public.app_settings (id)
