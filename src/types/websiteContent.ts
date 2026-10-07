@@ -6,6 +6,7 @@
 export type WebsitePageId =
   | 'home'
   | 'location'
+  | 'weather'
   | 'faqs'
   | 'gallery'
   | 'priceList'
