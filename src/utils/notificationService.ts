@@ -3,6 +3,7 @@ import { getSupabaseClient } from '../lib/supabase';
 import { vehicleNouns } from './vehicleType';
 import { shouldSendBookingEmail } from './bookingEmailLedger';
 import { sendPushToUser } from './pushNotifications';
+import { bookingDeepLink, sosPushCopy } from './bookingNotifications';
 
 export interface DispatchResult {
   emailLog: BookingNotificationLog;
@@ -775,36 +776,18 @@ export async function dispatchSosNotification(
 ): Promise<BookingNotificationLog> {
   const now = new Date();
   const ownerEmail = (options.ownerReminderEmail || config.ownerEmail || '').trim();
-  const ref = `#${booking.id}`;
 
-  const stageCopy: Record<typeof stage, { subject: string; body: string }> = {
-    requested: {
-      subject: `🚨 SOS EMERGENCY REQUEST ${ref}`,
-      body: `${booking.customerName} needs an urgent repair (${booking.vehicleModel}). Tap to approve.`,
-    },
-    approved: {
-      subject: `✅ SOS approved ${ref} — request live location`,
-      body: `${booking.customerName}'s emergency repair is approved. Ask for their WhatsApp live location.`,
-    },
-    quoted: {
-      subject: `💷 SOS quote sent ${ref}`,
-      body: `Quote of £${(options.quotedPrice ?? 0).toFixed(2)} sent to ${booking.customerName}. Awaiting their confirmation.`,
-    },
-    confirmed: {
-      subject: `🚴 SET OFF NOW ${ref} — price confirmed`,
-      body: `${booking.customerName} confirmed £${(options.quotedPrice ?? 0).toFixed(2)}. Set off immediately.`,
-    },
-  };
+  const { title, body } = sosPushCopy(stage, booking, { quotedPrice: options.quotedPrice });
+  const url = bookingDeepLink(booking.id);
 
-  const copy = stageCopy[stage];
   const log: BookingNotificationLog = {
     id: `notif-sos-${stage}-${Date.now()}`,
     type: 'push',
     recipient: ownerEmail,
     recipientRole: 'owner',
     category: 'sos_emergency',
-    subject: copy.subject,
-    content: copy.body,
+    subject: title,
+    content: body,
     timestamp: now,
     status: 'delivered',
   };
@@ -812,9 +795,9 @@ export async function dispatchSosNotification(
   if (ownerEmail) {
     await sendPushToUser(
       undefined,
-      copy.subject,
-      copy.body,
-      undefined,
+      title,
+      body,
+      url,
       { tag: { key: 'owner_email', value: ownerEmail } }
     ).catch((err) => console.error(`[SOS] owner push (${stage}) failed:`, err));
   }
