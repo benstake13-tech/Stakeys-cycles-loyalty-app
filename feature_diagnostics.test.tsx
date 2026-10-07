@@ -11,7 +11,15 @@ vi.mock('./src/utils/notificationService', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./src/utils/notificationService')>()),
   dispatchTestEmail: vi.fn(async () => ({ success: true })),
 }));
-vi.mock('./src/utils/pushNotifications', () => ({ sendPushToUser: vi.fn(async () => ({ ok: true, via: 'local' })) }));
+vi.mock('./src/utils/pushNotifications', () => ({
+  sendPushToUser: vi.fn(async () => ({ ok: true, via: 'local' })),
+  initOneSignal: vi.fn(async () => true),
+  getPushPermission: vi.fn(async () => 'granted'),
+  requestPushPermission: vi.fn(async () => 'granted'),
+  getSubscriptionId: vi.fn(async () => 'sub-1'),
+  linkUser: vi.fn(async () => {}),
+  registerEmailSubscription: vi.fn(async () => {}),
+}));
 
 import { FEATURE_TESTS, runFeatureTests, summarize, AREA_LABELS } from './src/utils/featureDiagnostics';
 import { StaffDiagnosticsTab } from './src/components/StaffDiagnosticsTab';

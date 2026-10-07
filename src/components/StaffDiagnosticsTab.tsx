@@ -24,7 +24,16 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { dispatchTestEmail } from '../utils/notificationService';
-import { sendPushToUser } from '../utils/pushNotifications';
+import {
+  sendPushToUser,
+  initOneSignal,
+  getPushPermission,
+  requestPushPermission,
+  getSubscriptionId,
+  linkUser,
+  registerEmailSubscription,
+} from '../utils/pushNotifications';
+import { runPushRepair, PushRepairStep, PushRepairStatus } from '../utils/pushRepair';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
 import {
@@ -86,9 +95,44 @@ const STATUS_META: Record<
 
 type Toast = { kind: 'ok' | 'err'; text: string } | null;
 
+const PUSH_STEP_META: Record<
+  PushRepairStatus,
+  { icon: React.ReactNode; ring: string; text: string; chip: string; label: string }
+> = {
+  pass: {
+    icon: <CheckCircle2 className="w-4 h-4" />,
+    ring: 'border-emerald-500/40 bg-emerald-500/5',
+    text: 'text-emerald-400',
+    chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    label: 'Working',
+  },
+  fixed: {
+    icon: <Wrench className="w-4 h-4" />,
+    ring: 'border-sky-500/40 bg-sky-500/5',
+    text: 'text-sky-400',
+    chip: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+    label: 'Repaired',
+  },
+  warn: {
+    icon: <AlertTriangle className="w-4 h-4" />,
+    ring: 'border-amber-500/40 bg-amber-500/5',
+    text: 'text-amber-400',
+    chip: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    label: 'Check',
+  },
+  fail: {
+    icon: <XCircle className="w-4 h-4" />,
+    ring: 'border-red-500/40 bg-red-500/5',
+    text: 'text-red-400',
+    chip: 'bg-red-500/15 text-red-300 border-red-500/30',
+    label: 'Needs fix',
+  },
+};
+
 export const StaffDiagnosticsTab: React.FC = () => {
   const {
     ownerConfig,
+    currentUser,
     checkServiceHealth,
     isStaffBookingSoundEnabled,
     playStaffBookingAlertPing,
@@ -104,6 +148,8 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [fixSql, setFixSql] = useState<{ title: string; sql: string } | null>(null);
+  const [pushSteps, setPushSteps] = useState<PushRepairStep[]>([]);
+  const [pushBusy, setPushBusy] = useState<'check' | 'repair' | null>(null);
 
   const summary = useMemo(() => summarize(results), [results]);
 
@@ -159,11 +205,17 @@ export const StaffDiagnosticsTab: React.FC = () => {
         "Stakey's Cycles — Test Push",
         'Push notifications are working on this device.'
       );
-      flash(
-        res.ok
-          ? { kind: 'ok', text: `Test push sent (via ${res.via}).` }
-          : { kind: 'err', text: 'Push not delivered — OneSignal may not be configured.' }
-      );
+      if (res.ok) {
+        flash({ kind: 'ok', text: `Test push sent (via ${res.via}).` });
+      } else {
+        const err = res.envelope?.errors?.join('; ');
+        flash({
+          kind: 'err',
+          text: err
+            ? `Push not delivered — ${err}.`
+            : 'Push not delivered — OneSignal may not be configured.',
+        });
+      }
     } catch (e: any) {
       flash({ kind: 'err', text: e?.message || 'Push test failed.' });
     } finally {
@@ -182,6 +234,75 @@ export const StaffDiagnosticsTab: React.FC = () => {
       );
     } finally {
       setBusy(null);
+    }
+  };
+
+  /** Shared dependency bundle for the push repair runner. */
+  const pushRepairDeps = {
+    getServerConfig: async () => {
+      const res = await fetch('/api/onesignal/config');
+      const data = await res.json();
+      return {
+        appId: data?.appId ?? null,
+        serverPush: Boolean(data?.serverPush),
+        restKeyEnv: data?.restKeyEnv ?? null,
+        restKeyEnvNames: data?.restKeyEnvNames,
+      };
+    },
+    initSdk: initOneSignal,
+    getPermission: getPushPermission,
+    requestPermission: requestPushPermission,
+    getSubscriptionId,
+    linkUser,
+    registerEmail: registerEmailSubscription,
+    sendTestPush: () =>
+      sendPushToUser(undefined, "Stakey's Cycles — Push Repair", 'Push notifications are working on this device.'),
+  };
+
+  const pushRepairContext = {
+    userId: currentUser?.uid,
+    displayName: currentUser?.displayName,
+    membershipNumber: currentUser?.membershipNumber,
+    ownerEmail: ownerConfig.ownerEmail,
+  };
+
+  const handlePushCheck = async () => {
+    setPushBusy('check');
+    try {
+      const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: false });
+      setPushSteps(steps);
+      const bad = steps.filter((s) => s.status === 'fail').length;
+      flash(
+        bad === 0
+          ? { kind: 'ok', text: 'Push check complete — no blocking problems found.' }
+          : { kind: 'err', text: `Push check found ${bad} problem${bad === 1 ? '' : 's'} to repair.` }
+      );
+    } catch (e: any) {
+      flash({ kind: 'err', text: e?.message || 'Push check failed.' });
+    } finally {
+      setPushBusy(null);
+    }
+  };
+
+  const handlePushRepair = async () => {
+    setPushBusy('repair');
+    try {
+      const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: true });
+      setPushSteps(steps);
+      const failed = steps.filter((s) => s.status === 'fail');
+      const fixed = steps.filter((s) => s.status === 'fixed').length;
+      if (failed.length) {
+        flash({
+          kind: 'err',
+          text: `Repaired ${fixed} step${fixed === 1 ? '' : 's'}; ${failed.length} still need attention (see below).`,
+        });
+      } else {
+        flash({ kind: 'ok', text: `Push repaired — ${fixed} step${fixed === 1 ? '' : 's'} applied.` });
+      }
+    } catch (e: any) {
+      flash({ kind: 'err', text: e?.message || 'Push repair failed.' });
+    } finally {
+      setPushBusy(null);
     }
   };
 
@@ -391,6 +512,78 @@ export const StaffDiagnosticsTab: React.FC = () => {
             <StatCard label="Broken" value={summary.fail} tone="red" />
             <StatCard label="Needs check" value={summary.warn} tone="amber" />
             <StatCard label="Total tests" value={summary.total} tone="neutral" />
+          </div>
+        )}
+      </div>
+
+      {/* OneSignal push repair */}
+      <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-500/40 flex items-center justify-center shrink-0">
+              <Bell className="w-6 h-6 text-sky-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white flex items-center gap-2">
+                Repair Push Notifications
+              </h3>
+              <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl">
+                Runs one ordered pass over the whole push chain — server config, the OneSignal SDK, this
+                device's permission and subscription, your sign-in identity, and a live test dispatch — and
+                fixes what the browser can (permission, sign-in, email). Anything it can't fix is flagged
+                with the exact setting to change.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handlePushCheck}
+              disabled={pushBusy !== null}
+              className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:opacity-60 text-neutral-200 text-sm font-bold flex items-center gap-2 border border-neutral-700 cursor-pointer"
+            >
+              {pushBusy === 'check' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              <span>Check Push</span>
+            </button>
+            <button
+              type="button"
+              onClick={handlePushRepair}
+              disabled={pushBusy !== null}
+              className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 disabled:cursor-wait text-neutral-950 text-sm font-black flex items-center gap-2 shadow-md shadow-sky-500/20 cursor-pointer"
+            >
+              {pushBusy === 'repair' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+              <span>{pushBusy === 'repair' ? 'Repairing…' : 'Repair Push'}</span>
+            </button>
+          </div>
+        </div>
+
+        {pushSteps.length > 0 && (
+          <div className="mt-5 space-y-2.5">
+            {pushSteps.map((step) => {
+              const meta = PUSH_STEP_META[step.status];
+              return (
+                <div key={step.id} className={`rounded-2xl border p-3.5 ${meta.ring}`}>
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-0.5 shrink-0 ${meta.text}`}>{meta.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-white">{step.label}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.chip}`}>
+                          {meta.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-300 mt-1 break-words">{step.detail}</p>
+                      {step.hint && (
+                        <p className="text-[11px] text-amber-300/90 mt-1.5 flex items-start gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                          <span>{step.hint}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
