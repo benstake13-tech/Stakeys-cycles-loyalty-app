@@ -1219,7 +1219,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
         ownerName: 'Diagnostics Probe',
         ownerMembership: 'STK-DIAG',
         code: 'STK-REF-DIAG',
-        link: 'https://stakey-cycles.co.uk/?ref=STK-REF-DIAG',
+        link: 'https://stakeys-cycle.co.uk/?ref=STK-REF-DIAG',
         timesShared: 0,
         rewardsEarned: 0,
         rewards: [],
