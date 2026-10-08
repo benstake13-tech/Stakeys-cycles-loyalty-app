@@ -18,9 +18,21 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   !Array.isArray(value) &&
   (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
 
+/**
+ * The synced records carry real `Date` fields (`createdAt`, `lastStampedAt`,
+ * `drawDate`, ...). Two Dates with the same instant are different object
+ * references, so without this branch every poll looks "changed" and the
+ * equality guards silently do nothing - the exact lag they were meant to fix.
+ */
+const isDate = (value: unknown): value is Date => value instanceof Date;
+
 export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a === null || b === null || a === undefined || b === undefined) return false;
+
+  if (isDate(a) || isDate(b)) {
+    return isDate(a) && isDate(b) && a.getTime() === b.getTime();
+  }
 
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
