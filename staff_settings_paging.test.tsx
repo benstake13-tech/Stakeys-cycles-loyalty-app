@@ -74,7 +74,9 @@ describe('staff Settings tab paging', () => {
     render(<StaffPortal />);
     for (const label of ['Admin and reports', 'Workshop operations']) {
       const nav = screen.getByRole('tablist', { name: label });
-      for (const gone of ['Assistant', 'Test Bench', 'Performance', 'Financials']) {
+      // Tools that live only inside Settings now, including the Staff Station
+      // which used to also have its own top-level tab.
+      for (const gone of ['Assistant', 'Test Bench', 'Performance', 'Financials', 'Staff Station']) {
         expect(within(nav).queryByRole('tab', { name: gone })).toBeNull();
       }
     }
@@ -102,7 +104,10 @@ describe('staff Settings tab paging', () => {
     expect(screen.getByTestId('financials')).toBeTruthy();
 
     go('Staff Station');
-    expect(screen.getByText(/Staff Station Overview/i)).toBeTruthy();
+    // The station section folded in the old top-level tab's unique controls.
+    expect(screen.getByText(/Staff Command Station/i)).toBeTruthy();
+    expect(screen.getByText('Draw Pool')).toBeTruthy();
+    expect(screen.getByText(/Scan Member Code/i)).toBeTruthy();
     expect(screen.queryByTestId('financials')).toBeNull();
   });
 });
