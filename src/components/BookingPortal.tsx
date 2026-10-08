@@ -24,6 +24,14 @@ import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
 import { BIKE_CATEGORY_OPTIONS, FRIENDLY_SERVICE_OPTIONS, TIME_SLOT_OPTIONS } from '../data/bikeCatalog';
 import { SOS_SURCHARGE, SOS_NOTES_MARKER, isSosBooking } from '../utils/sosRepair';
+import {
+  EXPRESS_SOS_SURCHARGE,
+  ExpressSosTileId,
+  buildExpressSosNote,
+  expressSosIssueIds,
+  expressSosTileFor,
+} from '../utils/expressSos';
+import { ExpressSosMode, SosVehicleOption } from './ExpressSosMode';
 import { StakeysLogo } from './StakeysLogo';
 import { BikeIssuesChecklist } from './BikeIssuesChecklist';
 import {
@@ -198,6 +206,29 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const [sosIssue, setSosIssue] = useState<string>('');
   const [sosRiderLocation, setSosRiderLocation] = useState<string>('');
 
+  // Express SOS mode — single-screen, icon-first 3-tap dispatch.
+  const [sosMode, setSosMode] = useState<'classic' | 'express'>('classic');
+  const [sosTile, setSosTile] = useState<ExpressSosTileId | ''>('');
+  const [sosExpressFault, setSosExpressFault] = useState<string>('');
+  const [sosPhotoUrl, setSosPhotoUrl] = useState<string | null>(null);
+  const [sosVoiceUrl, setSosVoiceUrl] = useState<string | null>(null);
+  const [sosExpressLocation, setSosExpressLocation] = useState<string>('');
+  const [sosVehicleId, setSosVehicleId] = useState<string | null>(
+    initialBike ? initialBike.id : savedBikes[0]?.id ?? null
+  );
+
+  // Saved bikes become the express vehicle picker so the rider's default is
+  // pre-selected — one less decision mid-breakdown.
+  const sosVehicles: SosVehicleOption[] = useMemo(
+    () =>
+      savedBikes.map((b) => ({
+        id: b.id,
+        label: `${b.brand} ${b.model}`.trim() || b.categoryLabel,
+        category: b.category,
+      })),
+    [savedBikes]
+  );
+
   // Submission State
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Synchronous guard so a double-tap can't create two bookings (and two emails).
@@ -233,6 +264,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   );
   const contactStepComplete = Boolean(customerName.trim() && customerPhone.trim());
   const bookingProgress = [bikeStepComplete, issuesStepComplete, scheduleStepComplete, contactStepComplete].filter(Boolean).length;
+
+  // Express SOS replaces the whole four-step wizard with one icon-first screen.
+  const expressSosActive = isSos && sosMode === 'express';
 
   // Pick an existing bike from profile garage
   const handleSelectSavedBike = (bikeId: string) => {
@@ -354,15 +388,31 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       setFormError('Please enter a valid email address or leave it blank to be notified via phone.');
       return;
     }
-    if (serviceType === 'home_visit' && !homeAddress.trim()) {
+    // Express SOS collects its own location field, so the classic call-out
+    // address box (which never renders in express mode) must not block it.
+    if (serviceType === 'home_visit' && !homeAddress.trim() && !(isSos && sosMode === 'express')) {
       setFormError('Please enter the address where we should meet you for the call-out.');
       return;
     }
-    if (isSos && !sosIssue.trim()) {
+    if (isSos && sosMode === 'express') {
+      // Express SOS: the visual tile IS the description, so we only insist on a
+      // category, a location and a way to reach the rider.
+      if (!sosTile) {
+        setFormError('Tap what is wrong with your bike so our SOS team knows what to bring.');
+        return;
+      }
+      if (!sosExpressLocation.trim()) {
+        setFormError('Tell us where you are (tap “Use My Current Location” or type a landmark).');
+        return;
+      }
+      if (!customerName.trim() || !customerPhone.trim()) {
+        setFormError('We need your name and mobile number to send the express quote on WhatsApp.');
+        return;
+      }
+    } else if (isSos && !sosIssue.trim()) {
       setFormError('Please describe the fault so our SOS team can prepare to fix it on the spot.');
       return;
-    }
-    if (isSos && !homeAddress.trim()) {
+    } else if (isSos && !homeAddress.trim()) {
       setFormError('SOS is a roadside call-out — please tell us where you are (or the nearest landmark).');
       return;
     }
@@ -372,6 +422,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     }
 
     if (
+      !(isSos && sosMode === 'express') &&
       problemSelectionMode === 'checklist' &&
       selectedIssueIds.length === 0 &&
       !problemNotes.trim()
@@ -380,17 +431,37 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       return;
     }
 
-    // Determine final model string
-    const finalModel = resolveModel(bikeIdentity);
+    const expressSos = isSos && sosMode === 'express';
+    const expressVehicle = expressSos ? savedBikes.find((b) => b.id === sosVehicleId) || null : null;
+    const effectiveCategory = expressVehicle ? expressVehicle.category : bikeIdentity.category;
 
-    const formattedVehicleName = `${bikeIdentity.brand} - ${finalModel}${
-      bikeIdentity.colour ? ` (${bikeIdentity.colour})` : ''
-    }`;
+    // Determine final model string. In express SOS the rider picked a saved bike
+    // (or nothing), so we use its label rather than the hidden spec fields.
+    const finalModel = expressVehicle ? expressVehicle.model : resolveModel(bikeIdentity);
 
-    const bikeDetails: BikeDetails | undefined = toBikeDetails(bikeIdentity);
+    const formattedVehicleName = expressSos
+      ? expressVehicle
+        ? `${expressVehicle.brand} ${expressVehicle.model}`.trim()
+        : 'Not specified — SOS call-out'
+      : `${bikeIdentity.brand} - ${finalModel}${
+          bikeIdentity.colour ? ` (${bikeIdentity.colour})` : ''
+        }`;
+
+    const bikeDetails: BikeDetails | undefined =
+      expressSos && expressVehicle
+        ? {
+            ...(expressVehicle.bikeDetails || {}),
+            brand: expressVehicle.brand,
+            model: expressVehicle.model,
+          }
+        : expressSos
+        ? undefined
+        : toBikeDetails(bikeIdentity);
 
     const selectedVoucher =
-      applyVoucher && availableServiceVouchers.length > 0 ? availableServiceVouchers[0] : null;
+      !expressSos && applyVoucher && availableServiceVouchers.length > 0
+        ? availableServiceVouchers[0]
+        : null;
     const effectivePrice = 0; // Priced upon completion by staff quote/invoice
 
     // A double-tap can fire handleSubmit twice before React disables the button,
@@ -407,7 +478,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         ? `Discount code: ${appliedDiscount.code} (${appliedDiscount.title}) — to be honoured on the final repair invoice`
         : '';
 
-      const issueItems = selectedIssueIds
+      const issueIdsForNotes = expressSos ? expressSosIssueIds(sosTile || undefined) : selectedIssueIds;
+      const issueItems = issueIdsForNotes
         .map((id) => ALL_BIKE_ISSUES_MAP.get(id))
         .filter(Boolean);
 
@@ -443,7 +515,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         .join('\n');
 
       const serviceTypeBlock =
-        serviceType === 'home_visit'
+        expressSos
+          ? [
+              'SERVICE TYPE: Express SOS roadside call-out',
+              `Rider location: ${(sosExpressLocation || homeAddress).trim()}`,
+            ]
+              .filter(Boolean)
+              .join('\n')
+          : serviceType === 'home_visit'
           ? [
               'SERVICE TYPE: Home visit / call-out',
               `Address: ${homeAddress.trim()}`,
@@ -461,13 +540,24 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         : '';
 
       const sosNote = isSos
-        ? [
-            `🚨 ${SOS_NOTES_MARKER} — PRIORITY CALL-OUT (skips the workshop queue)`,
-            `Rider use: ${SOS_VEHICLE_USE_LABEL[sosVehicleUse]}`,
-            `Fault: ${sosIssue.trim()}`,
-            `Rider location: ${(homeAddress || sosRiderLocation).trim()}`,
-            `Express surcharge: £${SOS_SURCHARGE.toFixed(2)} (added to the confirmed quote)`,
-          ].join('\n')
+        ? sosMode === 'express' && sosTile
+          ? buildExpressSosNote({
+              tileId: sosTile,
+              faultText: sosExpressFault.trim() || expressSosTileFor(sosTile)?.hint,
+              location: (sosExpressLocation || homeAddress || sosRiderLocation).trim(),
+              vehicleLabel: formattedVehicleName,
+              photoAttached: Boolean(sosPhotoUrl),
+              voiceAttached: Boolean(sosVoiceUrl),
+              photoUrl: sosPhotoUrl,
+              voiceUrl: sosVoiceUrl,
+            })
+          : [
+              `🚨 ${SOS_NOTES_MARKER} — PRIORITY CALL-OUT (skips the workshop queue)`,
+              `Rider use: ${SOS_VEHICLE_USE_LABEL[sosVehicleUse]}`,
+              `Fault: ${sosIssue.trim()}`,
+              `Rider location: ${(homeAddress || sosRiderLocation).trim()}`,
+              `Express surcharge: £${SOS_SURCHARGE.toFixed(2)} (added to the confirmed quote)`,
+            ].join('\n')
         : '';
 
       const finalNotes = [
@@ -494,7 +584,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         customerPhone: customerPhone.trim(),
         customerId: currentUser?.uid,
         membershipNumber: currentUser?.membershipNumber,
-        vehicleCategory: bikeIdentity.category,
+        vehicleCategory: effectiveCategory,
         vehicleModel: formattedVehicleName,
         bikeDetails,
         serviceId: computedService.serviceId,
@@ -502,15 +592,20 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           ? `${computedService.headline} (£40 Voucher Applied)`
           : computedService.headline,
         servicePrice: effectivePrice,
-        preferredDate: serviceType === 'home_visit' ? todayIso : preferredDate,
-        preferredTimeSlot: serviceType === 'home_visit' ? homeVisitTime : preferredTimeSlot,
+        preferredDate: serviceType === 'home_visit' || expressSos ? todayIso : preferredDate,
+        preferredTimeSlot: serviceType === 'home_visit' || expressSos ? homeVisitTime : preferredTimeSlot,
         notes: finalNotes,
         referralCode: referralCode.trim() || undefined,
-        selectedIssues: selectedIssueIds,
-        otherNotes: problemNotes.trim() || undefined,
+        selectedIssues: expressSos ? expressSosIssueIds(sosTile || undefined) : selectedIssueIds,
+        otherNotes: (expressSos ? sosExpressFault : problemNotes).trim() || undefined,
         isSos: isSos || undefined,
         sosStatus: isSos ? 'requested' : undefined,
-        sosLocationNote: isSos ? (homeAddress || sosRiderLocation).trim() || undefined : undefined,
+        sosLocationNote: isSos
+          ? (sosMode === 'express' ? sosExpressLocation : homeAddress || sosRiderLocation).trim() || undefined
+          : undefined,
+        sosCategory: isSos && sosMode === 'express' && sosTile ? expressSosTileFor(sosTile)?.tag : undefined,
+        sosPhotoUrl: isSos && sosMode === 'express' ? sosPhotoUrl || undefined : undefined,
+        sosVoiceNoteUrl: isSos && sosMode === 'express' ? sosVoiceUrl || undefined : undefined,
       });
 
       if (selectedVoucher && currentUser) {
@@ -541,6 +636,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     setSubmittedBooking(null);
     setNotes('');
     setReferralCode('');
+    setSosTile('');
+    setSosExpressFault('');
+    setSosPhotoUrl(null);
+    setSosVoiceUrl(null);
+    setSosExpressLocation('');
   };
 
   // Website surface: after the confirmation is shown, send the visitor back to
@@ -869,7 +969,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <span className="ml-auto text-emerald-400 font-semibold">Ask for a quote</span>
         </div>
 
-        {/* Step progress — tap a step to jump to it. */}
+        {/* Step progress — hidden in Express SOS, which uses its own 3-tap strip. */}
+        {!expressSosActive && (
         <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl px-3 sm:px-5 py-3.5">
           <div className="flex items-center justify-between gap-2">
             {[
@@ -920,6 +1021,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             <span className="font-mono">{Math.round((bookingProgress / 4) * 100)}%</span>
           </div>
         </div>
+        )}
 
         {/* SOS EMERGENCY REPAIR — priority call-out for couriers / delivery riders */}
         <div className={`scroll-mt-24 rounded-2xl border p-6 sm:p-8 space-y-4 transition-colors ${
@@ -927,11 +1029,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         }`}>
           <button
             type="button"
+            role="switch"
+            aria-checked={isSos}
+            aria-label="SOS Emergency Call-Out Mode"
             onClick={() => {
               const next = !isSos;
               setIsSos(next);
               if (next) {
                 setServiceType('home_visit');
+                setSosMode('express');
                 setOpenSteps((prev) => ({ ...prev, schedule: true, issues: true }));
               }
             }}
@@ -950,17 +1056,42 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 </span>
               </div>
               <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
-                Broken down mid-shift? For Uber Eats, Deliveroo, Just Eat and courier riders who can't be off the road.
-                We jump you to the front of the queue and set off to you — a fast call-out for a little extra
-                (£{SOS_SURCHARGE.toFixed(0)} express surcharge). Still a request: our team approves it first.
+                {isSos
+                  ? 'Express mode: tap what is wrong, set your location, send. No long forms — help is on the way.'
+                  : `Broken down mid-shift? For Uber Eats, Deliveroo, Just Eat and courier riders who can't be off the road. We jump you to the front of the queue and set off to you (£${SOS_SURCHARGE.toFixed(0)} express surcharge). Still a request: our team approves it first.`}
               </p>
             </div>
-            <span className={`text-[11px] font-bold shrink-0 mt-1 ${isSos ? 'text-rose-300' : 'text-neutral-500'}`}>
+            <span className={`shrink-0 mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+              isSos ? 'border-rose-400 bg-rose-500/20 text-rose-200' : 'border-neutral-700 text-neutral-500'
+            }`}>
+              <span className={`h-2 w-2 rounded-full ${isSos ? 'bg-rose-400' : 'bg-neutral-600'}`} />
               {isSos ? 'ON' : 'OFF'}
             </span>
           </button>
 
           {isSos && (
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/60 p-1.5" role="tablist" aria-label="SOS mode">
+              {([
+                { id: 'express', label: '⚡ Express (3 taps)', hint: 'Icons only' },
+                { id: 'classic', label: '📝 Describe it', hint: 'Full form' },
+              ] as const).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={sosMode === m.id}
+                  onClick={() => setSosMode(m.id)}
+                  className={`flex-1 rounded-lg px-3 py-2 text-[11px] font-bold cursor-pointer transition-colors ${
+                    sosMode === m.id ? 'bg-rose-500/20 text-rose-200' : 'text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  {m.label} <span className="hidden sm:inline text-[10px] font-normal text-neutral-500">· {m.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {isSos && sosMode === 'classic' && (
             <div className="space-y-4 pt-2 border-t border-rose-500/20">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -1027,6 +1158,35 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           )}
         </div>
 
+        {/* Express SOS: one icon-first screen replaces the whole wizard. */}
+        {expressSosActive && (
+          <div className="scroll-mt-24 rounded-2xl border border-rose-500/40 bg-[#0d1015] p-5 sm:p-7">
+            <ExpressSosMode
+              tileId={sosTile}
+              onTile={setSosTile}
+              faultText={sosExpressFault}
+              onFaultText={setSosExpressFault}
+              photoUrl={sosPhotoUrl}
+              onPhotoUrl={setSosPhotoUrl}
+              voiceUrl={sosVoiceUrl}
+              onVoiceUrl={setSosVoiceUrl}
+              location={sosExpressLocation}
+              onLocation={setSosExpressLocation}
+              vehicles={sosVehicles}
+              selectedVehicleId={sosVehicleId}
+              onSelectVehicle={setSosVehicleId}
+              contactName={customerName}
+              contactPhone={customerPhone}
+              onContactName={setCustomerName}
+              onContactPhone={setCustomerPhone}
+              submitting={isSubmitting}
+              error={formError}
+              onSubmit={() => handleSubmit({ preventDefault: () => {} } as React.FormEvent)}
+            />
+          </div>
+        )}
+
+        {!expressSosActive && (<>
         {/* STEP 1: Your bike (category + identity + e-bike conversion) */}
         <div id="booking-step-vehicle" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
           <button
@@ -1541,9 +1701,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </>
           )}
         </div>
+        </>)}
 
         {/* Voucher Redemption Option */}
-        {availableServiceVouchers.length > 0 && (
+        {!expressSosActive && availableServiceVouchers.length > 0 && (
           <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
@@ -1575,7 +1736,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </div>
         )}
 
-        {/* Optional discount code — honoured on the final repair invoice */}
+        {/* Optional discount code — hidden in Express SOS to prevent drop-off. */}
+        {!expressSosActive && (
         <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-2">
           <div className="flex items-center gap-2 text-xs font-bold text-white">
             <Tag className="w-4 h-4 text-emerald-400" />
@@ -1616,16 +1778,18 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             Applied to your final repair invoice — we&apos;ll confirm it when we send your quote.
           </p>
         </div>
+        )}
 
-        {/* Error Notice */}
-        {formError && (
+        {/* Error Notice — the express screen shows its own inline error. */}
+        {!expressSosActive && formError && (
           <div className="p-3.5 rounded-lg bg-rose-950/70 border border-rose-800 text-rose-200 text-xs flex items-center gap-2.5">
             <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
             <span>{formError}</span>
           </div>
         )}
 
-        {/* Submit Action */}
+        {/* Submit Action — the express screen has its own one-tap SOS button. */}
+        {!expressSosActive && (
         <div className="pt-2">
           <button
             type="submit"
@@ -1646,6 +1810,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             No upfront payment required. Our workshop mechanic will evaluate your bike upon drop-off, complete repairs, and provide an itemized quote/invoice.
           </div>
         </div>
+        )}
       </form>
     </div>
   );

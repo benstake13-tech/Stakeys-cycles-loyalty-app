@@ -62,6 +62,8 @@ describe('BookingPortal — SOS emergency request', () => {
 
     // Turn SOS on — it should also switch the service to a call-out.
     fireEvent.click(screen.getByText('SOS Emergency Repair'));
+    // SOS now defaults to Express mode; choose the full "Describe it" form.
+    fireEvent.click(screen.getByText(/Describe it/));
 
     fillContact();
     fireEvent.change(screen.getByPlaceholderText(/Nearest landmark/i), {
@@ -86,6 +88,7 @@ describe('BookingPortal — SOS emergency request', () => {
   it('blocks an SOS submission that has no fault description', async () => {
     render(<BookingPortal />);
     fireEvent.click(screen.getByText('SOS Emergency Repair'));
+    fireEvent.click(screen.getByText(/Describe it/));
     fillContact();
     fireEvent.change(screen.getByPlaceholderText(/Nearest landmark/i), {
       target: { value: 'Outside the Co-op' },
