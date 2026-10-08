@@ -17,14 +17,16 @@ vi.mock('./src/lib/supabase', () => ({
 }));
 
 vi.mock('./src/utils/bookingEmailLedger', () => ({
-  shouldSendBookingEmail: (bookingId: string, category: string) => {
-    const key = `${bookingId}:${category}`;
+  shouldSendBookingEmail: (bookingId: string, category: string, audience = 'owner') => {
+    const key = `${bookingId}:${category}:${audience}`;
     if (hoisted.ledger.has(key)) return false;
     hoisted.ledger.add(key);
     return true;
   },
-  bookingEmailKey: (bookingId: string, category: string) => `${bookingId}:${category}`,
-  markBookingEmailSent: (bookingId: string, category: string) => hoisted.ledger.add(`${bookingId}:${category}`),
+  bookingEmailKey: (bookingId: string, category: string, audience = 'owner') =>
+    `${bookingId}:${category}:${audience}`,
+  markBookingEmailSent: (bookingId: string, category: string, audience = 'owner') =>
+    hoisted.ledger.add(`${bookingId}:${category}:${audience}`),
   resetBookingEmailLedger: () => hoisted.ledger.clear(),
   rehydrateBookingEmailLedger: () => {},
 }));
@@ -114,6 +116,58 @@ describe('booking email de-duplication', () => {
 
     const subjects = hoisted.invokes.map((i) => i.body.subject as string);
     expect(subjects.filter((s) => s.includes('Slot Reminder')).length).toBe(2); // customer + workshop
+  });
+
+  it('delivers the full multi-line job detail to the workshop email', async () => {
+    const detailed: ServiceBooking = {
+      ...booking,
+      notes:
+        'Bike: Trek FX 1\nSerial: WTU123456\n\nReported Symptoms (1):\n• [Brakes] Squeaky / rubbing\n\nAccess / drop-off notes: Side gate, code 4455\n\nPreferred contact: Email',
+    };
+    await dispatchBookingNotifications(detailed, config);
+
+    const ownerEmail = hoisted.invokes.find((i) => i.body.to === 'workshop@stakeyscycles.co.uk');
+    expect(ownerEmail).toBeTruthy();
+    expect(ownerEmail!.body.html).toContain('Full Booking Detail');
+    expect(ownerEmail!.body.html).toContain('Access / drop-off notes: Side gate, code 4455');
+    expect(ownerEmail!.body.html).toContain('Preferred contact: Email');
+  });
+
+  it('escapes HTML in customer notes so the workshop email cannot be injected', async () => {
+    await dispatchBookingNotifications(
+      { ...booking, notes: 'Suspicious <script>alert(1)</script> text' },
+      config
+    );
+    const ownerEmail = hoisted.invokes.find((i) => i.body.to === 'workshop@stakeyscycles.co.uk');
+    expect(ownerEmail!.body.html).not.toContain('<script>alert(1)</script>');
+    expect(ownerEmail!.body.html).toContain('&lt;script&gt;');
+  });
+
+  it('still confirms the customer when workshop alerts are switched off', async () => {
+    // The workshop muting its own inbox must never rob the customer of a receipt.
+    const mutedConfig: OwnerNotificationConfig = { ...config, emailAlertsEnabled: false };
+    const { failures } = await dispatchBookingNotifications(booking, mutedConfig);
+
+    const recipients = hoisted.invokes.map((i) => i.body.to);
+    expect(recipients).toContain('sam@example.com');
+    expect(recipients).not.toContain('workshop@stakeyscycles.co.uk');
+    expect((failures || []).some((f) => f.includes('Workshop booking alert not sent'))).toBe(true);
+  });
+
+  it('still confirms the customer when no workshop recipient is configured', async () => {
+    const noOwnerConfig: OwnerNotificationConfig = { ...config, ownerEmail: '' };
+    await dispatchBookingNotifications(booking, noOwnerConfig);
+
+    const recipients = hoisted.invokes.map((i) => i.body.to);
+    expect(recipients).toEqual(['sam@example.com']);
+  });
+
+  it('reports a failure when the booking has no customer email to confirm', async () => {
+    const { failures } = await dispatchBookingNotifications({ ...booking, customerEmail: '' }, config);
+
+    expect((failures || []).some((f) => f.includes('no customer email address'))).toBe(true);
+    // The workshop alert is unaffected and still goes out.
+    expect(hoisted.invokes.map((i) => i.body.to)).toContain('workshop@stakeyscycles.co.uk');
   });
 
   it('dispatches the 24h reminder as a push to the customer and owner-email devices', async () => {

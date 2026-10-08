@@ -31,6 +31,7 @@ import {
   DEFAULT_REMINDER_SETTINGS,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
+import { collectionsEqual, deepEqual } from '../utils/stateEquality';
 import {
   SeasonalThemeId,
   ThemeOverride,
@@ -1376,7 +1377,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const brandNewBookings = incomingBookings.filter((b) => !knownBookingIdsRef.current.has(b.id));
 
     incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
-    setBookings(incomingBookings);
+    // Only write when the list actually differs. The 15s poll and every realtime
+    // event call this; an unchanged read used to re-render every consumer.
+    if (brandNewBookings.length > 0 || !collectionsEqual(bookingsRef.current, incomingBookings)) {
+      setBookings(incomingBookings);
+    }
 
     // ONLY staff receives the loud audio ping and push notification!
     if (isStaff && brandNewBookings.length > 0) {
@@ -1409,6 +1414,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Database Synchronization Engine & Real-time State
   const [isDatabaseSyncing, setIsDatabaseSyncing] = useState<boolean>(false);
+  // Mirrors the syncing flag so the 4s sync only flips it on a real transition
+  // (true→false), instead of forcing two extra renders of the whole tree each tick.
+  const isDatabaseSyncingRef = useRef<boolean>(false);
+  const setSyncing = (next: boolean) => {
+    if (isDatabaseSyncingRef.current === next) return;
+    isDatabaseSyncingRef.current = next;
+    setIsDatabaseSyncing(next);
+  };
 
   /**
    * Give every roster profile back its `bikes`. The roster read
@@ -1419,10 +1432,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * fails, so a transient error never wipes a garage.
    */
   const hydrateRosterGarages = (profiles: UserProfile[]): Promise<UserProfile[]> =>
-    hydrateRosterGaragesUtil(profiles, fetchBikesByOwner, users);
+    // Fall back to the CURRENT users (not the mount-time snapshot the poll
+    // closure captured) so a failed bike read never blanks a garage.
+    hydrateRosterGaragesUtil(profiles, fetchBikesByOwner, usersRef.current);
 
   const syncUserFromDatabase = async (user: UserProfile) => {
-    setIsDatabaseSyncing(true);
+    setSyncing(true);
     try {
       const isStaff = user.role === 'staff' || user.role === 'admin';
       
@@ -1466,27 +1481,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : user.serviceVouchers,
       };
 
-      setCurrentUser(updatedUser);
+      // Same identity guard as the poll: the per-user sync runs on every 4s
+      // tick, so only write when something actually changed.
+      const liveUser = currentUserRef.current;
+      if (!liveUser || !deepEqual(liveUser, updatedUser)) {
+        setCurrentUser(updatedUser);
+      }
       if (allProfiles && allProfiles.length > 0) {
         // Re-attach each profile's bikes, otherwise this roster swap blanks
         // every garage until the next per-user sync (the "disappearing" bug).
         const hydrated = await hydrateRosterGarages(allProfiles);
-        setUsers(hydrated);
-      } else {
+        if (!collectionsEqual(usersRef.current, hydrated)) {
+          setUsers(hydrated);
+        }
+      } else if (!collectionsEqual(usersRef.current, usersRef.current.map((u) => (u.uid === user.uid ? updatedUser : u)))) {
         setUsers((prev) => prev.map((u) => (u.uid === user.uid ? updatedUser : u)));
       }
 
       if (remoteBookings && remoteBookings.length > 0) {
         updateBookingsWithStaffAlert(remoteBookings);
       }
-      if (remoteLogs && remoteLogs.length > 0) {
+      if (remoteLogs && remoteLogs.length > 0 && !collectionsEqual(stampLogsRef.current, remoteLogs)) {
         setStampLogs(remoteLogs);
       }
       console.log(`[DB SYNC] ✅ Synchronized user "${updatedUser.displayName}" with backend database`);
     } catch (err) {
       console.warn('[DB SYNC] Database sync error:', err);
     } finally {
-      setIsDatabaseSyncing(false);
+      setSyncing(false);
     }
   };
 
@@ -1501,57 +1523,76 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fetchPromotionsFromDb(),
       fetchAppSettingsFromDb(),
     ]);
+    // Each branch below only writes when the fetched data differs from what we
+    // already hold. The poll runs every 4s and the realtime subscription fires
+    // on every row change; writing identical data back would change the context
+    // value identity and re-render the whole tree for no visible change.
     if (allProfiles && allProfiles.length > 0) {
       // The roster read carries no bikes; re-attach them so this swap (which
       // runs on every realtime event and 4s poll) never blanks a garage.
       const hydrated = await hydrateRosterGarages(allProfiles);
-      setUsers(hydrated);
-      if (currentUser) {
-        const freshCurrent = hydrated.find((u) => u.uid === currentUser.uid || u.membershipNumber === currentUser.membershipNumber);
+      if (!collectionsEqual(usersRef.current, hydrated)) {
+        setUsers(hydrated);
+      }
+      const latestUser = currentUserRef.current;
+      if (latestUser) {
+        const freshCurrent = hydrated.find((u) => u.uid === latestUser.uid || u.membershipNumber === latestUser.membershipNumber);
         if (freshCurrent) {
-          setCurrentUser((prev) => prev ? { ...prev, ...freshCurrent } : freshCurrent);
+          const merged = { ...latestUser, ...freshCurrent };
+          if (!deepEqual(latestUser, merged)) {
+            setCurrentUser(merged);
+          }
         }
       }
     }
-    if (remoteWheels && remoteWheels.length > 0) {
+    if (remoteWheels && remoteWheels.length > 0 && !collectionsEqual(prizeWheelsRef.current, remoteWheels)) {
       setPrizeWheels(remoteWheels);
     }
-    if (remoteDraws && remoteDraws.length > 0) {
+    if (remoteDraws && remoteDraws.length > 0 && !collectionsEqual(drawsRef.current, remoteDraws)) {
       setDraws(remoteDraws);
     }
-    if (remoteCodes && remoteCodes.length > 0) {
+    if (remoteCodes && remoteCodes.length > 0 && !collectionsEqual(discountCodesRef.current, remoteCodes)) {
       setDiscountCodes(remoteCodes);
     }
-    if (remoteSales && remoteSales.length > 0) {
+    if (remoteSales && remoteSales.length > 0 && !collectionsEqual(salesRef.current, remoteSales)) {
       setSales(remoteSales);
     }
-    if (remoteStaff && remoteStaff.length > 0) {
+    if (remoteStaff && remoteStaff.length > 0 && !collectionsEqual(staffMembersRef.current, remoteStaff)) {
       setStaffMembers(remoteStaff);
     }
-    if (remotePromos && remotePromos.length > 0) {
+    if (remotePromos && remotePromos.length > 0 && !collectionsEqual(promotionsRef.current, remotePromos)) {
       setPromotions(remotePromos);
     }
     if (remoteSettings) {
-      setOwnerConfig((prev) => ({
+      const prev = ownerConfigRef.current;
+      const merged: OwnerNotificationConfig = {
         ...prev,
         ownerEmail: remoteSettings.ownerEmail ?? prev.ownerEmail,
         ownerPhone: remoteSettings.ownerPhone ?? prev.ownerPhone,
         emailAlertsEnabled: remoteSettings.emailAlertsEnabled ?? prev.emailAlertsEnabled,
         smsAlertsEnabled: remoteSettings.smsAlertsEnabled ?? prev.smsAlertsEnabled,
         businessName: remoteSettings.businessName ?? prev.businessName,
-      }));
+      };
+      if (!deepEqual(prev, merged)) {
+        setOwnerConfig(merged);
+      }
       applyRemoteReminderSettings(remoteSettings);
     }
 
-    if (currentUser) {
-      await syncUserFromDatabase(currentUser);
+    const latestUser = currentUserRef.current;
+    if (latestUser) {
+      await syncUserFromDatabase(latestUser);
     } else {
       const [remoteBookings, remoteLogs] = await Promise.all([
         fetchServiceBookingsFromDb(undefined, true),
         fetchStampLogsFromDb(undefined, true),
       ]);
+      // `updateBookingsWithStaffAlert` already diffs for new ids; guard the
+      // stamp-log write the same way so an unchanged read is a no-op.
       if (remoteBookings && remoteBookings.length > 0) updateBookingsWithStaffAlert(remoteBookings);
-      if (remoteLogs && remoteLogs.length > 0) setStampLogs(remoteLogs);
+      if (remoteLogs && remoteLogs.length > 0 && !collectionsEqual(stampLogsRef.current, remoteLogs)) {
+        setStampLogs(remoteLogs);
+      }
     }
   };
 
@@ -1630,10 +1671,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshDatabaseState();
     });
 
-    // Fallback polling every 4 seconds and window focus sync for instant multi-browser updates
+    // Fallback poll (realtime handles the instant path) plus a focus sync.
+    // 15s, not 4s: the poll refetched the whole database and, before the
+    // equality guards above, re-rendered every consumer on each tick.
     const pollInterval = setInterval(() => {
       refreshDatabaseState().catch(() => {});
-    }, 4000);
+    }, 15000);
 
     const handleFocus = () => {
       refreshDatabaseState().catch(() => {});
@@ -1729,6 +1772,32 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     emailAlertsEnabled: false,
     businessName: 'Stakey\'s Cycles',
   });
+
+  // Latest-value mirrors of the synced collections. The 4s poll effect is
+  // mounted once (deps `[]`), so it only sees the values captured at mount;
+  // these refs let the sync compare against what we actually hold now and skip
+  // the `setState` entirely when a poll returned identical data. Without this
+  // every poll changed the context identity and re-rendered all consumers.
+  const usersRef = useRef<UserProfile[]>(users);
+  usersRef.current = users;
+  const prizeWheelsRef = useRef<PrizeWheel[]>(prizeWheels);
+  prizeWheelsRef.current = prizeWheels;
+  const drawsRef = useRef<PrizeDraw[]>(draws);
+  drawsRef.current = draws;
+  const discountCodesRef = useRef<DiscountCode[]>(discountCodes);
+  discountCodesRef.current = discountCodes;
+  const salesRef = useRef<SaleTransaction[]>(sales);
+  salesRef.current = sales;
+  const staffMembersRef = useRef<StaffMember[]>(staffMembers);
+  staffMembersRef.current = staffMembers;
+  const promotionsRef = useRef<ShopPromotion[]>(promotions);
+  promotionsRef.current = promotions;
+  const ownerConfigRef = useRef<OwnerNotificationConfig>(ownerConfig);
+  ownerConfigRef.current = ownerConfig;
+  const bookingsRef = useRef<ServiceBooking[]>(bookings);
+  bookingsRef.current = bookings;
+  const stampLogsRef = useRef<StampLog[]>(stampLogs);
+  stampLogsRef.current = stampLogs;
 
   // Track the most recently placed booking for live modal notification preview
   const [latestDispatchedBooking, setLatestDispatchedBooking] = useState<ServiceBooking | null>(null);

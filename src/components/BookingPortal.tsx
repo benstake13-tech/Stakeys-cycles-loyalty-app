@@ -19,6 +19,7 @@ import {
   Siren,
   Truck,
   Tag,
+  Plus,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
@@ -182,6 +183,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   });
   const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>(TIME_SLOT_OPTIONS[0]);
   const [notes, setNotes] = useState<string>('');
+
+  // Optional extra detail. Everything here is OPTIONAL and folded into the
+  // booking notes the workshop sees (staff card + owner email), so a customer
+  // can tell us as much as they want without facing a wall of required fields.
+  const [accessNotes, setAccessNotes] = useState<string>('');
+  const [preferredContact, setPreferredContact] = useState<'call' | 'email'>('call');
+  const [additionalDetails, setAdditionalDetails] = useState<string>('');
+  const [showExtraDetails, setShowExtraDetails] = useState<boolean>(false);
 
   // Refer a Friend: prefilled from a ?ref= link, editable so staff can key a
   // code in for a walk-in, and shown as £15 off only when a full service is
@@ -560,6 +569,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             ].join('\n')
         : '';
 
+      const extraDetailsBlock =
+        [
+          accessNotes.trim() ? `Access / drop-off notes: ${accessNotes.trim()}` : '',
+          additionalDetails.trim() ? `Extra detail: ${additionalDetails.trim()}` : '',
+          `Preferred contact: ${preferredContact === 'email' ? 'Email' : 'Phone call'}`,
+        ]
+          .filter(Boolean)
+          .join('\n') || '';
+
       const finalNotes = [
         sosNote,
         serviceTypeBlock,
@@ -567,6 +585,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         issuesBlock,
         problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
         notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
+        extraDetailsBlock,
         voucherNote,
         discountNote,
         referralNote,
@@ -1699,6 +1718,74 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               placeholder="e.g. Rear brake feels spongy, or need back before Friday commute"
               className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
             />
+          </div>
+
+          {/* Optional detail, collapsed by default so the required form stays short */}
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950/40">
+            <button
+              type="button"
+              onClick={() => setShowExtraDetails((v) => !v)}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer"
+            >
+              <span className="flex items-center gap-2 text-xs font-semibold text-neutral-200">
+                <Plus className="w-4 h-4 text-emerald-400" />
+                Add more details for the mechanic
+                <span className="text-[10px] font-normal text-neutral-500">Optional</span>
+              </span>
+              <ChevronDown className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform ${showExtraDetails ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showExtraDetails && (
+              <div className="px-4 pb-4 space-y-4 border-t border-neutral-800 pt-4">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                    Access / drop-off notes <span className="text-neutral-500">(Optional)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={accessNotes}
+                    onChange={(e) => setAccessNotes(e.target.value)}
+                    placeholder="e.g. Gate code 1234, leave with the front desk, or the bike is in a shared garage"
+                    className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                    Anything else we should know? <span className="text-neutral-500">(Optional)</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={additionalDetails}
+                    onChange={(e) => setAdditionalDetails(e.target.value)}
+                    placeholder="e.g. I only ride it at weekends, the last service was 8 months ago, or I'd like a quote before any parts are ordered"
+                    className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1.5">
+                    Best way to reach you <span className="text-neutral-500">(Optional)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    {(['call', 'email'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setPreferredContact(mode)}
+                        className={`flex-1 px-3 py-2 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${
+                          preferredContact === mode
+                            ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-300'
+                            : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                        }`}
+                      >
+                        {mode === 'call' ? 'Phone call' : 'Email'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           </>
           )}

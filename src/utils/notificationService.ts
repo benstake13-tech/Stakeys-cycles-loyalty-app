@@ -133,13 +133,19 @@ ${sos ? `
             <td style="color: #05C147; font-size: 13px; font-family: monospace; font-weight: 700;">${booking.membershipNumber}</td>
           </tr>
           ` : ''}
-          ${booking.notes ? `
-          <tr>
-            <td style="color: #a1a1aa; font-size: 13px; vertical-align: top;">Customer Notes:</td>
-            <td style="color: #e4e4e7; font-size: 13px; font-style: italic;">"${booking.notes}"</td>
-          </tr>
-          ` : ''}
         </table>
+
+        ${booking.notes ? `
+        <!-- Full job sheet. The customer can add a lot of detail (symptoms, bike
+             identity, access notes, extra requests); render it with preserved
+             line breaks so nothing is lost or mangled in the workshop inbox. -->
+        <h3 style="color: #d4d4d8; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 12px 0;">Full Booking Detail</h3>
+        <table width="100%" border="0" cellspacing="0" cellpadding="12" style="background-color: #18181b; border-radius: 12px; margin-bottom: 20px; border: 1px solid #27272a;">
+          <tr>
+            <td style="color: #e4e4e7; font-size: 13px; line-height: 1.6; white-space: pre-wrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;">${booking.notes.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>
+          </tr>
+        </table>
+        ` : ''}
 
         <!-- Quick Action Buttons -->
         <table width="100%" border="0" cellspacing="0" cellpadding="0">
@@ -612,20 +618,25 @@ export async function dispatchBookingNotifications(
     status: 'delivered',
   };
 
-  // Live Email Gateway: Forward to Supabase Edge Function
+  // Live Email Gateway: Forward to Supabase Edge Function.
+  // The two recipients are gated INDEPENDENTLY: `emailAlertsEnabled` is the
+  // workshop's own alert preference and must never suppress the customer's
+  // confirmation, or a customer gets no receipt because staff muted their inbox.
   const failures: string[] = [];
-  if (!config.ownerEmail || !config.emailAlertsEnabled) {
-    const reason = !config.ownerEmail
-      ? 'no workshop notification recipient is set'
-      : 'email alerts are turned off in workshop settings';
-    failures.push(`Workshop booking alert not sent: ${reason}.`);
-    console.warn(`[STAKEYS EMAIL ENGINE] ⚠️ Skipped workshop alert — ${reason}.`);
-  } else if (!shouldSendBookingEmail(booking.id, 'booking_confirmation')) {
-    // This booking's confirmation has already been dispatched — never send twice.
-    console.log(`[STAKEYS EMAIL ENGINE] ↺ Skipped duplicate confirmation for booking #${booking.id}.`);
-  } else {
-    try {
-      const supabase = getSupabaseClient();
+  const ownerAlertsEnabled = Boolean(config.ownerEmail) && config.emailAlertsEnabled;
+  const ownerAlreadySent = !shouldSendBookingEmail(booking.id, 'booking_confirmation');
+  const ownerReason = !config.ownerEmail
+    ? 'no workshop notification recipient is set'
+    : 'email alerts are turned off in workshop settings';
+  if (!ownerAlertsEnabled) {
+    failures.push(`Workshop booking alert not sent: ${ownerReason}.`);
+    console.warn(`[STAKEYS EMAIL ENGINE] ⚠️ Skipped workshop alert — ${ownerReason}.`);
+  }
+
+  try {
+    const supabase = getSupabaseClient();
+
+    if (ownerAlertsEnabled && !ownerAlreadySent) {
       const ownerSend = await supabase.functions.invoke('send-email', {
         body: {
           from: 'noreply@stakeyscycles.co.uk',
@@ -635,7 +646,21 @@ export async function dispatchBookingNotifications(
           ...(importantHeaders ? { headers: importantHeaders } : {}),
         },
       });
+      if (ownerSend.error) {
+        failures.push(`Workshop booking alert failed: ${ownerSend.error.message}`);
+        console.error(`[STAKEYS EMAIL ENGINE] ❌ Workshop alert email failed: ${ownerSend.error.message}`);
+      } else {
+        console.log(`[STAKEYS EMAIL ENGINE] ✅ Booking alert email sent to workshop (${config.ownerEmail})`);
+      }
+    } else if (ownerAlertsEnabled && ownerAlreadySent) {
+      console.log(`[STAKEYS EMAIL ENGINE] ↺ Skipped duplicate confirmation for booking #${booking.id}.`);
+    }
 
+    // The customer confirmation is a receipt for a booking they just made, so
+    // it is attempted whenever we have an address — never gated on the
+    // workshop's own alert toggle. It keeps its OWN dedup key so a suppressed
+    // workshop alert cannot release the customer's guard and double-send.
+    if (booking.customerEmail && shouldSendBookingEmail(booking.id, 'booking_confirmation', 'customer')) {
       const customerSend = await supabase.functions.invoke('send-email', {
         body: {
           from: 'noreply@stakeyscycles.co.uk',
@@ -644,23 +669,18 @@ export async function dispatchBookingNotifications(
           html: generateCustomerBookingEmailHtml(booking, config),
         },
       });
-
-      if (ownerSend.error) {
-        failures.push(`Workshop booking alert failed: ${ownerSend.error.message}`);
-        console.error(`[STAKEYS EMAIL ENGINE] ❌ Workshop alert email failed: ${ownerSend.error.message}`);
-      } else {
-        console.log(`[STAKEYS EMAIL ENGINE] ✅ Booking alert email sent to workshop (${config.ownerEmail})`);
-      }
       if (customerSend.error) {
         failures.push(`Customer confirmation failed: ${customerSend.error.message}`);
         console.error(`[STAKEYS EMAIL ENGINE] ❌ Customer confirmation email failed: ${customerSend.error.message}`);
       } else {
         console.log(`[STAKEYS EMAIL ENGINE] ✅ Confirmation email sent to customer (${booking.customerEmail})`);
       }
-    } catch (err) {
-      failures.push(`Booking emails failed: ${(err as Error).message || String(err)}`);
-      console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
+    } else {
+      failures.push('Customer confirmation not sent: the booking has no customer email address.');
     }
+  } catch (err) {
+    failures.push(`Booking emails failed: ${(err as Error).message || String(err)}`);
+    console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
   }
 
   return {
