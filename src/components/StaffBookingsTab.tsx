@@ -33,6 +33,7 @@ import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice, ReminderChannel, ReminderRecipients, DEFAULT_REMINDER_SETTINGS, clampNumber } from '../types/bikeShop';
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
+import { FaceAvatar } from './FaceAvatar';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { dispatchTestEmail } from '../utils/notificationService';
 import { vehicleNouns } from '../utils/vehicleType';
@@ -143,6 +144,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
     cycleWorkshopAudioVolume,
     requestPushNotificationPermission,
     repairBookingsLedger,
+    users,
   } = useShop();
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
@@ -156,6 +158,24 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
   // "Fix Bookings" repair state + result note.
   const [isFixingBookings, setIsFixingBookings] = useState(false);
   const [bookingsFixNote, setBookingsFixNote] = useState<string | null>(null);
+
+  /**
+   * Find the roster profile behind a booking so we can show the customer's
+   * customised avatar. Matches the strongest key first: uid, then membership
+   * number, then email. Guest bookings have none, so they fall back to a
+   * deterministic face seeded from the name.
+   */
+  const findCustomerProfile = (b: ServiceBooking) => {
+    const uid = b.customerId;
+    const membership = (b.membershipNumber || '').toUpperCase();
+    const email = (b.customerEmail || '').toLowerCase();
+    return users.find(
+      (u) =>
+        (uid && u.uid === uid) ||
+        (membership && (u.membershipNumber || '').toUpperCase() === membership) ||
+        (email && (u.email || '').toLowerCase() === email)
+    );
+  };
 
   // Highlighted booking from a notification deep link (auto-clears).
   const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null);
@@ -1182,6 +1202,14 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
                   className="w-full text-left cursor-pointer group"
                 >
                   <div className="flex items-start gap-3">
+                    {/* Customer avatar — their real customised face when we can
+                        resolve the roster profile, otherwise a seeded one. */}
+                    <FaceAvatar
+                      seed={b.customerName}
+                      configString={findCustomerProfile(b)?.avatarColor}
+                      size={40}
+                      className="w-10 h-10 rounded-2xl shrink-0"
+                    />
                     <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 ${
                       isFresh
                         ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-md shadow-amber-400/30 font-black'

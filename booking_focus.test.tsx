@@ -81,6 +81,8 @@ vi.mock('./src/context/ShopContext', () => ({
     workshopAudioVolume: 'normal',
     cycleWorkshopAudioVolume: vi.fn(),
     requestPushNotificationPermission: vi.fn(async () => 'granted'),
+    repairBookingsLedger: vi.fn(async () => ({ found: 0, reuploaded: 0, failed: 0 })),
+    users: [],
   }),
 }));
 
