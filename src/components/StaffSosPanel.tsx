@@ -14,6 +14,7 @@ import {
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking } from '../types/bikeShop';
 import { FaceAvatar } from './FaceAvatar';
+import { findCustomerForBooking } from '../utils/bookingCustomer';
 import {
   SOS_SURCHARGE,
   SosStatus,
@@ -79,17 +80,7 @@ export const StaffSosPanel: React.FC = () => {
   } = useShop();
 
   // Resolve the rider's roster profile so SOS cards show their real avatar.
-  const avatarFor = (b: ServiceBooking) => {
-    const uid = b.customerId;
-    const membership = (b.membershipNumber || '').toUpperCase();
-    const email = (b.customerEmail || '').toLowerCase();
-    return users.find(
-      (u) =>
-        (uid && u.uid === uid) ||
-        (membership && (u.membershipNumber || '').toUpperCase() === membership) ||
-        (email && (u.email || '').toLowerCase() === email)
-    )?.avatarColor;
-  };
+  const avatarFor = (b: ServiceBooking) => findCustomerForBooking(b, users)?.avatarColor;
 
   const [feedback, setFeedback] = useState<{ id: string; message: string; tone: 'ok' | 'warn' } | null>(null);
 

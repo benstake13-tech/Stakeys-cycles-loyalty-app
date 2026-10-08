@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
   Search,
@@ -33,13 +33,21 @@ import { UserProfile, StampLog } from '../types/bikeShop';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { StakeysLogo } from './StakeysLogo';
 import { FaceAvatar } from './FaceAvatar';
+import { CustomerAccountDossier } from './CustomerAccountDossier';
+import { MemberControlPanel } from './MemberControlPanel';
 
 interface CustomerDatabaseTabProps {
   onSelectForScanner?: (customer: UserProfile) => void;
+  /** Member uid to open the full account view for (e.g. from the bell). */
+  focusCustomerUid?: string | null;
+  /** Called once the focus request has been consumed. */
+  onFocusHandled?: () => void;
 }
 
 export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
   onSelectForScanner,
+  focusCustomerUid,
+  onFocusHandled,
 }) => {
   const {
     currentUser,
@@ -60,6 +68,12 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
   // Modals
   const [editingCustomer, setEditingCustomer] = useState<UserProfile | null>(null);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  // Full account view (garage, bookings, stamps, notes) opened from the bell or
+  // the "View" action. Held as a uid so it always renders the freshest profile.
+  const [dossierUid, setDossierUid] = useState<string | null>(null);
+  // The deep, tabbed dossier (garage/bookings/rewards/notes), reached from the
+  // loyalty control panel.
+  const [fullDossierUid, setFullDossierUid] = useState<string | null>(null);
 
   // Copied feedback
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -76,6 +90,14 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
   const customers = useMemo(() => {
     return users.filter((u) => u.role === 'customer');
   }, [users]);
+
+  // Open the requested member's account (deep link from the notification bell),
+  // then let the parent clear the request.
+  useEffect(() => {
+    if (!focusCustomerUid) return;
+    if (users.some((u) => u.uid === focusCustomerUid)) setDossierUid(focusCustomerUid);
+    onFocusHandled?.();
+  }, [focusCustomerUid, users]);
 
   // Total metrics
   const totalStamps = customers.reduce((sum, c) => sum + (c.stamps || 0), 0);
@@ -178,6 +200,36 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
       setTimeout(() => setFeedback(null), 3000);
     }
   };
+
+  // Full account view (garage, bookings, stamps, notes) takes over the tab when
+  // a member is opened from the bell or the "View" action.
+  const dossierCustomer = dossierUid ? users.find((u) => u.uid === dossierUid) : undefined;
+  if (dossierCustomer) {
+    // The bell's member deep link and "Manage Member" open the dedicated mobile
+    // loyalty control panel; the full dossier (garage/bookings/notes) is one tap
+    // further in from there.
+    return (
+      <MemberControlPanel
+        customer={dossierCustomer}
+        onBack={() => setDossierUid(null)}
+        onOpenFullDossier={() => setFullDossierUid(dossierCustomer.uid)}
+      />
+    );
+  }
+
+  const fullDossierCustomer = fullDossierUid ? users.find((u) => u.uid === fullDossierUid) : undefined;
+  if (fullDossierCustomer) {
+    return (
+      <CustomerAccountDossier
+        customer={fullDossierCustomer}
+        onBack={() => setFullDossierUid(null)}
+        onScanAnother={() => {
+          setFullDossierUid(null);
+          setDossierUid(null);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
@@ -530,6 +582,16 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
 
                 {/* Right: Actions */}
                 <div className="flex flex-wrap items-center gap-2 self-end lg:self-center shrink-0">
+                  {/* Mobile loyalty control panel */}
+                  <button
+                    type="button"
+                    onClick={() => setDossierUid(cust.uid)}
+                    className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 hover:border-emerald-500 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                  >
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>Manage Member</span>
+                  </button>
+
                   {/* Manual Point & Profile Editor */}
                   <button
                     type="button"

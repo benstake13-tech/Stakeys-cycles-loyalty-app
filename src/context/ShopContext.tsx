@@ -85,9 +85,20 @@ import {
 } from '../utils/loyaltyCard';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
 import { supabase, AUTH_LINK_ON_LOAD } from '../lib/supabase';
+import { hydrateRosterGarages as hydrateRosterGaragesUtil } from '../utils/garageHydration';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  resolveNotificationPreferences,
+  setChannel,
+  setEventEnabled,
+  type NotificationPreferences,
+  type NotificationChannels,
+  type NotificationEventId,
+} from '../utils/notificationPreferences';
 import {
   fetchCustomerBikesFromDb,
   fetchCustomerBikesFromDbDetailed,
+  fetchBikesByOwner,
   insertCustomerBikeToDb,
   deleteCustomerBikeFromDb,
   reassignBikesToOwner,
@@ -172,6 +183,14 @@ interface ShopContextType {
   /** Fully configurable reminder behaviour (channel, timing, quiet hours). */
   reminderSettings: ReminderSettings;
   setReminderSettings: (updates: Partial<ReminderSettings>) => void;
+  /** Staff-managed per-event notification matrix (visual/email/push). */
+  notificationPreferences: NotificationPreferences;
+  setNotificationChannel: (
+    id: NotificationEventId,
+    channel: keyof NotificationChannels,
+    value: boolean
+  ) => void;
+  setNotificationEventEnabled: (id: NotificationEventId, enabled: boolean) => void;
   bookingsDueIn24h: ServiceBooking[];
   dispatch24hReminderForBooking: (bookingId: string) => Promise<boolean>;
   latestSmsAlert: {
@@ -1391,6 +1410,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Database Synchronization Engine & Real-time State
   const [isDatabaseSyncing, setIsDatabaseSyncing] = useState<boolean>(false);
 
+  /**
+   * Give every roster profile back its `bikes`. The roster read
+   * (`fetchAllProfilesFromDb`) never carries bikes, so `setUsers(allProfiles)`
+   * would blank every garage — which is exactly why bikes "show up, then
+   * disappear" on the next 4s poll. This reads all bikes in one query and
+   * re-attaches them, and is a no-op (keeps the existing bikes) if the read
+   * fails, so a transient error never wipes a garage.
+   */
+  const hydrateRosterGarages = (profiles: UserProfile[]): Promise<UserProfile[]> =>
+    hydrateRosterGaragesUtil(profiles, fetchBikesByOwner, users);
+
   const syncUserFromDatabase = async (user: UserProfile) => {
     setIsDatabaseSyncing(true);
     try {
@@ -1438,7 +1468,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       setCurrentUser(updatedUser);
       if (allProfiles && allProfiles.length > 0) {
-        setUsers(allProfiles);
+        // Re-attach each profile's bikes, otherwise this roster swap blanks
+        // every garage until the next per-user sync (the "disappearing" bug).
+        const hydrated = await hydrateRosterGarages(allProfiles);
+        setUsers(hydrated);
       } else {
         setUsers((prev) => prev.map((u) => (u.uid === user.uid ? updatedUser : u)));
       }
@@ -1469,9 +1502,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fetchAppSettingsFromDb(),
     ]);
     if (allProfiles && allProfiles.length > 0) {
-      setUsers(allProfiles);
+      // The roster read carries no bikes; re-attach them so this swap (which
+      // runs on every realtime event and 4s poll) never blanks a garage.
+      const hydrated = await hydrateRosterGarages(allProfiles);
+      setUsers(hydrated);
       if (currentUser) {
-        const freshCurrent = allProfiles.find((u) => u.uid === currentUser.uid || u.membershipNumber === currentUser.membershipNumber);
+        const freshCurrent = hydrated.find((u) => u.uid === currentUser.uid || u.membershipNumber === currentUser.membershipNumber);
         if (freshCurrent) {
           setCurrentUser((prev) => prev ? { ...prev, ...freshCurrent } : freshCurrent);
         }
@@ -1711,6 +1747,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  // Staff-managed per-event notification matrix (visual/email/push). One object
+  // so the settings UI has a single source of truth; persisted to app_settings.
+  const [notificationPreferences, setNotificationPreferencesState] = useState<NotificationPreferences>(() => {
+    try {
+      const saved = localStorage.getItem(`${STORAGE_KEY}_notification_preferences`);
+      if (saved) return resolveNotificationPreferences(JSON.parse(saved));
+    } catch {
+      /* ignore */
+    }
+    return { ...DEFAULT_NOTIFICATION_PREFERENCES };
+  });
+
+  const setNotificationChannel = (
+    id: NotificationEventId,
+    channel: keyof NotificationChannels,
+    value: boolean
+  ) => setNotificationPreferencesState((prev) => setChannel(prev, id, channel, value));
+
+  const setNotificationEventEnabled = (id: NotificationEventId, enabled: boolean) =>
+    setNotificationPreferencesState((prev) => setEventEnabled(prev, id, enabled));
+
   // Configurable reminder behaviour. Stored as one object so the staff UI has a
   // single source of truth; the legacy pushOnly/ownerEmail fields are kept in
   // sync for older callers and the DB columns that predate this.
@@ -1773,6 +1830,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(`${STORAGE_KEY}_reminders_push_only`, JSON.stringify(remindersPushOnly));
       localStorage.setItem(`${STORAGE_KEY}_reminder_owner_email`, reminderOwnerEmail);
       localStorage.setItem(`${STORAGE_KEY}_reminder_settings`, JSON.stringify(reminderSettings));
+      localStorage.setItem(
+        `${STORAGE_KEY}_notification_preferences`,
+        JSON.stringify(notificationPreferences)
+      );
     } catch (e) {
       console.warn('Storage failed', e);
     }
@@ -1787,8 +1848,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       reminderQuietStartHour: reminderSettings.quietStartHour,
       reminderQuietEndHour: reminderSettings.quietEndHour,
       reminderQuietHoursEnabled: reminderSettings.quietHoursEnabled,
+      notificationPreferences,
     }).catch(() => {});
-  }, [automatedRemindersEnabled, remindersPushOnly, reminderOwnerEmail, reminderSettings]);
+  }, [automatedRemindersEnabled, remindersPushOnly, reminderOwnerEmail, reminderSettings, notificationPreferences]);
 
   // Adopt reminder settings pushed from the database (e.g. changed on another
   // staff device) without clobbering a missing column with a default.
@@ -1814,6 +1876,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       return unchanged ? prev : next;
     });
+
+    // Adopt the notification matrix changed on another staff terminal. Compare
+    // deeply and keep the previous object when identical so the persist effect
+    // doesn't write back on every 4s poll.
+    if (settings.notificationPreferences) {
+      setNotificationPreferencesState((prev) => {
+        const next = settings.notificationPreferences as NotificationPreferences;
+        const same = (Object.keys(next) as NotificationEventId[]).every(
+          (id) =>
+            next[id]?.visual === prev[id]?.visual &&
+            next[id]?.email === prev[id]?.email &&
+            next[id]?.push === prev[id]?.push
+        );
+        return same ? prev : next;
+      });
+    }
   };
 
   // Loyalty data (profiles/stamps, wheel + draws, logs, bookings, config) is
@@ -4105,6 +4183,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setReminderOwnerEmail,
         reminderSettings,
         setReminderSettings,
+        notificationPreferences,
+        setNotificationChannel,
+        setNotificationEventEnabled,
         bookingsDueIn24h,
         dispatch24hReminderForBooking,
         latestSmsAlert,

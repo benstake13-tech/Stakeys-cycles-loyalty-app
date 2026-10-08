@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import confetti from 'canvas-confetti';
 import {
   Search,
@@ -16,7 +16,7 @@ import {
   ToggleLeft,
   ToggleRight,
   ShieldAlert,
-  ShieldCheck,
+  Server,
   Dices,
   Bike,
   Bot,
@@ -45,7 +45,6 @@ import {
   BadgePercent,
   FlaskConical,
   Gift,
-  DatabaseZap,
   CloudRain,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
@@ -59,8 +58,7 @@ import { StaffManagementTab } from './StaffManagementTab';
 import { PromotionsManagerTab } from './PromotionsManagerTab';
 import { DiscountCodesTab } from './DiscountCodesTab';
 import { CounterSaleTab } from './CounterSaleTab';
-import { ServiceStatusBadge } from './ServiceStatusBadge';
-import { BackendRepairModal } from './BackendRepairModal';
+import { StaffBackendTab } from './StaffBackendTab';
 import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
 import { AssistantManagerTab } from './AssistantManagerTab';
@@ -71,7 +69,9 @@ import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
-import { StaffAccountsSetupModal } from './StaffAccountsSetupModal';
+import { NotificationBell } from './NotificationBell';
+import { StaffNotificationSettings } from './StaffNotificationSettings';
+import { buildWorkshopActivities } from '../utils/notificationActivity';
 
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
@@ -107,7 +107,19 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     cycleWorkshopAudioVolume,
     requestPushNotificationPermission,
     hardResetApp,
+    notificationPreferences,
   } = useShop();
+
+  // The bell feed: every workshop activity, filtered to the events whose Visual
+  // channel is switched on, newest first.
+  const notificationActivities = useMemo(
+    () => buildWorkshopActivities({ bookings, users, draws }),
+    [bookings, users, draws]
+  );
+  const visualActivities = useMemo(
+    () => notificationActivities.filter((a) => notificationPreferences[a.kind]?.visual),
+    [notificationActivities, notificationPreferences]
+  );
 
   const [pushState, setPushState] = useState<'idle' | 'working' | 'granted' | 'blocked'>('idle');
 
@@ -128,20 +140,25 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'referrals'
     | 'assistant'
     | 'diagnostics'
+    | 'backend'
     | 'weather'
+    | 'settings'
   >('till');
 
   // Notification deep link: when App hands us a booking id, jump to the Bookings
-  // tab so the booking is on screen, then let App clear the request.
+  // tab. The tab itself acknowledges the request once the booking is revealed.
   useEffect(() => {
     if (!focusBookingId) return;
     setStaffTab('bookings');
-    onFocusHandled?.();
   }, [focusBookingId]);
 
+  // Bell deep links. Local because they only ever originate inside the staff
+  // portal (the App-level focusBookingId is a one-shot that can't re-fire for the
+  // same booking).
+  const [focusMemberUid, setFocusMemberUid] = useState<string | null>(null);
+  const [focusBookingUid, setFocusBookingUid] = useState<string | null>(null);
+
   const [isScannerOpen, setIsScannerOpen] = useState(false);
-  const [isBackendRepairOpen, setIsBackendRepairOpen] = useState(false);
-  const [isStaffAccountsSetupOpen, setIsStaffAccountsSetupOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -360,7 +377,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'referrals'
     | 'assistant'
     | 'diagnostics'
-    | 'weather';
+    | 'backend'
+    | 'weather'
+    | 'settings';
 
   const operationsTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
@@ -382,14 +401,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
     { id: 'business_performance', label: 'Performance', icon: Gauge, tone: 'emerald', hint: 'Requests, calls & growth' },
     { id: 'diagnostics', label: 'Test Bench', icon: FlaskConical, tone: 'amber', hint: 'Test every feature' },
+    { id: 'backend', label: 'Backend', icon: Server, tone: 'sky', hint: 'Supabase connection, schema & repair' },
+    { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications & staff station' },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* 1. TOP COMMAND BAR: Online Service Status & Diagnostics */}
-      <ServiceStatusBadge variant="full" />
-
-      {/* 1B. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
+      {/* 1. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
       {freshBookings.length > 0 && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
@@ -434,6 +452,19 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Operations</span>
           <div className="h-px flex-1 bg-neutral-800/70" />
+          {/* Notification bell — latest workshop activity, routed on tap */}
+          <NotificationBell
+            activities={visualActivities}
+            onOpenBooking={(bookingId) => {
+              setFocusBookingUid(bookingId);
+              setStaffTab('bookings');
+            }}
+            onOpenMember={(memberUid) => {
+              setFocusMemberUid(memberUid);
+              setStaffTab('customers');
+            }}
+            onOpenSettings={() => setStaffTab('settings')}
+          />
         </div>
         <SegmentedTabs
           tabs={operationsTabs}
@@ -503,26 +534,6 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                   >
                     <Scan className="w-4 h-4" />
                     <span>Scan Member Code</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsBackendRepairOpen(true)}
-                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 via-cyan-400 to-fuchsia-500 text-neutral-950 text-xs font-bold shadow-md shadow-sky-500/20 cursor-pointer"
-                    title="Audit the live schema, re-link the app bridge and copy the one-shot sync & repair SQL — then reconnect"
-                  >
-                    <DatabaseZap className="w-4 h-4" />
-                    <span>Sync &amp; Repair Backend</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsStaffAccountsSetupOpen(true)}
-                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
-                    title="Install the staff-account functions from the migration SQL"
-                  >
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Set Up Staff Accounts</span>
                   </button>
 
                   <button
@@ -684,7 +695,15 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       )}
 
       {/* VIEW 1: Service Bookings Management */}
-      {staffTab === 'bookings' && <StaffBookingsTab focusBookingId={focusBookingId} />}
+      {staffTab === 'bookings' && (
+        <StaffBookingsTab
+          focusBookingId={focusBookingUid || focusBookingId}
+          onFocusHandled={() => {
+            setFocusBookingUid(null);
+            onFocusHandled?.();
+          }}
+        />
+      )}
 
       {/* VIEW 1B: Staff Management Module (Full CRUD) */}
       {staffTab === 'staff_roster' && <StaffManagementTab />}
@@ -737,9 +756,133 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {/* VIEW 8: Feature Test Bench — live self-test of every backend feature */}
       {staffTab === 'diagnostics' && <StaffDiagnosticsTab />}
 
+      {/* VIEW 9: Backend console — Supabase connection, schema audit & repair */}
+      {staffTab === 'backend' && <StaffBackendTab />}
+
+      {/* VIEW 10: Settings — staff station, notification routing, audit logs,
+          performance, financials and the feature test bench in one place. */}
+      {staffTab === 'settings' && (
+        <div className="space-y-6">
+          <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
+              <span className="text-emerald-400 font-semibold tracking-wider uppercase">Staff Settings</span>
+              <span aria-hidden="true" className="text-neutral-600">·</span>
+              <span>Operator: {currentUser.displayName}</span>
+            </div>
+            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <Settings className="w-7 h-7 text-emerald-400" />
+              Settings
+            </h2>
+            <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
+              Configure how the workshop notifies you, review the assistant audit trail, and jump straight to
+              performance, financials and the live station overview.
+            </p>
+          </div>
+
+          <StaffNotificationSettings />
+
+          <AssistantManagerTab />
+          <StaffDiagnosticsTab />
+          <PerformanceTracker />
+          <FinancialReportingTab />
+
+          <div className="space-y-6">
+            <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl">
+                    <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                      <Bell className="w-5 h-5 text-emerald-400" /> Staff Station Overview
+                    </h2>
+                    <p className="text-xs text-neutral-400 mt-1">
+                      Counter sales, workshop bookings, loyalty members and prize draws — everything you need at the
+                      front desk and bench.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-3.5">
+                      <button
+                        type="button"
+                        onClick={() => setStaffTab('till')}
+                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
+                      >
+                        <ShoppingCart className="w-4 h-4" />
+                        <span>Open Till</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStaffTab('bookings')}
+                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
+                      >
+                        <Wrench className="w-4 h-4 text-emerald-400" />
+                        <span>Workshop Jobs</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStaffTab('customers')}
+                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
+                      >
+                        <Users className="w-4 h-4 text-emerald-400" />
+                        <span>Members</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStaffTab('draws')}
+                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
+                      >
+                        <Trophy className="w-4 h-4 text-amber-400" />
+                        <span>Prize Hub</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setStaffTab('bookings')}
+                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Workshop Jobs</div>
+                      <div className="text-xl font-black text-emerald-400 mt-0.5">
+                        {activeBookingsCount}{' '}
+                        <span className="text-xs text-neutral-500 font-normal">Active</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffTab('staff_roster')}
+                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Staff Roster</div>
+                      <div className="text-xl font-black text-emerald-400 mt-0.5">
+                        {staffMembers.length}{' '}
+                        <span className="text-xs text-neutral-500 font-normal">Active</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffTab('promotions')}
+                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Promotions</div>
+                      <div className="text-xl font-black text-amber-400 mt-0.5">
+                        {promotions.filter((p) => p.status === 'active').length}{' '}
+                        <span className="text-xs text-neutral-500 font-normal">Live</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffTab('customers')}
+                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                    >
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total Riders</div>
+                      <div className="text-xl font-black text-white mt-0.5">{customerList.length}</div>
+                    </button>
+                  </div>
+                </div>
+            </div>
+      )}
+
       {/* VIEW 3: Customer Database Roster */}
       {staffTab === 'customers' && (
         <CustomerDatabaseTab
+          focusCustomerUid={focusMemberUid}
+          onFocusHandled={() => setFocusMemberUid(null)}
           onSelectForScanner={(cust) => {
             handleSelectCustomer(cust);
             setStaffTab('customers');
@@ -1249,12 +1392,6 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           });
         }}
       />
-
-      {/* Live schema audit + sync SQL (fixes app <-> Supabase drift) */}
-      {isBackendRepairOpen && <BackendRepairModal onClose={() => setIsBackendRepairOpen(false)} />}
-      {isStaffAccountsSetupOpen && (
-        <StaffAccountsSetupModal onClose={() => setIsStaffAccountsSetupOpen(false)} />
-      )}
     </div>
   );
 };

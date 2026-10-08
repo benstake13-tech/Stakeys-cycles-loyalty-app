@@ -57,6 +57,7 @@ const AREA_ORDER: FeatureArea[] = [
   'bookings',
   'till',
   'members',
+  'garage',
   'prizes',
   'content',
   'settings',
