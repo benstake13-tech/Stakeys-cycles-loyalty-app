@@ -261,13 +261,16 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const clean = searchQuery.trim().toUpperCase();
+    // Profile rows come straight from the database, so any of these text fields
+    // can be null for a half-filled member; guard them rather than throwing
+    // mid-render (which would trip the ErrorBoundary and reload the app).
     const found = users.find(
       (u) =>
         u.role === 'customer' &&
-        (u.membershipNumber.toUpperCase() === clean ||
-          u.uid.toUpperCase() === clean ||
-          u.displayName.toUpperCase().includes(clean) ||
-          u.email.toUpperCase().includes(clean))
+        ((u.membershipNumber || '').toUpperCase() === clean ||
+          (u.uid || '').toUpperCase() === clean ||
+          (u.displayName || '').toUpperCase().includes(clean) ||
+          (u.email || '').toUpperCase().includes(clean))
     );
 
     if (found) {
