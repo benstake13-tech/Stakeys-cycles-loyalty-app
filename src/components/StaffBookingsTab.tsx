@@ -15,6 +15,8 @@ import {
   Filter,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ShieldAlert,
   Zap,
   Bike,
@@ -45,6 +47,73 @@ interface StaffBookingsTabProps {
   /** Booking id to scroll to and highlight after a notification tap. */
   focusBookingId?: string | null;
 }
+
+/**
+ * A collapsed-by-default accordion panel used for the top-level system tools.
+ * The header stays visible (with its status badges); the body is unmounted
+ * while closed and slides in on open.
+ */
+interface CollapsiblePanelProps {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: React.ReactNode;
+  /** Status pills kept visible on the header even when collapsed. */
+  badges?: React.ReactNode;
+  /** Actions always visible in the header (e.g. quick toggles). */
+  headerActions?: React.ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({
+  icon,
+  title,
+  subtitle,
+  badges,
+  headerActions,
+  isOpen,
+  onToggle,
+  children,
+}) => (
+  <div className="bg-neutral-900 border border-neutral-800 rounded-3xl shadow-xl overflow-hidden">
+    <div className="p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="flex items-center gap-4 text-left min-w-0 flex-1 cursor-pointer group"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-[#05C147] flex items-center justify-center shrink-0">
+          {icon}
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-lg font-black text-white group-hover:text-emerald-300 transition-colors">{title}</h3>
+            {badges}
+          </div>
+          {subtitle && <div className="text-xs text-neutral-400 mt-0.5">{subtitle}</div>}
+        </div>
+      </button>
+      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+        {headerActions}
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={isOpen ? 'Collapse panel' : 'Expand panel'}
+          className="p-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-300 hover:text-white transition-colors cursor-pointer"
+        >
+          <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+    </div>
+    {isOpen && (
+      <div className="overflow-hidden">
+        <div className="px-5 sm:px-6 pb-5 sm:pb-6 animate-slide-down">{children}</div>
+      </div>
+    )}
+  </div>
+);
 
 export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBookingId }) => {
   const {
@@ -122,6 +191,13 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
   const [settingsSuccess, setSettingsSuccess] = useState(false);
   const [testAlertSent, setTestAlertSent] = useState(false);
   const [isSendingTest, setIsSendingTest] = useState(false);
+
+  // Progressive disclosure: every system tool starts collapsed, and each booking
+  // card expands individually so the feed stays scannable on a phone.
+  const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({});
+  const [expandedBookings, setExpandedBookings] = useState<Record<string, boolean>>({});
+  const togglePanel = (id: string) => setOpenPanels((prev) => ({ ...prev, [id]: !prev[id] }));
+  const toggleBooking = (id: string) => setExpandedBookings((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Filter Bookings
   const filteredBookings = bookings.filter((b) => {
@@ -403,27 +479,28 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
 
       {bookingView === 'queue' && (
       <>
-      {/* Top Banner: Notifications Settings & Status */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-[#05C147] flex items-center justify-center shrink-0">
-              <Mail className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black text-white">
-                  Workshop Booking &amp; Notification Manager
-                </h3>
-                <div className="w-2 h-2 rounded-full bg-[#05C147] animate-pulse" title="Live Dispatch Active" />
-                </div>
-              <p className="text-xs text-neutral-400 mt-0.5">
-                Every online booking automatically delivers an email alert to <strong className="text-neutral-200">{ownerConfig.ownerEmail}</strong>.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
+      {/* System Controls — collapsed by default so the job feed owns the screen */}
+      <CollapsiblePanel
+        icon={<Mail className="w-6 h-6" />}
+        title="Workshop Booking & Notification Manager"
+        subtitle={<>Every online booking automatically delivers an email alert to <strong className="text-neutral-200">{ownerConfig.ownerEmail}</strong>.</>}
+        badges={
+          <>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#05C147] animate-pulse" />
+              LIVE DISPATCH
+            </span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+              isStaffBookingSoundEnabled
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+            }`}>
+              {isStaffBookingSoundEnabled ? '🔔 LOUD PING ARMED' : '🔕 MUTED'}
+            </span>
+          </>
+        }
+        headerActions={
+          <>
             <button
               onClick={() => setIsClearBookingsOpen(true)}
               disabled={bookings.length === 0}
@@ -435,7 +512,10 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
             </button>
 
             <button
-              onClick={() => setIsEditingSettings(!isEditingSettings)}
+              onClick={() => {
+                setOpenPanels((prev) => ({ ...prev, notifications: true }));
+                setIsEditingSettings(!isEditingSettings);
+              }}
               className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 hover:text-white text-xs font-bold flex items-center gap-2 transition-colors cursor-pointer border border-neutral-700"
             >
               <Settings className="w-4 h-4 text-[#05C147]" />
@@ -450,9 +530,11 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
               <Send className="w-4 h-4" />
               <span>{isSendingTest ? 'Sending…' : 'Send Test Email'}</span>
             </button>
-          </div>
-        </div>
-
+          </>
+        }
+        isOpen={!!openPanels.notifications}
+        onToggle={() => togglePanel('notifications')}
+      >
         {/* Workshop Sound & Realtime Push Alert Bar */}
         <div className="mt-4 pt-4 border-t border-neutral-800/80 flex flex-wrap items-center justify-between gap-3 bg-neutral-950/40 p-3.5 rounded-2xl border border-neutral-800">
           <div className="flex items-center gap-3">
@@ -601,39 +683,28 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
             </div>
           </form>
         )}
-      </div>
+      </CollapsiblePanel>
 
-      {/* 24-Hour Reminder Manager — push-first so customers/staff aren't flooded */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 rounded-2xl border flex items-center justify-center shrink-0 ${
-              automatedRemindersEnabled
-                ? 'bg-emerald-500/20 border-emerald-500/40 text-[#05C147]'
-                : 'bg-neutral-800 border-neutral-700 text-neutral-500'
-            }`}>
-              <Bell className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black text-white">24-Hour Reminder Manager</h3>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
-                  automatedRemindersEnabled
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                    : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                }`}>
-                  {automatedRemindersEnabled ? 'ACTIVE' : 'PAUSED'}
-                </span>
-              </div>
-              <p className="text-xs text-neutral-400 mt-0.5">
-                {automatedRemindersEnabled
-                  ? <>Sends a <strong className="text-neutral-200">{reminderSettings.channel === 'both' ? 'push + email' : reminderSettings.channel}</strong> reminder to <strong className="text-neutral-200">{reminderSettings.recipients === 'both' ? 'customer & workshop' : reminderSettings.recipients}</strong> {reminderSettings.leadHours}h before the slot{reminderSettings.repeatHours > 0 ? `, repeating every ${reminderSettings.repeatHours}h` : ''}{reminderSettings.quietHoursEnabled ? `, but never between ${String(reminderSettings.quietStartHour).padStart(2, '0')}:00 and ${String(reminderSettings.quietEndHour).padStart(2, '0')}:00` : ''}.</>
-                  : <>Automated reminders are paused — nothing will send until you resume.</>}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      {/* 24-Hour Reminder Manager — collapsed by default */}
+      <CollapsiblePanel
+        icon={<Bell className="w-6 h-6" />}
+        title="24-Hour Reminder Manager"
+        subtitle={
+          automatedRemindersEnabled
+            ? <>Sends a <strong className="text-neutral-200">{reminderSettings.channel === 'both' ? 'push + email' : reminderSettings.channel}</strong> reminder to <strong className="text-neutral-200">{reminderSettings.recipients === 'both' ? 'customer & workshop' : reminderSettings.recipients}</strong> {reminderSettings.leadHours}h before the slot{reminderSettings.repeatHours > 0 ? `, repeating every ${reminderSettings.repeatHours}h` : ''}{reminderSettings.quietHoursEnabled ? `, but never between ${String(reminderSettings.quietStartHour).padStart(2, '0')}:00 and ${String(reminderSettings.quietEndHour).padStart(2, '0')}:00` : ''}.</>
+            : <>Automated reminders are paused — nothing will send until you resume.</>
+        }
+        badges={
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
+            automatedRemindersEnabled
+              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+              : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+          }`}>
+            {automatedRemindersEnabled ? 'ACTIVE' : 'PAUSED'}
+          </span>
+        }
+        headerActions={
+          <>
             <button
               type="button"
               onClick={() => setAutomatedRemindersEnabled(!automatedRemindersEnabled)}
@@ -656,10 +727,12 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
               <Zap className="w-4 h-4 text-sky-400" />
               <span>Enable Push On This Device</span>
             </button>
-          </div>
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-neutral-800/80 grid grid-cols-1 lg:grid-cols-3 gap-4">
+          </>
+        }
+        isOpen={!!openPanels.reminders}
+        onToggle={() => togglePanel('reminders')}
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div>
             <label className="block text-xs font-semibold text-neutral-300 mb-1">Delivery method</label>
             <select
@@ -824,7 +897,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
             ))}
           </div>
         )}
-      </div>
+      </CollapsiblePanel>
 
       {/* Action Toast Feedback */}
       {actionFeedback && (
@@ -890,10 +963,11 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
         </div>
       )}
 
-      {/* Filter and Stats Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-neutral-900/80 p-4 rounded-2xl border border-neutral-800">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-neutral-400 font-semibold mr-1 flex items-center gap-1">
+      {/* Filter and Stats Bar — sticky so the pills stay reachable while scrolling the feed */}
+      <div className="sticky top-0 z-30 flex flex-col gap-2 bg-neutral-900/95 backdrop-blur-md p-3 rounded-2xl border border-neutral-800 shadow-lg shadow-black/40">
+        {/* Status filters — touch-friendly horizontal scroll on mobile */}
+        <div className="flex items-center gap-2 text-xs overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <span className="text-neutral-400 font-semibold mr-1 flex items-center gap-1 shrink-0">
             <Filter className="w-3.5 h-3.5" /> Filter:
           </span>
 
@@ -902,7 +976,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
             <button
               key={status}
               onClick={() => setSelectedStatusFilter(status)}
-              className={`px-3 py-1.5 rounded-xl capitalize font-semibold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl capitalize font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 selectedStatusFilter === status
                   ? 'bg-[#05C147] text-neutral-950 shadow-sm shadow-emerald-500/20 font-bold'
                   : status === 'pending' && pendingCount > 0
@@ -926,13 +1000,13 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
           ))}
         </div>
 
-        {/* Vehicle Category filter */}
-        <div className="flex items-center gap-1 text-xs">
+        {/* Vehicle Category filter — horizontal scroll pill bar */}
+        <div className="flex items-center gap-1 text-xs overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {['all', 'electric_scooter', 'cycle', 'ebike'].map((cat) => (
             <button
               key={cat}
               onClick={() => setSelectedVehicleFilter(cat)}
-              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 selectedVehicleFilter === cat
                   ? 'bg-neutral-700 text-white'
                   : 'text-neutral-400 hover:text-neutral-200'
@@ -956,11 +1030,19 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
           filteredBookings.map((b) => {
             const isFresh = b.status === 'pending' || b.approvalStatus === 'pending_approval';
             const isHighlighted = highlightedBookingId === b.id;
+            const isExpanded = !!expandedBookings[b.id];
+            const primaryIssue =
+              b.selectedIssues && b.selectedIssues.length > 0
+                ? ALL_BIKE_ISSUES_MAP.get(b.selectedIssues[0])
+                : undefined;
+            const whatsappHref = `https://wa.me/${b.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+              `Hi ${b.customerName}, regarding your booking #${b.id} at Stakey's Cycles. Could you please provide more details about the issue and send a picture? Thank you!`
+            )}`;
             return (
               <div
                 key={b.id}
                 ref={isHighlighted ? focusRef : undefined}
-                className={`transition-all rounded-3xl p-5 sm:p-6 shadow-lg space-y-4 relative ${
+                className={`transition-all rounded-3xl p-4 sm:p-5 shadow-lg space-y-3 relative ${
                   isHighlighted
                     ? 'bg-[#0b1a2e] border-2 border-sky-400 ring-4 ring-sky-400/40 shadow-[0_0_35px_rgba(56,189,248,0.55)]'
                     : isFresh
@@ -968,24 +1050,26 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
                     : 'bg-neutral-900 hover:bg-neutral-850/80 border border-neutral-800'
                 }`}
               >
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                {/* Tier 1 — compact summary row (tap anywhere to expand) */}
+                <button
+                  type="button"
+                  onClick={() => toggleBooking(b.id)}
+                  aria-expanded={isExpanded}
+                  className="w-full text-left cursor-pointer group"
+                >
+                  <div className="flex items-start gap-3">
                     <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center shrink-0 ${
                       isFresh
                         ? 'bg-amber-400 text-neutral-950 border-amber-300 shadow-md shadow-amber-400/30 font-black'
                         : 'bg-neutral-950 border-neutral-800 text-[#05C147]'
                     }`}>
-                      {b.vehicleCategory === 'electric_scooter' ? (
-                        <Zap className="w-5 h-5" />
-                      ) : (
-                        <Bike className="w-5 h-5" />
-                      )}
+                      {b.vehicleCategory === 'electric_scooter' ? <Zap className="w-5 h-5" /> : <Bike className="w-5 h-5" />}
                     </div>
 
-                    <div>
+                    <div className="min-w-0 flex-1">
+                      {/* Left: booking id + status badges */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-xs text-neutral-400 font-bold">#{b.id}</span>
-                        <h4 className="text-base font-bold text-white">{b.serviceTitle}</h4>
                         {getStatusBadge(b.status)}
                         {isFresh && (
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.85)] flex items-center gap-1">
@@ -1000,34 +1084,123 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-neutral-300 mt-0.5">
-                        <strong className="text-white">{b.vehicleModel}</strong> ({b.vehicleCategory.toUpperCase().replace('_', ' ')})
+
+                      {/* Centre: customer name + vehicle model/type badge */}
+                      <div className="mt-1 flex items-center gap-2 flex-wrap">
+                        <h4 className="text-base font-bold text-white group-hover:text-emerald-200 transition-colors">{b.customerName}</h4>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-neutral-800 text-neutral-200 border border-neutral-700">
+                          {b.vehicleModel}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border ${
+                          b.vehicleCategory === 'electric_scooter'
+                            ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                            : b.vehicleCategory === 'ebike'
+                            ? 'bg-sky-500/15 text-sky-300 border-sky-500/40'
+                            : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                        }`}>
+                          {b.vehicleCategory === 'electric_scooter' ? 'Scooter' : b.vehicleCategory === 'ebike' ? 'E-Bike' : 'Cycle'}
+                        </span>
+                      </div>
+
+                      {/* Sub-bar: time slot + primary symptom summary */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+                        <span className="text-neutral-400 font-mono">Slot: {b.preferredDate} • {b.preferredTimeSlot.split(' ')[0]}</span>
+                        {primaryIssue && (
+                          <span className="text-neutral-300 flex items-center gap-1">
+                            <Wrench className="w-3 h-3 text-[#05C147]" />
+                            <strong className="text-emerald-400 font-mono">[{primaryIssue.category}]</strong>
+                            <span className="truncate max-w-[16rem]">{primaryIssue.label}</span>
+                            {b.selectedIssues && b.selectedIssues.length > 1 && (
+                              <span className="text-neutral-500">+{b.selectedIssues.length - 1} more</span>
+                            )}
+                          </span>
+                        )}
                       </div>
                     </div>
+
+                    {/* Right: price / quote */}
+                    <div className="text-right shrink-0">
+                      {b.invoice ? (
+                        <>
+                          <span className="block text-base font-black text-[#05C147]">£{b.invoice.grandTotal.toFixed(2)}</span>
+                          <span className="block text-[10px] text-emerald-400 font-mono font-bold uppercase">#{b.invoice.invoiceNumber}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="block text-xs font-bold text-amber-400 font-mono">Quote Pending</span>
+                          <span className="block text-[10px] text-neutral-500 font-mono">Priced on completion</span>
+                        </>
+                      )}
+                    </div>
                   </div>
+                </button>
 
-                <div className="text-right flex items-baseline sm:flex-col sm:items-end justify-between w-full sm:w-auto gap-1">
-                  {b.invoice ? (
-                    <>
-                      <span className="text-lg font-black text-[#05C147]">£{b.invoice.grandTotal.toFixed(2)}</span>
-                      <span className="text-[10px] text-emerald-400 font-mono font-bold uppercase">
-                        Invoiced #{b.invoice.invoiceNumber}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-sm font-bold text-amber-400 font-mono">Quote Pending</span>
-                      <span className="text-[10px] text-neutral-400 font-mono">
-                        Priced upon repair completion
-                      </span>
-                    </>
-                  )}
-                  <span className="text-[11px] text-neutral-400 font-mono mt-0.5">
-                    Slot: {b.preferredDate} • {b.preferredTimeSlot.split(' ')[0]}
-                  </span>
+                {/* Quick-action dock — usable without expanding the card */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {isFresh ? (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenApprove(b)}
+                      className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 transition-all"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Accept &amp; Approve</span>
+                    </button>
+                  ) : b.status === 'in_progress' ? (
+                    <button
+                      type="button"
+                      onClick={() => updateBookingStatus(b.id, 'ready_for_pickup')}
+                      className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Ready for Pickup</span>
+                    </button>
+                  ) : b.status === 'confirmed' ? (
+                    <button
+                      type="button"
+                      onClick={() => updateBookingStatus(b.id, 'in_progress')}
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+                    >
+                      <Wrench className="w-4 h-4" />
+                      <span>Move to Bench</span>
+                    </button>
+                  ) : null}
+
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`WhatsApp ${b.customerName}`}
+                    aria-label={`WhatsApp ${b.customerName}`}
+                    className="p-2 rounded-xl bg-[#05C147]/20 hover:bg-[#05C147] text-[#05C147] hover:text-neutral-950 border border-[#05C147]/30 transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                  </a>
+                  <a
+                    href={`tel:${b.customerPhone}`}
+                    title={`Call ${b.customerPhone}`}
+                    aria-label={`Call ${b.customerPhone}`}
+                    className="p-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-emerald-400 transition-colors"
+                  >
+                    <Phone className="w-4 h-4" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => toggleBooking(b.id)}
+                    aria-expanded={isExpanded}
+                    aria-label={isExpanded ? 'Hide booking details' : 'Show booking details'}
+                    className="ml-auto px-3 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <span>{isExpanded ? 'Hide' : 'Details'}</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
+                  </button>
                 </div>
-              </div>
 
+                {/* Tier 2 — full detail body, revealed on tap */}
+                {isExpanded && (
+                  <div className="overflow-hidden">
+                    <div className="space-y-4 pt-3 animate-slide-down">
               {/* Customer and Contact Details */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-neutral-950/70 p-3.5 rounded-2xl border border-neutral-800/80 text-xs">
                 <div className="flex items-center gap-2">
@@ -1311,6 +1484,9 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
                   <span>View Dispatched Emails</span>
                 </button>
               </div>
+                    </div>
+                  </div>
+                )}
             </div>
           );
         })
