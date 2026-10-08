@@ -668,6 +668,8 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
       viewBox="0 0 200 200"
       width={size}
       height={size}
+      role="img"
+      aria-label={`${seed}'s avatar`}
       className={"rounded-2xl shadow-md overflow-hidden " + className}
       style={{ display: 'inline-block', verticalAlign: 'middle' }}
     >

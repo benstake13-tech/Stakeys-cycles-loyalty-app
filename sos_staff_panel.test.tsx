@@ -55,6 +55,7 @@ beforeEach(() => {
     requestSosLocation: hoisted.requestSosLocation,
     confirmSosQuote: hoisted.confirmSosQuote,
     reminderOwnerEmail: 'stakeyscycle95@gmail.com',
+    users: [],
   };
 });
 
@@ -68,6 +69,7 @@ describe('StaffSosPanel', () => {
     hoisted.shop.bookings = [makeSosBooking(), makeSosBooking({ id: 'bk-normal', isSos: false, notes: 'normal' })];
     render(<StaffSosPanel />);
     expect(screen.getByText('Sam Rider')).toBeTruthy();
+    expect(screen.getByLabelText("Sam Rider's avatar")).toBeTruthy();
     expect(screen.getAllByText(/Rear wheel buckled/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Outside the Co-op/i)).toBeTruthy();
   });

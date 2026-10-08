@@ -96,6 +96,19 @@ vi.mock('./src/context/ShopContext', () => ({
     cycleWorkshopAudioVolume: vi.fn(),
     requestPushNotificationPermission: vi.fn(async () => 'granted'),
     repairBookingsLedger: vi.fn(async () => ({ found: 3, reuploaded: 1, failed: 0 })),
+    users: [
+      {
+        uid: 'cust-ben',
+        email: 'ben@example.com',
+        role: 'customer',
+        displayName: 'Ben Pearson',
+        membershipNumber: 'STK-000001',
+        stamps: 0,
+        tickets: 0,
+        createdAt: '',
+        avatarColor: '{"backdrop":"ocean"}',
+      },
+    ],
   }),
 }));
 
@@ -187,6 +200,15 @@ describe('StaffBookingsTab active / completed split', () => {
     // Active jobs are hidden while the completed view is on.
     expect(screen.queryByText('Ben Pearson')).toBeNull();
     expect(screen.queryByText('Ada Lovelace')).toBeNull();
+  });
+});
+
+describe('StaffBookingsTab customer avatars', () => {
+  it('shows an avatar for every booking in the feed', () => {
+    render(<StaffBookingsTab />);
+    // One avatar per visible active booking (Ben + Ada).
+    expect(screen.getByLabelText("Ben Pearson's avatar")).toBeTruthy();
+    expect(screen.getByLabelText("Ada Lovelace's avatar")).toBeTruthy();
   });
 });
 
