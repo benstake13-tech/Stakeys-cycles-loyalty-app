@@ -7,9 +7,13 @@
  * network round-trip, or the same "new booking" being seen by more than one
  * client that watches the shared Supabase table.
  *
- * The key is `<bookingId>:<category>`, so a booking still receives one email
- * per lifecycle event (confirmation, approval, decline, reminder) while a
- * single event is never delivered twice.
+ * The two recipients are tracked SEPARATELY. They have different gates — the
+ * workshop alert is skipped when staff mute their own inbox, while the customer
+ * confirmation always goes out — so a single shared key would let a suppressed
+ * workshop alert release the customer's dedup and send them a second copy.
+ *
+ * The key is `<bookingId>:<category>:<audience>`, so a booking still receives
+ * one email per lifecycle event while a single event is never delivered twice.
  */
 
 export type BookingEmailCategory =
@@ -18,36 +22,61 @@ export type BookingEmailCategory =
   | 'booking_declined'
   | 'reminder_24h';
 
+/** Who an email is going to. Tracked independently so one cannot mask the other. */
+export type BookingEmailAudience = 'customer' | 'owner';
+
 const sentKeys = new Set<string>();
 
-export function bookingEmailKey(bookingId: string, category: BookingEmailCategory): string {
-  return `${bookingId}:${category}`;
+export function bookingEmailKey(
+  bookingId: string,
+  category: BookingEmailCategory,
+  audience: BookingEmailAudience = 'owner'
+): string {
+  return `${bookingId}:${category}:${audience}`;
 }
 
-/** True the first time a booking/category pair is seen, false on every repeat. */
-export function shouldSendBookingEmail(bookingId: string, category: BookingEmailCategory): boolean {
-  const key = bookingEmailKey(bookingId, category);
+/**
+ * True the first time a booking/category/audience triple is seen, false on
+ * every repeat. `audience` defaults to `'owner'` to preserve the original
+ * single-key behaviour for callers that only guard the workshop alert.
+ */
+export function shouldSendBookingEmail(
+  bookingId: string,
+  category: BookingEmailCategory,
+  audience: BookingEmailAudience = 'owner'
+): boolean {
+  const key = bookingEmailKey(bookingId, category, audience);
   if (sentKeys.has(key)) return false;
   sentKeys.add(key);
   return true;
 }
 
 /** Record a send that already happened (e.g. replayed from a stored log). */
-export function markBookingEmailSent(bookingId: string, category: BookingEmailCategory): void {
-  sentKeys.add(bookingEmailKey(bookingId, category));
+export function markBookingEmailSent(
+  bookingId: string,
+  category: BookingEmailCategory,
+  audience: BookingEmailAudience = 'owner'
+): void {
+  sentKeys.add(bookingEmailKey(bookingId, category, audience));
 }
 
 /**
  * Rebuilds the ledger from bookings already loaded from the database, so a
  * booking whose confirmation was emailed in an earlier session is not emailed
- * again after the app reloads and re-reads the shared table.
+ * again after the app reloads and re-reads the shared table. Each stored log
+ * records which role it went to, so both audiences are restored.
  */
 export function rehydrateBookingEmailLedger(
-  bookings: Array<{ id: string; notifications?: Array<{ category?: string }> }>
+  bookings: Array<{
+    id: string;
+    notifications?: Array<{ category?: string; recipientRole?: string }>;
+  }>
 ): void {
   for (const booking of bookings) {
     for (const log of booking.notifications || []) {
-      if (log.category) markBookingEmailSent(booking.id, log.category as BookingEmailCategory);
+      if (!log.category) continue;
+      const audience: BookingEmailAudience = log.recipientRole === 'customer' ? 'customer' : 'owner';
+      markBookingEmailSent(booking.id, log.category as BookingEmailCategory, audience);
     }
   }
 }

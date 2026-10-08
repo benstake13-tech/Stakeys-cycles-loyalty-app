@@ -749,6 +749,9 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
                 <span>Instant Email Alerts to {targetEmail} (Exclusively Email Mode)</span>
               </label>
             </div>
+            <p className="text-[11px] text-neutral-500 -mt-1">
+              This controls the <span className="text-neutral-300">workshop's own</span> booking alert. Customers always receive their own confirmation email, whether this is on or off.
+            </p>
 
             <div className="flex items-center gap-3 pt-2">
               <button
