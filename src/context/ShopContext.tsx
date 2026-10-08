@@ -220,6 +220,18 @@ interface ShopContextType {
     userId: string,
     opts?: { expectedMin?: number; deleteStale?: boolean }
   ) => Promise<{ found: number; removed: number; reassigned: number; error?: string }>;
+  /**
+   * Staff "Fix Bookings" repair: re-reads the authoritative service_bookings
+   * ledger and re-pushes any booking that exists only on this device (e.g. its
+   * insert was rejected by schema drift), so nothing is lost. Returns what was
+   * found, re-uploaded and still failing.
+   */
+  repairBookingsLedger: () => Promise<{
+    found: number;
+    reuploaded: number;
+    failed: number;
+    error?: string;
+  }>;
   // Core actions
   addStamp: (customerId: string, staffId: string, bypassLimit?: boolean) => Promise<{ success: boolean; message: string }>;
   redeemReward: (customerId: string, staffId: string, rewardDescription: string) => Promise<{ success: boolean; message: string }>;
@@ -3052,6 +3064,55 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
+  /**
+   * "Fix Bookings" — repairs the "booking isn't showing" case. Reads the
+   * authoritative service_bookings ledger, then re-uploads any booking that
+   * exists only on this device (its insert was rejected, e.g. by schema drift)
+   * so it reaches every terminal. Local bookings already in the ledger are kept
+   * as-is; the ledger always wins.
+   */
+  const repairBookingsLedger = async (): Promise<{
+    found: number;
+    reuploaded: number;
+    failed: number;
+    error?: string;
+  }> => {
+    let remote: ServiceBooking[] = [];
+    let error: string | undefined;
+    try {
+      remote = await fetchServiceBookingsFromDb(undefined, true);
+    } catch (e: any) {
+      error = e?.message || 'read-failed';
+    }
+
+    const remoteIds = new Set(remote.map((b) => b.id));
+    const localOnly = bookings.filter((b) => !remoteIds.has(b.id));
+
+    let reuploaded = 0;
+    let failed = 0;
+    for (const b of localOnly) {
+      const ok = await insertServiceBookingToDb(b).catch(() => false);
+      if (ok) {
+        reuploaded += 1;
+        knownBookingIdsRef.current.add(b.id);
+      } else {
+        failed += 1;
+      }
+    }
+
+    // Re-read so any re-uploaded row comes back with its canonical DB shape.
+    if (reuploaded > 0) {
+      try {
+        const after = await fetchServiceBookingsFromDb(undefined, true);
+        if (after && after.length > 0) setBookings(after);
+      } catch {
+        // keep the current list if the re-read fails
+      }
+    }
+
+    return { found: remote.length, reuploaded, failed, error };
+  };
+
   const createBooking = async (
     data: Omit<ServiceBooking, 'id' | 'createdAt' | 'status' | 'notifications'>
   ): Promise<ServiceBooking> => {
@@ -4063,6 +4124,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         removeCustomerBike,
         repairCustomerGarage,
         refreshCustomerGarageForStaff,
+        repairBookingsLedger,
         addStamp,
         redeemReward,
         updateCustomerAvatar,
