@@ -28,6 +28,8 @@ import {
   Sliders,
   Save,
   RefreshCw,
+  Gift,
+  Trophy,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, CustomerBike, ServiceBooking, VehicleCategory } from '../types/bikeShop';
@@ -53,6 +55,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     currentUser,
     users,
     bookings,
+    draws,
     stampLogs,
     addStamp,
     redeemReward,
@@ -62,7 +65,9 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     updateBookingStatus,
   } = useShop();
 
-  const [activeAccountTab, setActiveAccountTab] = useState<'garage' | 'bookings' | 'stamps' | 'notes'>('garage');
+  const [activeAccountTab, setActiveAccountTab] = useState<'garage' | 'bookings' | 'stamps' | 'rewards' | 'notes'>(
+    'garage'
+  );
   const [bypassRateLimit, setBypassRateLimit] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [feedback, setFeedback] = useState<{ success: boolean; message: string } | null>(null);
@@ -102,6 +107,12 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
   const points = currentCustomer.points || 0;
   const bikes = currentCustomer.bikes || [];
   const isRewardReady = stamps >= 10;
+
+  // Prizes this member holds: collected service vouchers plus any prize draws
+  // they have won. Both are shown on the account so staff see the full picture.
+  const serviceVouchers = currentCustomer.serviceVouchers || [];
+  const prizeWins = (draws || []).filter((d) => d.winnerUid === currentCustomer.uid);
+  const prizeCount = serviceVouchers.length + prizeWins.length;
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(currentCustomer.membershipNumber);
@@ -526,6 +537,19 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
 
         <button
           type="button"
+          onClick={() => setActiveAccountTab('rewards')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+            activeAccountTab === 'rewards'
+              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Gift className="w-4 h-4 text-amber-400" />
+          <span>Rewards &amp; Prizes ({prizeCount})</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveAccountTab('notes')}
           className={`px-4 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
             activeAccountTab === 'notes'
@@ -803,6 +827,89 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
                     </div>
                     <div className="text-neutral-400 font-mono text-[11px]">
                       {new Date(log.timestamp).toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB C2: REWARDS & PRIZES — vouchers held and prize draws won */}
+      {activeAccountTab === 'rewards' && (
+        <div className="space-y-4">
+          {/* Service vouchers */}
+          <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <h4 className="text-base font-bold text-white flex items-center gap-2">
+                <Gift className="w-4 h-4 text-amber-400" />
+                <span>Service Vouchers &amp; Rewards</span>
+              </h4>
+              <span className="font-mono text-sm text-neutral-400">{serviceVouchers.length} held</span>
+            </div>
+
+            {serviceVouchers.length === 0 ? (
+              <div className="text-neutral-500 text-xs py-6 text-center">
+                No service vouchers on this account yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {serviceVouchers.map((v) => (
+                  <div
+                    key={v.id}
+                    className="rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-transparent p-4 space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-white">{v.title || v.code}</span>
+                      <span className="font-mono text-lg font-black text-amber-300">£{v.value}</span>
+                    </div>
+                    {v.description && <p className="text-[11px] text-neutral-400">{v.description}</p>}
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="font-mono text-[10px] text-neutral-500">{v.code}</span>
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                          v.status === 'redeemed'
+                            ? 'bg-neutral-900 border-neutral-700 text-neutral-500'
+                            : 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                        }`}
+                      >
+                        {v.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Prize draws won */}
+          <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+              <h4 className="text-base font-bold text-white flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-emerald-400" />
+                <span>Prize Draw Wins</span>
+              </h4>
+              <span className="font-mono text-sm text-neutral-400">{prizeWins.length} won</span>
+            </div>
+
+            {prizeWins.length === 0 ? (
+              <div className="text-neutral-500 text-xs py-6 text-center">
+                {currentCustomer.displayName} has not won a prize draw yet.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {prizeWins.map((d) => (
+                  <div
+                    key={d.id}
+                    className="rounded-xl border border-emerald-500/30 bg-neutral-950 p-3.5 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-white truncate">{d.title}</div>
+                      <div className="text-[11px] text-neutral-400 truncate">{d.prizeDescription}</div>
+                    </div>
+                    <div className="text-[10px] font-mono text-neutral-500 shrink-0">
+                      {d.completedAt ? new Date(d.completedAt).toLocaleDateString() : 'Won'}
                     </div>
                   </div>
                 ))}

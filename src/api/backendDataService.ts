@@ -26,6 +26,10 @@ import {
   ReminderChannel,
   ReminderRecipients,
 } from '../types/bikeShop';
+import {
+  resolveNotificationPreferences,
+  type NotificationPreferences,
+} from '../utils/notificationPreferences';
 
 export interface DatabaseSyncStatus {
   lastSyncAt: string;
@@ -165,36 +169,70 @@ export async function fetchCustomerBikesFromDbDetailed(
     console.log(`[SUPABASE NET SUCCESS] SELECT customer_bikes returned ${data?.length || 0} rows`);
 
     if (data && data.length > 0) {
-      return {
-        bikes: data.map((row: any) => {
-          const extraMeta = row.scraped_data?.meta || {};
-          return {
-            id: row.id,
-            brand: row.brand || 'Unknown',
-            model: row.model || 'Bike',
-            year: row.year || undefined,
-            colour: row.color || 'Standard',
-            color: row.color || 'Standard',
-            serialNumber: row.serial_number || undefined,
-            category: normalizeCategory(row.category),
-            categoryLabel: extraMeta.categoryLabel || row.model || 'Cycle',
-            frameSizeOrNotes: extraMeta.frameSizeOrNotes || undefined,
-            addedAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
-            lastServiceDate: extraMeta.lastServiceDate || undefined,
-            lastServiceTitle: extraMeta.lastServiceTitle || undefined,
-            healthStatus: extraMeta.healthStatus || 'healthy',
-            stockSpecsScraped: Boolean(row.stock_specs_scraped),
-            scrapedData: row.scraped_data && row.scraped_data.components ? row.scraped_data : undefined,
-            bikeDetails: (row.bike_details as BikeDetails) || extraMeta.bikeDetails || undefined,
-          };
-        }),
-      };
+      return { bikes: data.map(mapBikeRow) };
     }
     return { bikes: [] };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('[SUPABASE NET EXCEPTION] fetchCustomerBikesFromDb:', err);
     return { bikes: [], error: message };
+  }
+}
+
+/** Map a raw `customer_bikes` row to the app's `CustomerBike` shape. */
+export function mapBikeRow(row: any): CustomerBike {
+  const extraMeta = row.scraped_data?.meta || {};
+  return {
+    id: row.id,
+    brand: row.brand || 'Unknown',
+    model: row.model || 'Bike',
+    year: row.year || undefined,
+    colour: row.color || 'Standard',
+    color: row.color || 'Standard',
+    serialNumber: row.serial_number || undefined,
+    category: normalizeCategory(row.category),
+    categoryLabel: extraMeta.categoryLabel || row.model || 'Cycle',
+    frameSizeOrNotes: extraMeta.frameSizeOrNotes || undefined,
+    addedAt: row.created_at ? row.created_at.split('T')[0] : new Date().toISOString().split('T')[0],
+    lastServiceDate: extraMeta.lastServiceDate || undefined,
+    lastServiceTitle: extraMeta.lastServiceTitle || undefined,
+    healthStatus: extraMeta.healthStatus || 'healthy',
+    stockSpecsScraped: Boolean(row.stock_specs_scraped),
+    scrapedData: row.scraped_data && row.scraped_data.components ? row.scraped_data : undefined,
+    bikeDetails: (row.bike_details as BikeDetails) || extraMeta.bikeDetails || undefined,
+  };
+}
+
+/**
+ * Fetch bikes for a SET of owner keys in one query, grouped by the raw
+ * `customer_id` they are stored under, so the roster can hydrate every
+ * customer's garage at once. Owner keys are profile UUIDs and/or exact
+ * membership numbers; blank/duplicate keys are dropped so `in.` never matches
+ * the NULL rows a blank `eq.` filter would leak.
+ */
+export async function fetchBikesByOwner(
+  ownerKeys: string[]
+): Promise<{ byOwner: Record<string, CustomerBike[]>; error?: string }> {
+  const owners = Array.from(new Set(ownerKeys.map((k) => (k || '').trim()).filter(Boolean)));
+  if (owners.length === 0) return { byOwner: {} };
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase.from('customer_bikes').select('*').in('customer_id', owners);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] SELECT customer_bikes (batch) failed:', error.message);
+      return { byOwner: {}, error: error.message };
+    }
+    const byOwner: Record<string, CustomerBike[]> = {};
+    for (const row of data || []) {
+      const key = String(row.customer_id ?? '');
+      if (!key) continue;
+      (byOwner[key] ||= []).push(mapBikeRow(row));
+    }
+    return { byOwner };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[SUPABASE NET EXCEPTION] fetchBikesByOwner:', err);
+    return { byOwner: {}, error: message };
   }
 }
 
@@ -1448,6 +1486,8 @@ export interface AppSettings {
   reminderQuietStartHour: number;
   reminderQuietEndHour: number;
   reminderQuietHoursEnabled: boolean;
+  /** Staff-managed per-event channel matrix (visual/email/push). */
+  notificationPreferences: NotificationPreferences;
 }
 
 export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | null> {
@@ -1482,6 +1522,10 @@ export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | n
       reminderQuietEndHour: row.reminder_quiet_end_hour == null ? undefined : Number(row.reminder_quiet_end_hour),
       reminderQuietHoursEnabled:
         row.reminder_quiet_hours_enabled == null ? undefined : row.reminder_quiet_hours_enabled === true,
+      notificationPreferences:
+        row.notification_preferences == null
+          ? undefined
+          : resolveNotificationPreferences(row.notification_preferences),
     };
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] fetchAppSettingsFromDb:', err);
@@ -1513,6 +1557,9 @@ export async function upsertAppSettingsToDb(settings: Partial<AppSettings>): Pro
     if (settings.reminderQuietEndHour !== undefined) payload.reminder_quiet_end_hour = settings.reminderQuietEndHour;
     if (settings.reminderQuietHoursEnabled !== undefined) {
       payload.reminder_quiet_hours_enabled = settings.reminderQuietHoursEnabled;
+    }
+    if (settings.notificationPreferences !== undefined) {
+      payload.notification_preferences = settings.notificationPreferences;
     }
     const { error } = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
     if (error) {

@@ -28,7 +28,6 @@ import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
 import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner';
 import { StakeysLogo } from './components/StakeysLogo';
-import { ServiceStatusBadge } from './components/ServiceStatusBadge';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
@@ -425,7 +424,6 @@ function AppContent() {
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             <ThemeToggle showLabel={false} />
-            {isStaff && <ServiceStatusBadge variant="header" />}
 
             <div className={`hidden lg:flex items-center gap-2 text-xs ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
               <span className={`font-semibold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{currentUser.displayName}</span>
