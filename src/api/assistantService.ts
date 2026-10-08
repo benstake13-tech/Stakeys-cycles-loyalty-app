@@ -8,8 +8,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 import { AssistantConfig, DEFAULT_ASSISTANT_CONFIG } from '../config/assistantConfig';
-
-const MODEL = 'gemini-2.5-flash';
+import { resolveGeminiModel } from './geminiModel';
 
 export interface AssistantMessage {
   role: 'user' | 'assistant';
@@ -62,7 +61,7 @@ export async function askAssistant(
 
   const ai = new GoogleGenAI({ apiKey });
   const response = await ai.models.generateContent({
-    model: MODEL,
+    model: resolveGeminiModel(),
     contents: messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.text }],

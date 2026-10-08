@@ -4,16 +4,20 @@ import React, { useId } from 'react';
 // Types & Interface Definitions
 // ============================================================================
 
-export type BackdropGradient = 'sunset' | 'ocean' | 'cyberpunk' | 'emerald' | 'solar' | 'midnight';
+export type BackdropGradient =
+  | 'sunset' | 'ocean' | 'cyberpunk' | 'emerald' | 'solar' | 'midnight' | 'rose' | 'forest';
 export type SkinTone = 'porcelain' | 'warm_beige' | 'honey' | 'golden_tan' | 'chocolate' | 'espresso';
-export type HairStyle = 'none' | 'crop' | 'pompadour' | 'waves' | 'bun' | 'afro' | 'bob' | 'beanie' | 'cycling_cap';
+export type HairStyle =
+  | 'none' | 'crop' | 'pompadour' | 'waves' | 'bun' | 'afro' | 'bob' | 'beanie'
+  | 'cycling_cap' | 'undercut' | 'long_straight';
 export type HairColor = 'onyx' | 'espresso_brown' | 'golden_blonde' | 'auburn_red' | 'platinum_silver' | 'cyber_neon';
 export type FacialHair = 'none' | 'stubble' | 'beard' | 'mustache' | 'goatee';
 export type EyesStyle = 'kind' | 'focused' | 'playful' | 'chill';
 export type ExpressionStyle = 'smile' | 'grin' | 'excited' | 'neutral';
-export type GlassesStyle = 'none' | 'round_wireframe' | 'square_nerd' | 'sporty_cycling' | 'retro_cat';
-export type AccessoryStyle = 'none' | 'earbuds' | 'stud' | 'headset';
-export type ClothingStyle = 'dungarees' | 'collar' | 'hoodie' | 'brand_tee';
+export type GlassesStyle =
+  | 'none' | 'round_wireframe' | 'square_nerd' | 'sporty_cycling' | 'retro_cat' | 'aviator';
+export type AccessoryStyle = 'none' | 'earbuds' | 'stud' | 'headset' | 'scarf';
+export type ClothingStyle = 'dungarees' | 'collar' | 'hoodie' | 'brand_tee' | 'tank' | 'varsity';
 
 export interface FaceAvatarConfig {
   backdrop: BackdropGradient;
@@ -40,6 +44,8 @@ export const BACKDROP_OPTIONS: { id: BackdropGradient; name: string; colors: [st
   { id: 'emerald', name: 'Emerald Forest', colors: ['#10B981', '#064E3B'] },
   { id: 'solar', name: 'Solar Flare', colors: ['#FF8C00', '#F12711'] },
   { id: 'midnight', name: 'Midnight', colors: ['#1F2937', '#111827'] },
+  { id: 'rose', name: 'Rose Quartz', colors: ['#FBC2EB', '#A18CD1'] },
+  { id: 'forest', name: 'Forest Trail', colors: ['#134E5E', '#71B280'] },
 ];
 
 export const SKIN_TONE_OPTIONS: { id: SkinTone; name: string; base: string; shadow: string }[] = [
@@ -61,6 +67,8 @@ export const HAIR_STYLE_OPTIONS: { id: HairStyle; name: string }[] = [
   { id: 'bob', name: 'Classic Bob' },
   { id: 'beanie', name: 'Cozy Beanie' },
   { id: 'cycling_cap', name: "Stakey's Cycling Cap" },
+  { id: 'undercut', name: 'Swept Undercut' },
+  { id: 'long_straight', name: 'Long & Straight' },
 ];
 
 export const HAIR_COLOR_OPTIONS: { id: HairColor; name: string; colors: [string, string] }[] = [
@@ -100,6 +108,7 @@ export const GLASSES_OPTIONS: { id: GlassesStyle; name: string; color: string }[
   { id: 'square_nerd', name: 'Square Nerd', color: '#0F172A' },
   { id: 'sporty_cycling', name: 'Sporty Cycling Wraps', color: '#10B981' },
   { id: 'retro_cat', name: 'Retro Cat-Eye', color: '#EF4444' },
+  { id: 'aviator', name: 'Aviator Shades', color: '#B45309' },
 ];
 
 export const ACCESSORY_OPTIONS: { id: AccessoryStyle; name: string }[] = [
@@ -107,6 +116,7 @@ export const ACCESSORY_OPTIONS: { id: AccessoryStyle; name: string }[] = [
   { id: 'earbuds', name: 'Wireless Earbuds' },
   { id: 'stud', name: 'Silver Earring' },
   { id: 'headset', name: 'Shop Comms Headset' },
+  { id: 'scarf', name: 'Rider Scarf' },
 ];
 
 export const CLOTHING_OPTIONS: { id: ClothingStyle; name: string }[] = [
@@ -114,6 +124,8 @@ export const CLOTHING_OPTIONS: { id: ClothingStyle; name: string }[] = [
   { id: 'collar', name: "Stakey's Polo Shirt" },
   { id: 'hoodie', name: "Cozy Hoodie" },
   { id: 'brand_tee', name: "Cycling Logo Tee" },
+  { id: 'tank', name: "Sleeveless Jersey" },
+  { id: 'varsity', name: "Varsity Jacket" },
 ];
 
 export const CLOTHING_COLORS = [
@@ -299,6 +311,29 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
               <polyline points="0,-12 -6,-18 -12,-18" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" />
               <line x1="-3" y1="-8" x2="3" y2="-8" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" />
             </g>
+          </>
+        );
+      case 'tank':
+        return (
+          <>
+            <path d="M 50 160 Q 100 155 150 160 L 158 200 L 42 200 Z" fill={clothColor} />
+            <path d="M 66 158 C 70 176, 130 176, 134 158 C 128 150, 72 150, 66 158 Z" fill={skinGradientUrl} />
+            <path d="M 50 160 Q 100 155 150 160 L 152 168 Q 100 163 48 168 Z" fill="rgba(255,255,255,0.12)" />
+            <path d="M 96 162 Q 100 176 104 162" fill="none" stroke="rgba(0,0,0,0.25)" strokeWidth="1.5" />
+          </>
+        );
+      case 'varsity':
+        return (
+          <>
+            <path d="M 50 160 Q 100 155 150 160 L 158 200 L 42 200 Z" fill="#F3F4F6" />
+            <path d="M 58 160 Q 100 156 142 160 L 144 176 Q 100 172 56 176 Z" fill={clothColor} />
+            <rect x="96" y="166" width="8" height="34" rx="2" fill="#D1D5DB" />
+            <circle cx="100" cy="172" r="1.6" fill="#9CA3AF" />
+            <circle cx="100" cy="184" r="1.6" fill="#9CA3AF" />
+            <polygon points="70,162 96,176 88,161" fill="#F3F4F6" />
+            <polygon points="130,162 104,176 112,161" fill="#F3F4F6" />
+            <circle cx="126" cy="184" r="5" fill={clothColor} filter="brightness(0.85)" />
+            <text x="126" y="187" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#ffffff">S</text>
           </>
         );
       default:
@@ -501,6 +536,24 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             <polygon points="98,56 102,56 100,53" fill="#05C147" />
           </g>
         );
+      case 'undercut':
+        return (
+          <g fill={hairGradientUrl}>
+            <path d="M 58 76 C 48 40, 152 36, 142 60 C 150 68, 146 78, 140 76 C 132 58, 116 50, 100 50 C 86 50, 74 56, 66 70 C 64 76, 62 80, 58 76 Z" />
+            <path d="M 138 60 C 152 56, 156 70, 150 78 C 148 72, 144 66, 138 64 Z" />
+            <path d="M 62 72 C 60 80, 58 86, 57 90 L 61 90 C 63 84, 65 78, 66 74 Z" />
+            <path d="M 60 70 Q 100 58 138 66 Q 100 64 60 70 Z" fill="rgba(255,255,255,0.14)" />
+          </g>
+        );
+      case 'long_straight':
+        return (
+          <g fill={hairGradientUrl}>
+            <path d="M 62 70 C 46 66, 42 120, 46 158 C 52 160, 58 150, 60 130 C 56 110, 58 86, 62 70 Z" />
+            <path d="M 138 70 C 154 66, 158 120, 154 158 C 148 160, 142 150, 140 130 C 144 110, 142 86, 138 70 Z" />
+            <path d="M 60 72 C 52 40, 148 40, 140 72 C 128 62, 72 62, 60 72 Z" />
+            <path d="M 70 62 Q 100 50 130 62 Q 100 58 70 62 Z" fill="rgba(255,255,255,0.12)" />
+          </g>
+        );
       default:
         return null;
     }
@@ -552,6 +605,16 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             <path d="M 112 88 L 124 100" stroke="rgba(255, 255, 255, 0.28)" strokeWidth="2.5" />
           </g>
         );
+      case 'aviator':
+        return (
+          <g>
+            <path d="M 62 88 Q 100 83 138 88 Q 138 104 116 105 Q 104 105 100 98 Q 96 105 84 105 Q 62 104 62 88 Z" fill="rgba(20,20,25,0.72)" />
+            <path d="M 62 88 Q 100 83 138 88 Q 138 104 116 105 Q 104 105 100 98 Q 96 105 84 105 Q 62 104 62 88 Z" fill="none" stroke={glassesOpt.color} strokeWidth="2.6" strokeLinejoin="round" />
+            <path d="M 62 88 L 56 86" stroke={glassesOpt.color} strokeWidth="2.2" strokeLinecap="round" />
+            <path d="M 138 88 L 144 86" stroke={glassesOpt.color} strokeWidth="2.2" strokeLinecap="round" />
+            <path d="M 72 92 Q 100 87 128 92" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2.4" strokeLinecap="round" />
+          </g>
+        );
       default:
         return null;
     }
@@ -584,6 +647,15 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             <path d="M 58 100 L 80 115" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" />
             <circle cx="80" cy="115" r="2.8" fill="#1F2937" />
             <circle cx="80" cy="115" r="1.2" fill="#05C147" />
+          </>
+        );
+      case 'scarf':
+        return (
+          <>
+            <path d="M 74 158 Q 100 172 126 158 Q 128 170 122 178 Q 100 188 78 178 Q 72 170 74 158 Z" fill="#B91C1C" />
+            <path d="M 74 158 Q 100 172 126 158" fill="none" stroke="#7F1D1D" strokeWidth="2" />
+            <path d="M 104 174 Q 108 190 102 200 L 116 200 Q 120 186 114 174 Z" fill="#991B1B" />
+            <path d="M 108 178 L 110 196 M 113 178 L 115 194" stroke="#7F1D1D" strokeWidth="1.2" />
           </>
         );
       default:
@@ -630,13 +702,28 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         <pattern id={"beanie-rib-" + componentId} width="6" height="6" patternUnits="userSpaceOnUse">
           <line x1="1" y1="0" x2="1" y2="6" stroke="rgba(255,255,255,0.15)" strokeWidth="1.5" />
         </pattern>
+
+        {/* Studio key-light: a soft radial highlight behind the head */}
+        <radialGradient id={"glow-" + componentId} cx="50%" cy="42%" r="60%">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.28" />
+          <stop offset="45%" stopColor="#ffffff" stopOpacity="0.08" />
+          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+
+        {/* Bottom vignette for depth */}
+        <linearGradient id={"vignette-" + componentId} x1="0%" y1="55%" x2="0%" y2="100%">
+          <stop offset="0%" stopColor="#000000" stopOpacity="0" />
+          <stop offset="100%" stopColor="#000000" stopOpacity="0.28" />
+        </linearGradient>
       </defs>
 
       {/* 1. BACKDROP BACKGROUND */}
       <rect width="200" height="200" fill={bgGradientUrl} />
 
-      {/* Subtle backdrop circle glow */}
-      <circle cx="100" cy="100" r="75" fill="rgba(255, 255, 255, 0.08)" />
+      {/* Studio key-light glow */}
+      <rect width="200" height="200" fill={'url(#glow-' + componentId + ')'} />
+      {/* Bottom vignette */}
+      <rect width="200" height="200" fill={'url(#vignette-' + componentId + ')'} />
 
       {/* 2. NECK & SHOULDERS */}
       {/* Neck */}

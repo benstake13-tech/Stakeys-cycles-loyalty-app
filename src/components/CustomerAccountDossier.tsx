@@ -121,7 +121,12 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     setIsFixingGarage(true);
     setGarageFixNote(null);
     try {
-      const res = await refreshCustomerGarageForStaff(currentCustomer.uid, { expectedMin: bikes.length });
+      // An explicit staff "Fix" is the one place allowed to drop rows that are
+      // not this customer's, so opt into the destructive cleanup here.
+      const res = await refreshCustomerGarageForStaff(currentCustomer.uid, {
+        expectedMin: bikes.length,
+        deleteStale: true,
+      });
       if (res.error) {
         setGarageFixNote(`Could not fully repair — ${res.error}`);
       } else {
