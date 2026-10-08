@@ -587,8 +587,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         vehicleCategory: effectiveCategory,
         vehicleModel: formattedVehicleName,
         bikeDetails,
-        serviceId: computedService.serviceId,
-        serviceTitle: selectedVoucher
+        serviceId: expressSos ? 'sos-emergency' : computedService.serviceId,
+        serviceTitle: expressSos
+          ? `SOS Emergency Repair — ${expressSosTileFor(sosTile)?.tag || 'Breakdown'}`
+          : selectedVoucher
           ? `${computedService.headline} (£40 Voucher Applied)`
           : computedService.headline,
         servicePrice: effectivePrice,
