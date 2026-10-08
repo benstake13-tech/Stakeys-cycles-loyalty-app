@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   Trash2,
   Siren,
+  RefreshCw,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice, ReminderChannel, ReminderRecipients, DEFAULT_REMINDER_SETTINGS, clampNumber } from '../types/bikeShop';
@@ -141,6 +142,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
     workshopAudioVolume,
     cycleWorkshopAudioVolume,
     requestPushNotificationPermission,
+    repairBookingsLedger,
   } = useShop();
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
@@ -150,6 +152,10 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [bookingView, setBookingView] = useState<'queue' | 'sos' | 'phone'>('queue');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
+
+  // "Fix Bookings" repair state + result note.
+  const [isFixingBookings, setIsFixingBookings] = useState(false);
+  const [bookingsFixNote, setBookingsFixNote] = useState<string | null>(null);
 
   // Highlighted booking from a notification deep link (auto-clears).
   const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null);
@@ -250,6 +256,30 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
   const sosOpenCount = bookings.filter(
     (b) => isSosBooking(b) && b.status !== 'cancelled' && (b.sosStatus || 'requested') !== 'confirmed'
   ).length;
+
+  /**
+   * "Fix Bookings" — re-syncs the ledger and re-pushes any booking that only
+   * exists on this device (its insert was rejected), then reports the outcome.
+   */
+  const handleFixBookings = async () => {
+    setIsFixingBookings(true);
+    setBookingsFixNote(null);
+    try {
+      const res = await repairBookingsLedger();
+      const bits = [`${res.found} in the workshop ledger`];
+      if (res.reuploaded) bits.push(`${res.reuploaded} restored`);
+      if (res.failed) bits.push(`${res.failed} could not be restored`);
+      setBookingsFixNote(
+        res.error
+          ? `Bookings re-synced — ${bits.join(', ')}. (Ledger read error: ${res.error})`
+          : `Bookings repaired — ${bits.join(', ')}.`
+      );
+    } catch (e: any) {
+      setBookingsFixNote(`Repair failed — ${e?.message || 'unknown error'}`);
+    } finally {
+      setIsFixingBookings(false);
+    }
+  };
 
   const handleOpenApprove = (b: ServiceBooking) => {
     setApprovingBooking(b);
@@ -488,6 +518,34 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
           Phone Bookings
         </button>
       </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleFixBookings}
+          disabled={isFixingBookings}
+          data-testid="fix-bookings"
+          title="Re-sync the booking ledger and re-push any booking that only exists on this device"
+          className="pressable px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-60"
+        >
+          {isFixingBookings ? (
+            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Wrench className="w-3.5 h-3.5" />
+          )}
+          <span>{isFixingBookings ? 'Fixing…' : 'Fix Bookings'}</span>
+        </button>
+      </div>
+
+      {bookingsFixNote && (
+        <div
+          data-testid="bookings-fix-note"
+          className="flex items-start gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-100"
+        >
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>{bookingsFixNote}</span>
+        </div>
+      )}
 
       {bookingView === 'sos' && <StaffSosPanel />}
 

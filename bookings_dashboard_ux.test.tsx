@@ -95,6 +95,7 @@ vi.mock('./src/context/ShopContext', () => ({
     workshopAudioVolume: 'normal',
     cycleWorkshopAudioVolume: vi.fn(),
     requestPushNotificationPermission: vi.fn(async () => 'granted'),
+    repairBookingsLedger: vi.fn(async () => ({ found: 3, reuploaded: 1, failed: 0 })),
   }),
 }));
 
@@ -186,5 +187,15 @@ describe('StaffBookingsTab active / completed split', () => {
     // Active jobs are hidden while the completed view is on.
     expect(screen.queryByText('Ben Pearson')).toBeNull();
     expect(screen.queryByText('Ada Lovelace')).toBeNull();
+  });
+});
+
+describe('StaffBookingsTab Fix Bookings repair', () => {
+  it('runs the ledger repair and reports the outcome', async () => {
+    render(<StaffBookingsTab />);
+    fireEvent.click(screen.getByTestId('fix-bookings'));
+    await screen.findByTestId('bookings-fix-note');
+    expect(screen.getByTestId('bookings-fix-note').textContent).toContain('3 in the workshop ledger');
+    expect(screen.getByTestId('bookings-fix-note').textContent).toContain('1 restored');
   });
 });
