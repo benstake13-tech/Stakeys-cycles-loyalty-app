@@ -386,6 +386,9 @@ export async function fetchServiceBookingsFromDb(
         sosLocationRequestedAt: row.sos_location_requested_at || undefined,
         sosLocationNote: row.sos_location_note || undefined,
         sosConfirmedAt: row.sos_confirmed_at || undefined,
+        sosCategory: row.sos_category || undefined,
+        sosPhotoUrl: row.sos_photo_url || undefined,
+        sosVoiceNoteUrl: row.sos_voice_note_url || undefined,
       }));
     }
   } catch (err) {
@@ -404,7 +407,7 @@ export async function insertServiceBookingToDb(
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] INSERT service_bookings id=${booking.id}`);
   try {
-    const buildPayload = (includeBikeDetails: boolean, includeSos: boolean) => {
+    const buildPayload = (includeBikeDetails: boolean, includeSos: boolean, includeSosMedia = true) => {
       const payload: any = {
         id: booking.id,
         customer_id: booking.customerId || null,
@@ -433,6 +436,9 @@ export async function insertServiceBookingToDb(
       if (includeSos && booking.isSos) {
         payload.is_sos = true;
         payload.sos_status = booking.sosStatus || 'requested';
+        if (booking.sosCategory) payload.sos_category = booking.sosCategory;
+        if (includeSosMedia && booking.sosPhotoUrl) payload.sos_photo_url = booking.sosPhotoUrl;
+        if (includeSosMedia && booking.sosVoiceNoteUrl) payload.sos_voice_note_url = booking.sosVoiceNoteUrl;
       }
       return payload;
     };
@@ -442,6 +448,12 @@ export async function insertServiceBookingToDb(
       // Older project without the bike_details/referral_code columns — still
       // save the booking.
       const retry = await supabase.from('service_bookings').insert(buildPayload(false, true));
+      error = retry.error;
+    }
+    if (error && booking.isSos) {
+      // Older project without the express SOS media columns — keep the marker
+      // and category, drop the photo/voice URLs.
+      const retry = await supabase.from('service_bookings').insert(buildPayload(true, true, false));
       error = retry.error;
     }
     if (error && booking.isSos) {
@@ -537,6 +549,9 @@ export async function updateServiceBookingInDb(
     if (updates.sosLocationRequestedAt !== undefined) payload.sos_location_requested_at = updates.sosLocationRequestedAt;
     if (updates.sosLocationNote !== undefined) payload.sos_location_note = updates.sosLocationNote;
     if (updates.sosConfirmedAt !== undefined) payload.sos_confirmed_at = updates.sosConfirmedAt;
+    if (updates.sosCategory !== undefined) payload.sos_category = updates.sosCategory;
+    if (updates.sosPhotoUrl !== undefined) payload.sos_photo_url = updates.sosPhotoUrl;
+    if (updates.sosVoiceNoteUrl !== undefined) payload.sos_voice_note_url = updates.sosVoiceNoteUrl;
 
     let { error } = await supabase
       .from('service_bookings')
@@ -556,6 +571,9 @@ export async function updateServiceBookingInDb(
       'sos_location_requested_at',
       'sos_location_note',
       'sos_confirmed_at',
+      'sos_category',
+      'sos_photo_url',
+      'sos_voice_note_url',
     ];
     for (const column of OPTIONAL_COLUMNS) {
       if (error && payload[column] !== undefined) {

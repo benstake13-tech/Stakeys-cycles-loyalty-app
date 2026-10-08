@@ -581,6 +581,12 @@ export interface ServiceBooking {
   sosLocationRequestedAt?: any;
   sosLocationNote?: string;
   sosConfirmedAt?: any;
+  /** Express SOS mode: the single visual category the rider tapped. */
+  sosCategory?: string;
+  /** A photo of the broken part, captured in the app (data URL / storage URL). */
+  sosPhotoUrl?: string;
+  /** A short voice note from the rider, captured in the app. */
+  sosVoiceNoteUrl?: string;
 }
 
 export interface OwnerNotificationConfig {

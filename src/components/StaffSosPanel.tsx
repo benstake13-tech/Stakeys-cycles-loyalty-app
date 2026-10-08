@@ -8,6 +8,8 @@ import {
   Clock,
   Phone,
   Bell,
+  Camera,
+  Mic,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking } from '../types/bikeShop';
@@ -47,6 +49,13 @@ function riderLocationFromNotes(notes?: string): string {
   if (!notes) return '';
   const line = notes.split('\n').find((l) => l.trim().toLowerCase().startsWith('rider location:'));
   return line ? line.replace(/^rider location:\s*/i, '').trim() : '';
+}
+
+/** Pull the express SOS category line out of the notes ("Issue category: …"). */
+function categoryFromNotes(notes?: string): string {
+  if (!notes) return '';
+  const line = notes.split('\n').find((l) => l.trim().toLowerCase().startsWith('issue category:'));
+  return line ? line.replace(/^issue category:\s*/i, '').trim() : '';
 }
 
 /**
@@ -168,6 +177,9 @@ const SosJobCard: React.FC<SosJobCardProps> = ({
   const fault = faultFromNotes(job.notes) || 'Fault described in booking notes.';
   const riderUse = riderUseFromNotes(job.notes);
   const location = job.sosLocationNote || riderLocationFromNotes(job.notes);
+  const category = job.sosCategory || categoryFromNotes(job.notes);
+  const photoUrl = job.sosPhotoUrl || null;
+  const voiceUrl = job.sosVoiceNoteUrl || null;
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -202,6 +214,11 @@ const SosJobCard: React.FC<SosJobCardProps> = ({
               {job.vehicleModel}
               {riderUse ? ` · ${riderUse}` : ''}
             </div>
+            {category && (
+              <span className="mt-1 inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-rose-300">
+                {category}
+              </span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -227,6 +244,26 @@ const SosJobCard: React.FC<SosJobCardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Express SOS media — the rider's photo of the broken part and/or voice note */}
+      {(photoUrl || voiceUrl) && (
+        <div className="flex flex-wrap items-center gap-3">
+          {photoUrl && (
+            <a href={photoUrl} target="_blank" rel="noopener noreferrer" className="relative block" title="Open the rider's photo">
+              <img src={photoUrl} alt="Rider's photo of the fault" className="h-20 w-20 rounded-xl border border-neutral-700 object-cover" />
+              <span className="absolute bottom-1 left-1 inline-flex items-center gap-1 rounded bg-neutral-950/80 px-1.5 py-0.5 text-[9px] font-bold text-neutral-200">
+                <Camera className="w-3 h-3" /> Photo
+              </span>
+            </a>
+          )}
+          {voiceUrl && (
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 p-2">
+              <Mic className="w-4 h-4 text-rose-400" />
+              <audio controls src={voiceUrl} className="h-8" />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Workflow actions */}
       <div className="pt-3 border-t border-neutral-800 space-y-3">
