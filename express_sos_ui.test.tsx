@@ -80,6 +80,7 @@ describe('BookingPortal — Express SOS mode', () => {
     const data = hoisted.createBooking.mock.calls[0][0];
     expect(data.isSos).toBe(true);
     expect(data.sosStatus).toBe('requested');
+    expect(data.serviceTitle).toBe('SOS Emergency Repair — Tires & Wheels');
     expect(data.sosCategory).toBe('Tires & Wheels');
     expect(data.sosLocationNote).toBe('A6 layby near the retail park');
     expect(data.notes).toContain('EXPRESS SOS CALL-OUT');
