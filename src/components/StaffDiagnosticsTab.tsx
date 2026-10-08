@@ -46,7 +46,9 @@ import {
   AREA_LABELS,
   FEATURE_TESTS,
   FeatureArea,
+  FeatureTest,
   FeatureTestResult,
+  getVerifiedAreas,
   runFeatureTests,
   summarize,
 } from '../utils/featureDiagnostics';
@@ -63,6 +65,7 @@ const AREA_ORDER: FeatureArea[] = [
   'settings',
   'reach',
   'email',
+  'scanner',
   'logic',
 ];
 
@@ -149,7 +152,12 @@ export const StaffDiagnosticsTab: React.FC = () => {
 
   const [results, setResults] = useState<FeatureTestResult[]>([]);
   const [running, setRunning] = useState(false);
+  // The id of the single test currently being run (per-test button spinner).
+  const [runningId, setRunningId] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  // Areas whose checks have actually been exercised on this device, so a feature
+  // that has never been run shows a "not run yet" flag rather than a blank box.
+  const [verifiedAreas, setVerifiedAreas] = useState<FeatureArea[]>(() => getVerifiedAreas());
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [toast, setToast] = useState<Toast>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -177,6 +185,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       });
     } finally {
       setRunning(false);
+      setVerifiedAreas(getVerifiedAreas());
     }
   };
 
@@ -188,6 +197,20 @@ export const StaffDiagnosticsTab: React.FC = () => {
       await runFeatureTests((result) => setResults((prev) => [...prev, result]), ids);
     } finally {
       setRunning(false);
+      setVerifiedAreas(getVerifiedAreas());
+    }
+  };
+
+  /** Runs a single test on its own, replacing only its previous result. */
+  const handleRunTest = async (id: string) => {
+    setRunningId(id);
+    try {
+      await runFeatureTests((result) => {
+        setResults((prev) => [...prev.filter((r) => r.id !== result.id), result]);
+      }, [id]);
+      setVerifiedAreas(getVerifiedAreas());
+    } finally {
+      setRunningId(null);
     }
   };
 
@@ -487,24 +510,41 @@ export const StaffDiagnosticsTab: React.FC = () => {
     });
   };
 
-  const renderRow = (result: FeatureTestResult) => {
-    const meta = STATUS_META[result.status];
+  /**
+   * One row per catalogue test. It is always rendered so every feature has its own
+   * "Run" control; the result (when present) adds the status, detail and fix SQL.
+   */
+  const renderTestRow = (test: FeatureTest, result?: FeatureTestResult) => {
+    const meta = result ? STATUS_META[result.status] : null;
+    const isRowRunning = runningId === test.id;
     return (
-      <div key={result.id} className={`rounded-2xl border p-3.5 ${meta.ring}`}>
+      <div
+        key={test.id}
+        data-testid={`test-row-${test.id}`}
+        className={`rounded-2xl border p-3.5 ${meta ? meta.ring : 'border-neutral-800 bg-neutral-900/40'}`}
+      >
         <div className="flex items-start gap-3">
-          <span className={`mt-0.5 shrink-0 ${meta.text}`}>{meta.icon}</span>
+          <span className={`mt-0.5 shrink-0 ${meta ? meta.text : 'text-neutral-600'}`}>
+            {isRowRunning ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : meta ? meta.icon : <MinusCircle className="w-4 h-4" />}
+          </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-bold text-white">{result.label}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.chip}`}>
-                {meta.label}
-              </span>
-              {result.writes && (
+              <span className="text-sm font-bold text-white">{test.label}</span>
+              {meta ? (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.chip}`}>
+                  {meta.label}
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-neutral-700 bg-neutral-800/40 text-neutral-400">
+                  Not run
+                </span>
+              )}
+              {test.writes && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 text-sky-300 border border-sky-500/30">
                   write test · self-cleaning
                 </span>
               )}
-              {result.id === 'profile-balance-write' && (
+              {test.id === 'profile-balance-write' && (
                 <span
                   className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-500/15 text-violet-300 border border-violet-500/30"
                   title="profiles.id is uuid with a foreign key to auth.users, so this test writes sentinel values to a real profile and restores them afterwards."
@@ -512,16 +552,30 @@ export const StaffDiagnosticsTab: React.FC = () => {
                   real profile — restored
                 </span>
               )}
-              <span className="text-[10px] font-mono text-neutral-500">{result.ms}ms</span>
+              {result && <span className="text-[10px] font-mono text-neutral-500">{result.ms}ms</span>}
+              <button
+                type="button"
+                onClick={() => handleRunTest(test.id)}
+                disabled={running || isRowRunning}
+                title="Run just this test"
+                className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-bold text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50 cursor-pointer"
+              >
+                {isRowRunning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                <span>{isRowRunning ? 'Running…' : 'Run'}</span>
+              </button>
             </div>
-            <p className="text-xs text-neutral-300 mt-1 break-words">{result.detail}</p>
-            {result.hint && (
+            {result ? (
+              <p className="text-xs text-neutral-300 mt-1 break-words">{result.detail}</p>
+            ) : (
+              <p className="text-[11px] text-neutral-500 mt-1 break-words">{test.description}</p>
+            )}
+            {result?.hint && (
               <p className="text-[11px] text-amber-300/90 mt-1.5 flex items-start gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <span>{result.hint}</span>
               </p>
             )}
-            {(result.status === 'fail' || result.status === 'warn') && result.tables?.length ? (
+            {result && (result.status === 'fail' || result.status === 'warn') && result.tables?.length ? (
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -813,11 +867,13 @@ export const StaffDiagnosticsTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Results grouped by area */}
+      {/* Every catalogue test, grouped by area, each runnable on its own */}
       {AREA_ORDER.map((area) => {
-        const rows = results.filter((r) => r.area === area);
+        const areaTests = FEATURE_TESTS.filter((t) => t.area === area);
+        const resultById = new Map(results.filter((r) => r.area === area).map((r) => [r.id, r]));
         const isCollapsed = collapsed[area];
-        const areaSummary = summarize(rows);
+        const areaSummary = summarize(Array.from(resultById.values()));
+        const isVerified = verifiedAreas.includes(area);
         return (
           <div key={area} className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -828,9 +884,12 @@ export const StaffDiagnosticsTab: React.FC = () => {
               >
                 {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                 {AREA_LABELS[area]}
-                {rows.length > 0 && (
-                  <span className="text-[11px] font-mono text-neutral-400">
-                    {areaSummary.pass}/{rows.length} ok
+                <span className="text-[11px] font-mono text-neutral-400">
+                  {areaSummary.pass}/{areaTests.length} ok
+                </span>
+                {!isVerified && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-amber-500/40 bg-amber-500/10 text-amber-300">
+                    not run yet
                   </span>
                 )}
               </button>
@@ -847,13 +906,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
 
             {!isCollapsed && (
               <div className="mt-4 space-y-2.5">
-                {rows.length === 0 ? (
-                  <p className="text-xs text-neutral-500 italic">
-                    Not run yet — press “Test this area” or “Run All Tests”.
-                  </p>
-                ) : (
-                  rows.map(renderRow)
-                )}
+                {areaTests.map((test) => renderTestRow(test, resultById.get(test.id)))}
               </div>
             )}
           </div>

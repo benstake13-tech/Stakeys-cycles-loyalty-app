@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
@@ -70,6 +70,27 @@ describe('feature diagnostics engine', () => {
     expect(results.every((r) => r.status === 'pass')).toBe(true);
   });
 
+  it('runs the offline scanner/code checks and they pass', async () => {
+    const scannerIds = FEATURE_TESTS.filter((t) => t.area === 'scanner').map((t) => t.id);
+    expect(scannerIds.length).toBeGreaterThan(0);
+    const results = await runFeatureTests(undefined, scannerIds);
+    expect(results.every((r) => r.status === 'pass')).toBe(true);
+  });
+
+  it('exposes the member pass round-trip as a standalone test', async () => {
+    const id = 'membership-encode-roundtrip';
+    const [result] = await runFeatureTests(undefined, [id]);
+    expect(result.id).toBe(id);
+    expect(result.status).toBe('pass');
+  });
+
+  it('every test has a description (so a not-yet-run row is never blank)', () => {
+    for (const t of FEATURE_TESTS) {
+      expect(typeof t.description).toBe('string');
+      expect((t.description || '').length).toBeGreaterThan(0);
+    }
+  });
+
   it('reports progress for each test as it completes', async () => {
     const seen: string[] = [];
     const ids = FEATURE_TESTS.filter((t) => t.area === 'logic').map((t) => t.id);
@@ -100,5 +121,25 @@ describe('StaffDiagnosticsTab', () => {
     await waitFor(() => {
       expect(container.textContent).toContain('Working');
     });
+  });
+
+  it('lists every catalogue test with its own Run control', () => {
+    const { getByTestId } = render(<StaffDiagnosticsTab />);
+    // Every test is rendered up-front, before anything is run.
+    for (const t of FEATURE_TESTS) {
+      expect(getByTestId(`test-row-${t.id}`)).toBeTruthy();
+    }
+  });
+
+  it('runs a single test on its own and replaces only that row', async () => {
+    const { getByTestId } = render(<StaffDiagnosticsTab />);
+    const row = getByTestId('test-row-logic-discount-maths');
+    const runButton = within(row).getByText('Run');
+    fireEvent.click(runButton);
+    await waitFor(() => {
+      expect(within(row).getByText('Working')).toBeTruthy();
+    });
+    // Only the row we ran gained a result; an unrelated row stays "Not run".
+    expect(within(getByTestId('test-row-booking-write')).queryByText('Working')).toBeNull();
   });
 });
