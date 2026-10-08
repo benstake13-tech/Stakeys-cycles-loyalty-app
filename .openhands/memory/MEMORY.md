@@ -247,3 +247,9 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - Lesson: `Number(null) === 0` (finite!) — filter geocoder rows with `r.latitude != null` BEFORE Number() or null-coordinate rows leak in as (0,0).
 - Tests: 63 files / 453. Weather endpoints verified live by curl (api.open-meteo.com, geocoding-api.open-meteo.com).
 - Heads: staff-terminal 0381417 / main-website 102cd90 / customer-app 07051fd.
+
+## Staff Member section — loyalty control panel (session 27)
+- `src/components/MemberControlPanel.tsx` is the mobile-first dark-mode loyalty/customer-data control surface for a single member. Opened from `CustomerDatabaseTab` by the notification bell deep link (`dossierUid`) or the per-row **Manage Member** button; its "Full dossier" button drills into the tabbed `CustomerAccountDossier` via a second `fullDossierUid` state.
+- Save path: `updateCustomerPoints(uid, staffId, {stamps,tickets,points,displayName,email,phoneNumber,resetDailyRateLimit,resetSpinCooldown,staffNote})`. VIP badge = `points>=100 || tickets>=5`; £40 service unlocks at 10 stamps.
+- Test gotcha: mock `canvas-confetti` in jsdom or the rAF throws `clearRect of null`; declare params on `vi.fn()` or `mock.calls[0][0]` fails tsc.
+- Website discount codes were already fully built on all branches (WebsiteReplica coupon strip + basket promo box + `?code=`/`?promo=` deep links + BookingPortal code field) — no change needed.
