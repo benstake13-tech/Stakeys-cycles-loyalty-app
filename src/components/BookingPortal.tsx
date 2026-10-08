@@ -20,6 +20,7 @@ import {
   Truck,
   Tag,
   Plus,
+  Globe,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { VehicleCategory, BikeDetails } from '../types/bikeShop';
@@ -59,6 +60,15 @@ import {
 } from '../utils/notificationService';
 import { findDiscountCode, validateDiscountCode } from '../utils/discountService';
 import { websiteDiscountCatalogue, discountCodeFromSearch } from '../utils/websiteDiscounts';
+import {
+  BOOKING_LANGUAGES,
+  LanguageCode,
+  getPhrases,
+  isRtlLanguage,
+  loadSavedLanguage,
+  saveLanguage,
+} from '../utils/bookingTranslator';
+import { translateBookingNotes, isTranslationConfigured } from '../api/translationService';
 import confetti from 'canvas-confetti';
 
 interface BookingPortalProps {
@@ -183,6 +193,16 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   });
   const [preferredTimeSlot, setPreferredTimeSlot] = useState<string>(TIME_SLOT_OPTIONS[0]);
   const [notes, setNotes] = useState<string>('');
+
+  // Rider language. Only the *form labels* are translated for the rider; the
+  // free text they type is machine-translated to English on submit so the
+  // workshop, staff card and owner email always read English.
+  const [language, setLanguage] = useState<LanguageCode>(() => loadSavedLanguage());
+  const t = useMemo(() => getPhrases(language), [language]);
+  const rtl = isRtlLanguage(language);
+  useEffect(() => {
+    saveLanguage(language);
+  }, [language]);
 
   // Optional extra detail. Everything here is OPTIONAL and folded into the
   // booking notes the workshop sees (staff card + owner email), so a customer
@@ -479,6 +499,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     isSubmittingRef.current = true;
     setIsSubmitting(true);
     try {
+      // Translate the rider's free text to English for the workshop. Failures
+      // fall back to the original text, so this never blocks a booking.
+      const translated =
+        language !== 'en'
+          ? await translateBookingNotes({ notes, problemNotes, accessNotes, additionalDetails }, language)
+          : { notes, problemNotes, accessNotes, additionalDetails };
+      const langNote =
+        language !== 'en'
+          ? `Booking completed in ${BOOKING_LANGUAGES.find((l) => l.code === language)?.english || language}`
+          : '';
+
       const voucherNote = selectedVoucher
         ? `Applied £40 Service Voucher: ${selectedVoucher.code} (To be credited on final repair invoice)`
         : '';
@@ -571,8 +602,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
       const extraDetailsBlock =
         [
-          accessNotes.trim() ? `Access / drop-off notes: ${accessNotes.trim()}` : '',
-          additionalDetails.trim() ? `Extra detail: ${additionalDetails.trim()}` : '',
+          translated.accessNotes.trim() ? `Access / drop-off notes: ${translated.accessNotes.trim()}` : '',
+          translated.additionalDetails.trim() ? `Extra detail: ${translated.additionalDetails.trim()}` : '',
           `Preferred contact: ${preferredContact === 'email' ? 'Email' : 'Phone call'}`,
         ]
           .filter(Boolean)
@@ -580,11 +611,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
       const finalNotes = [
         sosNote,
+        langNote,
         serviceTypeBlock,
         bikeBlock,
         issuesBlock,
-        problemNotes.trim() ? `Other Issues / Symptoms: ${problemNotes.trim()}` : '',
-        notes.trim() ? `Customer Instructions: ${notes.trim()}` : '',
+        translated.problemNotes?.trim() ? `Other Issues / Symptoms: ${translated.problemNotes.trim()}` : '',
+        translated.notes.trim() ? `Customer Instructions: ${translated.notes.trim()}` : '',
         extraDetailsBlock,
         voucherNote,
         discountNote,
@@ -968,7 +1000,37 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       )}
 
       {/* Booking Form */}
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" dir={rtl ? 'rtl' : 'ltr'} lang={language}>
+        {/* Language picker — lets the rider read the form in their own tongue.
+            The shop's own English is never replaced: the workshop always gets
+            an English job sheet (free text is translated on submit). */}
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
+              <Globe className="w-4 h-4" />
+              {t.languageHint}
+            </span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as LanguageCode)}
+              aria-label={t.languageLabel}
+              className="ml-auto bg-[#090b0e] border border-neutral-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+            >
+              {BOOKING_LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label} — {l.english}
+                </option>
+              ))}
+            </select>
+          </div>
+          {language !== 'en' && (
+            <p className="mt-1.5 text-[11px] text-neutral-400">
+              {t.translatingNote}
+              {!isTranslationConfigured() ? ' We will pass your notes to the mechanic as written.' : ''}
+            </p>
+          )}
+        </div>
+
         {/* Live summary — sticks to the top while the form scrolls. */}
         <div className="sticky top-2 z-20 bg-[#0d1015]/95 backdrop-blur border border-neutral-800 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs shadow-lg">
           <span className="flex items-center gap-1.5 text-white font-semibold">
@@ -1619,7 +1681,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Full Name
+                {t.fullName}
               </label>
               <div className="relative">
                 <User className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1636,7 +1698,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Contact Phone Number
+                {t.phone}
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1653,7 +1715,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5 flex items-center justify-between">
-                <span>Email Address (for notifications)</span>
+                <span>{t.email} (for notifications)</span>
                 <span className="text-[10px] text-neutral-500 font-normal">Required for confirmations</span>
               </label>
               <div className="relative">
@@ -1709,13 +1771,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
           <div>
             <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-              Mechanic Notes (Optional)
+              {t.describeProblem} <span className="text-neutral-500">(Optional)</span>
             </label>
             <textarea
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="e.g. Rear brake feels spongy, or need back before Friday commute"
+              placeholder={t.describeProblemPlaceholder}
               className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
             />
           </div>
@@ -1729,7 +1791,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             >
               <span className="flex items-center gap-2 text-xs font-semibold text-neutral-200">
                 <Plus className="w-4 h-4 text-emerald-400" />
-                Add more details for the mechanic
+                {t.additionalDetails}
                 <span className="text-[10px] font-normal text-neutral-500">Optional</span>
               </span>
               <ChevronDown className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform ${showExtraDetails ? 'rotate-180' : ''}`} />
@@ -1739,33 +1801,33 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <div className="px-4 pb-4 space-y-4 border-t border-neutral-800 pt-4">
                 <div>
                   <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    Access / drop-off notes <span className="text-neutral-500">(Optional)</span>
+                    {t.accessNotes} <span className="text-neutral-500">(Optional)</span>
                   </label>
                   <textarea
                     rows={2}
                     value={accessNotes}
                     onChange={(e) => setAccessNotes(e.target.value)}
-                    placeholder="e.g. Gate code 1234, leave with the front desk, or the bike is in a shared garage"
+                    placeholder={t.accessNotesPlaceholder}
                     className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    Anything else we should know? <span className="text-neutral-500">(Optional)</span>
+                    {t.additionalDetailsHint} <span className="text-neutral-500">(Optional)</span>
                   </label>
                   <textarea
                     rows={3}
                     value={additionalDetails}
                     onChange={(e) => setAdditionalDetails(e.target.value)}
-                    placeholder="e.g. I only ride it at weekends, the last service was 8 months ago, or I'd like a quote before any parts are ordered"
+                    placeholder={t.extraDetailPlaceholder}
                     className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    Best way to reach you <span className="text-neutral-500">(Optional)</span>
+                    {t.preferredContact} <span className="text-neutral-500">(Optional)</span>
                   </label>
                   <div className="flex gap-2">
                     {(['call', 'email'] as const).map((mode) => (
@@ -1779,7 +1841,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                             : 'bg-neutral-950/60 border-neutral-800 text-neutral-400 hover:border-neutral-700'
                         }`}
                       >
-                        {mode === 'call' ? 'Phone call' : 'Email'}
+                        {mode === 'call' ? t.contactCall : t.contactEmail}
                       </button>
                     ))}
                   </div>

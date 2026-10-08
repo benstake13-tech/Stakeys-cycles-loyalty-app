@@ -38,6 +38,37 @@ describe('deepEqual', () => {
     const roundTripped = JSON.parse(JSON.stringify(payload));
     expect(deepEqual(payload, roundTripped)).toBe(true);
   });
+
+  it('treats two Dates at the same instant as equal (the sync lag regression)', () => {
+    // A poll re-deserialises every row, so `createdAt`/`lastStampedAt` become new
+    // Date objects for identical data. Without this the guards never matched and
+    // every poll still re-rendered the whole tree.
+    const iso = '2026-10-08T12:00:00.000Z';
+    expect(deepEqual(new Date(iso), new Date(iso))).toBe(true);
+    expect(deepEqual({ createdAt: new Date(iso) }, { createdAt: new Date(iso) })).toBe(true);
+    expect(
+      deepEqual(
+        { lastStampedAt: new Date(iso), id: 'u1' },
+        { lastStampedAt: new Date(iso), id: 'u1' }
+      )
+    ).toBe(true);
+  });
+
+  it('distinguishes Dates at different instants', () => {
+    expect(deepEqual(new Date('2026-10-08T12:00:00Z'), new Date('2026-10-08T12:00:01Z'))).toBe(false);
+  });
+
+  it('treats a Date and its ISO string as different (a real type change)', () => {
+    const iso = '2026-10-08T12:00:00.000Z';
+    expect(deepEqual(new Date(iso), iso)).toBe(false);
+  });
+
+  it('compares a synced collection of dated rows as unchanged', () => {
+    const iso = '2026-10-08T12:00:00.000Z';
+    const a = [{ id: 'b1', createdAt: new Date(iso), lastStampedAt: new Date(iso) }];
+    const b = [{ id: 'b1', createdAt: new Date(iso), lastStampedAt: new Date(iso) }];
+    expect(collectionsEqual(a, b)).toBe(true);
+  });
 });
 
 describe('collectionsEqual', () => {

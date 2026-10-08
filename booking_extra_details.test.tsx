@@ -42,7 +42,7 @@ const flush = () => act(async () => { await Promise.resolve(); await Promise.res
 describe('BookingPortal optional extra detail', () => {
   it('keeps the extra detail fields collapsed until the customer asks for them', () => {
     render(<BookingPortal />);
-    expect(screen.getByText(/Add more details for the mechanic/i)).toBeTruthy();
+    expect(screen.getByText(/Additional details/i)).toBeTruthy();
     // Collapsed by default — the extra textareas are not in the tree yet.
     expect(screen.queryByPlaceholderText(/Gate code 1234/i)).toBeNull();
   });
@@ -50,7 +50,7 @@ describe('BookingPortal optional extra detail', () => {
   it('folds optional access notes, extra detail and contact preference into the booking notes', async () => {
     render(<BookingPortal />);
 
-    fireEvent.click(screen.getByText(/Add more details for the mechanic/i));
+    fireEvent.click(screen.getByText(/Additional details/i));
     fireEvent.change(screen.getByPlaceholderText(/Gate code 1234/i), {
       target: { value: 'Side gate, code 4455' },
     });

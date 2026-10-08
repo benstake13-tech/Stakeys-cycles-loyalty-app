@@ -82,6 +82,40 @@ interface StaffPortalProps {
   onFocusHandled?: () => void;
 }
 
+type StaffTab =
+  | 'till'
+  | 'bookings'
+  | 'staff_roster'
+  | 'website_cms'
+  | 'promotions'
+  | 'discount_codes'
+  | 'customers'
+  | 'draws'
+  | 'logs'
+  | 'google_business'
+  | 'referrals'
+  | 'backend'
+  | 'weather'
+  | 'settings';
+
+/** Every staff tab, used to validate the persisted last-used tab on restore. */
+const STAFF_TABS: StaffTab[] = [
+  'till',
+  'bookings',
+  'staff_roster',
+  'website_cms',
+  'promotions',
+  'discount_codes',
+  'customers',
+  'draws',
+  'logs',
+  'google_business',
+  'referrals',
+  'backend',
+  'weather',
+  'settings',
+];
+
 export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocusHandled }) => {
   const {
     currentUser,
@@ -123,22 +157,27 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
   const [pushState, setPushState] = useState<'idle' | 'working' | 'granted' | 'blocked'>('idle');
 
-  const [staffTab, setStaffTab] = useState<
-    | 'till'
-    | 'bookings'
-    | 'staff_roster'
-    | 'website_cms'
-    | 'promotions'
-    | 'discount_codes'
-    | 'customers'
-    | 'draws'
-    | 'logs'
-    | 'google_business'
-    | 'referrals'
-    | 'backend'
-    | 'weather'
-    | 'settings'
-  >('till');
+  const [staffTab, setStaffTab] = useState<StaffTab>(() => {
+    // Restore the last-used tab so a remount (staff re-auth, a background sync
+    // that remounts the portal, a refresh) lands the user back where they were
+    // instead of snapping to the Till.
+    try {
+      const saved = localStorage.getItem('stakeys_staff_tab');
+      if (saved && STAFF_TABS.includes(saved as StaffTab)) return saved as StaffTab;
+    } catch {
+      /* ignore */
+    }
+    return 'till';
+  });
+
+  // Persist the tab so the restore above has something to read.
+  useEffect(() => {
+    try {
+      localStorage.setItem('stakeys_staff_tab', staffTab);
+    } catch {
+      /* ignore */
+    }
+  }, [staffTab]);
 
   // The Settings tab pages its tools internally, so the assistant audit trail,
   // feature test bench, performance tracker and financial reports live here
