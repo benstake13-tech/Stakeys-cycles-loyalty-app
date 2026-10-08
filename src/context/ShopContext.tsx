@@ -1206,21 +1206,33 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     error: 'Checking connection to Supabase cloud database...',
   });
 
+  // Only replace the status object when the online state / url / error actually
+  // change. The 40s poll otherwise stamped a fresh `checkedAt` every tick, and
+  // since serviceStatus lives in the context value that re-rendered every
+  // consumer of the whole tree for no visible change.
+  const publishServiceStatus = (st: { isOnline: boolean; url: string; error?: string; checkedAt: string }) => {
+    setServiceStatus((prev: any) =>
+      prev && prev.isOnline === st.isOnline && prev.url === st.url && prev.error === st.error
+        ? prev
+        : st
+    );
+  };
+
   const checkServiceHealth = async (_customUrl?: string): Promise<any> => {
     const supabase = getSupabaseClient();
     if (!supabase) {
       const st = { isOnline: false, url: getStoredSupabaseUrl(), error: 'Supabase client not initialized', checkedAt: new Date().toLocaleTimeString() };
-      setServiceStatus(st);
+      publishServiceStatus(st);
       return st;
     }
     try {
       const { error } = await supabase.from('profiles').select('id', { count: 'exact', head: true });
       const st = { isOnline: !error, url: getStoredSupabaseUrl(), error: error?.message, checkedAt: new Date().toLocaleTimeString() };
-      setServiceStatus(st);
+      publishServiceStatus(st);
       return st;
     } catch (err: any) {
       const st = { isOnline: false, url: getStoredSupabaseUrl(), error: err.message, checkedAt: new Date().toLocaleTimeString() };
-      setServiceStatus(st);
+      publishServiceStatus(st);
       return st;
     }
   };
@@ -1436,8 +1448,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // closure captured) so a failed bike read never blanks a garage.
     hydrateRosterGaragesUtil(profiles, fetchBikesByOwner, usersRef.current);
 
-  const syncUserFromDatabase = async (user: UserProfile) => {
-    setSyncing(true);
+  const syncUserFromDatabase = async (user: UserProfile, quiet = false) => {
+    // Background syncs (the 15s poll / realtime / focus) pass quiet: toggling
+    // the shared syncing flag on every tick changed the context identity and
+    // re-rendered every consumer for a status no UI actually reads.
+    if (!quiet) setSyncing(true);
     try {
       const isStaff = user.role === 'staff' || user.role === 'admin';
       
@@ -1508,7 +1523,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('[DB SYNC] Database sync error:', err);
     } finally {
-      setSyncing(false);
+      if (!quiet) setSyncing(false);
     }
   };
 
@@ -1581,7 +1596,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const latestUser = currentUserRef.current;
     if (latestUser) {
-      await syncUserFromDatabase(latestUser);
+      await syncUserFromDatabase(latestUser, true);
     } else {
       const [remoteBookings, remoteLogs] = await Promise.all([
         fetchServiceBookingsFromDb(undefined, true),
