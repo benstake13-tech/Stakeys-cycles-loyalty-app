@@ -65,6 +65,14 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   const handlingRef = useRef(false); // guards against duplicate frames firing callbacks
   const processingRef = useRef(false); // synchronous twin of isProcessing
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // Incremented every time the camera is (re)started. A decode callback captures
+  // the session it belongs to and is ignored once a newer session has begun, so a
+  // frame from a torn-down scanner can never resolve against the current UI.
+  const scanSessionRef = useRef(0);
+  // True between "start" and the camera settling. A second tap of "Start camera"
+  // (or a flip during startup) is ignored so two Html5Qrcode instances can never
+  // fight over the same <div> — the classic scanner flicker.
+  const startingRef = useRef(false);
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -96,18 +104,26 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
     setIsProcessing(false);
   }, []);
 
-  // Resolve a decoded string into a customer and act on it.
+  // Resolve a decoded string into a customer and act on it. `session` ties the
+  // decode to the camera run that produced it; if the modal closed, the camera
+  // was flipped, or "Scan Next" started a new run while the lookup was in flight,
+  // the result is stale and must not touch the UI.
   const processCode = useCallback(
-    async (rawCode: string) => {
+    async (rawCode: string, session: number = scanSessionRef.current) => {
       // Duplicate-frame guard. The scanner has already been paused the moment the
       // payload was detected, but a frame can still be in flight — never resolve twice.
       if (handlingRef.current) return;
       handlingRef.current = true;
+      const isStale = () => session !== scanSessionRef.current;
 
       const clean = normalizeScannedCode(rawCode);
       // Server-backed member resolution so a scan always binds to the correct
       // account, even on a till that has not cached the full roster.
       const { customer, error: lookupError } = await resolveScannedMemberDetailed(rawCode);
+
+      // The lookup is async — the camera may have been stopped, flipped, or the
+      // modal closed while it ran. Drop the result rather than mutating the UI.
+      if (isStale()) return;
 
       if (customer) {
         wheelAudio.playScannerBeep();
@@ -164,10 +180,18 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
       if (!isOpen) return;
       // Never re-arm while a payload is being processed — that is the loop we are fixing.
       if (processingRef.current) return;
+      // Ignore a second start while the previous one is still settling.
+      if (startingRef.current) return;
       if (!document.getElementById(READER_ID)) return;
 
       setCameraError(null);
       setErrorMessage(null);
+
+      // Every start begins a new camera session. Frames carrying an older session
+      // id are ignored, so a slow-to-tear-down scanner cannot feed a stale decode.
+      scanSessionRef.current += 1;
+      const session = scanSessionRef.current;
+      startingRef.current = true;
 
       const scanner = new Html5Qrcode(READER_ID, {
         formatsToSupport: SCAN_FORMATS,
@@ -185,8 +209,9 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
           (decodedText) => {
             // A code was detected: pause continuous detection FIRST, then resolve it.
             if (processingRef.current) return;
+            if (session !== scanSessionRef.current) return;
             pauseScanner();
-            void processCode(decodedText);
+            void processCode(decodedText, session);
           },
           () => {
             /* per-frame decode misses are expected; ignore */
@@ -213,6 +238,8 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
             ? 'Camera permission denied. Allow camera access or use manual entry below.'
             : 'No usable camera found. Use manual entry below.'
         );
+      } finally {
+        startingRef.current = false;
       }
     },
     [isOpen, processCode, pauseScanner]
@@ -238,6 +265,10 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
       // cannot re-arm or double-handle while the image is decoded.
       pauseScanner();
       await stopScanner();
+      // A photo decode is its own session so the (now stopped) camera's frames
+      // can never be confused with this result.
+      scanSessionRef.current += 1;
+      const session = scanSessionRef.current;
       const scanner = new Html5Qrcode(READER_ID, {
         formatsToSupport: SCAN_FORMATS,
         useBarCodeDetectorIfSupported: true,
@@ -248,10 +279,11 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
         const decoded = await scanner.scanFileV2(file, false);
         scanner.clear();
         scannerRef.current = null;
-        processCode(decoded.decodedText);
+        processCode(decoded.decodedText, session);
       } catch {
         scanner.clear();
         scannerRef.current = null;
+        if (session !== scanSessionRef.current) return;
         setErrorMessage('Could not read a barcode/QR from that image. Try a clearer photo.');
         wheelAudio.playScannerError();
         // Stay paused; staff choose "Scan Next QR Code" to retry.
@@ -274,6 +306,9 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
       const timer = setTimeout(() => void startScannerRef.current(), 250);
       return () => clearTimeout(timer);
     }
+    // Closing invalidates any in-flight decode before the camera tears down.
+    scanSessionRef.current += 1;
+    startingRef.current = false;
     void stopScanner();
   }, [isOpen, stopScanner]);
 
@@ -287,7 +322,9 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
     if (!manualQuery.trim()) return;
     // Manual entry behaves like a detection: pause so the camera cannot also fire.
     pauseScanner();
-    void processCode(manualQuery.trim());
+    // Own session so any frame still in flight from the camera is ignored.
+    scanSessionRef.current += 1;
+    void processCode(manualQuery.trim(), scanSessionRef.current);
   };
 
   // Explicitly clear the pause and re-arm. The ONLY place scanning resumes after

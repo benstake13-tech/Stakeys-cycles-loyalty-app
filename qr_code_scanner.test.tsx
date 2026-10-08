@@ -245,4 +245,36 @@ describe('QRCodeScannerModal scan lifecycle', () => {
     expect(hoisted.playScannerBeep).toHaveBeenCalledTimes(1);
     expect(hoisted.playScannerError).not.toHaveBeenCalled();
   });
+
+  it('drops a lookup that resolves after the modal was closed (no stale UI)', async () => {
+    let resolveLookup: ((v: { customer: UserProfile | null }) => void) | undefined;
+    hoisted.resolveScannedMemberDetailed.mockImplementation(
+      () => new Promise((res) => { resolveLookup = res; })
+    );
+    const onCustomerScanned = vi.fn();
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <QRCodeScannerModal isOpen onClose={onClose} onCustomerScanned={onCustomerScanned} />
+    );
+    await waitFor(() => expect(hoisted.scanner.start).toHaveBeenCalled());
+    const decode = hoisted.scanner.decodeCb!;
+
+    await act(async () => {
+      decode('STK-123456');
+    });
+    // Close the modal while the (still-pending) lookup is in flight.
+    rerender(
+      <QRCodeScannerModal isOpen={false} onClose={onClose} onCustomerScanned={onCustomerScanned} />
+    );
+
+    await act(async () => {
+      resolveLookup?.({ customer });
+      await Promise.resolve();
+    });
+
+    // The late result must not reopen the result panel or fire an alert.
+    expect(screen.queryByText('Ada Rider')).toBeNull();
+    expect(alertSpy).not.toHaveBeenCalled();
+    expect(onCustomerScanned).not.toHaveBeenCalled();
+  });
 });
