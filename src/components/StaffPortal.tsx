@@ -134,16 +134,32 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'customers'
     | 'draws'
     | 'logs'
-    | 'financials'
     | 'google_business'
-    | 'business_performance'
     | 'referrals'
-    | 'assistant'
-    | 'diagnostics'
     | 'backend'
     | 'weather'
     | 'settings'
   >('till');
+
+  // The Settings tab pages its tools internally, so the assistant audit trail,
+  // feature test bench, performance tracker and financial reports live here
+  // instead of as duplicate top-level tabs.
+  type SettingsSection =
+    | 'notifications'
+    | 'assistant'
+    | 'test_bench'
+    | 'performance'
+    | 'financials'
+    | 'station';
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>('notifications');
+  const settingsSections: SegmentedTab<SettingsSection>[] = [
+    { id: 'notifications', label: 'Notifications', icon: Bell, tone: 'emerald', hint: 'Workshop alert routing' },
+    { id: 'assistant', label: 'Assistant', icon: Bot, tone: 'emerald', hint: 'Customer shop assistant' },
+    { id: 'test_bench', label: 'Test Bench', icon: FlaskConical, tone: 'amber', hint: 'Test every feature' },
+    { id: 'performance', label: 'Performance', icon: Gauge, tone: 'emerald', hint: 'Requests, calls & growth' },
+    { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
+    { id: 'station', label: 'Staff Station', icon: Layers, tone: 'emerald', hint: 'Live station overview' },
+  ];
 
   // Notification deep link: when App hands us a booking id, jump to the Bookings
   // tab. The tab itself acknowledges the request once the booking is revealed.
@@ -371,12 +387,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'customers'
     | 'draws'
     | 'logs'
-    | 'financials'
     | 'google_business'
-    | 'business_performance'
     | 'referrals'
-    | 'assistant'
-    | 'diagnostics'
     | 'backend'
     | 'weather'
     | 'settings';
@@ -394,15 +406,11 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const adminTabs: SegmentedTab<StaffTabId>[] = [
     { id: 'website_cms', label: 'Website', icon: Globe, tone: 'sky', hint: 'Edit the marketing site.content' },
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
-    { id: 'assistant', label: 'Assistant', icon: Bot, tone: 'emerald', hint: 'Customer shop assistant' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
     { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
-    { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
-    { id: 'business_performance', label: 'Performance', icon: Gauge, tone: 'emerald', hint: 'Requests, calls & growth' },
-    { id: 'diagnostics', label: 'Test Bench', icon: FlaskConical, tone: 'amber', hint: 'Test every feature' },
     { id: 'backend', label: 'Backend', icon: Server, tone: 'sky', hint: 'Supabase connection, schema & repair' },
-    { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications & staff station' },
+    { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications, tools & station overview' },
   ];
 
   return (
@@ -724,18 +732,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {/* VIEW 2: Bike OEM Stock Parts Scraper & Upgrade Inspector */}
       {/* Removed */}
 
-      {/* VIEW 3: Financial Reporting Tab */}
-      {staffTab === 'financials' && <FinancialReportingTab />}
-
       {/* VIEW 7: Google Business Profile Tab */}
       {staffTab === 'google_business' && <GoogleBusinessTab />}
       {staffTab === 'website_cms' && <WebsiteContentManagerTab />}
-
-      {/* VIEW 7A: Staff-managed shop assistant (website + customer app) */}
-      {staffTab === 'assistant' && <AssistantManagerTab />}
-
-      {/* VIEW 7B: Google & Meta Business Performance (OAuth authorised) */}
-      {staffTab === 'business_performance' && <PerformanceTracker />}
 
       {/* VIEW 7C: Live 7-day riding weather for planning workshop capacity */}
       {staffTab === 'weather' && (
@@ -753,14 +752,11 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         </div>
       )}
 
-      {/* VIEW 8: Feature Test Bench — live self-test of every backend feature */}
-      {staffTab === 'diagnostics' && <StaffDiagnosticsTab />}
-
       {/* VIEW 9: Backend console — Supabase connection, schema audit & repair */}
       {staffTab === 'backend' && <StaffBackendTab />}
 
-      {/* VIEW 10: Settings — staff station, notification routing, audit logs,
-          performance, financials and the feature test bench in one place. */}
+      {/* VIEW 10: Settings — one home for notification routing and every admin
+          tool, paged internally so nothing is duplicated on the top-level nav. */}
       {staffTab === 'settings' && (
         <div className="space-y-6">
           <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl">
@@ -774,108 +770,116 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
               Settings
             </h2>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              Configure how the workshop notifies you, review the assistant audit trail, and jump straight to
-              performance, financials and the live station overview.
+              Configure how the workshop notifies you, review the assistant audit trail, run the feature test bench,
+              and open performance, financials and the live station overview — all from here.
             </p>
           </div>
 
-          <StaffNotificationSettings />
+          <SegmentedTabs
+            tabs={settingsSections}
+            active={settingsSection}
+            onChange={setSettingsSection}
+            ariaLabel="Settings sections"
+          />
 
-          <AssistantManagerTab />
-          <StaffDiagnosticsTab />
-          <PerformanceTracker />
-          <FinancialReportingTab />
+          {settingsSection === 'notifications' && <StaffNotificationSettings />}
+          {settingsSection === 'assistant' && <AssistantManagerTab />}
+          {settingsSection === 'test_bench' && <StaffDiagnosticsTab />}
+          {settingsSection === 'performance' && <PerformanceTracker />}
+          {settingsSection === 'financials' && <FinancialReportingTab />}
 
-          <div className="space-y-6">
-            <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl">
-                    <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
-                      <Bell className="w-5 h-5 text-emerald-400" /> Staff Station Overview
-                    </h2>
-                    <p className="text-xs text-neutral-400 mt-1">
-                      Counter sales, workshop bookings, loyalty members and prize draws — everything you need at the
-                      front desk and bench.
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 mt-3.5">
-                      <button
-                        type="button"
-                        onClick={() => setStaffTab('till')}
-                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
-                      >
-                        <ShoppingCart className="w-4 h-4" />
-                        <span>Open Till</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStaffTab('bookings')}
-                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
-                      >
-                        <Wrench className="w-4 h-4 text-emerald-400" />
-                        <span>Workshop Jobs</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStaffTab('customers')}
-                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
-                      >
-                        <Users className="w-4 h-4 text-emerald-400" />
-                        <span>Members</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStaffTab('draws')}
-                        className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
-                      >
-                        <Trophy className="w-4 h-4 text-amber-400" />
-                        <span>Prize Hub</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setStaffTab('bookings')}
-                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-                    >
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Workshop Jobs</div>
-                      <div className="text-xl font-black text-emerald-400 mt-0.5">
-                        {activeBookingsCount}{' '}
-                        <span className="text-xs text-neutral-500 font-normal">Active</span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStaffTab('staff_roster')}
-                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-                    >
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Staff Roster</div>
-                      <div className="text-xl font-black text-emerald-400 mt-0.5">
-                        {staffMembers.length}{' '}
-                        <span className="text-xs text-neutral-500 font-normal">Active</span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStaffTab('promotions')}
-                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-                    >
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Promotions</div>
-                      <div className="text-xl font-black text-amber-400 mt-0.5">
-                        {promotions.filter((p) => p.status === 'active').length}{' '}
-                        <span className="text-xs text-neutral-500 font-normal">Live</span>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStaffTab('customers')}
-                      className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-                    >
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total Riders</div>
-                      <div className="text-xl font-black text-white mt-0.5">{customerList.length}</div>
-                    </button>
-                  </div>
+          {settingsSection === 'station' && (
+            <div className="space-y-6">
+              <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl">
+                <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
+                  <Bell className="w-5 h-5 text-emerald-400" /> Staff Station Overview
+                </h2>
+                <p className="text-xs text-neutral-400 mt-1">
+                  Counter sales, workshop bookings, loyalty members and prize draws — everything you need at the
+                  front desk and bench.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-3.5">
+                  <button
+                    type="button"
+                    onClick={() => setStaffTab('till')}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold shadow-md shadow-emerald-500/20 cursor-pointer"
+                  >
+                    <ShoppingCart className="w-4 h-4" />
+                    <span>Open Till</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStaffTab('bookings')}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
+                  >
+                    <Wrench className="w-4 h-4 text-emerald-400" />
+                    <span>Workshop Jobs</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStaffTab('customers')}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
+                  >
+                    <Users className="w-4 h-4 text-emerald-400" />
+                    <span>Members</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStaffTab('draws')}
+                    className="pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-neutral-950/80 border border-neutral-800 text-white text-xs font-bold hover:border-emerald-500/40 cursor-pointer"
+                  >
+                    <Trophy className="w-4 h-4 text-amber-400" />
+                    <span>Prize Hub</span>
+                  </button>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('bookings')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Workshop Jobs</div>
+                  <div className="text-xl font-black text-emerald-400 mt-0.5">
+                    {activeBookingsCount}{' '}
+                    <span className="text-xs text-neutral-500 font-normal">Active</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('staff_roster')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Staff Roster</div>
+                  <div className="text-xl font-black text-emerald-400 mt-0.5">
+                    {staffMembers.length}{' '}
+                    <span className="text-xs text-neutral-500 font-normal">Active</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('promotions')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Promotions</div>
+                  <div className="text-xl font-black text-amber-400 mt-0.5">
+                    {promotions.filter((p) => p.status === 'active').length}{' '}
+                    <span className="text-xs text-neutral-500 font-normal">Live</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStaffTab('customers')}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Total Riders</div>
+                  <div className="text-xl font-black text-white mt-0.5">{customerList.length}</div>
+                </button>
+              </div>
             </div>
+          )}
+        </div>
       )}
 
       {/* VIEW 3: Customer Database Roster */}
