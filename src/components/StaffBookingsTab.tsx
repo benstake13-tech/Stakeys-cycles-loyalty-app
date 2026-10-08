@@ -145,6 +145,9 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('all');
+  // Completed/cancelled jobs are hidden from the default feed so a busy
+  // workshop isn't cluttered; they live behind the "Completed" toggle.
+  const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [bookingView, setBookingView] = useState<'queue' | 'sos' | 'phone'>('queue');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
 
@@ -199,16 +202,26 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
   const togglePanel = (id: string) => setOpenPanels((prev) => ({ ...prev, [id]: !prev[id] }));
   const toggleBooking = (id: string) => setExpandedBookings((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  // "Finished" jobs = completed or cancelled. They are split out of the active
+  // feed so a busy workshop stays uncluttered.
+  const isFinished = (b: ServiceBooking) => b.status === 'completed' || b.status === 'cancelled';
+
   // Filter Bookings
   const filteredBookings = bookings.filter((b) => {
     if (selectedStatusFilter !== 'all' && b.status !== selectedStatusFilter) return false;
     if (selectedVehicleFilter !== 'all' && b.vehicleCategory !== selectedVehicleFilter) return false;
+    // Active/Completed is a hard split: the active feed never shows finished
+    // jobs and the completed feed never shows active ones. A specific status
+    // pill (e.g. "completed") takes precedence.
+    if (selectedStatusFilter === 'all' && showCompleted !== isFinished(b)) return false;
     return true;
   });
 
   const pendingCount = bookings.filter(
     (b) => b.status === 'pending' || b.approvalStatus === 'pending_approval'
   ).length;
+
+  const completedCount = bookings.filter(isFinished).length;
 
   // Notification deep link: reveal the target booking regardless of the active
   // filters, scroll it into view and flash a highlight so staff spot it.
@@ -218,6 +231,9 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
     if (!target) return;
     setSelectedStatusFilter('all');
     setSelectedVehicleFilter('all');
+    // Reveal finished jobs too, otherwise a deep link to a completed booking
+    // would land on a feed that hides it.
+    if (isFinished(target)) setShowCompleted(true);
     setBookingView('queue');
     setHighlightedBookingId(focusBookingId);
     const scroll = setTimeout(() => {
@@ -955,7 +971,10 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
 
           <button
             type="button"
-            onClick={() => setSelectedStatusFilter('pending')}
+            onClick={() => {
+              setShowCompleted(false);
+              setSelectedStatusFilter('pending');
+            }}
             className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs uppercase tracking-wider shrink-0 cursor-pointer shadow-lg shadow-amber-400/30 border border-amber-300 transition-all hover:scale-[1.02]"
           >
             Review Fresh Jobs ({pendingCount})
@@ -965,6 +984,41 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
 
       {/* Filter and Stats Bar — sticky so the pills stay reachable while scrolling the feed */}
       <div className="sticky top-0 z-30 flex flex-col gap-2 bg-neutral-900/95 backdrop-blur-md p-3 rounded-2xl border border-neutral-800 shadow-lg shadow-black/40">
+        {/* Active / Completed split — keeps finished jobs out of the way */}
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-neutral-950 border border-neutral-800">
+          <button
+            type="button"
+            onClick={() => {
+              setShowCompleted(false);
+              if (selectedStatusFilter === 'completed' || selectedStatusFilter === 'cancelled') {
+                setSelectedStatusFilter('all');
+              }
+            }}
+            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              !showCompleted ? 'bg-[#05C147] text-neutral-950 shadow-sm shadow-emerald-500/20' : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            Active Jobs
+            <span className={`px-1.5 rounded-full text-[10px] font-black ${!showCompleted ? 'bg-neutral-950/20 text-neutral-950' : 'bg-neutral-800 text-neutral-300'}`}>
+              {bookings.length - completedCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCompleted(true)}
+            className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              showCompleted ? 'bg-[#05C147] text-neutral-950 shadow-sm shadow-emerald-500/20' : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Completed
+            <span className={`px-1.5 rounded-full text-[10px] font-black ${showCompleted ? 'bg-neutral-950/20 text-neutral-950' : 'bg-neutral-800 text-neutral-300'}`}>
+              {completedCount}
+            </span>
+          </button>
+        </div>
+
         {/* Status filters — touch-friendly horizontal scroll on mobile */}
         <div className="flex items-center gap-2 text-xs overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="text-neutral-400 font-semibold mr-1 flex items-center gap-1 shrink-0">
@@ -975,7 +1029,11 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
           {['all', 'pending', 'confirmed', 'in_progress', 'ready_for_pickup', 'completed', 'declined'].map((status) => (
             <button
               key={status}
-              onClick={() => setSelectedStatusFilter(status)}
+              onClick={() => {
+                setSelectedStatusFilter(status);
+                // Keep the Active/Completed split in step with the status pill.
+                setShowCompleted(status === 'completed' || status === 'cancelled');
+              }}
               className={`px-3 py-1.5 rounded-xl capitalize font-semibold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                 selectedStatusFilter === status
                   ? 'bg-[#05C147] text-neutral-950 shadow-sm shadow-emerald-500/20 font-bold'
@@ -1023,8 +1081,16 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
         {filteredBookings.length === 0 ? (
           <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-12 text-center text-neutral-500">
             <Wrench className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="text-sm font-semibold">No bookings found for the selected filter.</p>
-            <p className="text-xs text-neutral-500 mt-1">New appointments will appear here as soon as customers book.</p>
+            <p className="text-sm font-semibold">
+              {showCompleted && selectedStatusFilter === 'all'
+                ? 'No completed jobs yet.'
+                : 'No bookings found for the selected filter.'}
+            </p>
+            <p className="text-xs text-neutral-500 mt-1">
+              {showCompleted && selectedStatusFilter === 'all'
+                ? 'Jobs move here once they are marked completed.'
+                : 'New appointments will appear here as soon as customers book.'}
+            </p>
           </div>
         ) : (
           filteredBookings.map((b) => {

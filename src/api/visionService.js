@@ -1,6 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-
-const MODEL = "gemini-2.5-flash";
+import { resolveGeminiModel } from "./geminiModel";
 
 const getApiKey = () =>
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || "";
@@ -112,7 +111,7 @@ export async function identifyBikeFromImage(base64Image, mimeType = "image/jpeg"
   const data = typeof base64Image === "string" ? base64Image.split(",").pop() : base64Image;
 
   const response = await ai.models.generateContent({
-    model: MODEL,
+    model: resolveGeminiModel(),
     contents: [
       {
         role: "user",
