@@ -40,6 +40,7 @@ import {
   computeSaleTotals,
   voucherToDiscountState,
   roundMoney,
+  findDiscountCode,
 } from '../utils/discountService';
 import { websiteDiscountCatalogue, WEBSITE_DISCOUNT_FALLBACK, inferAudience } from '../utils/websiteDiscounts';
 import { buildFinancialLedger, summarizeLedger, workshopPaymentLabel } from '../utils/financials';
@@ -57,6 +58,18 @@ import {
 import { planBalanceProbe } from '../utils/schemaSync';
 import { generateBookingEmailHtml } from '../utils/notificationService';
 import { syntheticWeatherReport, ridingConditionsFor } from '../utils/weatherService';
+import {
+  encodeMembership,
+  encodeMembershipPayload,
+  normalizeScannedCode,
+  parseMembershipPayload,
+  resolveCustomer,
+  membershipBalance,
+} from '../utils/membershipCode';
+import { encodeItemCode, itemCodeForProduct, resolveItemByCode } from '../utils/itemCode';
+import { classifyBookingChannel, didConvert, summarizePerformance } from '../utils/performanceTracker';
+import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
+import { BOOKING_LANGUAGES, getPhrases, isRtlLanguage } from '../utils/bookingTranslator';
 import type {
   CustomerBike,
   ServiceBooking,
@@ -82,6 +95,7 @@ export type FeatureArea =
   | 'settings'
   | 'reach'
   | 'email'
+  | 'scanner'
   | 'logic';
 
 export type TestStatus = 'pass' | 'fail' | 'warn' | 'skipped';
@@ -128,6 +142,7 @@ export const AREA_LABELS: Record<FeatureArea, string> = {
   settings: 'Settings & Theme',
   reach: 'Push & Email Delivery',
   email: 'Transactional Email',
+  scanner: 'Scanner & Codes',
   logic: 'Pure Logic (offline)',
 };
 
@@ -234,6 +249,31 @@ function makeDiagSale(id: string): SaleTransaction {
     createdAt: new Date(),
     status: 'completed',
   } as unknown as SaleTransaction;
+}
+
+/**
+ * Records which areas a manual run has actually exercised, so the Test Bench can
+ * flag a feature whose checks have never been run (the app self-verifies live).
+ */
+const VERIFIED_KEY = 'stakeys_test_bench_verified_areas';
+
+export function getVerifiedAreas(): FeatureArea[] {
+  try {
+    const raw = localStorage.getItem(VERIFIED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? (parsed as FeatureArea[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markAreasVerified(areas: FeatureArea[]): void {
+  try {
+    const merged = Array.from(new Set([...getVerifiedAreas(), ...areas]));
+    localStorage.setItem(VERIFIED_KEY, JSON.stringify(merged));
+  } catch {
+    /* localStorage unavailable — the badge is best-effort */
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1076,6 +1116,33 @@ export const FEATURE_TESTS: FeatureTest[] = [
       return { status: 'warn', detail: `Unexpected number ${num} / barcode ${barcode}` };
     },
   },
+  {
+    id: 'membership-encode-roundtrip',
+    area: 'members',
+    label: 'Member pass encode → scan → resolve',
+    description: 'Builds a scannable pass payload (number + balances), parses it back and resolves the member — offline, no network.',
+    run: async () => {
+      const payload = encodeMembershipPayload('stk-839201', { stamps: 4, tickets: 2, points: 130 });
+      const normalized = normalizeScannedCode(payload);
+      const balance = parseMembershipPayload(payload);
+      const roster = [
+        { uid: 'uuid-1', role: 'customer', displayName: 'Ada', membershipNumber: 'STK-839201', stamps: 4, tickets: 2, points: 130 },
+      ] as any[];
+      const match = resolveCustomer(payload, roster);
+      const bare = parseMembershipPayload(encodeMembership('STK-839201'));
+      const ok =
+        normalized === 'STK-839201' &&
+        balance?.stamps === 4 &&
+        balance?.tickets === 2 &&
+        balance?.points === 130 &&
+        match.status === 'match' &&
+        match.customer.uid === 'uuid-1' &&
+        bare === undefined;
+      return ok
+        ? { status: 'pass', detail: `Encoded STK-839201, read back 4 stamps / 2 tickets / 130 points, resolved to the member.` }
+        : { status: 'fail', detail: `normalized=${normalized}; balance=${JSON.stringify(balance)}; match=${match.status}` };
+    },
+  },
 
   // ---- Garage: bikes showing (step by step) -------------------------------
   // The "bikes show, then disappear" report is walked through the exact
@@ -1661,6 +1728,110 @@ export const FEATURE_TESTS: FeatureTest[] = [
     },
   },
 
+  // ---- Scanner & codes ----------------------------------------------------
+  // The member/item code path is pure and offline, so a broken QR label or a
+  // mis-encoded pass shows up here even when the till camera itself works.
+  {
+    id: 'scanner-normalize-member-code',
+    area: 'scanner',
+    label: 'Member QR → membership number',
+    description: 'Normalizes every shape of member code (bare token, encoded payload, URL, JSON) to the same number.',
+    run: async () => {
+      const encoded = encodeMembership('STK-839201'); // STK-839201|urn:stakeys:membership:STK-839201
+      const cases: Array<[string, string]> = [
+        ['bare token', normalizeScannedCode('stk-839201')],
+        ['encoded payload', normalizeScannedCode(encoded)],
+        ['profile URL', normalizeScannedCode('https://stakeys-cycle.co.uk/member/STK-839201')],
+        ['JSON blob', normalizeScannedCode('{"membershipNumber":"STK-839201"}')],
+      ];
+      const bad = cases.filter(([, v]) => v !== 'STK-839201').map(([n]) => n);
+      return bad.length === 0
+        ? { status: 'pass', detail: 'All member-code shapes normalize to STK-839201.' }
+        : { status: 'fail', detail: `Failed shapes: ${bad.join(', ')}`, hint: 'Check normalizeScannedCode in membershipCode.ts.' };
+    },
+  },
+  {
+    id: 'scanner-member-payload-balances',
+    area: 'scanner',
+    label: 'Member pass carries live balances',
+    description: 'A pass payload rides with stamps/tickets/points so a scan works before the till has the roster.',
+    run: async () => {
+      const payload = encodeMembershipPayload('STK-839201', { stamps: 7, tickets: 1, points: 42 });
+      const balance = parseMembershipPayload(payload);
+      const ok =
+        balance?.stamps === 7 &&
+        balance?.tickets === 1 &&
+        balance?.points === 42 &&
+        parseMembershipPayload(encodeMembership('STK-839201')) === undefined;
+      return ok
+        ? { status: 'pass', detail: 'Balances 7/1/42 round-trip; a bare pass carries none.' }
+        : { status: 'fail', detail: `balance=${JSON.stringify(balance)}` };
+    },
+  },
+  {
+    id: 'scanner-item-code-resolution',
+    area: 'scanner',
+    label: 'Item QR → product on the floor',
+    description: 'An item label (bare code, encoded payload or URL) resolves back to the live catalogue product.',
+    run: async () => {
+      const products = [
+        { id: 'prod-abc123', name: 'Carrera Vengeance', price: 249.99, category: 'Mens Bikes', stock: 2 },
+      ] as any[];
+      const code = itemCodeForProduct('prod-abc123');
+      const encoded = encodeItemCode('prod-abc123');
+      const viaBare = resolveItemByCode(code, products);
+      const viaEncoded = resolveItemByCode(encoded, products);
+      const viaUrl = resolveItemByCode(`https://stakeys-cycle.co.uk/item/${code}`, products);
+      const ok = viaBare?.id === 'prod-abc123' && viaEncoded?.id === 'prod-abc123' && viaUrl?.id === 'prod-abc123';
+      return ok
+        ? { status: 'pass', detail: `${code} resolves from bare, encoded and URL forms.` }
+        : { status: 'fail', detail: `bare=${viaBare?.id}; encoded=${viaEncoded?.id}; url=${viaUrl?.id}` };
+    },
+  },
+  {
+    id: 'scanner-discount-code-routing',
+    area: 'scanner',
+    label: 'Discount code scan routing',
+    description: 'A scanned discount code is matched for the till and is NOT mistaken for a member or an item.',
+    run: async () => {
+      const codes = [
+        { id: 'd1', code: 'WINTER10', title: 'Winter 10%', type: 'percent', value: 10, status: 'active' },
+      ] as any[];
+      const found = findDiscountCode('winter10', codes);
+      const notMember = resolveCustomer('WINTER10', []).status === 'none';
+      const notItem = resolveItemByCode('WINTER10', []) === null;
+      const ok = found?.id === 'd1' && notMember && notItem;
+      return ok
+        ? { status: 'pass', detail: 'WINTER10 routes to the discount code, not to a member or item.' }
+        : { status: 'fail', detail: `found=${found?.id}; member=${!notMember}; item=${!notItem}` };
+    },
+  },
+  {
+    id: 'scanner-member-resolution-fuzzy',
+    area: 'scanner',
+    label: 'Member resolution (exact, fuzzy, ambiguous)',
+    description: 'Exact number/uid match wins; a partial match still resolves; two candidates are reported as ambiguous.',
+    run: async () => {
+      const roster = [
+        { uid: 'u1', role: 'customer', displayName: 'Ada Rider', membershipNumber: 'STK-111111', email: 'ada@x.com' },
+        { uid: 'u2', role: 'customer', displayName: 'Ada Two', membershipNumber: 'STK-222222', email: 'two@x.com' },
+      ] as any[];
+      const exact = resolveCustomer('STK-111111', roster);
+      const byUid = resolveCustomer('u1', roster);
+      const partial = resolveCustomer('STK-111', roster);
+      const ambiguous = resolveCustomer('Ada', roster);
+      const ok =
+        exact.status === 'match' &&
+        exact.customer.uid === 'u1' &&
+        byUid.status === 'match' &&
+        partial.status === 'match' &&
+        ambiguous.status === 'multiple';
+      return ok
+        ? { status: 'pass', detail: 'Exact/uid/partial resolve to one member; "Ada" is reported ambiguous.' }
+        : { status: 'fail', detail: `exact=${exact.status}; uid=${byUid.status}; partial=${partial.status}; ambiguous=${ambiguous.status}` };
+    },
+  },
+
   // ---- Pure logic (no network) -------------------------------------------
   {
     id: 'logic-discount-maths',
@@ -1757,6 +1928,69 @@ export const FEATURE_TESTS: FeatureTest[] = [
         : { status: 'fail', detail: JSON.stringify(s) };
     },
   },
+  {
+    id: 'logic-performance-tracker',
+    area: 'logic',
+    label: 'Performance tracker: channels + conversion',
+    description: 'Classifies phone vs online bookings from the notes marker and counts a phone call as converted only when approved/completed.',
+    run: async () => {
+      const now = new Date();
+      const twoDaysAgo = new Date(now.getTime() - 2 * 86400000).toISOString();
+      const mk = (over: Partial<ServiceBooking>): ServiceBooking =>
+        ({ id: 'x', customerName: 'A', status: 'pending', preferredDate: '2026-10-06', createdAt: twoDaysAgo, ...over } as ServiceBooking);
+      const phone = mk({ notes: 'BOOKING CHANNEL: Phone call' });
+      const online = mk({ notes: 'BOOKING CHANNEL: Website' });
+      const converted = mk({ notes: 'BOOKING CHANNEL: Phone call', approvalStatus: 'approved' });
+      const summary = summarizePerformance([phone, online, converted], now);
+      const ok =
+        classifyBookingChannel(phone) === 'phone' &&
+        classifyBookingChannel(online) === 'online' &&
+        didConvert(converted) === true &&
+        didConvert(phone) === false &&
+        summary.phone7d === 2 &&
+        summary.online7d === 1 &&
+        summary.callsLogged === 2 &&
+        summary.callConversionPct === 50;
+      return ok
+        ? { status: 'pass', detail: `2 phone / 1 online requests; 1 of 2 calls converted (50%).` }
+        : { status: 'fail', detail: JSON.stringify(summary) };
+    },
+  },
+  {
+    id: 'logic-promotion-expiry-identity',
+    area: 'logic',
+    label: 'Promotion expiry keeps state stable',
+    description: 'A past end date flips a promotion to expired; when nothing expired the SAME array is returned (no re-render churn).',
+    run: async () => {
+      const active = [{ id: 'p1', title: 'Deal', status: 'active', endDate: '2999-01-01' }] as any[];
+      const stale = [{ id: 'p2', title: 'Old', status: 'active', endDate: '2000-01-01' }] as any[];
+      const unchanged = evaluatePromotionsExpiry(active) === active;
+      const expired = evaluatePromotionsExpiry(stale);
+      const ok = unchanged && expired !== stale && expired[0].status === 'expired';
+      return ok
+        ? { status: 'pass', detail: 'Unchanged promos keep their array identity; a past end date marks expired.' }
+        : { status: 'fail', detail: `unchanged=${unchanged}; expiredStatus=${expired[0]?.status}` };
+    },
+  },
+  {
+    id: 'logic-booking-translator',
+    area: 'logic',
+    label: 'Rider booking translator',
+    description: 'All 14 languages have a complete phrase book, Arabic/Urdu are flagged RTL, and every phrase is non-empty.',
+    run: async () => {
+      const languages = BOOKING_LANGUAGES.map((l) => l.code);
+      const rtlOk = isRtlLanguage('ar') && isRtlLanguage('ur') && !isRtlLanguage('en');
+      const complete = languages.every((code) => {
+        const phrases = getPhrases(code);
+        const values = Object.values(phrases);
+        return values.length > 0 && values.every((v) => typeof v === 'string' && v.trim().length > 0);
+      });
+      const ok = languages.length >= 14 && rtlOk && complete;
+      return ok
+        ? { status: 'pass', detail: `${languages.length} languages complete; Arabic + Urdu are RTL.` }
+        : { status: 'fail', detail: `languages=${languages.length}; rtl=${rtlOk}; complete=${complete}` };
+    },
+  },
 ];
 
 /** Runs every test (or a filtered subset) and returns the results. */
@@ -1798,6 +2032,9 @@ export async function runFeatureTests(
     results.push(result);
     onProgress?.(result, i, tests.length);
   }
+  // Remember which areas have actually been exercised, so the bench can flag a
+  // feature whose checks have never been run.
+  markAreasVerified(Array.from(new Set(tests.map((t) => t.area))));
   return results;
 }
 
