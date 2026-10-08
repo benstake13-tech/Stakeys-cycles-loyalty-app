@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking } from '../types/bikeShop';
+import { FaceAvatar } from './FaceAvatar';
 import {
   SOS_SURCHARGE,
   SosStatus,
@@ -74,7 +75,21 @@ export const StaffSosPanel: React.FC = () => {
     requestSosLocation,
     confirmSosQuote,
     reminderOwnerEmail,
+    users,
   } = useShop();
+
+  // Resolve the rider's roster profile so SOS cards show their real avatar.
+  const avatarFor = (b: ServiceBooking) => {
+    const uid = b.customerId;
+    const membership = (b.membershipNumber || '').toUpperCase();
+    const email = (b.customerEmail || '').toLowerCase();
+    return users.find(
+      (u) =>
+        (uid && u.uid === uid) ||
+        (membership && (u.membershipNumber || '').toUpperCase() === membership) ||
+        (email && (u.email || '').toLowerCase() === email)
+    )?.avatarColor;
+  };
 
   const [feedback, setFeedback] = useState<{ id: string; message: string; tone: 'ok' | 'warn' } | null>(null);
 
@@ -145,6 +160,7 @@ export const StaffSosPanel: React.FC = () => {
               setFeedback({ id: job.id, message: res.message || 'Confirmed.', tone: res.success ? 'ok' : 'warn' });
             }}
             feedback={feedback && feedback.id === job.id ? feedback : null}
+            avatarColor={avatarFor(job)}
           />
         ))}
       </div>
@@ -159,6 +175,7 @@ interface SosJobCardProps {
   onSendQuote: (price: number) => Promise<void>;
   onConfirm: () => Promise<void>;
   feedback: { message: string; tone: 'ok' | 'warn' } | null;
+  avatarColor?: string;
 }
 
 const SosJobCard: React.FC<SosJobCardProps> = ({
@@ -168,6 +185,7 @@ const SosJobCard: React.FC<SosJobCardProps> = ({
   onSendQuote,
   onConfirm,
   feedback,
+  avatarColor,
 }) => {
   const status = (job.sosStatus as SosStatus) || 'requested';
   const suggested = sosQuoteTotal(job.quotedPrice ?? job.servicePrice ?? 0, SOS_SURCHARGE);
@@ -199,6 +217,12 @@ const SosJobCard: React.FC<SosJobCardProps> = ({
     <div className="bg-neutral-900 border border-rose-500/30 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
+          <FaceAvatar
+            seed={job.customerName}
+            configString={avatarColor}
+            size={40}
+            className="w-10 h-10 rounded-xl shrink-0"
+          />
           <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 flex items-center justify-center shrink-0">
             <Siren className="w-5 h-5" />
           </div>
