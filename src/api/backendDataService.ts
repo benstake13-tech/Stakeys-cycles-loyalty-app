@@ -239,19 +239,36 @@ export async function insertCustomerBikeToDb(
       return payload;
     };
 
-    let { error } = await supabase.from('customer_bikes').insert(buildPayload(true));
+    // Upsert (not plain insert) so a re-tap of "Save Bike" — or a realtime
+    // refresh racing the write — updates the existing row instead of failing
+    // with a duplicate-key 23505. `select('id')` makes Supabase return the row
+    // it wrote, so we can confirm the write actually landed rather than trusting
+    // a bare "no error".
+    const write = async (includeBikeDetails: boolean) =>
+      supabase
+        .from('customer_bikes')
+        .upsert(buildPayload(includeBikeDetails), { onConflict: 'id' })
+        .select('id');
+
+    let { data, error } = await write(true);
     if (error) {
       // Retry without the new column so the bike still saves on an unsynced DB.
-      const retry = await supabase.from('customer_bikes').insert(buildPayload(false));
+      const retry = await write(false);
+      data = retry.data;
       error = retry.error;
     }
 
-    if (!error) {
+    if (!error && data && data.length > 0) {
       console.log(`[SUPABASE NET SUCCESS] INSERT customer_bikes succeeded for id=${bike.id}`);
       return true;
-    } else {
-      console.error('[SUPABASE NET ERROR] INSERT customer_bikes failed:', error.message);
     }
+    if (!error) {
+      // No error but nothing came back — usually a missing SELECT policy that
+      // hides the row from the returning clause. The write itself succeeded.
+      console.warn(`[SUPABASE NET] INSERT customer_bikes returned no row for id=${bike.id}; assuming written.`);
+      return true;
+    }
+    console.error('[SUPABASE NET ERROR] INSERT customer_bikes failed:', error.message);
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] insertCustomerBikeToDb:', err);
   }
@@ -443,32 +460,56 @@ export async function insertServiceBookingToDb(
       return payload;
     };
 
-    let { error } = await supabase.from('service_bookings').insert(buildPayload(true, true));
-    if (error) {
-      // Older project without the bike_details/referral_code columns — still
-      // save the booking.
-      const retry = await supabase.from('service_bookings').insert(buildPayload(false, true));
-      error = retry.error;
-    }
-    if (error && booking.isSos) {
-      // Older project without the express SOS media columns — keep the marker
-      // and category, drop the photo/voice URLs.
-      const retry = await supabase.from('service_bookings').insert(buildPayload(true, true, false));
-      error = retry.error;
-    }
-    if (error && booking.isSos) {
-      // Older project without the SOS columns — fall back to the notes marker
-      // so the job is still recognisable.
-      const retry = await supabase.from('service_bookings').insert(buildPayload(true, false));
-      error = retry.error;
+    // A booking must NEVER be lost to schema drift. The live table has been
+    // missing optional columns the app writes (reminder_count,
+    // reminder_last_sent_at, sos_*), and a single unknown column rejects the
+    // whole INSERT — so the job never appears in the staff app even though the
+    // confirmation email already went out. Build the payload, then drop exactly
+    // the column PostgREST names and retry, until the row lands (or we run out
+    // of optional columns to shed).
+    const payload = buildPayload(true, true);
+    const missingColumn = (message: string): string | null => {
+      const m = /column "([^"]+)" does not exist|Could not find the '([^']+)' column/i.exec(message);
+      return m ? m[1] || m[2] : null;
+    };
+    const isSchemaError = (err: { message: string; code?: string }) =>
+      err.code === 'PGRST204' || /schema cache|column/i.test(err.message);
+    // Order to shed when PostgREST does not name the offending column.
+    const OPTIONAL_KEYS = [
+      'bike_details',
+      'referral_code',
+      'sos_voice_note_url',
+      'sos_photo_url',
+      'sos_category',
+      'sos_status',
+      'is_sos',
+      'reminder_count',
+      'reminder_last_sent_at',
+    ];
+
+    let error: { message: string; code?: string } | null = null;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      // Insert a snapshot so a later retry's column-shedding cannot mutate a
+      // request that is still in flight.
+      const res = await supabase.from('service_bookings').insert({ ...payload });
+      error = res.error;
+      if (!error) break;
+      const named = missingColumn(error.message);
+      const col = named && named in payload ? named : OPTIONAL_KEYS.find((k) => k in payload);
+      // Only shed optional columns we added; never loop forever on the core row.
+      if (col && isSchemaError(error) && col in payload) {
+        console.warn(`[SUPABASE NET] service_bookings is missing "${col}" — retrying without it.`);
+        delete payload[col];
+        continue;
+      }
+      break;
     }
 
     if (!error) {
       console.log(`[SUPABASE NET SUCCESS] INSERT service_bookings succeeded for id=${booking.id}`);
       return true;
-    } else {
-      console.error('[SUPABASE NET ERROR] INSERT service_bookings failed:', error.message);
     }
+    console.error('[SUPABASE NET ERROR] INSERT service_bookings failed:', error.message);
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] insertServiceBookingToDb:', err);
   }

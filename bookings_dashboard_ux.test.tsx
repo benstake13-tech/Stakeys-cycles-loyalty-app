@@ -40,6 +40,24 @@ const bookings = [
     notifications: [],
     repairProgress: [],
   },
+  {
+    id: 'bk-7777',
+    status: 'completed',
+    approvalStatus: 'approved',
+    customerName: 'Completed Carl',
+    customerEmail: 'carl@example.com',
+    customerPhone: '07000 777777',
+    vehicleCategory: 'cycle',
+    vehicleModel: 'Giant Escape',
+    serviceId: 'svc-3',
+    serviceTitle: 'Full Service',
+    servicePrice: 55,
+    preferredDate: '2026-10-01',
+    preferredTimeSlot: 'Morning (09:00 - 12:00)',
+    notes: '',
+    notifications: [],
+    repairProgress: [],
+  },
 ];
 
 vi.mock('./src/context/ShopContext', () => ({
@@ -146,5 +164,27 @@ describe('StaffBookingsTab high-density layout', () => {
     // First card open, second still collapsed.
     expect(screen.getAllByLabelText('Hide booking details').length).toBe(1);
     expect(screen.getAllByLabelText('Show booking details').length).toBe(1);
+  });
+});
+
+describe('StaffBookingsTab active / completed split', () => {
+  it('separates active jobs from completed jobs', () => {
+    render(<StaffBookingsTab />);
+    // Active view by default: the pending + confirmed jobs, not the completed one.
+    expect(screen.getByText('Ben Pearson')).toBeTruthy();
+    expect(screen.getByText('Ada Lovelace')).toBeTruthy();
+    expect(screen.queryByText('Completed Carl')).toBeNull();
+    // The Completed toggle advertises the hidden job count.
+    expect(screen.getByText('Active Jobs')).toBeTruthy();
+    expect(screen.getByText('Completed')).toBeTruthy();
+  });
+
+  it('reveals completed jobs behind the Completed toggle', () => {
+    render(<StaffBookingsTab />);
+    fireEvent.click(screen.getByText('Completed'));
+    expect(screen.getByText('Completed Carl')).toBeTruthy();
+    // Active jobs are hidden while the completed view is on.
+    expect(screen.queryByText('Ben Pearson')).toBeNull();
+    expect(screen.queryByText('Ada Lovelace')).toBeNull();
   });
 });

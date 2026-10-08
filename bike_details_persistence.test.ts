@@ -22,6 +22,21 @@ vi.mock('./src/lib/supabase', () => ({
         }
         return Promise.resolve({ error: null });
       },
+      // Customer bikes go through upsert(...).select('id') so the write is
+      // idempotent and the returning row proves it landed.
+      upsert: (payload: any, opts?: any) => {
+        hoisted.inserts.push({ table: name, payload, opts });
+        const willFail = hoisted.failFirstInsert && !hoisted.failedTables.has(name);
+        if (willFail) hoisted.failedTables.add(name);
+        return {
+          select: () =>
+            Promise.resolve(
+              willFail
+                ? { data: null, error: { code: 'PGRST204', message: 'column does not exist' } }
+                : { data: [{ id: payload.id }], error: null }
+            ),
+        };
+      },
       update: (payload: any) => ({
         eq: (col: string, val: any) => {
           hoisted.updates.push({ table: name, payload, col, val });

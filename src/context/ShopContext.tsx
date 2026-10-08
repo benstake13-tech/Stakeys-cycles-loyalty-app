@@ -2924,12 +2924,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     insertCustomerBikeToDb(newBike, userId).then((ok) => {
-      if (!ok) {
-        // The optimistic bike would vanish on the next profile refresh (e.g. an
-        // RLS-blocked insert), so reconcile with the database truth immediately.
-        console.warn('[DB SYNC] Bike insert was rejected; re-reading the garage.');
-        refreshCustomerGarageForStaff(userId).catch(() => {});
+      if (ok) return;
+      // The optimistic bike would vanish on the next profile refresh (e.g. an
+      // RLS-blocked insert), so roll it back, reconcile with the database truth
+      // (non-destructively) and tell the rider instead of failing silently.
+      console.warn('[DB SYNC] Bike insert was rejected; rolling back and re-reading the garage.');
+      setUsers((prev) =>
+        prev.map((u) => (u.uid === userId ? { ...u, bikes: (u.bikes || []).filter((b) => b.id !== newBike.id) } : u))
+      );
+      if (currentUser && currentUser.uid === userId) {
+        setCurrentUser((prev) =>
+          prev ? { ...prev, bikes: (prev.bikes || []).filter((b) => b.id !== newBike.id) } : prev
+        );
       }
+      refreshCustomerGarageForStaff(userId).catch(() => {});
+      toast.error("Couldn't save that bike to the garage — please try again.");
     }).catch((e) =>
       console.warn('[DB SYNC] Error inserting bike in DB:', e)
     );
@@ -3018,9 +3027,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { bikes: fresh, error } = await fetchCustomerBikesFromDbDetailed(userId, membership || undefined);
 
     // 3. Drop from this customer's gallery anything the strict read did not
-    //    return (it belongs to someone else, e.g. a past leak). Skipped on the
-    //    read-only refresh the dossier runs when a profile is opened.
-    const deleteStale = opts.deleteStale !== false;
+    //    return (it belongs to someone else, e.g. a past leak). This is
+    //    DESTRUCTIVE, so it only runs when the caller explicitly opts in
+    //    (`deleteStale: true`) AND the read succeeded — a failed/empty read must
+    //    never be treated as "the customer owns no bikes", or a transient RLS
+    //    error or blank membership filter would wipe a real garage.
+    const deleteStale = opts.deleteStale === true && !error;
     let removed = 0;
     if (deleteStale) {
       const freshIds = new Set(fresh.map((b) => b.id));
@@ -3082,8 +3094,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     knownBookingIdsRef.current.add(completedBooking.id);
     setLatestDispatchedBooking(completedBooking);
 
-    // Remote Database Mutation: INSERT directly into service_bookings table
-    insertServiceBookingToDb(completedBooking).catch((e) => console.warn('[DB SYNC] Error inserting booking in DB:', e));
+    // Remote Database Mutation: INSERT directly into service_bookings table.
+    // If this fails the booking exists only on this device — surface it rather
+    // than letting the job silently disappear from the staff app.
+    insertServiceBookingToDb(completedBooking)
+      .then((ok) => {
+        if (!ok) {
+          console.error('[DB SYNC] Booking insert was rejected; it will not appear on other devices.');
+          toast.error('Booking saved locally, but could not be synced to the workshop — please tell staff.');
+        }
+      })
+      .catch((e) => console.warn('[DB SYNC] Error inserting booking in DB:', e));
 
     // Audio Alert & Push. The loud ping only plays on staff devices; the server
     // push is sent by whoever creates the booking so staff phones are reached

@@ -32,6 +32,7 @@ import { useShop } from '../context/ShopContext';
 import { UserProfile, StampLog } from '../types/bikeShop';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { StakeysLogo } from './StakeysLogo';
+import { FaceAvatar } from './FaceAvatar';
 
 interface CustomerDatabaseTabProps {
   onSelectForScanner?: (customer: UserProfile) => void;
@@ -381,14 +382,16 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
               >
                 {/* Left: Customer Identity & Contact */}
                 <div className="flex items-start gap-4 min-w-[280px]">
-                  {/* Initials Avatar */}
-                  <div className="w-12 h-12 rounded-2xl bg-neutral-900 border border-emerald-500/30 flex items-center justify-center font-bold text-sm text-emerald-400 shadow-md shrink-0">
-                    {cust.displayName
-                      .split(' ')
-                      .map((n) => n[0])
-                      .slice(0, 2)
-                      .join('')
-                      .toUpperCase()}
+                  {/* Member profile avatar — the same deterministic face the
+                      customer customises in their own portal (avatarColor is the
+                      serialised FaceAvatarConfig), falling back to a seeded face. */}
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden border border-emerald-500/30 shadow-md shrink-0">
+                    <FaceAvatar
+                      seed={cust.displayName}
+                      configString={cust.avatarColor}
+                      size={48}
+                      className="w-full h-full"
+                    />
                   </div>
 
                   <div className="space-y-1">
