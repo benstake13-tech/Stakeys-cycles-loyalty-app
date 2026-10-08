@@ -345,6 +345,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'reminder_quiet_start_hour', type: 'integer', default: '21' },
       { name: 'reminder_quiet_end_hour', type: 'integer', default: '8' },
       { name: 'reminder_quiet_hours_enabled', type: 'boolean', default: 'true' },
+      { name: 'notification_preferences', type: 'jsonb' },
       { name: 'updated_at', type: 'timestamptz', default: NOW },
     ],
   },

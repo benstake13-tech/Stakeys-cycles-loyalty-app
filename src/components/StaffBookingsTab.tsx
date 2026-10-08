@@ -34,6 +34,7 @@ import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice, Reminder
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
 import { FaceAvatar } from './FaceAvatar';
+import { findCustomerForBooking } from '../utils/bookingCustomer';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { dispatchTestEmail } from '../utils/notificationService';
 import { vehicleNouns } from '../utils/vehicleType';
@@ -48,6 +49,8 @@ import { isSosBooking } from '../utils/sosRepair';
 interface StaffBookingsTabProps {
   /** Booking id to scroll to and highlight after a notification tap. */
   focusBookingId?: string | null;
+  /** Called once the focus request has been consumed. */
+  onFocusHandled?: () => void;
 }
 
 /**
@@ -117,7 +120,7 @@ const CollapsiblePanel: React.FC<CollapsiblePanelProps> = ({
   </div>
 );
 
-export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBookingId }) => {
+export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBookingId, onFocusHandled }) => {
   const {
     bookings,
     approveBooking,
@@ -159,23 +162,9 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
   const [isFixingBookings, setIsFixingBookings] = useState(false);
   const [bookingsFixNote, setBookingsFixNote] = useState<string | null>(null);
 
-  /**
-   * Find the roster profile behind a booking so we can show the customer's
-   * customised avatar. Matches the strongest key first: uid, then membership
-   * number, then email. Guest bookings have none, so they fall back to a
-   * deterministic face seeded from the name.
-   */
-  const findCustomerProfile = (b: ServiceBooking) => {
-    const uid = b.customerId;
-    const membership = (b.membershipNumber || '').toUpperCase();
-    const email = (b.customerEmail || '').toLowerCase();
-    return users.find(
-      (u) =>
-        (uid && u.uid === uid) ||
-        (membership && (u.membershipNumber || '').toUpperCase() === membership) ||
-        (email && (u.email || '').toLowerCase() === email)
-    );
-  };
+  // Resolve the roster profile behind a booking so we show the customer's real
+  // customised avatar on the correct card (guests fall back to a seeded face).
+  const findCustomerProfile = (b: ServiceBooking) => findCustomerForBooking(b, users);
 
   // Highlighted booking from a notification deep link (auto-clears).
   const [highlightedBookingId, setHighlightedBookingId] = useState<string | null>(null);
@@ -266,6 +255,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
       focusRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 120);
     const clear = setTimeout(() => setHighlightedBookingId(null), 6000);
+    onFocusHandled?.();
     return () => {
       clearTimeout(scroll);
       clearTimeout(clear);

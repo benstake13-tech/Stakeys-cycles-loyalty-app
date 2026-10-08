@@ -45,6 +45,15 @@ import { websiteDiscountCatalogue, WEBSITE_DISCOUNT_FALLBACK, inferAudience } fr
 import { buildFinancialLedger, summarizeLedger, workshopPaymentLabel } from '../utils/financials';
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { generateMembershipNumber, generateBarcodeValue } from '../api/firebaseService';
+import {
+  fetchAllProfilesFromDbDetailed,
+  fetchBikesByOwner,
+} from '../api/backendDataService';
+import {
+  hydrateRosterGarages,
+  ownerKeysForProfile,
+  ownerKeysForProfiles,
+} from '../utils/garageHydration';
 import { planBalanceProbe } from '../utils/schemaSync';
 import { generateBookingEmailHtml } from '../utils/notificationService';
 import { syntheticWeatherReport, ridingConditionsFor } from '../utils/weatherService';
@@ -67,6 +76,7 @@ export type FeatureArea =
   | 'bookings'
   | 'till'
   | 'members'
+  | 'garage'
   | 'prizes'
   | 'content'
   | 'settings'
@@ -112,6 +122,7 @@ export const AREA_LABELS: Record<FeatureArea, string> = {
   bookings: 'Repair Bookings',
   till: 'Till & Discounts',
   members: 'Members & Bikes',
+  garage: 'Garage: Bikes Showing (step by step)',
   prizes: 'Prizes & Vouchers',
   content: 'Staff, Promotions & Draws',
   settings: 'Settings & Theme',
@@ -1063,6 +1074,112 @@ export const FEATURE_TESTS: FeatureTest[] = [
         return { status: 'pass', detail: `Generated ${num} → barcode ${barcode}.` };
       }
       return { status: 'warn', detail: `Unexpected number ${num} / barcode ${barcode}` };
+    },
+  },
+
+  // ---- Garage: bikes showing (step by step) -------------------------------
+  // The "bikes show, then disappear" report is walked through the exact
+  // production path: profiles read → owner keys → one batch bike read → attach.
+  // A booking made from the website writes the bike under the membership number
+  // while the roster stores the profile UUID, so step 3 (owner keys) and step 4
+  // (the batch read) are where a real bike would be dropped.
+  {
+    id: 'garage-owner-keys',
+    area: 'garage',
+    label: 'Step 1 · Owner keys resolve a bike to its member',
+    description: 'A profile maps to its UUID and (when non-blank) its membership number; a blank membership never becomes an owner key.',
+    run: async () => {
+      const withMember = ownerKeysForProfile({ uid: 'uuid-1', membershipNumber: '124' });
+      const withoutMember = ownerKeysForProfile({ uid: 'uuid-2', membershipNumber: '' });
+      const roster = ownerKeysForProfiles([
+        { uid: 'uuid-1', membershipNumber: '124' },
+        { uid: 'uuid-2', membershipNumber: '' },
+      ]);
+      const ok =
+        withMember.join(',') === 'uuid-1,124' &&
+        withoutMember.join(',') === 'uuid-2' &&
+        roster.length === 3 &&
+        !roster.includes('');
+      return ok
+        ? { status: 'pass', detail: 'UUID + membership keys built; blank memberships dropped.' }
+        : { status: 'fail', detail: `withMember=${withMember}; withoutMember=${withoutMember}; roster=${roster}` };
+    },
+  },
+  {
+    id: 'garage-roster-read',
+    tables: ['profiles'],
+    area: 'garage',
+    label: 'Step 2 · The roster loads members',
+    description: 'Reads every profile the staff roster is built from.',
+    run: async () => {
+      const { profiles, error } = await fetchAllProfilesFromDbDetailed();
+      if (error) return { status: 'fail', detail: error, hint: hintFor(error) };
+      return profiles.length > 0
+        ? { status: 'pass', detail: `${profiles.length} member profile(s) loaded.` }
+        : { status: 'warn', detail: 'No member profiles returned — a garage test needs at least one member.', hint: 'Create a customer, or check the profiles table/policy.' };
+    },
+  },
+  {
+    id: 'garage-batch-bikes',
+    tables: ['customer_bikes'],
+    area: 'garage',
+    label: 'Step 3 · One batch read fetches every garage',
+    description: 'Queries customer_bikes for the whole roster in a single `in` call, grouped by owner.',
+    run: async () => {
+      const { profiles, error: rosterError } = await fetchAllProfilesFromDbDetailed();
+      if (rosterError) return { status: 'fail', detail: rosterError, hint: hintFor(rosterError) };
+      const keys = ownerKeysForProfiles(profiles);
+      if (keys.length === 0) return { status: 'skipped', detail: 'No members to look up.' };
+      const { byOwner, error } = await fetchBikesByOwner(keys);
+      if (error) return { status: 'fail', detail: error, hint: hintFor(error) };
+      const total = Object.values(byOwner).reduce((n, list) => n + list.length, 0);
+      return total > 0
+        ? { status: 'pass', detail: `${total} bike row(s) across ${Object.keys(byOwner).length} owner(s).` }
+        : { status: 'warn', detail: 'No bike rows returned for any member — the garage would look empty.', hint: 'If bikes exist in the database, check the customer_bikes select policy (RLS).' };
+    },
+  },
+  {
+    id: 'garage-attach',
+    area: 'garage',
+    label: 'Step 4 · Bikes re-attach to the roster after a swap',
+    description: 'Runs the real hydration: attaches each member\'s bikes so a roster refresh does not blank the garage.',
+    run: async () => {
+      const { profiles, error: rosterError } = await fetchAllProfilesFromDbDetailed();
+      if (rosterError) return { status: 'fail', detail: rosterError, hint: hintFor(rosterError) };
+      const keys = ownerKeysForProfiles(profiles);
+      if (keys.length === 0) return { status: 'skipped', detail: 'No members to hydrate.' };
+      const hydrated = await hydrateRosterGarages(profiles, fetchBikesByOwner);
+      const attached = hydrated.reduce((n, p) => n + (p.bikes?.length || 0), 0);
+      // Every profile must carry an array (never undefined) or the UI reads `.bikes`
+      // as undefined and renders an empty garage.
+      const allArrays = hydrated.every((p) => Array.isArray(p.bikes));
+      return allArrays && attached > 0
+        ? { status: 'pass', detail: `${attached} bike(s) re-attached across ${hydrated.length} member(s).` }
+        : allArrays
+        ? { status: 'warn', detail: 'Roster hydrated with 0 bikes — matches step 3 if no rows exist.' }
+        : { status: 'fail', detail: 'A hydrated profile had an undefined bikes array.' };
+    },
+  },
+  {
+    id: 'garage-live-example',
+    area: 'garage',
+    label: 'Step 5 · Pick a member with bikes (sanity check)',
+    description: 'Finds the first member who owns a bike and prints the owner key it is stored under.',
+    run: async () => {
+      const { profiles, error: rosterError } = await fetchAllProfilesFromDbDetailed();
+      if (rosterError) return { status: 'fail', detail: rosterError, hint: hintFor(rosterError) };
+      const keys = ownerKeysForProfiles(profiles);
+      if (keys.length === 0) return { status: 'skipped', detail: 'No members.' };
+      const { byOwner, error } = await fetchBikesByOwner(keys);
+      if (error) return { status: 'fail', detail: error, hint: hintFor(error) };
+      const ownerKey = Object.keys(byOwner).find((k) => byOwner[k].length > 0);
+      if (!ownerKey) return { status: 'warn', detail: 'No member currently has a bike row.' };
+      const member = profiles.find((p) => ownerKeysForProfile(p).includes(ownerKey));
+      const sample = byOwner[ownerKey][0];
+      return {
+        status: 'pass',
+        detail: `${member?.displayName || 'member'} (${ownerKey}) → ${sample.brand} ${sample.model}.`,
+      };
     },
   },
 
