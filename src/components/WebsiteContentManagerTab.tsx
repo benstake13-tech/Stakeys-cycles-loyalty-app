@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -7,6 +7,13 @@ import {
   Eye,
   EyeOff,
   Globe,
+  Home,
+  MapPin,
+  Users,
+  HelpCircle,
+  Tag,
+  Share2,
+  LayoutGrid,
   Plus,
   QrCode,
   RotateCcw,
@@ -20,6 +27,9 @@ import { updateWebsiteContent, useWebsiteContent } from '../context/WebsiteConte
 import { DEFAULT_WEBSITE_CONTENT } from '../data/websiteContent';
 import { ItemQrModal } from './ItemQrModal';
 import { DriveImagePicker } from './DriveImagePicker';
+import { TileButton } from './tiles/TileButton';
+import { TileGrid } from './tiles/TileGrid';
+import { TileGroup } from './tiles/TileGroup';
 import { DriveFolderKey } from '../utils/googleDrive';
 import {
   WebFaq,
@@ -66,31 +76,42 @@ interface FieldProps {
   hint?: string;
   placeholder?: string;
   isDark: boolean;
+  error?: string;
 }
 
-function Field({ label, value, onChange, textarea, hint, placeholder, isDark }: FieldProps) {
+function Field({ label, value, onChange, textarea, hint, placeholder, isDark, error }: FieldProps) {
   const control = textarea ? (
     <textarea
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       rows={3}
-      className={`${inputCls(isDark)} resize-y`}
+      aria-invalid={!!error}
+      className={`${inputCls(isDark)} resize-y ${error ? '!border-rose-500/70' : ''}`}
     />
   ) : (
     <input
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className={inputCls(isDark)}
+      aria-invalid={!!error}
+      className={`${inputCls(isDark)} ${error ? '!border-rose-500/70' : ''}`}
     />
   );
   return (
-    <label className="block">
-      <span className={labelCls}>{label}</span>
-      {control}
-      {hint && <span className={`mt-1 block text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{hint}</span>}
-    </label>
+    <div className="block">
+      <label className="block">
+        <span className={labelCls}>{label}</span>
+        {control}
+      </label>
+      {error ? (
+        <span role="alert" className="mt-1 block text-[10px] font-bold text-rose-400">
+          {error}
+        </span>
+      ) : (
+        hint && <span className={`mt-1 block text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>{hint}</span>
+      )}
+    </div>
   );
 }
 
@@ -130,6 +151,8 @@ interface CollapsibleItemProps {
   onMoveDown?: () => void;
   extraActions?: React.ReactNode;
   children: React.ReactNode;
+  /** Ask for confirmation before removing (default true) — destructive action guard. */
+  confirmRemoval?: boolean;
 }
 
 function CollapsibleItem({
@@ -145,7 +168,12 @@ function CollapsibleItem({
   onMoveDown,
   extraActions,
   children,
+  confirmRemoval = true,
 }: CollapsibleItemProps) {
+  const confirmRemove = () => {
+    if (confirmRemoval && !window.confirm(`Remove "${title || 'this item'}"? This cannot be undone.`)) return;
+    onRemove();
+  };
   const iconBtn = `pressable inline-flex items-center justify-center rounded-lg border p-1.5 cursor-pointer ${
     isDark ? 'border-neutral-800 text-neutral-400 hover:bg-neutral-800/60' : 'border-neutral-200 text-neutral-500 hover:bg-neutral-100'
   }`;
@@ -185,7 +213,7 @@ function CollapsibleItem({
         )}
         <button
           type="button"
-          onClick={onRemove}
+          onClick={confirmRemove}
           className="pressable inline-flex items-center justify-center rounded-lg border border-rose-900 p-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
           title="Remove"
           aria-label="Remove item"
@@ -199,12 +227,12 @@ function CollapsibleItem({
 }
 
 const WEBSITE_SECTIONS = [
-  { id: 'hero', label: 'Hero & Contact' },
-  { id: 'location', label: 'Location' },
-  { id: 'join', label: 'Join the Team' },
-  { id: 'faqs', label: 'FAQs' },
-  { id: 'prices', label: 'Price List' },
-  { id: 'socials', label: 'Socials' },
+  { id: 'hero', label: 'Hero & Contact', icon: Home },
+  { id: 'location', label: 'Location', icon: MapPin },
+  { id: 'join', label: 'Join the Team', icon: Users },
+  { id: 'faqs', label: 'FAQs', icon: HelpCircle },
+  { id: 'prices', label: 'Price List', icon: Tag },
+  { id: 'socials', label: 'Socials', icon: Share2 },
 ] as const;
 
 type WebsiteSectionId = (typeof WEBSITE_SECTIONS)[number]['id'];
@@ -237,6 +265,8 @@ export const WebsiteContentManagerTab: React.FC = () => {
 
   const [draft, setDraft] = useState<WebsiteContent>(content);
   const [editorTab, setEditorTab] = useState<'website' | 'shop' | 'gallery'>('website');
+  // The focused section for the Main Website area ('all' = show every section).
+  const [activeSection, setActiveSection] = useState<'all' | WebsiteSectionId>('all');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showPreview, setShowPreview] = useState(false);
@@ -244,17 +274,62 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const [savedSink, setSavedSink] = useState(0);
   const [qrProduct, setQrProduct] = useState<WebProduct | null>(null);
   const [drivePicker, setDrivePicker] = useState<null | { folder: DriveFolderKey; apply: (url: string) => void }>(null);
-  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const dirty = useMemo(() => JSON.stringify(draft) !== JSON.stringify(content), [draft, content]);
   const match = useMemo(() => makeMatcher(search), [search]);
   const searching = search.trim().length > 0;
+
+  // Inline validation for the fields an operator is most likely to get wrong.
+  const errors = useMemo<Record<string, string>>(() => {
+    const e: Record<string, string> = {};
+    const email = draft.email.trim();
+    const url = draft.calloutUrl.trim();
+    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    const isUrl = /^https?:\/\/\S+$/i.test(url);
+    if (!draft.heroTitle.trim()) e.heroTitle = 'Hero title is required.';
+    if (!draft.phone.trim()) e.phone = 'A contact phone number is required.';
+    if (!email) e.email = 'A contact email is required.';
+    else if (!isEmail) e.email = 'Enter a valid email address.';
+    if (!url) e.calloutUrl = 'A booking URL is required.';
+    else if (!isUrl) e.calloutUrl = 'Enter a full URL (https://…).';
+    draft.socials.forEach((s, i) => {
+      if (s.url.trim() && !/^https?:\/\/\S+$/i.test(s.url.trim())) e[`social-${i}`] = 'Enter a full URL (https://…).';
+    });
+    return e;
+  }, [draft]);
+  const hasErrors = Object.keys(errors).length > 0;
+
+  // Warn before the tab closes with unsaved edits.
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (ev: BeforeUnloadEvent) => {
+      ev.preventDefault();
+      ev.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
+  // Switching area (Main Website / Shop / Gallery) or section guards unsaved edits.
+  const confirmLeave = () => !dirty || window.confirm('You have unsaved changes. Leave without publishing?');
+  const changeEditorTab = (tab: 'website' | 'shop' | 'gallery') => {
+    if (tab === editorTab) return;
+    if (!confirmLeave()) return;
+    setEditorTab(tab);
+  };
+  const changeSection = (id: 'all' | WebsiteSectionId) => {
+    if (id === activeSection) return;
+    if (!confirmLeave()) return;
+    setActiveSection(id);
+  };
+  const sectionActive = (id: WebsiteSectionId) => activeSection === 'all' || activeSection === id;
 
   const openDrivePicker = (folder: DriveFolderKey, apply: (url: string) => void) => {
     setDrivePicker({ folder, apply });
   };
 
   const save = () => {
+    if (hasErrors) return;
     // Publishing a brand-new item should hand staff its QR label straight away.
     const publishedIds = new Set(content.products.map((p) => p.id));
     const newlyAdded = draft.products.filter((p) => !publishedIds.has(p.id) && (p.name.trim() || p.price > 0));
@@ -286,11 +361,6 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const isOpen = (id: string, defaultOpen = false) => expanded[id] ?? defaultOpen;
   const toggle = (id: string, defaultOpen = false) =>
     setExpanded((prev) => ({ ...prev, [id]: !(prev[id] ?? defaultOpen) }));
-
-  const jumpTo = (id: WebsiteSectionId) => {
-    const el = sectionRefs.current[id];
-    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
 
   // ---- FAQs -------------------------------------------------------------
   const setFaqField = (index: number, key: keyof WebFaq, value: string) => {
@@ -480,7 +550,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
             <button
               type="button"
               onClick={save}
-              disabled={!dirty}
+              disabled={!dirty || hasErrors}
               className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
@@ -528,7 +598,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
             <button
               key={t.id}
               type="button"
-              onClick={() => setEditorTab(t.id)}
+              onClick={() => changeEditorTab(t.id)}
               className={`rounded-xl px-3 py-2.5 text-left transition-all cursor-pointer border ${
                 editorTab === t.id
                   ? 'bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 border-emerald-400 shadow-lg shadow-emerald-500/25'
@@ -544,21 +614,42 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Sticky quick-nav for the Main Website area */}
+      {/* Validation summary — surfaces why Publish is disabled. */}
+      {hasErrors && (
+        <div
+          role="alert"
+          data-testid="cms-validation-summary"
+          className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-3 text-xs font-bold text-rose-300"
+        >
+          {Object.keys(errors).length} field{Object.keys(errors).length > 1 ? 's need' : ' needs'} attention before you can publish.
+        </div>
+      )}
+
+      {/* Section picker for the Main Website area — focus one section or all */}
       {editorTab === 'website' && (
-        <div className={`sticky top-2 z-20 flex flex-wrap gap-1.5 rounded-2xl border p-1.5 backdrop-blur ${isDark ? 'bg-neutral-900/85 border-neutral-800' : 'bg-white/85 border-neutral-200'}`}>
-          {WEBSITE_SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => jumpTo(s.id)}
-              className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer border ${
-                isDark ? 'border-transparent text-neutral-300 hover:bg-neutral-800/60' : 'border-transparent text-neutral-600 hover:bg-neutral-100'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+        <div data-testid="cms-section-picker" className="sticky top-2 z-20">
+          <TileGroup label="Website sections">
+            <TileGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+              <TileButton
+                icon={LayoutGrid}
+                label="All sections"
+                hint="Show everything"
+                active={activeSection === 'all'}
+                onSelect={() => changeSection('all')}
+                testId="cms-section-all"
+              />
+              {WEBSITE_SECTIONS.map((s) => (
+                <TileButton
+                  key={s.id}
+                  icon={s.icon}
+                  label={s.label}
+                  active={activeSection === s.id}
+                  onSelect={() => changeSection(s.id)}
+                  testId={`cms-section-${s.id}`}
+                />
+              ))}
+            </TileGrid>
+          </TileGroup>
         </div>
       )}
 
@@ -578,17 +669,17 @@ export const WebsiteContentManagerTab: React.FC = () => {
       )}
 
       {/* ---- Main Website ---- */}
-      {editorTab === 'website' && sectionVisible.hero && (
-        <div ref={(el) => { sectionRefs.current.hero = el; }}>
+      {editorTab === 'website' && sectionVisible.hero && sectionActive('hero') && (
+        <div>
           <SectionCard title="Hero & Contact" subtitle="Shown on Home and reused across every page." isDark={isDark}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Field label="Hero badge" isDark={isDark} value={draft.heroBadge} onChange={(v) => setTextField('heroBadge', v)} />
-              <Field label="Hero title" isDark={isDark} value={draft.heroTitle} onChange={(v) => setTextField('heroTitle', v)} />
+              <Field label="Hero title" isDark={isDark} value={draft.heroTitle} error={errors.heroTitle} onChange={(v) => setTextField('heroTitle', v)} />
               <Field label="Hero subtitle" isDark={isDark} value={draft.heroSubtitle} onChange={(v) => setTextField('heroSubtitle', v)} />
               <Field label="Call-out CTA label" isDark={isDark} value={draft.calloutCta} onChange={(v) => setTextField('calloutCta', v)} />
-              <Field label="External booking URL" isDark={isDark} value={draft.calloutUrl} onChange={(v) => setTextField('calloutUrl', v)} />
-              <Field label="Phone (call-out number)" isDark={isDark} value={draft.phone} onChange={(v) => setTextField('phone', v)} />
-              <Field label="Email" isDark={isDark} value={draft.email} onChange={(v) => setTextField('email', v)} />
+              <Field label="External booking URL" isDark={isDark} value={draft.calloutUrl} error={errors.calloutUrl} onChange={(v) => setTextField('calloutUrl', v)} />
+              <Field label="Phone (call-out number)" isDark={isDark} value={draft.phone} error={errors.phone} onChange={(v) => setTextField('phone', v)} />
+              <Field label="Email" isDark={isDark} value={draft.email} error={errors.email} onChange={(v) => setTextField('email', v)} />
             </div>
             <Field label="Hero blurb — call-out-only pitch (Home)" isDark={isDark} textarea value={draft.heroBlurb} onChange={(v) => setTextField('heroBlurb', v)} />
             <Field label='Review / feedback intro (Home "Leave a Review")' isDark={isDark} textarea value={draft.reviewBlurb} onChange={(v) => setTextField('reviewBlurb', v)} />
@@ -618,7 +709,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => removeAnnouncement(i)}
+                    onClick={() => { if (window.confirm('Remove this announcement?')) removeAnnouncement(i); }}
                     className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
                     aria-label={`Remove announcement ${i + 1}`}
                   >
@@ -631,8 +722,8 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
-      {editorTab === 'website' && sectionVisible.location && (
-        <div ref={(el) => { sectionRefs.current.location = el; }}>
+      {editorTab === 'website' && sectionVisible.location && sectionActive('location') && (
+        <div>
           <SectionCard title="Location Page" isDark={isDark}>
             <Field label="Location quote (overlaid on image)" isDark={isDark} textarea value={draft.locationQuote} onChange={(v) => setTextField('locationQuote', v)} />
             <Field label="Mobile-only heading" isDark={isDark} value={draft.mobileTitle} onChange={(v) => setTextField('mobileTitle', v)} />
@@ -642,8 +733,8 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
-      {editorTab === 'website' && sectionVisible.join && (
-        <div ref={(el) => { sectionRefs.current.join = el; }}>
+      {editorTab === 'website' && sectionVisible.join && sectionActive('join') && (
+        <div>
           <SectionCard title="Join the Team" isDark={isDark}>
             <Field label="Heading" isDark={isDark} value={draft.joinTitle} onChange={(v) => setTextField('joinTitle', v)} />
             <Field label="Pitch" isDark={isDark} textarea value={draft.joinBody} onChange={(v) => setTextField('joinBody', v)} />
@@ -661,8 +752,8 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
-      {editorTab === 'website' && sectionVisible.faqs && (
-        <div ref={(el) => { sectionRefs.current.faqs = el; }}>
+      {editorTab === 'website' && sectionVisible.faqs && sectionActive('faqs') && (
+        <div>
           <SectionCard
             title="FAQs"
             subtitle="Repairs & Service · Parts & Accessories · General."
@@ -714,8 +805,8 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
-      {editorTab === 'website' && sectionVisible.prices && (
-        <div ref={(el) => { sectionRefs.current.prices = el; }}>
+      {editorTab === 'website' && sectionVisible.prices && sectionActive('prices') && (
+        <div>
           <SectionCard
             title="Price List"
             subtitle="Ballpark UK labour-only prices for bicycles and e-scooters."
@@ -785,8 +876,8 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
-      {editorTab === 'website' && sectionVisible.socials && (
-        <div ref={(el) => { sectionRefs.current.socials = el; }}>
+      {editorTab === 'website' && sectionVisible.socials && sectionActive('socials') && (
+        <div>
           <SectionCard title="Social Links" subtitle="Footer + contact strip; used across every page." isDark={isDark}>
             <div className="space-y-2">
               {socialRows.length === 0 && <p className="text-[11px] text-neutral-500">No social links match “{search}”.</p>}
@@ -803,7 +894,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
                   onRemove={() => removeSocial(index)}
                 >
                   <Field label="Platform" isDark={isDark} value={social.platform} onChange={(v) => setSocialField(index, 'platform', v)} />
-                  <Field label="URL" isDark={isDark} value={social.url} onChange={(v) => setSocialField(index, 'url', v)} />
+                  <Field label="URL" isDark={isDark} value={social.url} error={errors[`social-${index}`]} onChange={(v) => setSocialField(index, 'url', v)} />
                 </CollapsibleItem>
               ))}
             </div>
@@ -851,7 +942,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => removeDisclaimer(i)}
+                  onClick={() => { if (window.confirm('Remove this note?')) removeDisclaimer(i); }}
                   className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer"
                   aria-label={`Remove disclaimer ${i + 1}`}
                 >
@@ -1055,7 +1146,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
         <button
           type="button"
           onClick={save}
-          disabled={!dirty}
+          disabled={!dirty || hasErrors}
           className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Save className="w-4 h-4" /> Publish Changes
