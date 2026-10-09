@@ -41,14 +41,48 @@ export interface DailyWeather {
   label: string;
   tempMax: number;
   tempMin: number;
+  /** Apparent (feels-like) max/min for the day. */
+  feelsLikeMax: number;
+  feelsLikeMin: number;
   /** 0-100. */
   precipProb: number;
   precipMm: number;
   windMaxKph: number;
   windGustKph: number;
+  /** Dominant wind direction, degrees from north. */
+  windDir: number;
   uvMax: number;
+  /** Total daylight, seconds. */
+  daylightSeconds: number;
+  /** Total sunshine, seconds. */
+  sunshineSeconds: number;
   sunrise: string;
   sunset: string;
+  /** Moon phase for the day. */
+  moon: MoonPhase;
+}
+
+export interface HourlyWeather {
+  /** Local wall-clock ISO hour, e.g. "2026-10-06T13:00". */
+  time: string;
+  tempC: number;
+  feelsLikeC: number;
+  precipProb: number;
+  precipMm: number;
+  weatherCode: number;
+  kind: WeatherKind;
+  label: string;
+  windKph: number;
+  /** Wind direction, degrees from north. */
+  windDir: number;
+  windGustKph: number;
+  /** Relative humidity, 0-100. */
+  humidity: number;
+  dewPointC: number;
+  /** Visibility, metres. */
+  visibilityM: number;
+  uvIndex: number;
+  isDay: boolean;
 }
 
 export interface CurrentWeather {
@@ -58,12 +92,53 @@ export interface CurrentWeather {
   kind: WeatherKind;
   label: string;
   windKph: number;
+  /** Wind direction, degrees from north. */
+  windDir: number;
+  windGustKph: number;
   precipMm: number;
   /** Relative humidity, 0-100. */
   humidity: number;
   /** Mean sea-level pressure in hPa. */
   pressureHpa: number;
+  /** Dew point, °C. */
+  dewPointC: number;
+  /** Visibility, metres. */
+  visibilityM: number;
+  uvIndex: number;
   isDay: boolean;
+}
+
+export type MoonPhaseName =
+  | 'New Moon'
+  | 'Waxing Crescent'
+  | 'First Quarter'
+  | 'Waxing Gibbous'
+  | 'Full Moon'
+  | 'Waning Gibbous'
+  | 'Last Quarter'
+  | 'Waning Crescent';
+
+export interface MoonPhase {
+  /** 0..1 where 0 = new, 0.5 = full. */
+  phase: number;
+  name: MoonPhaseName;
+  /** 0..1 illuminated fraction. */
+  illumination: number;
+  emoji: string;
+}
+
+export interface AirQuality {
+  /** European AQI (0-100+); null when unavailable. */
+  europeanAqi: number | null;
+  /** US AQI; null when unavailable. */
+  usAqi: number | null;
+  pm10: number | null;
+  pm25: number | null;
+  co: number | null;
+  no2: number | null;
+  so2: number | null;
+  ozone: number | null;
+  fetchedAt: number;
 }
 
 export interface RidingConditions {
@@ -79,8 +154,88 @@ export interface WeatherReport {
   timezone: string;
   current: CurrentWeather;
   days: DailyWeather[];
+  /** Next 24 hours of hourly readings, starting from the current hour. */
+  hourly: HourlyWeather[];
+  /** Air quality for the location, or null when it could not be fetched. */
+  airQuality: AirQuality | null;
   /** True when this is the deterministic offline fallback, not live data. */
   synthetic: boolean;
+}
+
+/** Compass point (16-wind) for a bearing in degrees. */
+export function compassPoint(degrees: number): string {
+  const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+  const d = ((Number(degrees) % 360) + 360) % 360;
+  return dirs[Math.round(d / 22.5) % 16];
+}
+
+/** A 0..100 health band for an AQI value (lower is better). */
+export function aqiBand(aqi: number | null): { label: string; tone: 'good' | 'fair' | 'moderate' | 'poor' | 'very_poor' } {
+  if (aqi == null || !Number.isFinite(aqi)) return { label: 'Unknown', tone: 'fair' };
+  if (aqi <= 20) return { label: 'Good', tone: 'good' };
+  if (aqi <= 40) return { label: 'Fair', tone: 'fair' };
+  if (aqi <= 60) return { label: 'Moderate', tone: 'moderate' };
+  if (aqi <= 80) return { label: 'Poor', tone: 'poor' };
+  return { label: 'Very poor', tone: 'very_poor' };
+}
+
+/** UV index band label (WHO scale). */
+export function uvBand(uv: number): string {
+  if (!Number.isFinite(uv) || uv <= 0) return 'None';
+  if (uv < 3) return 'Low';
+  if (uv < 6) return 'Moderate';
+  if (uv < 8) return 'High';
+  if (uv < 11) return 'Very high';
+  return 'Extreme';
+}
+
+/** Local date key (YYYY-MM-DD) for a Date, in the device timezone. */
+function localDateKeyFor(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+const MOON_PHASE_NAMES: MoonPhaseName[] = [
+  'New Moon',
+  'Waxing Crescent',
+  'First Quarter',
+  'Waxing Gibbous',
+  'Full Moon',
+  'Waning Gibbous',
+  'Last Quarter',
+  'Waning Crescent',
+];
+
+const MOON_EMOJI: Record<MoonPhaseName, string> = {
+  'New Moon': '🌑',
+  'Waxing Crescent': '🌒',
+  'First Quarter': '🌓',
+  'Waxing Gibbous': '🌔',
+  'Full Moon': '🌕',
+  'Waning Gibbous': '🌖',
+  'Last Quarter': '🌗',
+  'Waning Crescent': '🌘',
+};
+
+/** Synodic month length in days (new moon to new moon). */
+const SYNODIC_MONTH = 29.530588853;
+/** A known reference new moon: 2000-01-06 18:14 UTC. */
+const REFERENCE_NEW_MOON_MS = Date.UTC(2000, 0, 6, 18, 14);
+
+/**
+ * Pure, deterministic moon phase for a date. No network, no locale — safe to
+ * unit-test and to run offline. `phase` is 0..1 (0 = new, 0.5 = full) and
+ * `illumination` is the lit fraction of the disc.
+ */
+export function moonPhase(date: Date = new Date()): MoonPhase {
+  const days = (date.getTime() - REFERENCE_NEW_MOON_MS) / 86400000;
+  const phase = ((days / SYNODIC_MONTH) % 1 + 1) % 1;
+  const illumination = (1 - Math.cos(phase * 2 * Math.PI)) / 2;
+
+  // Bucket the continuous phase into the eight canonical names.
+  const idx = Math.floor(phase * 8 + 0.5) % 8;
+  const name = MOON_PHASE_NAMES[idx];
+
+  return { phase, name, illumination, emoji: MOON_EMOJI[name] };
 }
 
 export const WEATHER_CACHE_KEY = 'stakeys.weather.v1';
@@ -327,14 +482,76 @@ export function buildOpenMeteoUrl(lat: number, lon: number): string {
   const params = new URLSearchParams({
     latitude: String(lat),
     longitude: String(lon),
-    current: 'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,pressure_msl,wind_speed_10m',
+    current:
+      'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m,dew_point_2m,visibility',
+    hourly:
+      'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,visibility,dew_point_2m,uv_index,is_day',
     daily:
-      'weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,sunrise,sunset',
+      'weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,uv_index_max,daylight_duration,sunshine_duration,sunrise,sunset',
     timezone: 'auto',
     forecast_days: '7',
     wind_speed_unit: 'kmh',
   });
   return `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+}
+
+/** Open-Meteo's key-less, CORS-friendly air-quality endpoint. */
+export function buildAirQualityUrl(lat: number, lon: number): string {
+  const params = new URLSearchParams({
+    latitude: String(lat),
+    longitude: String(lon),
+    current:
+      'european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone',
+    timezone: 'auto',
+  });
+  return `https://air-quality-api.open-meteo.com/v1/air-quality?${params.toString()}`;
+}
+
+/** Parses an Open-Meteo air-quality response into our shape. */
+export function parseAirQuality(data: any, now: number = Date.now()): AirQuality {
+  const cur = data?.current ?? {};
+  const numOrNull = (v: any): number | null => {
+    if (v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    europeanAqi: numOrNull(cur.european_aqi),
+    usAqi: numOrNull(cur.us_aqi),
+    pm10: numOrNull(cur.pm10),
+    pm25: numOrNull(cur.pm2_5),
+    co: numOrNull(cur.carbon_monoxide),
+    no2: numOrNull(cur.nitrogen_dioxide),
+    so2: numOrNull(cur.sulphur_dioxide),
+    ozone: numOrNull(cur.ozone),
+    fetchedAt: now,
+  };
+}
+
+/**
+ * Best-effort air quality. Never throws — a missing AQ must not block the
+ * forecast, so callers get `null` on any failure.
+ */
+export async function fetchAirQuality(
+  location: WeatherLocation,
+  opts: FetchWeatherOptions = {}
+): Promise<AirQuality | null> {
+  const doFetch = opts.fetchImpl ?? fetch;
+  const now = opts.now ?? Date.now();
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), opts.timeoutMs ?? 9000) : null;
+  try {
+    const res = await doFetch(buildAirQualityUrl(location.latitude, location.longitude), {
+      signal: controller?.signal,
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return parseAirQuality(data, now);
+  } catch {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** Turns an Open-Meteo forecast response into our report shape. */
@@ -349,6 +566,7 @@ export function parseOpenMeteo(data: any, location: WeatherLocation, now: number
   const days: DailyWeather[] = times.map((date, i) => {
     const code = num(daily.weather_code, i);
     const kind = weatherKindFor(code);
+    const dayStart = new Date(`${date}T12:00:00`);
     return {
       date,
       weekday: weekdayShort(date),
@@ -357,15 +575,54 @@ export function parseOpenMeteo(data: any, location: WeatherLocation, now: number
       label: weatherLabel(kind),
       tempMax: round(num(daily.temperature_2m_max, i)),
       tempMin: round(num(daily.temperature_2m_min, i)),
+      feelsLikeMax: round(num(daily.apparent_temperature_max, i, num(daily.temperature_2m_max, i))),
+      feelsLikeMin: round(num(daily.apparent_temperature_min, i, num(daily.temperature_2m_min, i))),
       precipProb: round(num(daily.precipitation_probability_max, i)),
       precipMm: round(num(daily.precipitation_sum, i), 1),
       windMaxKph: round(num(daily.wind_speed_10m_max, i)),
       windGustKph: round(num(daily.wind_gusts_10m_max, i)),
+      windDir: round(num(daily.wind_direction_10m_dominant, i)),
       uvMax: round(num(daily.uv_index_max, i), 1),
+      daylightSeconds: round(num(daily.daylight_duration, i)),
+      sunshineSeconds: round(num(daily.sunshine_duration, i)),
       sunrise: String(daily.sunrise?.[i] ?? ''),
       sunset: String(daily.sunset?.[i] ?? ''),
+      moon: moonPhase(Number.isNaN(dayStart.getTime()) ? new Date(now) : dayStart),
     };
   });
+
+  // Hourly: keep the next 24 hours from the current hour onward.
+  const hr = data?.hourly ?? {};
+  const hrTimes: string[] = hr.time ?? [];
+  const currentHour = new Date(now).setMinutes(0, 0, 0);
+  const hourly: HourlyWeather[] = hrTimes
+    .map((time, i) => {
+      const code = num(hr.weather_code, i);
+      const kind = weatherKindFor(code);
+      return {
+        time: String(time),
+        tempC: round(num(hr.temperature_2m, i)),
+        feelsLikeC: round(num(hr.apparent_temperature, i, num(hr.temperature_2m, i))),
+        precipProb: round(num(hr.precipitation_probability, i)),
+        precipMm: round(num(hr.precipitation, i), 1),
+        weatherCode: code,
+        kind,
+        label: weatherLabel(kind),
+        windKph: round(num(hr.wind_speed_10m, i)),
+        windDir: round(num(hr.wind_direction_10m, i)),
+        windGustKph: round(num(hr.wind_gusts_10m, i)),
+        humidity: round(num(hr.relative_humidity_2m, i)),
+        dewPointC: round(num(hr.dew_point_2m, i), 1),
+        visibilityM: round(num(hr.visibility, i)),
+        uvIndex: round(num(hr.uv_index, i), 1),
+        isDay: hr.is_day?.[i] === 0 ? false : true,
+      };
+    })
+    .filter((h) => {
+      const t = new Date(h.time).getTime();
+      return Number.isNaN(t) ? true : t >= currentHour;
+    })
+    .slice(0, 24);
 
   const cur = data?.current ?? {};
   const currentCode = num([cur.weather_code], 0);
@@ -382,12 +639,19 @@ export function parseOpenMeteo(data: any, location: WeatherLocation, now: number
       kind: currentKind,
       label: weatherLabel(currentKind),
       windKph: round(num([cur.wind_speed_10m], 0)),
+      windDir: round(num([cur.wind_direction_10m], 0)),
+      windGustKph: round(num([cur.wind_gusts_10m], 0)),
       precipMm: round(num([cur.precipitation], 0), 1),
       humidity: round(num([cur.relative_humidity_2m], 0)),
       pressureHpa: round(num([cur.pressure_msl], 0), 1),
+      dewPointC: round(num([cur.dew_point_2m], 0), 1),
+      visibilityM: round(num([cur.visibility], 0)),
+      uvIndex: round(num([cur.uv_index], 0), 1),
       isDay: cur.is_day === 0 ? false : cur.is_day === 1 ? true : true,
     },
     days,
+    hourly,
+    airQuality: null,
     synthetic: false,
   };
 }
@@ -418,6 +682,9 @@ export async function fetchWeatherReport(
     const data = await res.json();
     const report = parseOpenMeteo(data, location, now);
     if (!report.days.length) throw new Error('Weather service returned no forecast');
+    // Air quality is best-effort and fetched alongside; a failure leaves it null
+    // rather than blocking the forecast.
+    report.airQuality = await fetchAirQuality(location, { fetchImpl: doFetch, now, timeoutMs: opts.timeoutMs });
     return report;
   } finally {
     if (timer) clearTimeout(timer);
@@ -434,7 +701,8 @@ export function syntheticWeatherReport(
 ): WeatherReport {
   const kinds: WeatherKind[] = ['partly', 'rain', 'overcast', 'clear', 'showers', 'cloudy', 'clear'];
   const days: DailyWeather[] = kinds.map((kind, i) => {
-    const date = localDateKey(new Date(now.getTime() + i * 24 * 60 * 60 * 1000));
+    const dayDate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    const date = localDateKey(dayDate);
     const base = 12 + (i % 3) * 2;
     return {
       date,
@@ -444,15 +712,47 @@ export function syntheticWeatherReport(
       label: weatherLabel(kind),
       tempMax: base + 4,
       tempMin: base - 3,
+      feelsLikeMax: base + 3,
+      feelsLikeMin: base - 4,
       precipProb: kind === 'rain' ? 80 : kind === 'showers' ? 55 : kind === 'overcast' ? 30 : 10,
       precipMm: kind === 'rain' ? 4.2 : kind === 'showers' ? 1.4 : 0,
       windMaxKph: 14 + i * 2,
       windGustKph: 26 + i * 3,
+      windDir: 180 + i * 15,
       uvMax: 2,
+      daylightSeconds: 36000,
+      sunshineSeconds: 10800,
       sunrise: '',
       sunset: '',
+      moon: moonPhase(dayDate),
     };
   });
+
+  // A deterministic 24-hour hourly strip derived from the first day's shape.
+  const hourly: HourlyWeather[] = Array.from({ length: 24 }, (_, h) => {
+    const t = new Date(now.getTime() + h * 60 * 60 * 1000);
+    const kind: WeatherKind = h % 6 === 0 ? 'partly' : h % 5 === 0 ? 'cloudy' : days[0].kind;
+    const hour = t.getHours();
+    return {
+      time: `${localDateKey(t)}T${String(hour).padStart(2, '0')}:00`,
+      tempC: days[0].tempMax - 4 + Math.round(4 * Math.sin(((hour - 6) / 24) * Math.PI * 2)),
+      feelsLikeC: days[0].tempMax - 5,
+      precipProb: kind === 'rain' ? 70 : 15,
+      precipMm: kind === 'rain' ? 0.6 : 0,
+      weatherCode: 3,
+      kind,
+      label: weatherLabel(kind),
+      windKph: 12,
+      windDir: 190,
+      windGustKph: 22,
+      humidity: 70,
+      dewPointC: 7,
+      visibilityM: 12000,
+      uvIndex: hour >= 8 && hour <= 16 ? 2 : 0,
+      isDay: hour >= 7 && hour <= 19,
+    };
+  });
+
   return {
     location,
     fetchedAt: now.getTime(),
@@ -464,12 +764,19 @@ export function syntheticWeatherReport(
       kind: 'partly',
       label: weatherLabel('partly'),
       windKph: 12,
+      windDir: 190,
+      windGustKph: 22,
       precipMm: 0,
       humidity: 68,
       pressureHpa: 1014,
+      dewPointC: 7,
+      visibilityM: 12000,
+      uvIndex: 2,
       isDay: true,
     },
     days,
+    hourly,
+    airQuality: null,
     synthetic: true,
   };
 }

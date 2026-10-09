@@ -110,17 +110,37 @@ describe('StaffDiagnosticsTab', () => {
     }
   });
 
+  it('offers one Test & Repair action per feature area', () => {
+    const { container } = render(<StaffDiagnosticsTab />);
+    for (const area of Object.keys(AREA_LABELS)) {
+      expect(container.querySelector(`[data-testid="test-repair-${area}"]`)).toBeTruthy();
+    }
+  });
+
   it('runs an area on demand and shows pass results', async () => {
-    const { container, getAllByText } = render(<StaffDiagnosticsTab />);
-    const areaButtons = getAllByText('Test this area');
-    // Logic is the last area in the panel order.
-    fireEvent.click(areaButtons[areaButtons.length - 1]);
+    const { container, getByTestId } = render(<StaffDiagnosticsTab />);
+    // Logic is the last area in the panel order and is fully offline.
+    fireEvent.click(getByTestId('test-repair-logic'));
     await waitFor(() => {
       expect(container.textContent).toContain('Discount maths');
     });
     await waitFor(() => {
       expect(container.textContent).toContain('Working');
     });
+    // A clean area needs no repair banner.
+    expect(container.querySelector('[data-testid="repair-banner-logic"]')).toBeNull();
+  });
+
+  it('hides clean areas when the failures-only filter is on', async () => {
+    const { container, getByTestId, queryByTestId } = render(<StaffDiagnosticsTab />);
+    // Run an offline area so it has (passing) results.
+    fireEvent.click(getByTestId('test-repair-logic'));
+    await waitFor(() => expect(container.textContent).toContain('Working'));
+
+    fireEvent.click(getByTestId('failures-only-toggle'));
+    // The passing logic area is filtered out; nothing has failed, so no areas show.
+    expect(queryByTestId('area-logic')).toBeNull();
+    expect(queryByTestId('area-members')).toBeNull();
   });
 
   it('lists every catalogue test with its own Run control', () => {

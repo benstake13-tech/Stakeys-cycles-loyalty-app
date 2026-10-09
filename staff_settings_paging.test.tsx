@@ -1,6 +1,6 @@
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // StaffPortal pulls in a lot of heavy tabs; stub them so this test exercises
 // only the navigation/paging wiring (which section renders for which tab).
@@ -61,6 +61,11 @@ vi.mock('./src/api/firebaseService', () => ({ canCustomerReceiveStampToday: () =
 
 import { StaffPortal } from './src/components/StaffPortal';
 
+beforeEach(() => {
+  // Each test starts from a clean device: no remembered tab or settings section.
+  localStorage.clear();
+});
+
 function openSettings() {
   render(<StaffPortal />);
   // The admin nav is the tablist labelled "Admin and reports".
@@ -109,5 +114,25 @@ describe('staff Settings tab paging', () => {
     expect(screen.getByText('Draw Pool')).toBeTruthy();
     expect(screen.getByText(/Scan Member Code/i)).toBeTruthy();
     expect(screen.queryByTestId('financials')).toBeNull();
+  });
+
+  it('defaults to Notifications when nothing is remembered', () => {
+    openSettings();
+    expect(screen.getByTestId('notifications')).toBeTruthy();
+  });
+
+  it('restores the last Settings section across a remount', () => {
+    const sections = openSettings();
+    fireEvent.click(within(sections).getByRole('tab', { name: 'Test Bench' }));
+    expect(screen.getByTestId('test-bench')).toBeTruthy();
+    expect(localStorage.getItem('stakeys_staff_settings_section')).toBe('test_bench');
+
+    // Simulate the remount that used to snap the operator back to Notifications.
+    cleanup();
+    const restored = openSettings();
+    expect(screen.getByTestId('test-bench')).toBeTruthy();
+    expect(screen.queryByTestId('notifications')).toBeNull();
+    // The nav reflects the restored section too.
+    expect(within(restored).getByRole('tab', { name: 'Test Bench' }).getAttribute('aria-selected')).toBe('true');
   });
 });

@@ -11,12 +11,14 @@ import {
   Search,
   Sparkles,
   Star,
+  Sun,
   Sunrise,
   Sunset,
   Thermometer,
   Wind,
 } from 'lucide-react';
 import { WeatherScene } from './WeatherScene';
+import { AirQualityCard, DetailsGrid, HourlyStrip, MoonPhaseCard, SunCard } from './WeatherDetails';
 import {
   DailyWeather,
   KnownPlace,
@@ -24,6 +26,7 @@ import {
   RidingGrade,
   WeatherLocation,
   WeatherReport,
+  compassPoint,
   dayLabel,
   fetchWeatherReport,
   loadCachedWeather,
@@ -35,7 +38,6 @@ import {
   saveCachedWeather,
   saveManualLocation,
   searchPlaces,
-  syntheticWeatherReport,
 } from '../../utils/weatherService';
 
 interface WeatherForecastProps {
@@ -122,7 +124,8 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
       saveCachedWeather(fresh);
     } catch {
       if (!mounted.current) return;
-      setError('Live weather is unavailable right now — showing the last known forecast.');
+      // Never invent numbers — keep the last real cached report if present.
+      setError('Live weather is unavailable — check your connection and retry.');
     } finally {
       if (mounted.current) setLoading(false);
     }
@@ -189,8 +192,9 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
         saveCachedWeather(fresh);
       } catch {
         if (!mounted.current) return;
-        setError('Live weather is unavailable right now — showing a sample forecast.');
-        setReport((prev) => prev ?? syntheticWeatherReport());
+        // Keep the last real cached report if we have one; otherwise the UI
+        // shows an explicit unavailable + Retry state. No synthetic numbers.
+        setError('Live weather is unavailable — check your connection and retry.');
       } finally {
         if (mounted.current) setLoading(false);
       }
@@ -223,6 +227,7 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
   const conditions = active ? ridingConditionsFor(active) : null;
   const gradeStyle = conditions ? GRADE_STYLE[conditions.grade] : GRADE_STYLE.fair;
   const unitLabel = tempSuffix(unit);
+  const temp = (celsius: number) => toDisplayTemp(celsius, unit);
 
   const shell = isDark
     ? 'bg-neutral-900/70 border-neutral-800'
@@ -261,9 +266,9 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
                 {report?.location.source === 'device' ? ' (GPS)' : ''}
               </button>
             </div>
-            <p className={`text-[11px] ${muted}`}>
+            <p className={`text-[11px] ${muted}`} data-testid="weather-status">
               Next 7 days · {report ? `updated ${updatedLabel(report.fetchedAt)}` : 'loading…'}
-              {report?.synthetic ? ' · sample data' : ' · live'}
+              {report && !report.synthetic ? ' · live' : ''}
             </p>
           </div>
         </div>
@@ -348,6 +353,20 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
         </div>
       )}
 
+      {!report && error && !loading && (
+        <div className={`rounded-2xl border p-5 text-center ${shell}`} data-testid="weather-unavailable">
+          <p className={`text-sm font-bold ${strong}`}>Live weather is unavailable</p>
+          <p className={`mt-1 text-[11px] ${muted}`}>{error}</p>
+          <button
+            type="button"
+            onClick={() => void load({ useDevice: allowDevice, force: true })}
+            className="pressable mt-3 inline-flex items-center gap-1.5 rounded-xl border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-[11px] font-bold text-sky-300 cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Retry
+          </button>
+        </div>
+      )}
+
       {active && conditions && (
         <div className={`relative overflow-hidden rounded-2xl border ${shell}`}>
           <div className="relative h-44 sm:h-52">
@@ -422,6 +441,30 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
         </div>
       )}
 
+      {report && report.hourly.length > 0 && (
+        <HourlyStrip hourly={report.hourly} temp={temp} unitLabel={unitLabel} shell={shell} muted={muted} strong={strong} />
+      )}
+
+      {active && (
+        <DetailsGrid
+          day={active}
+          current={report?.current ?? null}
+          temp={temp}
+          unitLabel={unitLabel}
+          shell={shell}
+          muted={muted}
+          strong={strong}
+        />
+      )}
+
+      {report && (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <AirQualityCard air={report.airQuality} shell={shell} muted={muted} strong={strong} />
+          {active && <SunCard day={active} shell={shell} muted={muted} strong={strong} />}
+          {active && <MoonPhaseCard moon={active.moon} shell={shell} muted={muted} strong={strong} />}
+        </div>
+      )}
+
       <div className="no-scrollbar -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1">
         {days.map((day, i) => {
           const c = ridingConditionsFor(day);
@@ -467,6 +510,19 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
                   <span className="inline-flex items-center gap-0.5">
                     <Wind className="w-3 h-3" />
                     {day.windMaxKph}
+                  </span>
+                </div>
+                <div className={`flex items-center justify-between text-[10px] ${muted}`}>
+                  <span className="inline-flex items-center gap-0.5" title="Wind direction">
+                    <Compass className="w-3 h-3" />
+                    {compassPoint(day.windDir)}
+                  </span>
+                  <span className="inline-flex items-center gap-0.5" title="UV index">
+                    <Sun className="w-3 h-3" />
+                    {day.uvMax}
+                  </span>
+                  <span aria-hidden title={day.moon.name}>
+                    {day.moon.emoji}
                   </span>
                 </div>
                 <div className={`inline-flex w-full items-center justify-center rounded-lg border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${style.chip}`}>

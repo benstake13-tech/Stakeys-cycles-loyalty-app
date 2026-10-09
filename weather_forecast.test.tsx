@@ -44,6 +44,9 @@ function fixture() {
   const time = Array.from({ length: 7 }, (_, i) =>
     new Date(start.getTime() + i * DAY_MS).toISOString().slice(0, 10)
   );
+  const hourlyTime = Array.from({ length: 30 }, (_, i) =>
+    new Date(start.getTime() + i * 60 * 60 * 1000).toISOString().slice(0, 13) + ':00'
+  );
   return {
     timezone: 'Europe/London',
     current: {
@@ -53,6 +56,28 @@ function fixture() {
       precipitation: 0,
       weather_code: 3,
       wind_speed_10m: 14,
+      wind_direction_10m: 200,
+      wind_gusts_10m: 26,
+      relative_humidity_2m: 80,
+      pressure_msl: 1010,
+      dew_point_2m: 9,
+      visibility: 13000,
+    },
+    hourly: {
+      time: hourlyTime,
+      temperature_2m: hourlyTime.map((_, i) => 10 + (i % 6)),
+      apparent_temperature: hourlyTime.map((_, i) => 9 + (i % 6)),
+      relative_humidity_2m: hourlyTime.map(() => 80),
+      precipitation_probability: hourlyTime.map((_, i) => (i % 4) * 20),
+      precipitation: hourlyTime.map(() => 0.1),
+      weather_code: hourlyTime.map(() => 3),
+      wind_speed_10m: hourlyTime.map(() => 15),
+      wind_direction_10m: hourlyTime.map(() => 200),
+      wind_gusts_10m: hourlyTime.map(() => 26),
+      visibility: hourlyTime.map(() => 13000),
+      dew_point_2m: hourlyTime.map(() => 9),
+      uv_index: hourlyTime.map((_, i) => (i % 12 < 6 ? 2 : 0)),
+      is_day: hourlyTime.map((_, i) => (i % 24 >= 7 && i % 24 <= 19 ? 1 : 0)),
     },
     daily: {
       time,
@@ -141,7 +166,7 @@ describe('WeatherForecast', () => {
     await waitFor(() => expect(screen.getAllByText(/61/).length).toBeGreaterThan(0));
   });
 
-  it('falls back to a sample forecast when the network fails', async () => {
+  it('shows an unavailable state (never synthetic numbers) when the network fails', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -149,8 +174,23 @@ describe('WeatherForecast', () => {
       })
     );
     render(<WeatherForecast isDark />);
-    await waitFor(() => expect(screen.getByText(/sample data/)).toBeTruthy());
-    expect(screen.getByText(/sample forecast/)).toBeTruthy();
+    await waitFor(() => expect(screen.getByTestId('weather-unavailable')).toBeTruthy());
+    expect(screen.getAllByText(/Live weather is unavailable/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeTruthy();
+    // No invented forecast is rendered.
+    expect(screen.queryByText(/sample data/)).toBeNull();
+  });
+
+  it('renders the deep-detail sections (hourly, air quality, sun, moon, details)', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => fixture() })));
+    render(<WeatherForecast isDark />);
+    await waitFor(() => expect(screen.getByText('Riding Weather')).toBeTruthy());
+    expect(screen.getByTestId('weather-hourly')).toBeTruthy();
+    expect(screen.getByTestId('weather-details-grid')).toBeTruthy();
+    expect(screen.getByTestId('weather-air-quality')).toBeTruthy();
+    expect(screen.getByTestId('weather-sun')).toBeTruthy();
+    expect(screen.getByTestId('weather-moon')).toBeTruthy();
+    expect(screen.getByText(/illuminated/)).toBeTruthy();
   });
 
   it('uses the cached forecast without a network round-trip', async () => {
