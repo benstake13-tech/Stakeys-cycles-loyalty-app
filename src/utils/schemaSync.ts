@@ -215,6 +215,10 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
     name: 'discount_codes',
     primaryKey: 'id',
     textId: true,
+    // A legacy CHECK allowed only a subset of the type values the app writes
+    // (the diagnostics probe and the discount editor both insert `percent`);
+    // it rejects the insert with 23514 until dropped.
+    dropChecks: ['discount_codes_type_check'],
     columns: [
       { name: 'id', type: 'text' },
       { name: 'code', type: 'text' },

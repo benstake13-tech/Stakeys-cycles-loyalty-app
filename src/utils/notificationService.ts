@@ -2,6 +2,7 @@ import { ServiceBooking, OwnerNotificationConfig, BookingNotificationLog, Remind
 import { getSupabaseClient } from '../lib/supabase';
 import { vehicleNouns } from './vehicleType';
 import { shouldSendBookingEmail } from './bookingEmailLedger';
+import { claimEmailSend } from './sendOnce';
 import { sendPushToUser } from './pushNotifications';
 import { bookingDeepLink, sosPushCopy } from './bookingNotifications';
 
@@ -700,6 +701,11 @@ export async function dispatchTestEmail(
 ): Promise<{ success: boolean; message?: string }> {
   if (!config.ownerEmail) {
     return { success: false, message: 'Set a notification recipient email first.' };
+  }
+  // A manual test email is a quota-costly send; re-clicking the button must not
+  // fire a duplicate copy for the same recipient this session.
+  if (!claimEmailSend(`test:${config.ownerEmail.trim().toLowerCase()}`)) {
+    return { success: true, message: 'Test email already sent to this address this session.' };
   }
   try {
     const supabase = getSupabaseClient();
