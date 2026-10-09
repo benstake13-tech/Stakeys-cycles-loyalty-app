@@ -59,4 +59,30 @@ describe('tile primitives', () => {
     expect(screen.getByTestId('bell')).toBeTruthy();
     expect(screen.getAllByRole('button')).toHaveLength(2);
   });
+
+  it('shows a clear call-to-action and a descriptive accessible name', () => {
+    render(
+      <TileButton
+        icon={Wrench}
+        label="Members"
+        hint="Customer directory"
+        actionLabel="Manage"
+        onSelect={() => {}}
+        testId="t"
+      />
+    );
+    expect(screen.getByText('Manage')).toBeTruthy();
+    expect(screen.getByTestId('t').getAttribute('aria-label')).toBe('Members — Customer directory');
+  });
+
+  it('staggers the entrance animation by index', () => {
+    render(
+      <TileGrid>
+        <TileButton label="A" onSelect={() => {}} testId="a" />
+        <TileButton label="B" onSelect={() => {}} testId="b" />
+      </TileGrid>
+    );
+    expect(screen.getByTestId('a').style.animationDelay).toBe('0ms');
+    expect(screen.getByTestId('b').style.animationDelay).toBe('35ms');
+  });
 });

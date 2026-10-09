@@ -106,6 +106,80 @@
   .pressable:active {
     transform: scale(0.97);
   }
+
+  /* ---- Launcher tile motion ---- */
+  /* Each tile rises in on mount (delay set per-tile for a stagger), lifts on
+     hover, springs its icon and slides a light sheen across the surface. */
+  .tile {
+    animation: tile-in 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.25s ease,
+      border-color 0.2s ease, background-color 0.2s ease;
+  }
+  .tile:hover:not(:disabled) {
+    transform: translateY(-3px);
+  }
+  .tile:active:not(:disabled) {
+    transform: translateY(-1px) scale(0.98);
+  }
+  .tile:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.65), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
+  }
+  .tile .tile-icon {
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1), background-color 0.2s ease;
+  }
+  .tile:hover:not(:disabled) .tile-icon {
+    transform: scale(1.12) rotate(-6deg);
+  }
+  .tile .tile-sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(
+      115deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.14) 48%,
+      transparent 62%
+    );
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  .tile:hover:not(:disabled) .tile-sheen {
+    animation: tile-sheen 0.85s ease-out;
+  }
+  .tile .tile-arrow {
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.2s ease;
+    opacity: 0.35;
+  }
+  .tile:hover:not(:disabled) .tile-arrow {
+    transform: translateX(3px);
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile,
+    .tile .tile-icon,
+    .tile:hover:not(:disabled),
+    .tile:hover:not(:disabled) .tile-icon,
+    .tile:hover:not(:disabled) .tile-arrow {
+      animation: none;
+      transition: none;
+      transform: none;
+    }
+    .tile:hover:not(:disabled) .tile-sheen {
+      animation: none;
+    }
+  }
+}
+
+@keyframes tile-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes tile-sheen {
+  0% { transform: translateX(-120%); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: translateX(120%); opacity: 0; }
 }
 
 @keyframes fade-in {

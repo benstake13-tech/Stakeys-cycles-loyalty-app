@@ -37,6 +37,7 @@ import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { wheelAudio } from '../utils/wheelAudio';
 import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
+import { EditBikeModal } from './EditBikeModal';
 
 interface CustomerAccountDossierProps {
   customer: UserProfile;
@@ -62,6 +63,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
     updateCustomerPoints,
     addCustomerBikeForUser,
     refreshCustomerGarageForStaff,
+    updateCustomerBikeIdentity,
     updateBookingStatus,
   } = useShop();
 
@@ -87,6 +89,8 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
   const [isSavingBike, setIsSavingBike] = useState(false);
   const [isFixingGarage, setIsFixingGarage] = useState(false);
   const [garageFixNote, setGarageFixNote] = useState<string | null>(null);
+  // The bike whose details a staff member is editing by hand.
+  const [editingBike, setEditingBike] = useState<CustomerBike | null>(null);
 
   // Get freshest customer data from users array
   const currentCustomer = users.find((u) => u.uid === customer.uid) || customer;
@@ -669,6 +673,15 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
                   )}
 
                   <div className="pt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingBike(b)}
+                      data-testid={`dossier-edit-bike-${b.id}`}
+                      className="flex-1 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Edit Details</span>
+                    </button>
                     {onOpenScraper && (
                       <button
                         type="button"
@@ -1063,6 +1076,24 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Manual edit of one of this customer's bikes */}
+      {editingBike && (
+        <EditBikeModal
+          bike={editingBike}
+          title="Edit customer bike details"
+          subtitle={`Correct the make, model, colour, serial and e-bike conversion details for ${currentCustomer.displayName}'s bike. Saved to the workshop record.`}
+          onSave={async (patch) => {
+            const res = await updateCustomerBikeIdentity(editingBike.id, patch, currentCustomer.uid);
+            if (res.success) {
+              setFeedback({ success: true, message: 'Bike details updated.' });
+              return true;
+            }
+            return false;
+          }}
+          onClose={() => setEditingBike(null)}
+        />
       )}
 
       {/* AI Bike Identifier — adds straight to this customer's garage */}

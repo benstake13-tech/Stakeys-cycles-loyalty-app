@@ -31,7 +31,9 @@ import {
   DEFAULT_REMINDER_SETTINGS,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
-import { collectionsEqual, deepEqual } from '../utils/stateEquality';
+import { collectionsEqual, deepEqual, profileMatchesUser } from '../utils/stateEquality';
+import { nextStampAnnouncement } from '../utils/stampAnnouncements';
+import { newBookingIds } from '../utils/bookingAlerts';
 import {
   SeasonalThemeId,
   ThemeOverride,
@@ -105,6 +107,7 @@ import {
   reassignBikesToOwner,
   deleteBikesByIds,
   updateCustomerBikeSpecsInDb,
+  updateCustomerBikeIdentityInDb,
   fetchServiceBookingsFromDb,
   insertServiceBookingToDb,
   updateServiceBookingInDb,
@@ -229,6 +232,17 @@ interface ShopContextType {
     bike: Omit<CustomerBike, 'id' | 'addedAt'>
   ) => Promise<CustomerBike>;
   removeCustomerBike: (bikeId: string) => Promise<void>;
+  /**
+   * Manually edit a bike's identity/specs (brand, model, colour, year, serial,
+   * e-bike conversion details) for the signed-in customer OR — when the caller
+   * is staff — for any customer. Persists the change and keeps the local roster
+   * and garage in step.
+   */
+  updateCustomerBikeIdentity: (
+    bikeId: string,
+    patch: Partial<CustomerBike>,
+    ownerId?: string
+  ) => Promise<{ success: boolean; message?: string }>;
   repairCustomerGarage: () => Promise<{ scanned: number; removed: number; reassigned: number }>;
   /**
    * Staff "Fix My Garage" for a specific customer: re-fetches their bikes
@@ -1313,8 +1327,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Service Bookings State (loaded dynamically from backend database)
   const [bookings, setBookings] = useState<ServiceBooking[]>([]);
   const knownBookingIdsRef = React.useRef<Set<string>>(new Set());
+  // Monotonic "already announced" booking id set. Unlike `knownBookingIdsRef`
+  // (which some paths rebuild), this only ever grows, so a booking can never be
+  // announced twice.
+  const everSeenBookingIdsRef = React.useRef<Set<string>>(new Set());
   const isInitialBookingsLoadRef = React.useRef<boolean>(true);
   const collectingRef = React.useRef<Set<string>>(new Set());
+  // High-water mark of stamps we have already announced. The stamp toast is
+  // driven by a remote value, so once the local snapshot lags the database
+  // (e.g. a roster merge reset it) a "remoteStamps > local" compare re-fires the
+  // same "+N stamps" toast on every poll tick, stacking notifications forever.
+  // Remembering the announced level makes each gain announce exactly once.
+  const announcedStampsRef = React.useRef<Map<string, number>>(new Map());
   const currentUserRef = React.useRef<UserProfile | null>(currentUser);
   currentUserRef.current = currentUser;
 
@@ -1376,7 +1400,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!incomingBookings || incomingBookings.length === 0) return;
 
     if (isInitialBookingsLoadRef.current) {
-      incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
+      incomingBookings.forEach((b) => {
+        knownBookingIdsRef.current.add(b.id);
+        everSeenBookingIdsRef.current.add(b.id);
+      });
       isInitialBookingsLoadRef.current = false;
       // Remember which lifecycle emails these bookings already had, so reloading
       // the shared table never re-sends a confirmation or reminder.
@@ -1386,7 +1413,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const isStaff = currentUserRef.current?.role === 'staff' || currentUserRef.current?.role === 'admin';
-    const brandNewBookings = incomingBookings.filter((b) => !knownBookingIdsRef.current.has(b.id));
+
+    // Only announce bookings we have genuinely never seen. The list is re-read
+    // on every poll/realtime tick, so an id that temporarily drops out of the
+    // (filtered) read would otherwise be treated as "brand new" again and
+    // re-fire the loud ping + push every tick. `everSeen` only ever grows.
+    const brandNewIds = new Set(newBookingIds(everSeenBookingIdsRef.current, incomingBookings.map((b) => b.id)));
+    const brandNewBookings = incomingBookings.filter((b) => brandNewIds.has(b.id));
 
     incomingBookings.forEach((b) => knownBookingIdsRef.current.add(b.id));
     // Only write when the list actually differs. The 15s poll and every realtime
@@ -1468,13 +1501,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const mergedBikes = remoteBikes && remoteBikes.length > 0 ? remoteBikes : (user.bikes || []);
 
-      const previousStamps = user.stamps || 0;
       const remoteStamps = remoteProfile?.stamps !== undefined ? remoteProfile.stamps : user.stamps;
 
-      if (remoteProfile?.stamps !== undefined && remoteProfile.stamps > previousStamps) {
-        const gained = remoteProfile.stamps - previousStamps;
+      // Announce a stamp gain exactly once. Comparing remote against the local
+      // snapshot re-fires whenever the local copy lags the database (a roster
+      // merge resetting stamps, or the poll racing a write), which stacked the
+      // "New Stamp Received" toast on every tick. Track the announced level per
+      // user instead (see nextStampAnnouncement).
+      const announcedStamps = announcedStampsRef.current;
+      const outcome = nextStampAnnouncement(announcedStamps.get(user.uid), remoteStamps);
+      announcedStamps.set(user.uid, outcome.level);
+      if (outcome.gained) {
         toast.success(
-          `🎉 +${gained} New Stamp${gained > 1 ? 's' : ''} Received! Total: ${remoteProfile.stamps}/10`,
+          `🎉 +${outcome.gained} New Stamp${outcome.gained > 1 ? 's' : ''} Received! Total: ${remoteStamps}/10`,
           { icon: '🎟️', duration: 4500 }
         );
       }
@@ -1551,9 +1590,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       const latestUser = currentUserRef.current;
       if (latestUser) {
-        const freshCurrent = hydrated.find((u) => u.uid === latestUser.uid || u.membershipNumber === latestUser.membershipNumber);
+        const freshCurrent = hydrated.find((u) => profileMatchesUser(latestUser, u));
         if (freshCurrent) {
-          const merged = { ...latestUser, ...freshCurrent };
+          // Merge the roster read over the signed-in user, but NEVER let the
+          // roster's identity/role move the session to a different account. A
+          // staff/admin profile has no membership number, so a loose match could
+          // pick an unrelated empty-membership profile and flatten the role to
+          // 'customer' — ejecting staff into the customer view on login.
+          const merged = {
+            ...latestUser,
+            ...freshCurrent,
+            uid: latestUser.uid,
+            role: freshCurrent.uid === latestUser.uid ? freshCurrent.role : latestUser.role,
+          };
           if (!deepEqual(latestUser, merged)) {
             setCurrentUser(merged);
           }
@@ -3142,6 +3191,46 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   /**
+   * Manually correct a bike's identity/specs. The customer edits their own
+   * garage; staff pass the dossier customer's id. We patch local state first for
+   * an instant UI, then persist — and roll back + toast if the write is rejected
+   * so an edit never silently reverts on the next sync.
+   */
+  const updateCustomerBikeIdentity = async (
+    bikeId: string,
+    patch: Partial<CustomerBike>,
+    ownerId?: string
+  ): Promise<{ success: boolean; message?: string }> => {
+    const targetId = ownerId || currentUser?.uid;
+    if (!targetId) return { success: false, message: 'You must be signed in to edit a bike.' };
+
+    const owner = usersRef.current.find((u) => u.uid === targetId) || (currentUser?.uid === targetId ? currentUser : null);
+    const existing = (owner?.bikes || []).find((b) => b.id === bikeId);
+    if (!existing) return { success: false, message: 'That bike is no longer in the garage.' };
+
+    const updatedBike: CustomerBike = { ...existing, ...patch, id: existing.id };
+
+    const applyLocal = (next: CustomerBike) => {
+      setUsers((prev) => prev.map((u) => (u.uid === targetId ? { ...u, bikes: (u.bikes || []).map((b) => (b.id === bikeId ? next : b)) } : u)));
+      if (currentUserRef.current?.uid === targetId) {
+        setCurrentUser((prev) =>
+          prev ? { ...prev, bikes: (prev.bikes || []).map((b) => (b.id === bikeId ? next : b)) } : prev
+        );
+      }
+    };
+
+    applyLocal(updatedBike);
+
+    const ok = await updateCustomerBikeIdentityInDb(updatedBike, targetId);
+    if (!ok) {
+      applyLocal(existing);
+      toast.error("Couldn't save the bike details — please try again.");
+      return { success: false, message: 'Could not save the bike details.' };
+    }
+    return { success: true };
+  };
+
+  /**
    * "Fix My Garage": repairs a garage that shows the wrong bikes. A stale build
    * (or a profile with no membership number) used to fetch customer_bikes with a
    * blank membership filter, which matches every NULL row and leaks the whole
@@ -4287,6 +4376,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addCustomerBike,
         addCustomerBikeForUser,
         removeCustomerBike,
+        updateCustomerBikeIdentity,
         repairCustomerGarage,
         refreshCustomerGarageForStaff,
         repairBookingsLedger,

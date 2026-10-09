@@ -314,6 +314,65 @@ export async function insertCustomerBikeToDb(
 }
 
 /**
+ * 2b. UPDATE BIKE IDENTITY / SPECS (manual edit)
+ *
+ * Rewrites the core identity + rich `bike_details` for an existing bike, keeping
+ * the `scraped_data.meta` mirror in sync so the details survive even on a schema
+ * that lacks the dedicated `bike_details` column. Used by both the customer
+ * garage and the staff dossier so a rider or mechanic can correct a mis-scanned
+ * bike by hand.
+ */
+export async function updateCustomerBikeIdentityInDb(
+  bike: CustomerBike,
+  userId: string
+): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  console.log(`[SUPABASE NET] UPDATE customer_bikes identity id=${bike.id} for userId=${userId}`);
+  try {
+    const meta = {
+      ...((bike.scrapedData as any)?.meta || {}),
+      categoryLabel: bike.categoryLabel,
+      frameSizeOrNotes: bike.frameSizeOrNotes,
+      healthStatus: bike.healthStatus,
+      lastServiceDate: bike.lastServiceDate,
+      lastServiceTitle: bike.lastServiceTitle,
+      ...(bike.bikeDetails ? { bikeDetails: bike.bikeDetails } : {}),
+    };
+    const buildPayload = (includeBikeDetails: boolean) => {
+      const payload: any = {
+        brand: bike.brand,
+        model: bike.model,
+        year: bike.year || null,
+        color: bike.colour || bike.color || 'Standard',
+        serial_number: bike.serialNumber || null,
+        category: bike.category || 'cycle',
+        scraped_data: { ...(bike.scrapedData || {}), meta },
+      };
+      if (includeBikeDetails) payload.bike_details = bike.bikeDetails || null;
+      return payload;
+    };
+
+    const write = (includeBikeDetails: boolean) =>
+      supabase.from('customer_bikes').update(buildPayload(includeBikeDetails)).eq('id', bike.id).select('id');
+
+    let { data, error } = await write(true);
+    if (error) {
+      const retry = await write(false);
+      data = retry.data;
+      error = retry.error;
+    }
+    if (!error) {
+      console.log(`[SUPABASE NET SUCCESS] UPDATE customer_bikes identity succeeded for id=${bike.id}`);
+      return true;
+    }
+    console.error('[SUPABASE NET ERROR] UPDATE customer_bikes identity failed:', error.message);
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] updateCustomerBikeIdentityInDb:', err);
+  }
+  return false;
+}
+
+/**
  * 3. DELETE BIKE
  */
 export async function deleteCustomerBikeFromDb(
