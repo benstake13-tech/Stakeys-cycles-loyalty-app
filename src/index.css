@@ -539,19 +539,6 @@
 }
 
 /* --- Keyframes ---------------------------------------------------------- */
-@keyframes pendulumSwing {
-  0%   { transform: rotate(-4.5deg); }
-  50%  { transform: rotate(4.5deg); }
-  100% { transform: rotate(-4.5deg); }
-}
-@keyframes signShake {
-  0%   { transform: scale(1) rotate(0deg); }
-  20%  { transform: scale(1.06) rotate(-3deg); }
-  40%  { transform: scale(1.06) rotate(3deg); }
-  60%  { transform: scale(1.04) rotate(-2deg); }
-  80%  { transform: scale(1.02) rotate(1deg); }
-  100% { transform: scale(1) rotate(0deg); }
-}
 @keyframes flyerFlutter {
   0%   { transform: translate(0, 0) rotate(-6deg); }
   25%  { transform: translate(6px, -6px) rotate(8deg); }
@@ -562,10 +549,6 @@
 @keyframes webPulse {
   0%, 100% { opacity: 0.55; }
   50%      { opacity: 0.9; }
-}
-@keyframes chainSway {
-  0%, 100% { transform: rotate(-1.5deg); }
-  50%      { transform: rotate(1.5deg); }
 }
 @keyframes spookFloat {
   0%, 100% { transform: translateY(0); opacity: 0.75; }
@@ -579,129 +562,121 @@
   0%, 100% { transform: translateY(0) rotate(-3deg); }
   50%      { transform: translateY(-5px) rotate(3deg); }
 }
+@keyframes signShake {
+  0%   { transform: scale(1) rotate(0deg); }
+  20%  { transform: scale(1.06) rotate(-3deg); }
+  40%  { transform: scale(1.06) rotate(3deg); }
+  60%  { transform: scale(1.04) rotate(-2deg); }
+  80%  { transform: scale(1.02) rotate(1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
 
-/* --- Hero banner -------------------------------------------------------- */
-.seasonal-hero {
+/* --- Top swinging banner (every surface) -------------------------------- */
+.seasonal-banner {
   position: relative;
-  z-index: 30;
+  z-index: 35;
   overflow: hidden;
-  height: 208px;
+  height: 194px;
   transition: height 0.45s ease, opacity 0.35s ease;
-  /* Non-blocking: empty space around the sign never eats dashboard clicks. */
+  /* Non-blocking: empty space around the sign never eats page clicks. */
   pointer-events: none;
 }
-.seasonal-hero.is-closing {
+.seasonal-banner.is-closing {
   height: 0;
   opacity: 0;
 }
-.seasonal-hero-inner {
+.seasonal-banner-inner {
   position: relative;
   height: 100%;
   display: flex;
   justify-content: center;
   pointer-events: none;
 }
-.chain-left,
-.chain-right {
+.seasonal-banner-chains {
   position: absolute;
-  top: 0;
-  width: 4px;
-  height: 74px;
-  transform-origin: top center;
-  background: repeating-linear-gradient(
-    to bottom,
-    #b8c0cc 0 6px,
-    #6b7280 6px 12px
-  );
-  box-shadow: 0 0 6px rgba(0, 0, 0, 0.5), 0 0 10px var(--theme-glow);
-  animation: chainSway 5s ease-in-out infinite;
+  inset: 0;
+  width: 100%;
+  height: 78px;
+  pointer-events: none;
 }
-.chain-left { left: calc(50% - 128px); }
-.chain-right { right: calc(50% - 128px); animation-delay: -2.5s; }
-
-.seasonal-hero-sign {
+.seasonal-banner-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.seasonal-banner-sign {
   position: relative;
-  margin-top: 64px;
-  width: min(560px, 92vw);
+  margin-top: 62px;
+  width: min(520px, 90vw);
   transform-origin: top center;
-  animation: pendulumSwing 4.2s ease-in-out infinite;
-  /* The one interactive island inside the otherwise click-through wrapper. */
+  /* The one interactive island inside the click-through wrapper. */
   pointer-events: auto;
   cursor: pointer;
 }
-.seasonal-hero-sign:hover {
-  animation-play-state: paused;
-}
-.sign-face {
+.seasonal-banner-face {
   position: relative;
-  border-radius: 18px;
-  padding: 20px 26px 22px;
+  border-radius: 16px;
+  padding: 16px 22px 18px;
   text-align: center;
   color: #f8fafc;
   background: var(--theme-bg-gradient);
   border: 2px solid var(--theme-accent-secondary);
   box-shadow:
     0 0 0 2px var(--theme-accent-primary) inset,
-    0 0 18px var(--theme-glow),
-    0 14px 30px -12px rgba(0, 0, 0, 0.8);
+    0 0 16px var(--theme-glow),
+    0 12px 26px -12px rgba(0, 0, 0, 0.8);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-.seasonal-hero-sign:hover .sign-face {
-  transform: scale(1.035);
-  box-shadow:
-    0 0 0 2px var(--theme-accent-primary) inset,
-    0 0 34px var(--theme-glow),
-    0 0 60px var(--theme-glow),
-    0 18px 40px -12px rgba(0, 0, 0, 0.85);
-}
-.seasonal-hero-sign.is-shaking .sign-face {
+.seasonal-banner-sign.is-shaking .seasonal-banner-face {
   animation: signShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
 }
-.sign-heading {
+.seasonal-banner-heading {
   margin: 0;
   font-family: 'Syne', system-ui, sans-serif;
   font-weight: 800;
-  font-size: clamp(1.15rem, 4vw, 1.7rem);
+  font-size: clamp(1.05rem, 3.6vw, 1.5rem);
   letter-spacing: 0.02em;
   color: var(--theme-accent-primary);
   text-shadow: 0 0 12px var(--theme-glow), 0 1px 0 rgba(0, 0, 0, 0.6);
 }
-.sign-subtext {
-  margin: 6px 0 0;
-  font-size: clamp(0.72rem, 2.4vw, 0.9rem);
+.seasonal-banner-subtext {
+  margin: 5px 0 0;
+  font-size: clamp(0.68rem, 2.2vw, 0.82rem);
   color: #e9d5ff;
   opacity: 0.92;
 }
-.seasonal-hero-web {
+.seasonal-banner-web {
   position: absolute;
-  font-size: 20px;
+  font-size: 17px;
   line-height: 1;
   animation: webPulse 3.4s ease-in-out infinite;
   filter: drop-shadow(0 0 4px var(--theme-glow));
 }
-.seasonal-hero-web.tl { top: 4px; left: 6px; }
-.seasonal-hero-web.tr { top: 4px; right: 6px; }
-.seasonal-hero-web.bl { bottom: 4px; left: 6px; }
-.seasonal-hero-web.br { bottom: 4px; right: 6px; }
-.seasonal-hero-flyer {
+.seasonal-banner-web.tl { top: 3px; left: 5px; }
+.seasonal-banner-web.tr { top: 3px; right: 5px; }
+.seasonal-banner-web.bl { bottom: 3px; left: 5px; }
+.seasonal-banner-web.br { bottom: 3px; right: 5px; }
+.seasonal-banner-flyer {
   position: absolute;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
   pointer-events: none;
   animation: flyerFlutter 3.2s ease-in-out infinite;
   filter: drop-shadow(0 0 5px var(--theme-glow));
 }
-.seasonal-hero-flyer.f0 { top: -14px; left: 14%; animation-delay: 0s; }
-.seasonal-hero-flyer.f1 { top: 8px; right: 12%; animation-delay: -0.8s; }
-.seasonal-hero-flyer.f2 { bottom: -12px; left: 22%; animation-delay: -1.6s; }
-.seasonal-hero-flyer.f3 { bottom: 6px; right: 20%; animation-delay: -2.4s; }
-.seasonal-hero-close {
+.seasonal-banner-flyer.f0 { top: -12px; left: 13%; animation-delay: 0s; }
+.seasonal-banner-flyer.f1 { top: 6px; right: 11%; animation-delay: -0.8s; }
+.seasonal-banner-flyer.f2 { bottom: -10px; left: 21%; animation-delay: -1.6s; }
+.seasonal-banner-flyer.f3 { bottom: 5px; right: 19%; animation-delay: -2.4s; }
+.seasonal-banner-close {
   position: absolute;
-  top: 8px;
-  right: 10px;
+  top: 6px;
+  right: 8px;
   z-index: 2;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -709,14 +684,22 @@
   border: 1px solid var(--theme-accent-secondary);
   background: rgba(0, 0, 0, 0.35);
   color: var(--theme-accent-secondary);
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease;
 }
-.seasonal-hero-close:hover {
+.seasonal-banner-close:hover {
   background: rgba(0, 0, 0, 0.6);
   transform: scale(1.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seasonal-banner-flyer,
+  .seasonal-banner-web,
+  .seasonal-banner-sign.is-shaking .seasonal-banner-face {
+    animation: none !important;
+  }
 }
 
 /* --- Footer border + sweet trail ---------------------------------------- */
@@ -787,16 +770,10 @@
 
 /* Respect the user's motion preference — keep the decor, drop the movement. */
 @media (prefers-reduced-motion: reduce) {
-  .seasonal-hero-sign,
-  .chain-left,
-  .chain-right,
-  .seasonal-hero-flyer,
-  .seasonal-hero-web,
   .seasonal-footer-sweet,
   .seasonal-footer-prop,
   .seasonal-footer-spook,
-  .seasonal-footer-crawler,
-  .seasonal-hero-sign.is-shaking .sign-face {
+  .seasonal-footer-crawler {
     animation: none !important;
   }
 }

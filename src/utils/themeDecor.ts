@@ -12,8 +12,8 @@
  *   1. add an entry here (colours + copy + emoji), and
  *   2. add one `.<theme-id>` CSS block in `src/index.css` exposing the same
  *      `--theme-*` custom properties.
- * The shared CSS (.seasonal-hero-sign, .pendulum-swing, .seasonal-footer-trail,
- * …) then styles it with no component changes at all.
+ * The shared CSS (.seasonal-banner-sign, .seasonal-banner-face,
+ * .seasonal-footer-trail, …) then styles it with no component changes at all.
  */
 import type { HolidayThemeId } from './themeBanners';
 

@@ -31,7 +31,6 @@ import { StakeysLogo } from './components/StakeysLogo';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
-import { ThemeBanner } from './components/ThemeBanner';
 import { SeasonalDecor } from './components/SeasonalDecor';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
@@ -518,10 +517,6 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Seasonal decor: swinging hero banner (pinned to the top) + themed
-          footer border. Non-blocking — the dashboard stays fully clickable. */}
-      <SeasonalDecor />
-
       {/* Main Content Area.
 
           The shell keeps a stable, height-reserving wrapper and does NOT key or
@@ -684,9 +679,9 @@ export default function App() {
   return (
     <ShopProvider>
       <div className="min-h-screen flex flex-col">
-        {/* Celebration overlay for the active seasonal theme, on every surface
-            and every screen (login, guest booking, website, staff, customer). */}
-        <ThemeBanner />
+        {/* Graphical swinging celebration banner for the active seasonal theme,
+            on every surface and every screen (website, login, staff, customer). */}
+        <SeasonalDecor />
         <div className="flex-1 flex flex-col min-h-0">
           <AppContent />
         </div>
