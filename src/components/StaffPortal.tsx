@@ -75,6 +75,11 @@ import { buildWorkshopActivities } from '../utils/notificationActivity';
 
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
 import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
+import type { TabTone } from './SegmentedTabs';
+import type { LucideIcon } from 'lucide-react';
+import { TileButton } from './tiles/TileButton';
+import { TileGrid } from './tiles/TileGrid';
+import { TileGroup } from './tiles/TileGroup';
 
 interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
@@ -461,7 +466,18 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'weather'
     | 'settings';
 
-  const operationsTabs: SegmentedTab<StaffTabId>[] = [
+  // Tile launcher metadata. The old segmented strips became Windows-8-style
+  // grouped tile grids (see TileGroup); picking a tile opens that view.
+  type StaffTile = {
+    id: StaffTabId;
+    label: string;
+    icon: LucideIcon;
+    tone: TabTone;
+    hint: string;
+    badge?: number | string;
+  };
+
+  const operationTiles: StaffTile[] = [
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
     { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings' },
     { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members' },
@@ -470,8 +486,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
   ];
 
-  const adminTabs: SegmentedTab<StaffTabId>[] = [
-    { id: 'website_cms', label: 'Website', icon: Globe, tone: 'sky', hint: 'Edit the marketing site.content' },
+  const adminTiles: StaffTile[] = [
+    { id: 'website_cms', label: 'Website', icon: Globe, tone: 'sky', hint: 'Edit the marketing site content' },
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
     { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme' },
@@ -551,57 +567,76 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         </div>
       )}
 
-      {/* 3. WORKSTATION NAVIGATOR: grouped, labelled, keyboard-navigable */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Operations</span>
-          <div className="h-px flex-1 bg-neutral-800/70" />
-          {/* Notification bell — latest workshop activity, routed on tap */}
-          <NotificationBell
-            activities={visualActivities}
-            onOpenBooking={(bookingId) => {
-              setFocusBookingUid(bookingId);
-              setStaffTab('bookings');
-            }}
-            onOpenMember={(memberUid) => {
-              setFocusMemberUid(memberUid);
-              setStaffTab('customers');
-            }}
-            onOpenSettings={() => setStaffTab('settings')}
-          />
-        </div>
-        <SegmentedTabs
-          tabs={operationsTabs}
-          active={staffTab}
-          onChange={setStaffTab}
-          ariaLabel="Workshop operations"
-        />
+      {/* 3. WORKSTATION LAUNCHER: grouped tiles, one per tool, keyboard-navigable */}
+      <div className="space-y-4" data-testid="staff-tool-launcher">
+        <TileGroup
+          label="Operations"
+          action={
+            /* Notification bell — latest workshop activity, routed on tap */
+            <NotificationBell
+              activities={visualActivities}
+              onOpenBooking={(bookingId) => {
+                setFocusBookingUid(bookingId);
+                setStaffTab('bookings');
+              }}
+              onOpenMember={(memberUid) => {
+                setFocusMemberUid(memberUid);
+                setStaffTab('customers');
+              }}
+              onOpenSettings={() => setStaffTab('settings')}
+            />
+          }
+        >
+          <TileGrid>
+            {operationTiles.map((t) => (
+              <TileButton
+                key={t.id}
+                icon={t.icon}
+                label={t.label}
+                hint={t.hint}
+                tone={t.tone}
+                badge={t.badge}
+                active={staffTab === t.id}
+                onSelect={() => setStaffTab(t.id)}
+                testId={`staff-tile-${t.id}`}
+              />
+            ))}
+          </TileGrid>
+        </TileGroup>
 
-        <div className="flex items-center gap-2 pt-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Admin &amp; Reports</span>
-          <div className="h-px flex-1 bg-neutral-800/70" />
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedTabs
-            tabs={adminTabs}
-            active={staffTab}
-            onChange={setStaffTab}
-            ariaLabel="Admin and reports"
-            size="sm"
-          />
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm('Are you absolutely sure you want to clean the slate? This will clear all local app data and reload the page.')) {
-                hardResetApp();
-              }
-            }}
-            className="pressable ml-auto flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-rose-900 px-3 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-950/60 hover:text-white"
-          >
-            <RefreshCcw className="w-3.5 h-3.5" />
-            <span>Clean Slate</span>
-          </button>
-        </div>
+        <TileGroup
+          label="Admin &amp; Reports"
+          action={
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Are you absolutely sure you want to clean the slate? This will clear all local app data and reload the page.')) {
+                  hardResetApp();
+                }
+              }}
+              className="pressable flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-rose-900 px-3 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-950/60 hover:text-white"
+            >
+              <RefreshCcw className="w-3.5 h-3.5" />
+              <span>Clean Slate</span>
+            </button>
+          }
+        >
+          <TileGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+            {adminTiles.map((t) => (
+              <TileButton
+                key={t.id}
+                icon={t.icon}
+                label={t.label}
+                hint={t.hint}
+                tone={t.tone}
+                badge={t.badge}
+                active={staffTab === t.id}
+                onSelect={() => setStaffTab(t.id)}
+                testId={`staff-tile-${t.id}`}
+              />
+            ))}
+          </TileGrid>
+        </TileGroup>
       </div>
 
       {/* 4. WORKSTATION VIEWS */}
