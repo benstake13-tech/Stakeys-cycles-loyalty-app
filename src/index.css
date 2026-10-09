@@ -131,6 +131,44 @@
   .tile:hover:not(:disabled) .tile-icon {
     transform: scale(1.12) rotate(-6deg);
   }
+  /* The brand gradient panel over the tile's base colour. */
+  .tile .tile-panel {
+    pointer-events: none;
+    opacity: 0.95;
+    transition: opacity 0.25s ease;
+  }
+  .tile:hover:not(:disabled) .tile-panel {
+    opacity: 1;
+  }
+  /* Radial bloom in the tone colour, so the icon corner glows. */
+  .tile .tile-bloom {
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(var(--tile-glow, 16, 185, 129), 0.5) 0%, transparent 70%);
+  }
+  /* The animated "logo": the icon chip gets a steadily pulsing halo. */
+  .tile .tile-icon {
+    animation: tile-badge-pulse 3.2s ease-in-out infinite;
+  }
+  .tile:hover:not(:disabled) .tile-icon {
+    animation-play-state: paused;
+  }
+  .tile:hover:not(:disabled) .tile-glyph {
+    animation: tile-glyph 0.6s ease-in-out infinite;
+  }
+  /* Slow rotating colour sweep — a permanently "live" brand cue. */
+  .tile .tile-spin {
+    position: absolute;
+    inset: -40%;
+    pointer-events: none;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      rgba(var(--tile-glow, 16, 185, 129), 0.16) 70deg,
+      transparent 140deg
+    );
+    animation: tile-spin 7s linear infinite;
+    opacity: 0.7;
+  }
   .tile .tile-sheen {
     position: absolute;
     inset: 0;
@@ -158,6 +196,8 @@
   @media (prefers-reduced-motion: reduce) {
     .tile,
     .tile .tile-icon,
+    .tile .tile-spin,
+    .tile .tile-glyph,
     .tile:hover:not(:disabled),
     .tile:hover:not(:disabled) .tile-icon,
     .tile:hover:not(:disabled) .tile-arrow {
@@ -214,6 +254,25 @@
   0% { transform: translateX(-120%); opacity: 0; }
   35% { opacity: 1; }
   100% { transform: translateX(120%); opacity: 0; }
+}
+
+/* Branded tile "logo": a soft tone halo pulses around the icon chip so the
+   tile reads as a live, ownable app icon. Hovering nudges the glyph. */
+@keyframes tile-badge-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(var(--tile-glow, 16, 185, 129), 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(var(--tile-glow, 16, 185, 129), 0);
+  }
+}
+@keyframes tile-glyph {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-1.5px) rotate(4deg); }
+}
+@keyframes tile-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes fade-in {

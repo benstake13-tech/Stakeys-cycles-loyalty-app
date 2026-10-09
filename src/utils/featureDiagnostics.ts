@@ -858,9 +858,22 @@ export const FEATURE_TESTS: FeatureTest[] = [
       try {
         const ok = await upsertDiscountCodeToDb(code);
         await deleteDiscountCodeFromDb(id);
-        return ok
-          ? { status: 'pass', detail: 'Discount code written and cleaned up.' }
-          : { status: 'fail', detail: 'Discount code insert rejected.', hint: 'Check the discount_codes type CHECK constraint.' };
+        if (ok) return { status: 'pass', detail: 'Discount code written and cleaned up.' };
+        // The boolean helper swallows the DB error; replay the insert directly so
+        // the real Postgres code (e.g. 23514 from the legacy type CHECK) is shown
+        // with an actionable hint instead of a generic "rejected".
+        const client = getSupabaseClient();
+        const { error } = await client.from('discount_codes').upsert(
+          { id, code: 'DIAGTEST', title: 'Diagnostics code', type: 'percent', value: 10, status: 'active' },
+          { onConflict: 'id' }
+        );
+        await client.from('discount_codes').delete().eq('id', id);
+        const message = error ? error.message : 'Discount code insert rejected.';
+        return {
+          status: 'fail',
+          detail: message,
+          hint: error ? hintFor(message) : 'Check the discount_codes type CHECK constraint.',
+        };
       } catch (e) {
         const message = err(e);
         return { status: 'fail', detail: message, hint: hintFor(message) };

@@ -85,4 +85,20 @@ describe('tile primitives', () => {
     expect(screen.getByTestId('a').style.animationDelay).toBe('0ms');
     expect(screen.getByTestId('b').style.animationDelay).toBe('35ms');
   });
+
+  it('brands the tile with a tone-coloured panel, glow and animated logo', () => {
+    const { container } = render(
+      <TileButton icon={Wrench} label="Till" tone="amber" onSelect={() => {}} testId="t" />
+    );
+    const tile = screen.getByTestId('t');
+    // Tone is exposed as a CSS variable that the panel/bloom/spin consume.
+    expect(tile.style.getPropertyValue('--tile-glow')).toBe('245,158,11');
+    // The branded layers are present.
+    expect(container.querySelector('.tile-panel')).toBeTruthy();
+    expect(container.querySelector('.tile-bloom')).toBeTruthy();
+    expect(container.querySelector('.tile-spin')).toBeTruthy();
+    expect(container.querySelector('.tile-glyph')).toBeTruthy();
+    // The glyph is wrapped in the pulsing icon chip.
+    expect(container.querySelector('.tile-icon .tile-glyph')).toBeTruthy();
+  });
 });

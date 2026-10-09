@@ -72,6 +72,7 @@ import {
   getHoursUntilBooking,
 } from '../utils/notificationService';
 import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
+import { resetEmailSendGuard } from '../utils/sendOnce';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
 import { sendPushToUser, requestPushPermission, getPushPermission, adminPushTarget } from '../utils/pushNotifications';
 import { buildBookingNotification } from '../utils/bookingNotifications';
@@ -4249,6 +4250,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   const hardResetApp = () => {
     localStorage.clear();
+    resetEmailSendGuard();
     window.location.reload();
   };
 
