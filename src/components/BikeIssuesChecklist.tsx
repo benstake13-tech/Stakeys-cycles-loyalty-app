@@ -21,6 +21,7 @@ import {
   BikeIssueItem,
   ALL_BIKE_ISSUES_MAP,
 } from '../data/bikeIssuesCatalog';
+import { useBookingPhrases } from '../utils/bookingTranslator';
 
 interface BikeIssuesChecklistProps {
   selectedIssueIds: string[];
@@ -37,6 +38,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
   onOtherNotesChange,
   vehicleCategory = 'cycle',
 }) => {
+  const t = useBookingPhrases();
   const [searchQuery, setSearchQuery] = useState('');
   
   // Track open/collapsed state of categories (open by default as in <details open>)
@@ -164,7 +166,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search symptoms (e.g. squeak, gears, flat tire, chain, rubbing, rattle)..."
+          placeholder={t.issuesSearchPlaceholder}
           className="w-full bg-[#090b0e] border border-neutral-800 rounded-xl pl-10 pr-9 py-2.5 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 transition-colors"
         />
         {searchQuery && (
@@ -182,8 +184,8 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
       {selectedIssueIds.length > 0 && (
         <div className="p-3.5 rounded-2xl bg-neutral-950/80 border border-emerald-500/30 space-y-2 animate-fade-in">
           <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
-            <span>Reported Workshop Symptoms ({selectedIssueIds.length}):</span>
-            <span className="text-[10px] text-neutral-400 normal-case font-normal">Click × to deselect</span>
+            <span>{t.issuesReported} ({selectedIssueIds.length}):</span>
+            <span className="text-[10px] text-neutral-400 normal-case font-normal">{t.issuesClickDeselect}</span>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {selectedIssueIds.map((id) => {
@@ -200,7 +202,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
                     type="button"
                     onClick={() => handleToggleIssue(id)}
                     className="text-neutral-400 hover:text-rose-400 p-0.5 cursor-pointer ml-0.5 transition-colors"
-                    title={`Remove ${item.label}`}
+                    title={`${t.remove} ${item.label}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -216,7 +218,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
         {filteredCategories.length === 0 ? (
           <div className="p-6 rounded-2xl bg-neutral-950 border border-neutral-800 text-center text-neutral-400 text-xs">
             <AlertCircle className="w-5 h-5 mx-auto mb-1.5 text-neutral-500" />
-            No symptoms matched "{searchQuery}". You can describe your specific problem in the "Other issues" box below.
+            {t.issuesNoneMatched} &quot;{searchQuery}&quot;. {t.issuesNoneMatchedSuffix}
           </div>
         ) : (
           filteredCategories.map((cat) => {
@@ -275,7 +277,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
                       }}
                       className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 transition-colors cursor-pointer"
                     >
-                      {allCatSelected ? 'Deselect all' : 'Select all'}
+                      {allCatSelected ? t.issuesDeselectAll : t.issuesSelectAll}
                     </button>
                     <div className="text-neutral-400 p-1">
                       {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -324,8 +326,8 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
       {/* Freeform "Other issues (optional)" Note Area */}
       <div style={{ marginTop: '15px' }} className="pt-2">
         <label htmlFor="other-notes" className="block text-xs font-semibold text-neutral-300 mb-1.5 flex items-center justify-between">
-          <span><strong>Other issues (optional):</strong></span>
-          <span className="text-[11px] text-neutral-500 font-normal">Any specific noises, gear combinations, or history</span>
+          <span><strong>{t.issuesOtherLabel}</strong></span>
+          <span className="text-[11px] text-neutral-500 font-normal">{t.issuesOtherHint}</span>
         </label>
         <textarea
           id="other-notes"
@@ -333,7 +335,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
           rows={3}
           value={otherNotes}
           onChange={(e) => onOtherNotesChange(e.target.value)}
-          placeholder="Describe any other issue..."
+          placeholder={t.issuesOtherPlaceholder}
           className="w-full bg-[#090b0e] border border-neutral-800 rounded-xl px-4 py-3 text-xs sm:text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 transition-colors"
         />
       </div>

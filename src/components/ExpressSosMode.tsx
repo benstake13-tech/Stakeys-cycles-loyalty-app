@@ -24,11 +24,11 @@ import {
   ExpressSosTone,
   SOS_RIDER_LANGUAGES,
   SOS_VOICE_MAX_SECONDS,
-  expressSosCtaLabel,
   expressSosStepsComplete,
   formatGpsLocation,
   sosTileHint,
 } from '../utils/expressSos';
+import { useBookingLanguage } from '../utils/bookingTranslator';
 
 export interface SosVehicleOption {
   id: string;
@@ -138,7 +138,8 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
   error,
   onSubmit,
 }) => {
-  const [lang, setLang] = useState('en');
+  const { t, rtl, language: formLanguage } = useBookingLanguage();
+  const [lang, setLang] = useState<string>(formLanguage);
   const [gpsBusy, setGpsBusy] = useState(false);
   const [gpsNote, setGpsNote] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
@@ -236,21 +237,21 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
   const stopRecording = () => stopRef.current?.();
 
   return (
-    <div className="space-y-4" data-testid="express-sos-mode">
+    <div className="space-y-4" data-testid="express-sos-mode" dir={rtl ? 'rtl' : 'ltr'}>
       {/* Three-tap status strip */}
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-rose-500/40 bg-rose-950/30 px-4 py-3">
         <div className="flex items-center gap-2 text-rose-200">
           <Siren className="w-4 h-4 text-rose-400" />
-          <span className="text-xs font-black uppercase tracking-widest">Express SOS · 3 taps</span>
+          <span className="text-xs font-black uppercase tracking-widest">{t.sosExpressBadge}</span>
         </div>
-        <span className="text-[11px] font-bold text-rose-200">{steps.done} / {steps.total} ready</span>
+        <span className="text-[11px] font-bold text-rose-200">{steps.done} / {steps.total} {t.ofStepsReady}</span>
       </div>
 
       {/* 1. Visual issue selector */}
-      <section className="space-y-3" aria-label="What is wrong with your bike?">
+      <section className="space-y-3" aria-label={t.sosH3Problem}>
         <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-neutral-950 text-[11px] font-black">1</span>
-          Tap what is wrong
+          {t.sosH3Problem}
         </h3>
 
         {/* Language chips so a rider can read the hints in their own language. */}
@@ -312,16 +313,16 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
           value={faultText}
           onChange={(e) => onFaultText(e.target.value)}
           rows={2}
-          placeholder="Anything else? (optional — say it in your own words)"
+          placeholder={t.sosAnythingElse}
           className="w-full resize-none rounded-xl border border-neutral-700 bg-neutral-950 p-3 text-xs text-white placeholder-neutral-500 focus:border-rose-500 focus:outline-none"
         />
       </section>
 
       {/* 2. Fast diagnostic media bar */}
-      <section className="space-y-3" aria-label="Add a photo or voice note">
+      <section className="space-y-3" aria-label={t.sosH3Media}>
         <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-neutral-950 text-[11px] font-black">2</span>
-          Show us the problem <span className="text-[10px] font-normal text-neutral-500">(optional)</span>
+          {t.sosShowProblem} <span className="text-[10px] font-normal text-neutral-500">{t.optional}</span>
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           <input
@@ -340,7 +341,7 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
             }`}
           >
             <Camera className="w-4 h-4" />
-            {photoUrl ? 'Photo attached' : 'Take Photo of Issue'}
+            {photoUrl ? t.sosPhotoAttached : t.sosTakePhoto}
           </button>
 
           <button
@@ -358,10 +359,10 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
           >
             <Mic className="w-4 h-4" />
             {recording
-              ? `Recording… ${recordSeconds}s / ${SOS_VOICE_MAX_SECONDS}s`
+              ? `${t.sosRecording} ${recordSeconds}s / ${SOS_VOICE_MAX_SECONDS}s`
               : voiceUrl
-              ? 'Voice note recorded'
-              : `Hold to Record Voice Note (${SOS_VOICE_MAX_SECONDS}s)`}
+              ? t.sosVoiceRecorded
+              : `${t.sosHoldToRecord} (${SOS_VOICE_MAX_SECONDS}s)`}
           </button>
         </div>
 
@@ -399,10 +400,10 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
       </section>
 
       {/* 3. Location + vehicle + contact, then one-tap dispatch */}
-      <section className="space-y-3" aria-label="Where are you and how do we reach you?">
+      <section className="space-y-3" aria-label={t.sosH3Location}>
         <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500 text-neutral-950 text-[11px] font-black">3</span>
-          Where are you?
+          {t.sosWhereAreYou}
         </h3>
 
         <div className="flex flex-col sm:flex-row gap-2">
@@ -410,7 +411,7 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
             type="text"
             value={location}
             onChange={(e) => onLocation(e.target.value)}
-            placeholder="Nearest landmark, or tap GPS"
+            placeholder={t.sosLandmarkPlaceholder}
             className="w-full rounded-xl border border-neutral-700 bg-neutral-950 p-3 text-xs text-white placeholder-neutral-500 focus:border-rose-500 focus:outline-none"
           />
           <button
@@ -420,7 +421,7 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
             className="shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border border-sky-500/50 bg-sky-500/10 px-4 py-3 text-xs font-bold text-sky-300 cursor-pointer disabled:opacity-50"
           >
             {gpsBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Navigation className="w-4 h-4" />}
-            Use My Current Location
+            {t.sosUseLocation}
           </button>
         </div>
         {gpsNote && <p className="text-[11px] text-sky-300 flex items-center gap-1.5"><MapPin className="w-3 h-3" /> {gpsNote}</p>}
@@ -428,7 +429,7 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
         {/* Vehicle auto-selected from the rider's saved garage. */}
         {vehicles.length > 0 && (
           <div className="space-y-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Your vehicle</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{t.sosYourVehicle}</span>
             <div className="flex flex-wrap gap-2">
               {vehicles.map((v) => {
                 const active = v.id === selectedVehicleId;
@@ -457,7 +458,7 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
               type="text"
               value={contactName}
               onChange={(e) => onContactName(e.target.value)}
-              placeholder="Your name"
+              placeholder={t.sosYourName}
               className="w-full rounded-xl border border-neutral-700 bg-neutral-950 pl-9 pr-3 py-3 text-xs text-white placeholder-neutral-500 focus:border-rose-500 focus:outline-none"
             />
           </div>
@@ -467,7 +468,7 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
               type="tel"
               value={contactPhone}
               onChange={(e) => onContactPhone(e.target.value)}
-              placeholder="Mobile (for WhatsApp)"
+              placeholder={t.sosMobileWhatsapp}
               className="w-full rounded-xl border border-neutral-700 bg-neutral-950 pl-9 pr-3 py-3 text-xs text-white placeholder-neutral-500 focus:border-rose-500 focus:outline-none"
             />
           </div>
@@ -486,18 +487,18 @@ export const ExpressSosMode: React.FC<ExpressSosModeProps> = ({
       >
         {submitting ? (
           <>
-            <Loader2 className="w-4 h-4 animate-spin" /> Sending SOS…
+            <Loader2 className="w-4 h-4 animate-spin" /> {t.sosSending}
           </>
         ) : (
           <>
             <Siren className="w-4 h-4" />
-            {expressSosCtaLabel(EXPRESS_SOS_SURCHARGE)}
+            {t.sosCta} — £{EXPRESS_SOS_SURCHARGE.toFixed(0)}
             <ArrowRight className="w-4 h-4" />
           </>
         )}
       </button>
       <p className="text-center text-[10px] text-neutral-500">
-        Nothing is charged now — we approve, then send a £{EXPRESS_SOS_SURCHARGE.toFixed(0)} express quote on WhatsApp for you to confirm.
+        {t.sosChargedNote}
       </p>
     </div>
   );
