@@ -32,7 +32,7 @@ export const BIKE_CATEGORY_OPTIONS: BikeCategoryOption[] = [
     title: 'Electric Scooter (E-Scooter)',
     subtitle: 'Standing commuter or folding electric scooter.',
     iconName: 'Zap',
-    popularExamples: 'Xiaomi Mi Pro 2 / M365, Segway-Ninebot Max, Pure Electric',
+    popularExamples: 'Xiaomi Mi Pro 2 / M365, Segway-Ninebot Max, Pure Electric, Vsett, Apollo, Dualtron, Kaabo',
   },
   {
     id: 'cargo',

@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
   runBootScan: vi.fn(),
-  executeRepairTarget: vi.fn(async () => {}),
+  executeRepairTarget: vi.fn(async (_target?: unknown, _deps?: unknown) => {}),
 }));
 
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => ({ theme: 'dark' }) }));
