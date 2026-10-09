@@ -6,9 +6,16 @@ import {
   isRtlLanguage,
   loadSavedLanguage,
   saveLanguage,
+  languageEnglishName,
   LanguageCode,
 } from './src/utils/bookingTranslator';
-import { translateToEnglish, translateBookingNotes } from './src/api/translationService';
+import {
+  translateToEnglish,
+  translateBookingNotes,
+  detectAndTranslateToEnglish,
+  detectTextLanguage,
+  translateBookingNotesWithOriginal,
+} from './src/api/translationService';
 
 describe('bookingTranslator phrase book', () => {
   it('offers the languages the local rider communities actually speak', () => {
@@ -116,5 +123,101 @@ describe('translationService', () => {
   it('translateBookingNotes normalises missing fields to empty strings', async () => {
     const out = await translateBookingNotes({}, 'pl');
     expect(out).toEqual({ notes: '', problemNotes: '', accessNotes: '', additionalDetails: '' });
+  });
+});
+
+describe('languageEnglishName', () => {
+  it('renders a human English name for a supported code', () => {
+    expect(languageEnglishName('pl')).toBe('Polish');
+    expect(languageEnglishName('ar')).toBe('Arabic');
+    expect(languageEnglishName('en')).toBe('English');
+  });
+
+  it('falls back to the raw code for an unknown language', () => {
+    expect(languageEnglishName('klingon')).toBe('klingon');
+  });
+});
+
+describe('detectTextLanguage', () => {
+  it('spots Cyrillic text regardless of the form UI language', () => {
+    expect(detectTextLanguage('Зaдний тормоз мягкий')).toBe('uk');
+  });
+
+  it('spots Arabic-script text', () => {
+    expect(detectTextLanguage('الفرامل الخلفية ضعيفة')).toBe('ar');
+  });
+
+  it('spots Urdu (RTL non-Arabic) text', () => {
+    expect(detectTextLanguage('پچھلا بریک نرم لگتا ہے')).toBe('ur');
+  });
+
+  it('spots Punjabi (Gurmukhi) text', () => {
+    expect(detectTextLanguage('ਪਿਛਲਾ ਬ੍ਰੇਕ ਨਰਮ ਲੱਗਦਾ ਹੈ')).toBe('pa');
+  });
+
+  it('returns undefined for Latin script it cannot pin to one dialect', () => {
+    expect(detectTextLanguage('Rear brake is spongy')).toBeUndefined();
+  });
+
+  it('returns undefined for empty/whitespace input', () => {
+    expect(detectTextLanguage('   ')).toBeUndefined();
+    expect(detectTextLanguage('')).toBeUndefined();
+  });
+});
+
+describe('detectAndTranslateToEnglish', () => {
+  it('returns input unchanged for empty text', async () => {
+    expect(await detectAndTranslateToEnglish('   ', 'pl')).toEqual({ text: '', detected: undefined });
+  });
+
+  it('keeps the input when the UI language is English', async () => {
+    expect(await detectAndTranslateToEnglish('I need my bike by Friday', 'en')).toEqual({ text: 'I need my bike by Friday', detected: undefined });
+  });
+
+  it('translates Cyrillic free text even when the form UI is English (language mismatch fallback)', async () => {
+    // No Gemini key in the test env — the raw text is the only thing we can
+    // assert; the detection (Cyrillic → uk) is what proves the fallback path.
+    const out = await detectAndTranslateToEnglish('Зaдний тормоз мягкий', 'en');
+    expect(out.detected).toBe('uk');
+    expect(out.text).toBe('Зaдний тормоз мягкий');
+  });
+});
+
+describe('translateBookingNotesWithOriginal', () => {
+  it('is a direct pass-through when the form is in English', async () => {
+    const out = await translateBookingNotesWithOriginal(
+      { notes: 'n', problemNotes: 'p', accessNotes: 'a', additionalDetails: 'd' },
+      'en'
+    );
+    expect(out.translated).toEqual({ notes: 'n', problemNotes: 'p', accessNotes: 'a', additionalDetails: 'd' });
+    expect(out.original).toEqual({ notes: 'n', problemNotes: 'p', accessNotes: 'a', additionalDetails: 'd' });
+    expect(out.languageDetected).toBeUndefined();
+  });
+
+  it('keeps the original native text alongside the English, even when unconfigured', async () => {
+    // No VITE_GEMINI_API_KEY → translation falls back to the raw text, but the
+    // original field must still carry the rider's words for the staff toggle.
+    const out = await translateBookingNotesWithOriginal(
+      { notes: 'Manualne pedały', problemNotes: 'Tylny hamulec miękki' },
+      'pl'
+    );
+    expect(out.original).toEqual({ notes: 'Manualne pedały', problemNotes: 'Tylny hamulec miękki', accessNotes: '', additionalDetails: '' });
+    expect(out.translated.problemNotes).toBe('Tylny hamulec miękki');
+  });
+
+  it('surfaces a single detected language when all fields agree', async () => {
+    const out = await translateBookingNotesWithOriginal(
+      { notes: 'Зaметки на русском', problemNotes: 'Тормоз' },
+      'pl'
+    );
+    expect(out.languageDetected).toBe('uk');
+  });
+
+  it('omits language_detected when fields disagree', async () => {
+    const out = await translateBookingNotesWithOriginal(
+      { notes: 'Зaметки на русском', problemNotes: 'الفرامل الأمامية' },
+      'pl'
+    );
+    expect(out.languageDetected).toBeUndefined();
   });
 });

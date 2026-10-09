@@ -70,7 +70,7 @@ import {
   BookingLanguageProvider,
   BookingPhrases,
 } from '../utils/bookingTranslator';
-import { translateBookingNotes, isTranslationConfigured } from '../api/translationService';
+import { translateBookingNotesWithOriginal, isTranslationConfigured } from '../api/translationService';
 import confetti from 'canvas-confetti';
 
 interface BookingPortalProps {
@@ -519,11 +519,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
     setIsSubmitting(true);
     try {
       // Translate the rider's free text to English for the workshop. Failures
-      // fall back to the original text, so this never blocks a booking.
-      const translated =
-        language !== 'en'
-          ? await translateBookingNotes({ notes, problemNotes, accessNotes, additionalDetails }, language)
-          : { notes, problemNotes, accessNotes, additionalDetails };
+      // fall back to the original text, so this never blocks a booking. Always
+      // run the bilingual path so a rider who types in a different language
+      // than the UI language gets detected and translated correctly.
+      const bilingual = await translateBookingNotesWithOriginal(
+        { notes, problemNotes, accessNotes, additionalDetails },
+        language
+      );
+      const { translated } = bilingual;
       const langNote =
         language !== 'en'
           ? `Booking completed in ${BOOKING_LANGUAGES.find((l) => l.code === language)?.english || language}`
@@ -644,6 +647,35 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         .filter(Boolean)
         .join('\n\n');
 
+      // Structured bilingual payload for the staff card: the English values the
+      // mechanic reads, plus the untouched native strings they can expand. Only
+      // created when there is actual free text to compare.
+      const hasFreeText = [notes, problemNotes, accessNotes, additionalDetails].some((f) => f.trim());
+      const bilingualPayload =
+        hasFreeText && (language !== 'en' || bilingual.languageDetected)
+          ? {
+              customer_language: language !== 'en' ? language : bilingual.languageDetected || 'en',
+              language_detected: bilingual.languageDetected,
+              translated_payload_en: {
+                customer_name: customerName.trim(),
+                contact_info: [customerEmail.trim(), customerPhone.trim()].filter(Boolean).join(' · '),
+                booking_date_time: `${preferredDate} ${preferredTimeSlot}`.trim(),
+                service_type: serviceType === 'home_visit' ? 'Home visit / call-out' : 'Drop off at workshop',
+                issue_description: [translated.problemNotes?.trim(), translated.notes.trim()]
+                  .filter(Boolean)
+                  .join(' — '),
+                additional_notes: [translated.accessNotes.trim(), translated.additionalDetails.trim()]
+                  .filter(Boolean)
+                  .join(' — '),
+              },
+              original_payload_native: {
+                service_type: serviceType === 'home_visit' ? t.homeVisit : t.dropOff,
+                issue_description: [problemNotes.trim(), notes.trim()].filter(Boolean).join(' — '),
+                additional_notes: [accessNotes.trim(), additionalDetails.trim()].filter(Boolean).join(' — '),
+              },
+            }
+          : undefined;
+
       const sanitizedEmail =
         customerEmail.trim() ||
         `${customerName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'guest'}-${customerPhone.replace(/[^0-9]/g, '').slice(-4) || 'quick'}@guest.stakeysbikes.co.uk`;
@@ -667,6 +699,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         preferredDate: serviceType === 'home_visit' || expressSos ? todayIso : preferredDate,
         preferredTimeSlot: serviceType === 'home_visit' || expressSos ? homeVisitTime : preferredTimeSlot,
         notes: finalNotes,
+        translationPayload: bilingualPayload,
         referralCode: referralCode.trim() || undefined,
         selectedIssues: expressSos ? expressSosIssueIds(sosTile || undefined) : selectedIssueIds,
         otherNotes: (expressSos ? sosExpressFault : problemNotes).trim() || undefined,
