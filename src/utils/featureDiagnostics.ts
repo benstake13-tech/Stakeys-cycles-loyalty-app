@@ -1997,14 +1997,16 @@ export const FEATURE_TESTS: FeatureTest[] = [
     run: async () => {
       const languages = BOOKING_LANGUAGES.map((l) => l.code);
       const rtlOk = isRtlLanguage('ar') && isRtlLanguage('ur') && !isRtlLanguage('en');
+      const englishKeys = Object.keys(getPhrases('en'));
       const complete = languages.every((code) => {
         const phrases = getPhrases(code);
         const values = Object.values(phrases);
-        return values.length > 0 && values.every((v) => typeof v === 'string' && v.trim().length > 0);
+        const sameKeys = Object.keys(phrases).length === englishKeys.length;
+        return sameKeys && values.length > 0 && values.every((v) => typeof v === 'string' && v.trim().length > 0);
       });
       const ok = languages.length >= 14 && rtlOk && complete;
       return ok
-        ? { status: 'pass', detail: `${languages.length} languages complete; Arabic + Urdu are RTL.` }
+        ? { status: 'pass', detail: `${languages.length} languages x ${englishKeys.length} phrases complete; Arabic + Urdu are RTL.` }
         : { status: 'fail', detail: `languages=${languages.length}; rtl=${rtlOk}; complete=${complete}` };
     },
   },

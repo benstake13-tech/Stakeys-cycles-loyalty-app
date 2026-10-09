@@ -67,6 +67,8 @@ import {
   isRtlLanguage,
   loadSavedLanguage,
   saveLanguage,
+  BookingLanguageProvider,
+  BookingPhrases,
 } from '../utils/bookingTranslator';
 import { translateBookingNotes, isTranslationConfigured } from '../api/translationService';
 import confetti from 'canvas-confetti';
@@ -89,6 +91,19 @@ const SOS_VEHICLE_USE_LABEL: Record<string, string> = {
   commuter: 'Commuter — needs it to get to work',
   other: 'Other (described below)',
 };
+
+/** The translated label for the SOS "what do you use it for?" select options. */
+function sosUsePhrase(t: BookingPhrases, value: string, fallback: string): string {
+  const map: Record<string, string | undefined> = {
+    uber_eats: t.sosUseUber,
+    deliveroo: t.sosUseDeliveroo,
+    just_eat: t.sosUseJustEat,
+    courier: t.sosUseCourier,
+    commuter: t.sosUseCommuter,
+    other: t.sosUseOther,
+  };
+  return map[value] || fallback;
+}
 
 export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes, onBookingComplete }) => {
   const { currentUser, createBooking, redeemServiceVoucher, ownerConfig, discountCodes } = useShop();
@@ -200,6 +215,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   const [language, setLanguage] = useState<LanguageCode>(() => loadSavedLanguage());
   const t = useMemo(() => getPhrases(language), [language]);
   const rtl = isRtlLanguage(language);
+  const languageValue = useMemo(
+    () => ({ language, t, rtl, setLanguage }),
+    [language, t, rtl]
+  );
   useEffect(() => {
     saveLanguage(language);
   }, [language]);
@@ -327,12 +346,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       return d.toISOString().split('T')[0];
     };
     return [
-      { label: 'Today', value: make(0) },
-      { label: 'Tomorrow', value: make(1) },
-      { label: 'In 2 days', value: make(2) },
-      { label: 'Next week', value: make(7) },
+      { label: t.today, value: make(0) },
+      { label: t.tomorrow, value: make(1) },
+      { label: t.in2Days, value: make(2) },
+      { label: t.nextWeek, value: make(7) },
     ];
-  }, []);
+  }, [t]);
 
   const computedService = React.useMemo(() => {
     if (problemSelectionMode === 'packages') {
@@ -710,7 +729,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   // SUCCESS CONFIRMATION VOUCHER
   if (submittedBooking) {
     return (
-      <div className="max-w-2xl mx-auto space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+      <BookingLanguageProvider value={languageValue}>
+      <div
+        className="max-w-2xl mx-auto space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]"
+        dir={rtl ? 'rtl' : 'ltr'}
+        lang={language}
+      >
         <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
           <div className="text-center space-y-3 pb-6 border-b border-neutral-800">
             <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
@@ -718,74 +742,72 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </div>
 
             <div className="text-xs text-neutral-400 font-mono">
-              Reference #{submittedBooking.id} <span aria-hidden="true" className="text-neutral-600">·</span> Confirmation Sent to {submittedBooking.customerEmail}
+              {t.referenceLabel} #{submittedBooking.id} <span aria-hidden="true" className="text-neutral-600">·</span> {t.confirmationSentTo} {submittedBooking.customerEmail}
             </div>
 
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-white">
-              Workshop Repair Request Submitted
+              {t.submittedTitle}
             </h2>
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
               <Clock className="w-3.5 h-3.5" />
-              <span>Awaiting Mechanic Review &amp; Approval</span>
+              <span>{t.awaitingReview}</span>
             </div>
             {isSosBooking(submittedBooking) && (
               <div className="max-w-md mx-auto p-3.5 rounded-xl bg-rose-950/40 border border-rose-500/40 text-left space-y-1.5">
                 <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
                   <Siren className="w-4 h-4" />
-                  SOS EMERGENCY REPAIR — priority call-out
+                  {t.sosSubmittedTitle}
                 </div>
                 <p className="text-[11px] text-neutral-300 leading-relaxed">
-                  You've jumped the workshop queue. Once our team approves it, we'll message you on WhatsApp
-                  to get your <strong>live location</strong>, send your <strong>quote</strong> (includes the
-                  £{SOS_SURCHARGE.toFixed(0)} express surcharge), and set off the moment you confirm the price.
-                  Keep WhatsApp reachable on <strong className="text-neutral-100">{submittedBooking.customerPhone}</strong>.
+                  {t.sosSubmittedBodyPrefix} £{SOS_SURCHARGE.toFixed(0)} {t.sosSubmittedBodySuffix}{' '}
+                  <strong className="text-neutral-100">{submittedBooking.customerPhone}</strong>.
                 </p>
               </div>
             )}
             <p className="text-xs text-neutral-300 max-w-md mx-auto">
-              Staff will contact you and evaluate bench capacity. An automated email notification will be dispatched to inform you immediately once approved or declined.
+              {t.awaitingReviewBody}
             </p>
           </div>
 
           {/* Ticket Summary Details */}
           <div className="py-6 space-y-3 text-xs border-b border-neutral-800/80">
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">Bike / Vehicle:</span>
+              <span className="text-neutral-400">{t.confBikeVehicle}</span>
               <span className="font-semibold text-white">{submittedBooking.vehicleModel}</span>
             </div>
             {submittedBooking.bikeDetails && (
               <div className="flex justify-between py-1 gap-3">
-                <span className="text-neutral-400 shrink-0">Bike Details:</span>
+                <span className="text-neutral-400 shrink-0">{t.confBikeDetails}</span>
                 <span className="text-neutral-200 text-right">
                   {[
                     submittedBooking.bikeDetails.ebikeStatus === 'factory'
-                      ? 'Factory e-bike'
+                      ? t.ebikeFactory
                       : submittedBooking.bikeDetails.ebikeStatus === 'converted'
-                      ? 'Converted e-bike'
+                      ? t.confConvertedEbike
                       : submittedBooking.bikeDetails.ebikeStatus === 'not_ebike'
-                      ? 'Not an e-bike'
+                      ? t.confNotEbike
                       : '',
-                    submittedBooking.bikeDetails.year && `Year ${submittedBooking.bikeDetails.year}`,
-                    submittedBooking.bikeDetails.frameSize && `Frame ${submittedBooking.bikeDetails.frameSize}`,
+                    submittedBooking.bikeDetails.year && `${t.confYear} ${submittedBooking.bikeDetails.year}`,
+                    submittedBooking.bikeDetails.frameSize && `${t.confFrame} ${submittedBooking.bikeDetails.frameSize}`,
                     submittedBooking.bikeDetails.conversionSystem,
                   ]
                     .filter(Boolean)
-                    .join(' · ') || 'Captured at booking'}
+                    .join(' · ') || t.confCapturedAtBooking}
                 </span>
               </div>
             )}
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">Service Package:</span>
+              <span className="text-neutral-400">{t.confServicePackage}</span>
               <span className="font-semibold text-emerald-400">{submittedBooking.serviceTitle}</span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">Pricing / Quote:</span>
+              <span className="text-neutral-400">{t.confPricing}</span>
               <span className="font-mono text-emerald-400 font-bold">
-                Ask for a quote (Itemized invoice sent upon repair completion)
+                {t.confPricingValue}
               </span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">{serviceType === 'home_visit' ? 'Call-Out Schedule:' : 'Drop-off Schedule:'}</span>
+              <span className="text-neutral-400">{serviceType === 'home_visit' ? t.confCalloutSchedule : t.confDropoffSchedule}</span>
               <span className="text-neutral-200">
                 {serviceType === 'home_visit'
                   ? `${submittedBooking.preferredTimeSlot} · ${homeAddress}`
@@ -793,7 +815,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </span>
             </div>
             <div className="flex justify-between py-1">
-              <span className="text-neutral-400">Customer Contact:</span>
+              <span className="text-neutral-400">{t.confCustomerContact}</span>
               <span className="text-neutral-300 font-mono">{submittedBooking.customerEmail}</span>
             </div>
 
@@ -801,7 +823,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             {submittedBooking.selectedIssues && submittedBooking.selectedIssues.length > 0 && (
               <div className="pt-2.5 mt-2 border-t border-neutral-800/80">
                 <span className="text-neutral-400 block mb-1.5 font-medium text-[11px] uppercase tracking-wider font-mono">
-                  Reported Issues / Symptoms ({submittedBooking.selectedIssues.length}):
+                  {t.confReportedIssues} ({submittedBooking.selectedIssues.length}):
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   {submittedBooking.selectedIssues.map((id: string) => {
@@ -886,12 +908,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   </div>
                   <div>
                     <div className="font-bold text-white mb-0.5">
-                      {serviceType === 'home_visit' ? 'Call-Out Confirmation' : 'Automated 24-Hour Reminder Active'}
+                      {serviceType === 'home_visit' ? t.confCalloutConfirmation : t.confReminderActive}
                     </div>
                     <div className="text-neutral-300 leading-relaxed text-[11px]">
                       {serviceType === 'home_visit'
-                        ? `We'll contact you on your number to confirm the arrival slot for your call-out on ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}).`
-                        : `An automated reminder will be sent to your app 24 hours before your scheduled service slot on ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}). Enable notifications so you don't miss it.`}
+                        ? `${t.confCalloutReminderPrefix} ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}).`
+                        : `${t.confReminderPrefix} ${submittedBooking.preferredDate} (${submittedBooking.preferredTimeSlot}). ${t.confReminderSuffix}`}
                     </div>
                   </div>
                 </div>
@@ -902,12 +924,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           {/* What to do next */}
           <div className="py-5 text-xs text-neutral-400 space-y-2">
             <div className="text-neutral-200 font-medium mb-1">
-              {serviceType === 'home_visit' ? 'What happens next:' : 'Drop-off instructions:'}
+              {serviceType === 'home_visit' ? t.confWhatNext : t.confDropoffInstructions}
             </div>
             <div>
               {serviceType === 'home_visit'
-                ? "We'll text you to confirm the exact arrival slot for your mobile call-out. Please have your bike accessible and, for e-bikes and e-scooters, the battery key and charger ready."
-                : "Bring your bike to Stakey's Cycles during your selected time window. Our workshop mechanic will perform a safety check with you before beginning repairs."}
+                ? t.confCalloutNext
+                : t.confDropoffNext}
             </div>
           </div>
 
@@ -918,7 +940,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 onClick={onGoToMyBikes}
                 className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-semibold text-xs cursor-pointer transition-colors"
               >
-                View in My Garage
+                {t.viewInGarage}
               </button>
             )}
             <button
@@ -926,16 +948,22 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               onClick={handleBookAnother}
               className="w-full sm:w-auto px-5 py-2.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-medium text-xs cursor-pointer transition-colors"
             >
-              Book Another Service
+              {t.bookAnother}
             </button>
           </div>
         </div>
       </div>
+      </BookingLanguageProvider>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <BookingLanguageProvider value={languageValue}>
+    <div
+      className="max-w-4xl mx-auto space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]"
+      dir={rtl ? 'rtl' : 'ltr'}
+      lang={language}
+    >
       {/* Workshop Hero Banner with High-Resolution Photography */}
       <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
         <div className="absolute inset-0 z-0">
@@ -951,19 +979,19 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         <div className="relative z-10 p-6 sm:p-8 md:p-10">
           <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
             <span className="text-emerald-400 font-semibold tracking-wider uppercase">
-              Workshop
+              {t.workshop}
             </span>
             <span aria-hidden="true" className="text-neutral-600">·</span>
-            <span>Workshop Mechanics</span>
+            <span>{t.workshopMechanics}</span>
             <span aria-hidden="true" className="text-neutral-600">·</span>
-            <span>Genuine Parts Guarantee</span>
+            <span>{t.genuineParts}</span>
           </div>
 
           <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
-            Book Your Cycle Service
+            {t.heroTitle}
           </h1>
           <p className="text-sm text-neutral-300 mt-2 max-w-xl leading-relaxed">
-            Fast, transparent cycle &amp; e-scooter maintenance. Pick your brand, describe what you need, and drop it off at our workshop.
+            {t.heroSubtitle}
           </p>
         </div>
       </div>
@@ -974,9 +1002,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <div className="flex items-center justify-between mb-3 text-xs">
             <span className="font-semibold text-white flex items-center gap-2">
               <Bike className="w-3.5 h-3.5 text-emerald-400" />
-              Pre-fill from Your Garage
+              {t.prefillTitle}
             </span>
-            <span className="text-neutral-400 font-mono text-[11px]">1-Click Auto Fill</span>
+            <span className="text-neutral-400 font-mono text-[11px]">{t.prefillHint}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {savedBikes.map((b) => (
@@ -1001,10 +1029,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
       {/* Booking Form */}
       <form onSubmit={handleSubmit} className="space-y-6" dir={rtl ? 'rtl' : 'ltr'} lang={language}>
-        {/* Language picker — lets the rider read the form in their own tongue.
-            The shop's own English is never replaced: the workshop always gets
-            an English job sheet (free text is translated on submit). */}
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3">
+        {/* Language picker — lets the rider read the WHOLE form in their own
+            tongue. Kept sticky at the top of the form so the choice is always
+            reachable; the workshop still always receives an English job sheet
+            (free text is translated on submit). */}
+        <div className="sticky top-0 z-30 rounded-2xl border border-emerald-500/30 bg-[#0d1015]/95 backdrop-blur px-4 py-3 shadow-lg">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300">
               <Globe className="w-4 h-4" />
@@ -1026,7 +1055,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           {language !== 'en' && (
             <p className="mt-1.5 text-[11px] text-neutral-400">
               {t.translatingNote}
-              {!isTranslationConfigured() ? ' We will pass your notes to the mechanic as written.' : ''}
+              {!isTranslationConfigured() ? t.translatingNoteFallback : ''}
             </p>
           )}
         </div>
@@ -1040,7 +1069,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           {isEbike(bikeIdentity) && (
             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
               <Zap className="w-3 h-3" />
-              {bikeIdentity.ebikeStatus === 'converted' ? 'Converted E-Bike' : 'E-Bike'}
+              {bikeIdentity.ebikeStatus === 'converted' ? t.ebikeChipConverted : t.ebikeChip}
             </span>
           )}
           <span className="text-neutral-500 hidden sm:inline">•</span>
@@ -1049,7 +1078,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <span className="text-neutral-400">
             {serviceType === 'home_visit' ? `Call-out · ${homeVisitTime}` : `${preferredDate} · ${preferredTimeSlot}`}
           </span>
-          <span className="ml-auto text-emerald-400 font-semibold">Ask for a quote</span>
+          <span className="ml-auto text-emerald-400 font-semibold">{t.askForQuote}</span>
         </div>
 
         {/* Step progress — hidden in Express SOS, which uses its own 3-tap strip. */}
@@ -1057,17 +1086,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl px-3 sm:px-5 py-3.5">
           <div className="flex items-center justify-between gap-2">
             {[
-              { id: 'vehicle', n: '01', label: 'Your Bike', done: bikeStepComplete },
-              { id: 'issues', n: '02', label: 'Issues', done: issuesStepComplete },
-              { id: 'schedule', n: '03', label: 'Drop-off', done: scheduleStepComplete },
-              { id: 'contact', n: '04', label: 'Contact', done: contactStepComplete },
+              { id: 'vehicle', n: '01', label: t.stepBike, done: bikeStepComplete },
+              { id: 'issues', n: '02', label: t.stepIssues, done: issuesStepComplete },
+              { id: 'schedule', n: '03', label: t.stepDropOff, done: scheduleStepComplete },
+              { id: 'contact', n: '04', label: t.stepContact, done: contactStepComplete },
             ].map((step, i, arr) => (
               <React.Fragment key={step.id}>
                 <button
                   type="button"
                   onClick={() => goToStep(step.id)}
                   className="flex flex-col items-center gap-1.5 flex-1 min-w-0 cursor-pointer group"
-                  aria-label={`Go to step ${step.n}: ${step.label}`}
+                  aria-label={`${t.goToStep} ${step.n}: ${step.label}`}
                 >
                   <span
                     className={`w-7 h-7 rounded-full border flex items-center justify-center text-[11px] font-bold font-mono shrink-0 transition-colors ${
@@ -1099,7 +1128,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           </div>
           <div className="mt-2.5 flex items-center justify-between text-[11px] text-neutral-500">
             <span>
-              {bookingProgress} of 4 steps ready
+              {bookingProgress} {t.ofStepsReady}
             </span>
             <span className="font-mono">{Math.round((bookingProgress / 4) * 100)}%</span>
           </div>
@@ -1133,30 +1162,28 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-display text-base font-bold text-white">SOS Emergency Repair</span>
+                <span className="font-display text-base font-bold text-white">{t.sosTitle}</span>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/40">
-                  Priority · Skips the queue
+                  {t.sosPriority}
                 </span>
               </div>
               <p className="text-xs text-neutral-300 mt-1 leading-relaxed">
-                {isSos
-                  ? 'Express mode: tap what is wrong, set your location, send. No long forms — help is on the way.'
-                  : `Broken down mid-shift? For Uber Eats, Deliveroo, Just Eat and courier riders who can't be off the road. We jump you to the front of the queue and set off to you (£${SOS_SURCHARGE.toFixed(0)} express surcharge). Still a request: our team approves it first.`}
+                {isSos ? t.sosExpressBlurb : t.sosClassicBlurb}
               </p>
             </div>
             <span className={`shrink-0 mt-1 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
               isSos ? 'border-rose-400 bg-rose-500/20 text-rose-200' : 'border-neutral-700 text-neutral-500'
             }`}>
               <span className={`h-2 w-2 rounded-full ${isSos ? 'bg-rose-400' : 'bg-neutral-600'}`} />
-              {isSos ? 'ON' : 'OFF'}
+              {isSos ? t.on : t.off}
             </span>
           </button>
 
           {isSos && (
             <div className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/60 p-1.5" role="tablist" aria-label="SOS mode">
               {([
-                { id: 'express', label: '⚡ Express (3 taps)', hint: 'Icons only' },
-                { id: 'classic', label: '📝 Describe it', hint: 'Full form' },
+                { id: 'express', label: `⚡ ${t.sosExpressTab}`, hint: t.sosExpressHint },
+                { id: 'classic', label: `📝 ${t.sosClassicTab}`, hint: t.sosClassicHint },
               ] as const).map((m) => (
                 <button
                   key={m.id}
@@ -1180,7 +1207,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 <div>
                   <label className="block text-xs font-semibold text-neutral-200 mb-1.5 flex items-center gap-1.5">
                     <Truck className="w-3.5 h-3.5 text-rose-400" />
-                    What do you use it for?
+                    {t.sosUseLabel}
                   </label>
                   <select
                     value={sosVehicleUse}
@@ -1188,20 +1215,20 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                     className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500"
                   >
                     {Object.entries(SOS_VEHICLE_USE_LABEL).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+                      <option key={value} value={value}>{sosUsePhrase(t, value, label)}</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-neutral-200 mb-1.5 flex items-center gap-1.5">
                     <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                    Where are you right now?
+                    {t.sosWhereLabel}
                   </label>
                   <input
                     type="text"
                     value={homeAddress}
                     onChange={(e) => setHomeAddress(e.target.value)}
-                    placeholder="Nearest landmark, or what3words"
+                    placeholder={t.sosWherePlaceholder}
                     className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500"
                   />
                 </div>
@@ -1209,13 +1236,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
               <div>
                 <label className="block text-xs font-semibold text-neutral-200 mb-1.5">
-                  Describe the fault <span className="text-rose-400">*</span>
+                  {t.sosDescribeFault} <span className="text-rose-400">*</span>
                 </label>
                 <textarea
                   value={sosIssue}
                   onChange={(e) => setSosIssue(e.target.value)}
                   rows={3}
-                  placeholder="e.g. Rear wheel won't turn, chain jammed — I'm stuck with an order waiting."
+                  placeholder={t.sosFaultPlaceholder}
                   className="w-full bg-neutral-950 border border-neutral-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-rose-500 resize-none"
                 />
               </div>
@@ -1223,18 +1250,18 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <div className="p-3.5 rounded-xl bg-neutral-950/80 border border-rose-500/30 text-[11px] text-neutral-300 space-y-2">
                 <div className="flex items-center gap-2 text-rose-300 font-bold text-xs">
                   <Clock className="w-4 h-4" />
-                  How SOS works
+                  {t.sosHowTitle}
                 </div>
                 <ol className="list-decimal list-inside space-y-1 leading-relaxed">
-                  <li>You send this request with the fault described.</li>
-                  <li>Our team approves it (we'll ping the workshop straight away).</li>
-                  <li>We ask for your <strong>live location over WhatsApp</strong> so we can reach you.</li>
-                  <li>We send you a <strong>quote</strong> — including the £{SOS_SURCHARGE.toFixed(0)} express surcharge.</li>
-                  <li>You reply to <strong>confirm the price</strong>, and we set off immediately.</li>
+                  <li>{t.sosHow1}</li>
+                  <li>{t.sosHow2}</li>
+                  <li>{t.sosHow3}</li>
+                  <li>{t.sosHow4} (£{SOS_SURCHARGE.toFixed(0)})</li>
+                  <li>{t.sosHow5}</li>
                 </ol>
                 <p className="text-neutral-400">
-                  Nothing is charged until you confirm the quote. Keep WhatsApp reachable on{' '}
-                  <strong className="text-neutral-200">{customerPhone || 'your mobile'}</strong>.
+                  {t.sosNothingCharged}{' '}
+                  <strong className="text-neutral-200">{customerPhone || t.yourMobile}</strong>.
                 </p>
               </div>
             </div>
@@ -1285,11 +1312,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               {bikeStepComplete ? <CheckCircle2 className="w-4 h-4" /> : '01'}
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-display text-base font-bold text-white">Your Bike</h3>
+              <h3 className="font-display text-base font-bold text-white">{t.step1Title}</h3>
               <p className="text-xs text-neutral-400">
                 {bikeStepComplete
                   ? `${bikeIdentity.brand} ${resolvedModelName}${isEbike(bikeIdentity) ? ' · e-bike' : ''}`
-                  : 'Type, brand, model, year and e-bike conversion details.'}
+                  : t.step1Hint}
               </p>
             </div>
             <ChevronDown
@@ -1362,11 +1389,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </div>
               <div className="min-w-0">
                 <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
-                  Identify Bike Issues &amp; Service
+                  {t.step2Title}
                   <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform ${openSteps.issues ? 'rotate-180' : ''}`} />
                 </h3>
                 <p className="text-xs text-neutral-400 truncate">
-                  {issuesStepComplete ? computedService.headline : 'Select specific symptoms or choose an all-inclusive service package.'}
+                  {issuesStepComplete ? computedService.headline : t.step2Hint}
                 </p>
               </div>
             </button>
@@ -1382,11 +1409,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                     : 'text-neutral-400 hover:text-white'
                 }`}
               >
-                <span>Choose Symptoms (Checklist)</span>
+                <span>{t.modeChecklist}</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                   problemSelectionMode === 'checklist' ? 'bg-neutral-950/20 text-neutral-950' : 'bg-emerald-500/20 text-emerald-400'
                 }`}>
-                  Popular
+                  {t.popular}
                 </span>
               </button>
               <button
@@ -1398,7 +1425,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                     : 'text-neutral-400 hover:text-white'
                 }`}
               >
-                <span>Fixed Packages</span>
+                <span>{t.modePackages}</span>
               </button>
             </div>
           </div>
@@ -1444,9 +1471,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                     </p>
                   </div>
                   <div className="mt-3 pt-2 border-t border-neutral-800/80 flex items-center justify-between text-[10px] text-neutral-500 font-mono">
-                    <span>Est. {opt.duration}</span>
+                    <span>{t.estDuration} {opt.duration}</span>
                     {selectedProblemId === opt.id && (
-                      <span className="text-emerald-400 font-bold">Selected</span>
+                      <span className="text-emerald-400 font-bold">{t.selected}</span>
                     )}
                   </div>
                 </button>
@@ -1468,9 +1495,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </div>
 
             <div className="sm:text-right shrink-0">
-              <div className="text-[10px] text-neutral-500 font-mono uppercase">Workshop Pricing</div>
+              <div className="text-[10px] text-neutral-500 font-mono uppercase">{t.workshopPricing}</div>
               <div className="text-sm font-bold text-emerald-400">
-                Ask for a quote (Quoted upon inspection)
+                {t.quotedUponInspection}
               </div>
             </div>
           </div>
@@ -1494,14 +1521,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-display text-base font-bold text-white">
-                {serviceType === 'home_visit' ? 'Mobile Call-Out' : 'Drop-Off Window'}
+                {serviceType === 'home_visit' ? t.step3MobileTitle : t.step3Title}
               </h3>
               <p className="text-xs text-neutral-400">
                 {scheduleStepComplete
                   ? serviceType === 'home_visit'
                     ? `${homeVisitTime} · ${homeAddress}`
                     : `${preferredDate} · ${preferredTimeSlot}`
-                  : 'Choose how you want us to fix it, then pick a time.'}
+                  : t.step3Hint}
               </p>
             </div>
             <ChevronDown
@@ -1516,12 +1543,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           {/* How would you like it fixed? */}
           <div className="pt-2">
             <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-              How would you like it fixed?
+              {t.howFixed}
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {([
-                { id: 'in_shop', title: 'Drop off at workshop', desc: 'Bring it to us — fastest turnaround.' },
-                { id: 'home_visit', title: 'Home visit / call-out', desc: 'We come to your address (mobile service).' },
+                { id: 'in_shop', title: t.dropOffOption, desc: t.dropOffOptionDesc },
+                { id: 'home_visit', title: t.homeVisitOption, desc: t.homeVisitOptionDesc },
               ] as const).map((opt) => (
                 <button
                   key={opt.id}
@@ -1553,7 +1580,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                  Address for the call-out
+                  {t.addressLabel}
                 </label>
                 <div className="relative">
                   <MapPin className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1562,14 +1589,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                     required
                     value={homeAddress}
                     onChange={(e) => setHomeAddress(e.target.value)}
-                    placeholder="House number, street, postcode"
+                    placeholder={t.addressPlaceholder}
                     className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                  Preferred arrival time
+                  {t.preferredArrival}
                 </label>
                 <div className="relative">
                   <select
@@ -1588,12 +1615,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               </div>
               <div>
                 <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                  Where can we work? (optional)
+                  {t.whereWork}
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   {([
-                    { id: 'inside', label: 'Inside' },
-                    { id: 'outside', label: 'Outside' },
+                    { id: 'inside', label: t.inside },
+                    { id: 'outside', label: t.outside },
                   ] as const).map((opt) => (
                     <button
                       key={opt.id}
@@ -1611,14 +1638,14 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 </div>
               </div>
               <p className="sm:col-span-2 text-[11px] text-neutral-500">
-                Call-out visits cover Salford and nearby areas. We'll confirm the exact slot by text before we set off.
+                {t.calloutNote}
               </p>
             </div>
           ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Preferred Drop-off Date
+                {t.preferredDropoffDate}
               </label>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {quickDates.map((q) => (
@@ -1651,7 +1678,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                Time Window
+                {t.preferredTimeLabel}
               </label>
               <div className="relative">
                 <select
@@ -1668,7 +1695,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 <ChevronDown className="w-4 h-4 text-neutral-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
               <p className="text-[11px] text-neutral-500 mt-1">
-                Workshop hours Mon–Fri 09:00–18:00, Sat 09:30–13:00.
+                {t.hoursNote}
               </p>
             </div>
 
@@ -1690,7 +1717,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   required
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="e.g. John Smith"
+                  placeholder={t.namePlaceholder}
                   className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1707,7 +1734,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   required
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="+44 7911 123456"
+                  placeholder={t.phonePlaceholder}
                   className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1715,8 +1742,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5 flex items-center justify-between">
-                <span>{t.email} (for notifications)</span>
-                <span className="text-[10px] text-neutral-500 font-normal">Required for confirmations</span>
+                <span>{t.emailForNotifications}</span>
+                <span className="text-[10px] text-neutral-500 font-normal">{t.requiredForConfirmations}</span>
               </label>
               <div className="relative">
                 <Mail className="w-4 h-4 text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1734,21 +1761,21 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 flex items-start gap-2.5">
             <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold text-white">Repair Booking Policy: </span>
-              All bookings are submitted as <em>Pending Staff Approval</em>. Once reviewed, you receive an automated confirmation email notifying you if the booking has been accepted or declined.
+              <span className="font-semibold text-white">{t.policyTitle} </span>
+              {t.policyBody}
             </div>
           </div>
 
           <PolicyDisclaimers
             items={BOOKING_POLICY_DISCLAIMERS}
-            title="Workshop terms & policy"
+            title={t.termsTitle}
             tone="amber"
           />
 
           {/* Refer a Friend code */}
           <div>
             <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-              Refer a Friend Code <span className="text-neutral-500">(Optional)</span>
+              {t.referralLabel}
             </label>
             <div className="relative">
               <Gift className="w-4 h-4 text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1756,22 +1783,22 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 type="text"
                 value={referralCode}
                 onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                placeholder="STK-REF-123456"
+                placeholder={t.referralPlaceholder}
                 className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm font-mono tracking-wider text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
               />
             </div>
             <p className={`text-[11px] mt-1 ${referralCode.trim() && !referralIsFullService ? 'text-amber-400' : 'text-neutral-500'}`}>
               {referralCode.trim()
                 ? referralIsFullService
-                  ? `✓ This booking qualifies for ${describeFriendReward()} — your friend's code will be credited once approved.`
-                  : `The £${FRIEND_REWARD} referral reward only applies to a full service. Your code is still recorded for the referrer.`
-                : `Been referred by a friend? Enter their code to get ${describeFriendReward()}.`}
+                  ? `✓ ${t.referralQualifiesPrefix}`
+                  : t.referralNotFull
+                : t.referralHint}
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-              {t.describeProblem} <span className="text-neutral-500">(Optional)</span>
+              {t.describeProblem} <span className="text-neutral-500">({t.optional})</span>
             </label>
             <textarea
               rows={2}
@@ -1792,7 +1819,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <span className="flex items-center gap-2 text-xs font-semibold text-neutral-200">
                 <Plus className="w-4 h-4 text-emerald-400" />
                 {t.additionalDetails}
-                <span className="text-[10px] font-normal text-neutral-500">Optional</span>
+                <span className="text-[10px] font-normal text-neutral-500">{t.optional}</span>
               </span>
               <ChevronDown className={`w-4 h-4 text-neutral-500 shrink-0 transition-transform ${showExtraDetails ? 'rotate-180' : ''}`} />
             </button>
@@ -1801,7 +1828,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <div className="px-4 pb-4 space-y-4 border-t border-neutral-800 pt-4">
                 <div>
                   <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    {t.accessNotes} <span className="text-neutral-500">(Optional)</span>
+                    {t.accessNotes} <span className="text-neutral-500">({t.optional})</span>
                   </label>
                   <textarea
                     rows={2}
@@ -1814,7 +1841,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
                 <div>
                   <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    {t.additionalDetailsHint} <span className="text-neutral-500">(Optional)</span>
+                    {t.additionalDetailsHint} <span className="text-neutral-500">({t.optional})</span>
                   </label>
                   <textarea
                     rows={3}
@@ -1827,7 +1854,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
                 <div>
                   <label className="block text-xs font-medium text-neutral-300 mb-1.5">
-                    {t.preferredContact} <span className="text-neutral-500">(Optional)</span>
+                    {t.preferredContact} <span className="text-neutral-500">({t.optional})</span>
                   </label>
                   <div className="flex gap-2">
                     {(['call', 'email'] as const).map((mode) => (
@@ -1860,7 +1887,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
                 <Award className="w-4 h-4 text-emerald-400" />
-                <span>£40 Service Voucher Available!</span>
+                <span>£40 {t.vouchersAvailable}</span>
               </div>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-white">
                 <input
@@ -1869,19 +1896,19 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   onChange={(e) => setApplyVoucher(e.target.checked)}
                   className="rounded border-neutral-700 text-emerald-500 focus:ring-emerald-500"
                 />
-                <span>Apply Voucher to this booking</span>
+                <span>{t.applyVoucher}</span>
               </label>
             </div>
             <p className="text-xs text-neutral-300">
               {availableServiceVouchers[0].description ||
-                'Eligible for £40 service (labour only, parts not included)'}
+                `£40 ${t.voucherDescription}`}
               <span className="font-mono text-emerald-400 font-bold block mt-0.5">
-                Voucher Code: {availableServiceVouchers[0].code}
+                {t.voucherCode} {availableServiceVouchers[0].code}
               </span>
             </p>
             {applyVoucher && (
               <div className="text-[11px] text-emerald-300 font-semibold bg-emerald-500/20 px-2.5 py-1 rounded-md inline-block">
-                ✓ £40 Service Voucher will be credited directly against your final itemized repair invoice (Labour only, parts not included)
+                ✓ £40 {t.voucherCredited}
               </div>
             )}
           </div>
@@ -1892,7 +1919,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-2">
           <div className="flex items-center gap-2 text-xs font-bold text-white">
             <Tag className="w-4 h-4 text-emerald-400" />
-            <span>Have a discount code?</span>
+            <span>{t.discountTitle}</span>
           </div>
           {appliedDiscount ? (
             <div className="flex items-center justify-between gap-2">
@@ -1904,7 +1931,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 onClick={clearDiscountCode}
                 className="text-[11px] font-semibold text-neutral-400 hover:text-rose-400 cursor-pointer"
               >
-                Remove
+                {t.remove}
               </button>
             </div>
           ) : (
@@ -1912,7 +1939,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               <input
                 value={discountInput}
                 onChange={(e) => setDiscountInput(e.target.value.toUpperCase())}
-                placeholder="Discount code"
+                placeholder={t.discountPlaceholder}
                 className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
               />
               <button
@@ -1920,13 +1947,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 onClick={applyDiscountCode}
                 className="shrink-0 rounded-lg border border-emerald-500/50 px-3 py-2 text-xs font-bold text-emerald-500 cursor-pointer"
               >
-                Apply
+                {t.apply}
               </button>
             </div>
           )}
           {discountError && <p className="text-[10px] text-rose-400">{discountError}</p>}
           <p className="text-[10px] text-neutral-500">
-            Applied to your final repair invoice — we&apos;ll confirm it when we send your quote.
+            {t.discountHelp}
           </p>
         </div>
         )}
@@ -1948,21 +1975,22 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             className="w-full py-3.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm shadow-xl shadow-emerald-500/15 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? (
-              <span>Confirming Your Workshop Booking...</span>
+              <span>{t.submitting}</span>
             ) : (
               <>
                 <Wrench className="w-4 h-4" />
-                <span>Book Workshop Service · Ask for a Quote</span>
+                <span>{t.submitBooking}</span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
           </button>
           <div className="text-center text-xs text-neutral-400 mt-2">
-            No upfront payment required. Our workshop mechanic will evaluate your bike upon drop-off, complete repairs, and provide an itemized quote/invoice.
+            {t.noUpfrontPayment}
           </div>
         </div>
         )}
       </form>
     </div>
+    </BookingLanguageProvider>
   );
 };
