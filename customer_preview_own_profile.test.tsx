@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock useShop so CustomerPortal renders the signed-in member's own data with no
@@ -45,5 +45,17 @@ describe('Customer Preview', () => {
     expect(screen.queryByText(/preview as/i)).toBeNull();
     expect(screen.queryByText(/switch member/i)).toBeNull();
     expect(screen.queryByText(/select member/i)).toBeNull();
+  });
+
+  it('uses a tile launcher for its sections', () => {
+    render(<CustomerPortal />);
+    const launcher = screen.getByTestId('customer-section-launcher');
+    for (const id of ['garage', 'wheel', 'booking', 'repairs', 'bookings', 'stamps', 'weather', 'refer']) {
+      expect(within(launcher).queryByTestId(`customer-tile-${id}`)).toBeTruthy();
+    }
+    // Selecting a tile switches the active section.
+    fireEvent.click(within(launcher).getByTestId('customer-tile-stamps'));
+    expect(screen.getByTestId('customer-tile-stamps').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('customer-tile-garage').getAttribute('aria-pressed')).toBe('false');
   });
 });
