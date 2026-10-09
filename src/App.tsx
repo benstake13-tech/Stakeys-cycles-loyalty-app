@@ -32,6 +32,7 @@ import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
 import { ThemeBanner } from './components/ThemeBanner';
+import { SeasonalDecor } from './components/SeasonalDecor';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
@@ -516,6 +517,10 @@ function AppContent() {
           </div>
         </div>
       </header>
+
+      {/* Seasonal decor: swinging hero banner (pinned to the top) + themed
+          footer border. Non-blocking — the dashboard stays fully clickable. */}
+      <SeasonalDecor />
 
       {/* Main Content Area.
 

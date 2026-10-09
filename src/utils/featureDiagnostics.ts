@@ -72,6 +72,7 @@ import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import { BOOKING_LANGUAGES, getPhrases, isRtlLanguage } from '../utils/bookingTranslator';
 import { HOLIDAY_THEME_IDS } from '../utils/holidayCalendar';
 import { THEME_BANNERS, themeBannerFor } from '../utils/themeBanners';
+import { THEME_DECOR, themeDecorFor } from '../utils/themeDecor';
 import {
   pressClear,
   pressDigit,
@@ -2106,6 +2107,32 @@ export const FEATURE_TESTS: FeatureTest[] = [
       return ok
         ? { status: 'pass', detail: 'Status derived from dates; overlap flagged; planned row rendered as a conflict.' }
         : { status: 'fail', detail: `status=${statusOk}; clash=${clashOk}; clean=${cleanOk}; timeline=${tlOk}` };
+    },
+  },
+  {
+    id: 'logic-theme-decor',
+    area: 'logic',
+    label: 'Seasonal decor registry',
+    description: 'Every seasonal theme has a full hero + footer decor entry (heading, subtext, web, 4 flyers, trail, corner prop); "none"/unknown map to null.',
+    run: async () => {
+      const missing = HOLIDAY_THEME_IDS.filter((id) => !THEME_DECOR[id as keyof typeof THEME_DECOR]);
+      const malformed = HOLIDAY_THEME_IDS.filter((id) => {
+        const d = THEME_DECOR[id as keyof typeof THEME_DECOR];
+        return (
+          !d ||
+          !d.heading.trim() ||
+          !d.subtext.trim() ||
+          !d.web.trim() ||
+          d.flyers.length < 4 ||
+          d.trail.length < 1 ||
+          !d.cornerProp.trim()
+        );
+      });
+      const noneOk = themeDecorFor('none') === null && themeDecorFor(undefined) === null && themeDecorFor('nope') === null;
+      const ok = missing.length === 0 && malformed.length === 0 && noneOk;
+      return ok
+        ? { status: 'pass', detail: `${HOLIDAY_THEME_IDS.length} themes each have full hero + footer decor; 'none' shows none.` }
+        : { status: 'fail', detail: `missing=[${missing}]; malformed=[${malformed}]; noneOk=${noneOk}` };
     },
   },
 ];
