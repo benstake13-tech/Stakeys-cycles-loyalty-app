@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   BOOKING_LANGUAGES,
   BOOKING_PHRASES,
@@ -80,6 +80,16 @@ describe('booking language preference', () => {
 });
 
 describe('translationService', () => {
+  // The test env loads `.env.local`, which now carries VITE_GEMINI_API_KEY.
+  // These tests must never touch the network, so pin the key empty for the
+  // configured/unconfigured paths and unstub afterwards.
+  beforeEach(() => {
+    vi.stubEnv('VITE_GEMINI_API_KEY', '');
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('returns the input unchanged for English', async () => {
     expect(await translateToEnglish('Rear brake is spongy', 'en')).toBe('Rear brake is spongy');
   });
@@ -89,8 +99,8 @@ describe('translationService', () => {
   });
 
   it('falls back to the original text when translation is unconfigured', async () => {
-    // No VITE_GEMINI_API_KEY in the test env, so the network path is skipped and
-    // the rider's own words are preserved rather than lost.
+    // No key in scope, so the network path is skipped and the rider's own words
+    // are preserved rather than lost.
     const original = 'Tylny hamulec jest miękki';
     expect(await translateToEnglish(original, 'pl')).toBe(original);
   });

@@ -17,3 +17,12 @@ export function resolveGeminiModel(): string {
   const value = typeof override === 'string' ? override.trim() : '';
   return value || DEFAULT_GEMINI_MODEL;
 }
+
+/**
+ * Deterministic calls (translation, short factual assistant answers) must not
+ * spend output budget "thinking". On Gemini 3.x the hidden thinking tokens are
+ * drawn from `maxOutputTokens`, so a small cap (the old 400) is consumed before
+ * the visible answer finishes and the response is silently truncated. Setting
+ * the thinking budget to 0 returns the full answer within a modest token cap.
+ */
+export const NO_THINKING = { thinkingConfig: { thinkingBudget: 0 } } as const;
