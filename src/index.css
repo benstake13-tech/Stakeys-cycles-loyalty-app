@@ -169,11 +169,45 @@
       animation: none;
     }
   }
+
+  /* ---- Bicycle view transition ("ride in / pedal back") ---- */
+  /* The launcher and a tool view are wrapped in a stage whose state drives the
+     motion: `entering` rides in from the left with a slight roll, `exiting`
+     pedals back out to the right, `idle` rests. Transform/opacity only. */
+  .ride-idle,
+  .ride-entering,
+  .ride-exiting {
+    will-change: transform, opacity;
+  }
+  .ride-entering {
+    animation: ride-in 0.42s cubic-bezier(0.22, 0.9, 0.28, 1) both;
+  }
+  .ride-exiting {
+    animation: ride-back 0.42s cubic-bezier(0.4, 0, 0.6, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ride-entering,
+    .ride-exiting {
+      animation: none;
+    }
+  }
 }
 
 @keyframes tile-in {
   from { opacity: 0; transform: translateY(14px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Enter: the view rolls in from the leading edge with a subtle tilt. */
+@keyframes ride-in {
+  from { opacity: 0; transform: translateX(-16px) rotate(-0.6deg) scale(0.985); }
+  to { opacity: 1; transform: translateX(0) rotate(0) scale(1); }
+}
+
+/* Back: the view pedals back out toward the trailing edge. */
+@keyframes ride-back {
+  from { opacity: 0; transform: translateX(16px) rotate(0.6deg) scale(0.985); }
+  to { opacity: 1; transform: translateX(0) rotate(0) scale(1); }
 }
 
 @keyframes tile-sheen {

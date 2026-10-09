@@ -29,6 +29,7 @@ import type { LucideIcon } from 'lucide-react';
 import { TileButton } from './tiles/TileButton';
 import { TileGrid } from './tiles/TileGrid';
 import { TileGroup } from './tiles/TileGroup';
+import { RideTransition, useRideTransition } from './tiles/RideTransition';
 
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
@@ -70,6 +71,9 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>('garage');
+
+  // Bicycle-inspired transition when opening a section from the tile launcher.
+  const ride = useRideTransition();
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
@@ -316,6 +320,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       )}
 
       {/* Primary section navigation — grouped launcher tiles */}
+      <RideTransition state={ride.state}>
       <div data-testid="customer-section-launcher">
         <TileGroup label="Your Account">
           <TileGrid>
@@ -328,7 +333,10 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                 tone={t.tone}
                 badge={t.badge}
                 active={activeTab === t.id}
-                onSelect={() => setActiveTab(t.id)}
+                onSelect={() => {
+                  ride.rideIn();
+                  setActiveTab(t.id);
+                }}
                 testId={`customer-tile-${t.id}`}
               />
             ))}
@@ -755,6 +763,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           <ReferAFriendCard isDark />
         </div>
       )}
+      </RideTransition>
 
       {/* ADD BIKE MODAL */}
       {isAddBikeModalOpen && (

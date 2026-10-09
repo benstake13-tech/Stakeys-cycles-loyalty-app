@@ -82,6 +82,7 @@ import type { LucideIcon } from 'lucide-react';
 import { TileButton } from './tiles/TileButton';
 import { TileGrid } from './tiles/TileGrid';
 import { TileGroup } from './tiles/TileGroup';
+import { RideTransition, useRideTransition } from './tiles/RideTransition';
 
 interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
@@ -238,6 +239,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   // tab. The tab itself acknowledges the request once the booking is revealed.
   useEffect(() => {
     if (!focusBookingId) return;
+    ride.rideIn();
     setStaffTab('bookings');
     setShowTools(false);
   }, [focusBookingId]);
@@ -250,6 +252,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   // The tile launcher is the staff home. Choosing a tile opens its view and
   // collapses the launcher to a "Back to tools" control.
   const [showTools, setShowTools] = useState(true);
+  // Bicycle-inspired transition between the launcher and a tool view.
+  const ride = useRideTransition();
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
@@ -504,8 +508,15 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
   /** Open a tool from the launcher: switch the view and collapse to "Back to tools". */
   const openStaffTab = (id: StaffTabId) => {
+    ride.rideIn();
     setStaffTab(id);
     setShowTools(false);
+  };
+
+  /** Leave a tool and pedal back to the launcher. */
+  const closeStaffTool = () => {
+    ride.rideBack();
+    setShowTools(true);
   };
 
   /**
@@ -588,6 +599,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       )}
 
       {/* 3. WORKSTATION LAUNCHER: grouped tiles, one per tool, keyboard-navigable */}
+      <RideTransition state={ride.state}>
       {showTools ? (
       <div className="space-y-4" data-testid="staff-tool-launcher">
         <TileGroup
@@ -662,7 +674,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       ) : (
         <button
           type="button"
-          onClick={() => setShowTools(true)}
+          onClick={() => closeStaffTool()}
           data-testid="staff-back-to-tools"
           className="pressable inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-[#0b0e13] px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white"
         >
@@ -1226,6 +1238,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </div>
         </div>
       ))}
+      </RideTransition>
 
       {/* Winner Celebration Modal */}
       {drawWinnerModal && (
