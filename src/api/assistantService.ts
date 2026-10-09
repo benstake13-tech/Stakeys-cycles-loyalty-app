@@ -8,7 +8,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 import { AssistantConfig, DEFAULT_ASSISTANT_CONFIG } from '../config/assistantConfig';
-import { resolveGeminiModel, NO_THINKING } from './geminiModel';
+import { resolveGeminiModel, noThinking } from './geminiModel';
 
 export interface AssistantMessage {
   role: 'user' | 'assistant';
@@ -60,8 +60,9 @@ export async function askAssistant(
   }
 
   const ai = new GoogleGenAI({ apiKey });
+  const model = resolveGeminiModel();
   const response = await ai.models.generateContent({
-    model: resolveGeminiModel(),
+    model,
     contents: messages.map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.text }],
@@ -70,7 +71,7 @@ export async function askAssistant(
       systemInstruction: buildSystemInstruction(config, context),
       temperature: 0.4,
       maxOutputTokens: 800,
-      ...NO_THINKING,
+      ...noThinking(model),
     },
   });
 

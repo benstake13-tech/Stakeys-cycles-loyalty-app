@@ -1,10 +1,22 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { resolveGeminiModel } from "./geminiModel";
+import { classifyVisionError, VisionError } from "./visionErrors";
+
+/**
+ * Per-attempt ceiling. The SDK's own retry policy is overridden (see below) so
+ * a busy model fails fast instead of hanging ~2 minutes, and a slow request is
+ * aborted rather than left spinning.
+ */
+const VISION_TIMEOUT_MS = 20000;
+const VISION_MAX_ATTEMPTS = 3; // original + 2 retries
+const RETRY_BASE_DELAY_MS = 700;
 
 const getApiKey = () =>
   (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || "";
 
 export const isBikeVisionConfigured = () => Boolean(getApiKey());
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const BIKE_IDENTIFICATION_PROMPT = `You are Stakey's Cycles' master mechanic and bike identification engine.
 Study the photo of the bicycle or scooter carefully and return a precise, structured assessment.
@@ -98,39 +110,70 @@ const BIKE_RESPONSE_SCHEMA = {
 /**
  * Sends a bike photo to Gemini and returns a structured identification:
  * make/model, positioning, e-kit detection, main specs and obvious problems.
+ *
+ * The SDK's default retry policy (5 attempts, up to 60s apart) is what made a
+ * busy model hang for ~2 minutes. We disable it and run our own bounded loop:
+ * each attempt has a hard 20s ceiling (AbortController), transient capacity
+ * errors (503/500/429) back off and retry up to twice, and any failure is
+ * rethrown as a `VisionError` the UI can show as a clean banner.
  */
 export async function identifyBikeFromImage(base64Image, mimeType = "image/jpeg") {
   const apiKey = getApiKey();
   if (!apiKey) {
-    throw new Error(
-      "AI vision is not configured. Add VITE_GEMINI_API_KEY to your environment to enable bike identification."
-    );
+    throw new VisionError(classifyVisionError(new Error("AI vision is not configured."), { configured: false }));
   }
 
   const ai = new GoogleGenAI({ apiKey });
   const data = typeof base64Image === "string" ? base64Image.split(",").pop() : base64Image;
 
-  const response = await ai.models.generateContent({
-    model: resolveGeminiModel(),
-    contents: [
-      {
-        role: "user",
-        parts: [
-          { inlineData: { data, mimeType } },
-          { text: BIKE_IDENTIFICATION_PROMPT },
-        ],
-      },
-    ],
-    config: {
-      responseMimeType: "application/json",
-      responseSchema: BIKE_RESPONSE_SCHEMA,
-      temperature: 0.2,
-    },
-  });
+  let lastError;
+  for (let attempt = 1; attempt <= VISION_MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, VISION_TIMEOUT_MS);
 
-  const text = response.text;
-  if (!text) throw new Error("The AI returned an empty response. Please try another photo.");
-  return JSON.parse(text);
+    try {
+      const response = await ai.models.generateContent({
+        model: resolveGeminiModel(),
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { inlineData: { data, mimeType } },
+              { text: BIKE_IDENTIFICATION_PROMPT },
+            ],
+          },
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: BIKE_RESPONSE_SCHEMA,
+          temperature: 0.2,
+          abortSignal: controller.signal,
+          // Own the retry/backoff loop instead of the SDK's long default.
+          httpOptions: { timeout: VISION_TIMEOUT_MS, retryOptions: { attempts: 1 } },
+        },
+      });
+
+      const text = response.text;
+      if (!text) throw new Error("The AI returned an empty response. Please try another photo.");
+      return JSON.parse(text);
+    } catch (err) {
+      const info = classifyVisionError(err, { configured: true, timedOut });
+      lastError = info;
+      const canRetry = info.retryable && info.transient && attempt < VISION_MAX_ATTEMPTS;
+      if (!canRetry) break;
+      // Exponential backoff with a little jitter, so retries don't synchronise.
+      const delay = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * 250);
+      await sleep(delay);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw new VisionError(lastError || classifyVisionError(new Error("unknown")));
 }
 
 /**
