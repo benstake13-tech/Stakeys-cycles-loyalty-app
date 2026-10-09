@@ -229,9 +229,10 @@ function AppContent() {
       hint: 'Workshop terminal',
     });
     navTabs.push({ id: 'deliverables', label: 'Config', icon: Layers, tone: 'neutral', hint: 'Architecture & deliverables' });
-  } else if (showStaffEntry) {
-    navTabs.push({ id: 'staff', label: 'Staff Station', icon: Shield, tone: 'amber', hint: 'Secure staff sign-in' });
   }
+  // Signed-in non-staff users get NO staff door in the header: staff access
+  // already requires an initial staff login, so a second entry point here is
+  // redundant. The unlock modal itself stays for deep links / the locked panel.
 
   // ── Surface builds ────────────────────────────────────────────────────────
   // Each domain ships its own bundle. The website build is fully public (guest
