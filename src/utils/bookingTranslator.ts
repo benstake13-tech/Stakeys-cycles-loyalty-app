@@ -4470,3 +4470,8 @@ export function useBookingPhrases(): BookingPhrases {
 export function useBookingLanguage(): BookingLanguageValue {
   return useContext(BookingLanguageContext) ?? ENGLISH_FALLBACK;
 }
+
+/** English name of a language code (e.g. 'pl' → 'Polish'), for staff labels. */
+export function languageEnglishName(code: string): string {
+  return BOOKING_LANGUAGES.find((l) => l.code === code)?.english || code;
+}

@@ -477,6 +477,7 @@ export async function fetchServiceBookingsFromDb(
         preferredTimeSlot: row.preferred_time_slot,
         notes: row.notes || undefined,
         referralCode: row.referral_code || undefined,
+        translationPayload: (row.translation_payload as ServiceBooking['translationPayload']) || undefined,
         status: row.status || 'pending',
         approvalStatus: row.approval_status || (row.status === 'confirmed' ? 'approved' : 'pending_approval'),
         approvedAt: row.approved_at || undefined,
@@ -548,6 +549,7 @@ export async function insertServiceBookingToDb(
       };
       if (includeBikeDetails && booking.bikeDetails) payload.bike_details = booking.bikeDetails;
       if (includeBikeDetails && booking.referralCode) payload.referral_code = booking.referralCode;
+      if (booking.translationPayload) payload.translation_payload = booking.translationPayload;
       if (includeSos && booking.isSos) {
         payload.is_sos = true;
         payload.sos_status = booking.sosStatus || 'requested';
@@ -574,6 +576,7 @@ export async function insertServiceBookingToDb(
       err.code === 'PGRST204' || /schema cache|column/i.test(err.message);
     // Order to shed when PostgREST does not name the offending column.
     const OPTIONAL_KEYS = [
+      'translation_payload',
       'bike_details',
       'referral_code',
       'sos_voice_note_url',
@@ -749,6 +752,7 @@ export async function updateServiceBookingInDb(
     if (updates.estimateReadyAt !== undefined) payload.estimate_ready_at = updates.estimateReadyAt;
     if (updates.bikeDetails !== undefined) payload.bike_details = updates.bikeDetails;
     if (updates.invoice !== undefined) payload.invoice = updates.invoice;
+    if (updates.translationPayload !== undefined) payload.translation_payload = updates.translationPayload;
     if (updates.isSos !== undefined) payload.is_sos = updates.isSos;
     if (updates.sosStatus !== undefined) payload.sos_status = updates.sosStatus;
     if (updates.sosLocationRequestedAt !== undefined) payload.sos_location_requested_at = updates.sosLocationRequestedAt;
@@ -769,6 +773,7 @@ export async function updateServiceBookingInDb(
     const OPTIONAL_COLUMNS = [
       'invoice',
       'notifications',
+      'translation_payload',
       'reminder_count',
       'reminder_last_sent_at',
       'is_sos',
