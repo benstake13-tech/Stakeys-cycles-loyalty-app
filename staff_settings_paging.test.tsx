@@ -188,4 +188,19 @@ describe('staff Settings tab paging', () => {
     // Nothing was unmounted.
     expect(document.querySelector('[data-staff-view="till"]')).toBeTruthy();
   });
+
+  it('opens a tool from the launcher and returns via "Back to tools"', () => {
+    render(<StaffPortal />);
+    expect(screen.getByTestId('staff-tool-launcher')).toBeTruthy();
+    expect(screen.queryByTestId('staff-back-to-tools')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('staff-tile-bookings'));
+    // The launcher collapses to a "Back to tools" control.
+    expect(screen.queryByTestId('staff-tool-launcher')).toBeNull();
+    expect(screen.getByTestId('staff-back-to-tools')).toBeTruthy();
+    expect(isViewShown('bookings')).toBe(true);
+
+    fireEvent.click(screen.getByTestId('staff-back-to-tools'));
+    expect(screen.getByTestId('staff-tool-launcher')).toBeTruthy();
+  });
 });

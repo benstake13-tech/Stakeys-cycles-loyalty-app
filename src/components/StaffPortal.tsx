@@ -46,6 +46,7 @@ import {
   FlaskConical,
   Gift,
   CloudRain,
+  LayoutGrid,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -237,6 +238,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   useEffect(() => {
     if (!focusBookingId) return;
     setStaffTab('bookings');
+    setShowTools(false);
   }, [focusBookingId]);
 
   // Bell deep links. Local because they only ever originate inside the staff
@@ -244,6 +246,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   // same booking).
   const [focusMemberUid, setFocusMemberUid] = useState<string | null>(null);
   const [focusBookingUid, setFocusBookingUid] = useState<string | null>(null);
+  // The tile launcher is the staff home. Choosing a tile opens its view and
+  // collapses the launcher to a "Back to tools" control.
+  const [showTools, setShowTools] = useState(true);
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
 
@@ -496,6 +501,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications, tools & station overview' },
   ];
 
+  /** Open a tool from the launcher: switch the view and collapse to "Back to tools". */
+  const openStaffTab = (id: StaffTabId) => {
+    setStaffTab(id);
+    setShowTools(false);
+  };
+
   /**
    * Keep every staff view mounted and toggle it with CSS visibility instead of
    * unmounting. Removing a view on a sub-tab change (a) re-ran the opacity-0
@@ -556,7 +567,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto">
               <button
                 type="button"
-                onClick={() => setStaffTab('bookings')}
+                onClick={() => openStaffTab('bookings')}
                 className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-400/40 flex items-center justify-center gap-2 cursor-pointer border border-amber-300 hover:scale-[1.02]"
               >
                 <Wrench className="w-4 h-4 text-neutral-950" />
@@ -568,6 +579,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       )}
 
       {/* 3. WORKSTATION LAUNCHER: grouped tiles, one per tool, keyboard-navigable */}
+      {showTools ? (
       <div className="space-y-4" data-testid="staff-tool-launcher">
         <TileGroup
           label="Operations"
@@ -577,13 +589,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
               activities={visualActivities}
               onOpenBooking={(bookingId) => {
                 setFocusBookingUid(bookingId);
-                setStaffTab('bookings');
+                openStaffTab('bookings');
               }}
               onOpenMember={(memberUid) => {
                 setFocusMemberUid(memberUid);
-                setStaffTab('customers');
+                openStaffTab('customers');
               }}
-              onOpenSettings={() => setStaffTab('settings')}
+              onOpenSettings={() => openStaffTab('settings')}
             />
           }
         >
@@ -597,7 +609,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                 tone={t.tone}
                 badge={t.badge}
                 active={staffTab === t.id}
-                onSelect={() => setStaffTab(t.id)}
+                onSelect={() => openStaffTab(t.id)}
                 testId={`staff-tile-${t.id}`}
               />
             ))}
@@ -631,13 +643,24 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                 tone={t.tone}
                 badge={t.badge}
                 active={staffTab === t.id}
-                onSelect={() => setStaffTab(t.id)}
+                onSelect={() => openStaffTab(t.id)}
                 testId={`staff-tile-${t.id}`}
               />
             ))}
           </TileGrid>
         </TileGroup>
       </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowTools(true)}
+          data-testid="staff-back-to-tools"
+          className="pressable inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-[#0b0e13] px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white"
+        >
+          <LayoutGrid className="w-4 h-4" />
+          <span>Back to tools</span>
+        </button>
+      )}
 
       {/* 4. WORKSTATION VIEWS */}
 
