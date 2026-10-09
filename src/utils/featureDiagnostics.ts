@@ -72,6 +72,17 @@ import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import { BOOKING_LANGUAGES, getPhrases, isRtlLanguage } from '../utils/bookingTranslator';
 import { HOLIDAY_THEME_IDS } from '../utils/holidayCalendar';
 import { THEME_BANNERS, themeBannerFor } from '../utils/themeBanners';
+import {
+  pressClear,
+  pressDigit,
+  pressDecimal,
+  pressOp,
+  pressEquals,
+  pressPercent,
+  displayAmount,
+  calcJobLine,
+  applyOp,
+} from '../utils/tillCalculator';
 import type {
   CustomerBike,
   ServiceBooking,
@@ -2028,6 +2039,39 @@ export const FEATURE_TESTS: FeatureTest[] = [
       return ok
         ? { status: 'pass', detail: `${HOLIDAY_THEME_IDS.length} themes each have a banner; 'none' shows none.` }
         : { status: 'fail', detail: `missing=[${missing}]; malformed=[${malformed}]; noneOk=${noneOk}` };
+    },
+  },
+  {
+    id: 'logic-till-calculator',
+    area: 'till',
+    label: 'Till calculator arithmetic',
+    description: 'Four-function chaining with float-safe rounding, divide-by-zero guard, percent, and job-line conversion.',
+    run: async () => {
+      // 12.50 + 7.25 = 19.75 (typed digit-by-digit, as a staff member would).
+      let s = pressClear();
+      s = pressDigit(s, '1');
+      s = pressDigit(s, '2');
+      s = pressDecimal(s);
+      s = pressDigit(s, '5');
+      s = pressDigit(s, '0');
+      s = pressOp(s, '+');
+      s = pressDigit(s, '7');
+      s = pressDecimal(s);
+      s = pressDigit(s, '2');
+      s = pressDigit(s, '5');
+      s = pressEquals(s);
+      const sum = displayAmount(s);
+
+      const floatOk = applyOp(0.1, '+', 0.2) === 0.3;
+      const divZeroGuarded = applyOp(5, '÷', 0) === null;
+      const pctOk = displayAmount(pressPercent({ ...pressClear(), entry: '50' })) === 0.5;
+      const line = calcJobLine(s, 'Gear service', 'Labour');
+      const lineOk = line.unitPrice === sum && line.category === 'Labour' && line.quantity === 1;
+
+      const ok = sum === 19.75 && floatOk && divZeroGuarded && pctOk && lineOk;
+      return ok
+        ? { status: 'pass', detail: `12.50 + 7.25 = ${sum}; float-safe, ÷0 guarded, % and job line OK.` }
+        : { status: 'fail', detail: `sum=${sum}; float=${floatOk}; div0=${divZeroGuarded}; pct=${pctOk}; line=${lineOk}` };
     },
   },
 ];
