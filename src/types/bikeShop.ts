@@ -336,6 +336,38 @@ export interface BookingNotificationLog {
     | 'status_update';
 }
 
+/**
+ * Bilingual booking form payload — the exact schema the staff app renders.
+ *
+ * The customer fills in the booking form in their own language; on submit the
+ * free-text fields are machine-translated to English for the workshop. This
+ * object keeps BOTH sides so the mechanic can read the English job sheet and,
+ * if a nuance is ever in doubt, expand the original native text. Legacy
+ * bookings (pre-dating this field) simply have no payload — the staff card
+ * falls back to the English `notes` block they already carry.
+ */
+export interface BookingTranslationPayload {
+  /** The language the booking form was presented in (e.g. 'pl'). */
+  customer_language: string;
+  /** The language the *typed text* was detected to actually be, if different from UI. */
+  language_detected?: string;
+  /** English values the workshop reads. */
+  translated_payload_en: {
+    customer_name: string;
+    contact_info: string;
+    booking_date_time: string;
+    service_type: string;
+    issue_description: string;
+    additional_notes: string;
+  };
+  /** The original native text the customer typed, for verification. */
+  original_payload_native: {
+    service_type: string;
+    issue_description: string;
+    additional_notes: string;
+  };
+}
+
 export interface InvoiceLineItem {
   id: string;
   description: string;
@@ -592,6 +624,8 @@ export interface ServiceBooking {
   notes?: string;
   selectedIssues?: string[];
   otherNotes?: string;
+  /** Bilingual form data (free text in the rider's language + English for the workshop). */
+  translationPayload?: BookingTranslationPayload;
   /** Refer a Friend code used at booking time, if any (friend's £15 reward). */
   referralCode?: string;
   status: BookingStatus;

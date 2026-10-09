@@ -28,6 +28,8 @@ import {
   Trash2,
   Siren,
   RefreshCw,
+  Globe,
+  Languages,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice, ReminderChannel, ReminderRecipients, DEFAULT_REMINDER_SETTINGS, clampNumber } from '../types/bikeShop';
@@ -38,6 +40,7 @@ import { findCustomerForBooking } from '../utils/bookingCustomer';
 import { ALL_BIKE_ISSUES_MAP } from '../data/bikeIssuesCatalog';
 import { dispatchTestEmail } from '../utils/notificationService';
 import { vehicleNouns } from '../utils/vehicleType';
+import { languageEnglishName } from '../utils/bookingTranslator';
 import { RepairCompletionModal } from './RepairCompletionModal';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { StaffRepairProgressPanel } from './StaffRepairProgressPanel';
@@ -155,6 +158,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
   // Completed/cancelled jobs are hidden from the default feed so a busy
   // workshop isn't cluttered; they live behind the "Completed" toggle.
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
+  const [translationsOpen, setTranslationsOpen] = useState<Record<string, boolean>>({});
   const [bookingView, setBookingView] = useState<'queue' | 'sos' | 'phone'>('queue');
   const [selectedBookingForPreview, setSelectedBookingForPreview] = useState<ServiceBooking | null>(null);
 
@@ -1428,10 +1432,87 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
               )}
 
               {/* Customer Notes */}
-              {b.notes && (
+              {b.notes && !b.translationPayload && (
                 <div className="text-xs text-neutral-300 bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 whitespace-pre-line leading-relaxed font-mono">
                   <span className="text-neutral-500 font-mono text-[10px] uppercase block mb-1">Customer / Diagnostic Notes</span>
                   {b.notes}
+                </div>
+              )}
+
+              {/* Bilingual notes: English job sheet (primary) + collapsible original native text. */}
+              {b.translationPayload && (
+                <div
+                  className="rounded-2xl border border-emerald-500/25 bg-neutral-950 p-3.5 space-y-3"
+                  data-testid="bilingual-notes"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-neutral-400 font-mono text-[10px] uppercase tracking-wider">
+                      <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                      Customer Request
+                      <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                        translated from {languageEnglishName(b.translationPayload.customer_language)}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-neutral-500 font-mono normal-case">
+                      English job sheet · original kept for verification
+                    </span>
+                  </div>
+
+                  {/* English primary reading — the mechanic's default view. */}
+                  <div className="bg-emerald-500/[0.04] border border-emerald-500/15 rounded-lg p-3 space-y-2 text-xs text-neutral-200" data-testid="translation-en">
+                    {b.translationPayload.translated_payload_en.issue_description && (
+                      <p><span className="text-emerald-400 font-mono text-[10px] uppercase block mb-0.5">Issue description</span>{b.translationPayload.translated_payload_en.issue_description}</p>
+                    )}
+                    {b.translationPayload.translated_payload_en.additional_notes && (
+                      <p><span className="text-emerald-400 font-mono text-[10px] uppercase block mb-0.5">Additional notes</span>{b.translationPayload.translated_payload_en.additional_notes}</p>
+                    )}
+                    {b.translationPayload.translated_payload_en.service_type && (
+                      <p><span className="text-emerald-400 font-mono text-[10px] uppercase block mb-0.5">Service</span>{b.translationPayload.translated_payload_en.service_type}</p>
+                    )}
+                    {b.translationPayload.translated_payload_en.booking_date_time && (
+                      <p><span className="text-emerald-400 font-mono text-[10px] uppercase block mb-0.5">Scheduled</span>{b.translationPayload.translated_payload_en.booking_date_time}</p>
+                    )}
+                  </div>
+
+                  {/* The whole English job sheet, for a full picture. */}
+                  <p className="text-xs text-neutral-300 whitespace-pre-line leading-relaxed font-mono bg-neutral-950 border border-neutral-800 rounded-lg p-3">
+                    {b.notes}
+                  </p>
+
+                  {/* Collapsible original native text. */}
+                  <div className="border border-neutral-800 rounded-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => setTranslationsOpen((prev) => ({ ...prev, [b.id]: !prev[b.id] }))}
+                      className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold text-neutral-300 hover:text-white hover:bg-neutral-900 transition-colors cursor-pointer"
+                      aria-expanded={Boolean(translationsOpen[b.id])}
+                      data-testid="translation-toggle"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Languages className="w-3.5 h-3.5 text-neutral-400" />
+                        View original ({languageEnglishName(b.translationPayload.customer_language)})
+                      </span>
+                      {translationsOpen[b.id] ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </button>
+                    {translationsOpen[b.id] && (
+                      <div
+                        className="px-3 py-2.5 bg-neutral-900/60 text-xs text-neutral-400 leading-relaxed whitespace-pre-line font-mono border-t border-neutral-800"
+                        data-testid="translation-original"
+                      >
+                        {b.translationPayload.original_payload_native.issue_description && (
+                          <p className="mb-2">
+                            <span className="block text-neutral-500 font-mono text-[10px] uppercase mb-0.5">Original · {languageEnglishName(b.translationPayload.customer_language)}</span>
+                            {b.translationPayload.original_payload_native.issue_description}
+                            {b.translationPayload.original_payload_native.additional_notes ? `\n\n${b.translationPayload.original_payload_native.additional_notes}` : ''}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

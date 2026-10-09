@@ -158,6 +158,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'reminder_last_sent_at', type: 'timestamptz' },
       { name: 'notifications', type: 'jsonb', default: `'[]'::jsonb` },
       { name: 'bike_details', type: 'jsonb' },
+      { name: 'translation_payload', type: 'jsonb' },
       { name: 'approval_status', type: 'text' },
       { name: 'approved_at', type: 'timestamptz' },
       { name: 'approved_by', type: 'text' },
