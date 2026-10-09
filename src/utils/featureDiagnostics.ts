@@ -2051,3 +2051,58 @@ export function summarize(results: FeatureTestResult[]) {
     skipped: results.filter((r) => r.status === 'skipped').length,
   };
 }
+
+/** Deterministic triage order for the boot scan: connectivity first (everything
+ *  else is meaningless without it), then infrastructure, then feature areas. */
+const BOOT_PRIORITY: FeatureArea[] = [
+  'connectivity',
+  'reach',
+  'email',
+  'loyalty',
+  'bookings',
+  'till',
+  'members',
+  'garage',
+  'prizes',
+  'content',
+  'settings',
+  'scanner',
+  'logic',
+];
+
+export interface BootScanSummary {
+  /** True when nothing failed or warned. */
+  healthy: boolean;
+  counts: { pass: number; fail: number; warn: number; skipped: number };
+  /** The area to fix first (highest priority failing/warning area), if any. */
+  failingArea?: FeatureArea;
+  /** The failing/warning results, most actionable first. */
+  problems: FeatureTestResult[];
+}
+
+/**
+ * Pure roll-up of a boot scan: given the Test Bench results, decide whether the
+ * app is healthy and, if not, which single area to fix first. Kept pure over the
+ * results so it is unit-testable without any network.
+ *
+ * Self-test limitations (e.g. the synthetic profile-balance id that can never
+ * pass by design) are not treated as problems.
+ */
+export function summarizeBootScan(results: FeatureTestResult[]): BootScanSummary {
+  const problems = results
+    .filter((r) => (r.status === 'fail' || r.status === 'warn') && !r.selfTestLimited)
+    .sort((a, b) => BOOT_PRIORITY.indexOf(a.area) - BOOT_PRIORITY.indexOf(b.area));
+  const failingArea = problems.length ? problems[0].area : undefined;
+  const counts = summarize(results);
+  return {
+    healthy: problems.length === 0,
+    counts: { pass: counts.pass, fail: counts.fail, warn: counts.warn, skipped: counts.skipped },
+    failingArea,
+    problems,
+  };
+}
+
+/** Runs every test and returns the boot-scan roll-up. */
+export async function runBootScan(): Promise<BootScanSummary> {
+  return summarizeBootScan(await runFeatureTests());
+}

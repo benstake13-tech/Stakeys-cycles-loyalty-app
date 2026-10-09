@@ -70,6 +70,7 @@ import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
+import { StaffHealthBanner } from './StaffHealthBanner';
 import { NotificationBell } from './NotificationBell';
 import { StaffNotificationSettings } from './StaffNotificationSettings';
 import { buildWorkshopActivities } from '../utils/notificationActivity';
@@ -538,6 +539,14 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
+      {/* 0. BOOT-TIME HEALTH SCAN: scans on entry and offers a one-tap Fix */}
+      <StaffHealthBanner
+        onOpenTestBench={() => {
+          setSettingsSection('test_bench');
+          openStaffTab('settings');
+        }}
+      />
+
       {/* 1. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
       {freshBookings.length > 0 && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
