@@ -20,6 +20,18 @@ if [ "$#" -lt 1 ]; then
   exit 2
 fi
 
+# Resolve every argument to an absolute SHA *now*, before any checkout. A bare
+# name like HEAD or a branch would otherwise resolve against the target branch
+# after we switch to it.
+commits=()
+for ref in "$@"; do
+  sha="$(git rev-parse --verify --quiet "${ref}^{commit}")" || {
+    echo "ERROR: '$ref' is not a commit-ish." >&2
+    exit 2
+  }
+  commits+=("$sha")
+done
+
 # Are we on one of the three surface branches?
 source_branch="$(git rev-parse --abbrev-ref HEAD)"
 found=0
@@ -65,16 +77,19 @@ resolve_and_continue() {
     git add -- "$path"
   done <<< "$unmerged"
 
-  if ! git -c core.editor=true cherry-pick --continue >/dev/null 2>&1; then
+  # Force a non-interactive editor: GIT_EDITOR in the environment overrides the
+  # -c core.editor setting, so set it explicitly or --continue hangs/fails.
+  if ! GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true git cherry-pick --continue >/dev/null 2>&1; then
     # Continue failed: likely an empty commit once conflicts were resolved.
     if git status --porcelain | grep -q .; then
       echo "ERROR: could not continue cherry-pick of $sha on $target." >&2
-      git -c core.editor=true cherry-pick --continue
+      GIT_EDITOR=true GIT_SEQUENCE_EDITOR=true git cherry-pick --continue
       return 1
     fi
-    echo "ERROR: cherry-pick of $sha became EMPTY on $target — the target was" >&2
-    echo "       already ahead of $source_branch. This is divergence; investigate" >&2
-    echo "       before syncing (do NOT paper over it)." >&2
+    echo "ERROR: cherry-pick of $sha became EMPTY on $target. Either the commit" >&2
+    echo "       only changed $SURFACE_FILE (nothing to propagate), or $target is" >&2
+    echo "       already ahead of $source_branch (divergence). Investigate before" >&2
+    echo "       syncing — do NOT paper over it." >&2
     git cherry-pick --abort >/dev/null 2>&1 || true
     return 1
   fi
@@ -90,7 +105,7 @@ for target in "${BRANCHES[@]}"; do
     status=1
     break
   fi
-  for sha in "$@"; do
+  for sha in "${commits[@]}"; do
     echo "  cherry-pick $sha"
     if git cherry-pick "$sha" >/dev/null 2>&1; then
       echo "  applied cleanly"
