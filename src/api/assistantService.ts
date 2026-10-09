@@ -8,7 +8,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 import { AssistantConfig, DEFAULT_ASSISTANT_CONFIG } from '../config/assistantConfig';
-import { resolveGeminiModel } from './geminiModel';
+import { resolveGeminiModel, NO_THINKING } from './geminiModel';
 
 export interface AssistantMessage {
   role: 'user' | 'assistant';
@@ -69,7 +69,8 @@ export async function askAssistant(
     config: {
       systemInstruction: buildSystemInstruction(config, context),
       temperature: 0.4,
-      maxOutputTokens: 400,
+      maxOutputTokens: 800,
+      ...NO_THINKING,
     },
   });
 
