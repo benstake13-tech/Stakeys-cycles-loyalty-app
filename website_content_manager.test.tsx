@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DEFAULT_WEBSITE_CONTENT } from './src/data/websiteContent';
 import type { WebsiteContent } from './src/types/websiteContent';
@@ -94,5 +94,46 @@ describe('WebsiteContentManagerTab usability', () => {
     expect(screen.getByText('Shimano brake pads')).toBeTruthy();
     fireEvent.click(screen.getByText('Shimano brake pads'));
     expect(screen.getByLabelText('Product name')).toBeTruthy();
+  });
+
+  it('picks a single website section with the tile picker', () => {
+    render(<WebsiteContentManagerTab />);
+    const picker = screen.getByTestId('cms-section-picker');
+    expect(within(picker).getByTestId('cms-section-all').getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(within(picker).getByTestId('cms-section-faqs'));
+    expect(screen.getByTestId('cms-section-faqs').getAttribute('aria-pressed')).toBe('true');
+    // The focused section is shown; the others are hidden.
+    expect(screen.getByText('Brake pads squealing?')).toBeTruthy();
+    expect(screen.queryByLabelText('Hero title')).toBeNull();
+  });
+
+  it('validates contact fields inline and blocks publishing until fixed', () => {
+    render(<WebsiteContentManagerTab />);
+    expect(screen.queryByTestId('cms-validation-summary')).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'not-an-email' } });
+    expect(screen.getByText('Enter a valid email address.')).toBeTruthy();
+    expect(screen.getByTestId('cms-validation-summary')).toBeTruthy();
+    expect((screen.getAllByText('Publish Changes')[0] as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'hello@stakeys.test' } });
+    expect(screen.queryByTestId('cms-validation-summary')).toBeNull();
+  });
+
+  it('guards an area switch when there are unsaved edits', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    render(<WebsiteContentManagerTab />);
+    fireEvent.change(screen.getByLabelText('Hero title'), { target: { value: 'Temporary' } });
+
+    fireEvent.click(screen.getByText('Shop & Stock'));
+    // Declined the confirm → still on the website area.
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(screen.getByLabelText('Hero title')).toBeTruthy();
+
+    confirmSpy.mockReturnValue(true);
+    fireEvent.click(screen.getByText('Shop & Stock'));
+    expect(screen.queryByLabelText('Hero title')).toBeNull();
+    confirmSpy.mockRestore();
   });
 });
