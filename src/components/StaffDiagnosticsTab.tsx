@@ -10,7 +10,6 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronRight,
-  Zap,
   Database,
   Mail,
   Bell,
@@ -42,6 +41,7 @@ import {
 import { runPushRepair, PushRepairStep, PushRepairStatus, PUSH_STEP_FIX_ACTION } from '../utils/pushRepair';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
+import { RepairTarget, resolveRepairTarget } from '../utils/repairTargets';
 import {
   AREA_LABELS,
   FEATURE_TESTS,
@@ -159,6 +159,10 @@ export const StaffDiagnosticsTab: React.FC = () => {
   // that has never been run shows a "not run yet" flag rather than a blank box.
   const [verifiedAreas, setVerifiedAreas] = useState<FeatureArea[]>(() => getVerifiedAreas());
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Area currently being exercised by its single "Test & Repair" action.
+  const [areaRunning, setAreaRunning] = useState<FeatureArea | null>(null);
+  // When on, only areas with a failing/warning test are shown (easier triage).
+  const [failuresOnly, setFailuresOnly] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -189,16 +193,64 @@ export const StaffDiagnosticsTab: React.FC = () => {
     }
   };
 
-  const handleRunArea = async (area: FeatureArea) => {
+  /** Runs every test in an area and returns the fresh results (so the caller can
+   *  decide whether a repair is needed without waiting for a re-render). */
+  const runAreaTests = async (area: FeatureArea): Promise<FeatureTestResult[]> => {
     const ids = FEATURE_TESTS.filter((t) => t.area === area).map((t) => t.id);
-    setRunning(true);
+    const collected: FeatureTestResult[] = [];
     setResults((prev) => prev.filter((r) => !ids.includes(r.id)));
+    await runFeatureTests((result) => {
+      collected.push(result);
+      setResults((prev) => [...prev.filter((r) => r.id !== result.id), result]);
+    }, ids);
+    setVerifiedAreas(getVerifiedAreas());
+    return collected;
+  };
+
+  /**
+   * The single per-area action: run that area's tests, then — if anything failed
+   * or warned — surface the resolved repair target for the service that fixes it.
+   */
+  const handleTestAndRepairArea = async (area: FeatureArea) => {
+    setAreaRunning(area);
     try {
-      await runFeatureTests((result) => setResults((prev) => [...prev, result]), ids);
+      const collected = await runAreaTests(area);
+      const bad = collected.filter((r) => r.status === 'fail' || r.status === 'warn');
+      if (!bad.length) {
+        flash({ kind: 'ok', text: `${AREA_LABELS[area]} — all checks passed.` });
+        return;
+      }
+      const failing = bad.find((r) => r.status === 'fail') ?? bad[0];
+      const target = resolveRepairTarget({
+        area,
+        tables: Array.from(new Set(bad.flatMap((r) => r.tables ?? []))),
+        id: failing.id,
+      });
+      await applyRepairTarget(target, failing);
     } finally {
-      setRunning(false);
-      setVerifiedAreas(getVerifiedAreas());
+      setAreaRunning(null);
     }
+  };
+
+  /** Runs the resolved repair side-effect for a target (open dashboard / push
+   *  repair) and, for Supabase, opens the copy-ready SQL modal. */
+  const applyRepairTarget = async (target: RepairTarget, failing: FeatureTestResult) => {
+    if (target.service === 'supabase' && target.copySql) {
+      setFixSql({ title: `${AREA_LABELS[failing.area]} — repair SQL`, sql: target.copySql() });
+      return;
+    }
+    if (target.service === 'onesignal') {
+      // Run the in-app push repair, then let the operator open the dashboard for
+      // the server-side settings the browser cannot change.
+      await handlePushRepair();
+      if (target.openUrl) window.open(target.openUrl, '_blank', 'noopener');
+      return;
+    }
+    if (target.service === 'email') {
+      flash({ kind: 'err', text: `Email checks failed: ${failing.detail}${failing.hint ? ` — ${failing.hint}` : ''}` });
+      return;
+    }
+    flash({ kind: 'err', text: `${failing.label}: ${failing.detail}` });
   };
 
   /** Runs a single test on its own, replacing only its previous result. */
@@ -493,23 +545,6 @@ export const StaffDiagnosticsTab: React.FC = () => {
     }
   };
 
-  const openFixSql = (result: FeatureTestResult) => {
-    const tables = result.tables?.length ? result.tables : [];
-    setFixSql({
-      title: result.label,
-      sql: generateRepairSqlForTables(tables),
-    });
-  };
-
-  /** The balance diagnostic cannot create a synthetic profile (uuid + FK), so
-   *  offer the UUID-safe probe instead of a generic schema repair. */
-  const openBalanceProbeSql = (result: FeatureTestResult) => {
-    setFixSql({
-      title: `${result.label} — UUID-safe balance probe`,
-      sql: generateProfileBalanceProbeSql(),
-    });
-  };
-
   /**
    * One row per catalogue test. It is always rendered so every feature has its own
    * "Run" control; the result (when present) adds the status, detail and fix SQL.
@@ -575,28 +610,6 @@ export const StaffDiagnosticsTab: React.FC = () => {
                 <span>{result.hint}</span>
               </p>
             )}
-            {result && (result.status === 'fail' || result.status === 'warn') && result.tables?.length ? (
-              <div className="mt-2.5 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => openFixSql(result)}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-neutral-950 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm shadow-emerald-500/20"
-                >
-                  <Wrench className="w-3.5 h-3.5" />
-                  <span>Create fix SQL</span>
-                </button>
-                {result.id === 'profile-balance-write' && (
-                  <button
-                    type="button"
-                    onClick={() => openBalanceProbeSql(result)}
-                    className="px-3 py-1.5 rounded-xl bg-violet-500 hover:bg-violet-400 text-neutral-950 text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer shadow-sm shadow-violet-500/20"
-                  >
-                    <Wrench className="w-3.5 h-3.5" />
-                    <span>Create balance probe SQL</span>
-                  </button>
-                )}
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
@@ -642,6 +655,20 @@ export const StaffDiagnosticsTab: React.FC = () => {
             >
               {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
               <span>{copied ? 'Copied' : 'Copy Report'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setFailuresOnly((v) => !v)}
+              data-testid="failures-only-toggle"
+              aria-pressed={failuresOnly}
+              className={`px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer border ${
+                failuresOnly
+                  ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'
+                  : 'bg-neutral-800 hover:bg-neutral-700 border-neutral-700 text-neutral-200'
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4" />
+              <span>Failures only</span>
             </button>
           </div>
         </div>
@@ -867,15 +894,33 @@ export const StaffDiagnosticsTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Every catalogue test, grouped by area, each runnable on its own */}
-      {AREA_ORDER.map((area) => {
+      {/* Every catalogue test, grouped by area, each with one Test & Repair action */}
+      {AREA_ORDER.filter((area) => {
+        if (!failuresOnly) return true;
+        const areaResults = results.filter((r) => r.area === area);
+        return areaResults.some((r) => r.status === 'fail' || r.status === 'warn');
+      }).map((area) => {
         const areaTests = FEATURE_TESTS.filter((t) => t.area === area);
-        const resultById = new Map(results.filter((r) => r.area === area).map((r) => [r.id, r]));
+        const areaResults = results.filter((r) => r.area === area);
+        const resultById = new Map(areaResults.map((r) => [r.id, r]));
         const isCollapsed = collapsed[area];
-        const areaSummary = summarize(Array.from(resultById.values()));
+        const areaSummary = summarize(areaResults);
         const isVerified = verifiedAreas.includes(area);
+        const isAreaRunning = areaRunning === area;
+        const bad = areaResults.filter((r) => r.status === 'fail' || r.status === 'warn');
+        const target = bad.length
+          ? resolveRepairTarget({
+              area,
+              tables: Array.from(new Set(bad.flatMap((r) => r.tables ?? []))),
+              id: (bad.find((r) => r.status === 'fail') ?? bad[0]).id,
+            })
+          : null;
         return (
-          <div key={area} className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl">
+          <div
+            key={area}
+            data-testid={`area-${area}`}
+            className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl"
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
@@ -895,14 +940,38 @@ export const StaffDiagnosticsTab: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => handleRunArea(area)}
-                disabled={running}
-                className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50 text-neutral-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-neutral-700"
+                onClick={() => handleTestAndRepairArea(area)}
+                disabled={areaRunning !== null}
+                data-testid={`test-repair-${area}`}
+                className="px-3.5 py-1.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-wait text-neutral-950 text-xs font-black flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-emerald-500/20"
               >
-                <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                Test this area
+                {isAreaRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wrench className="w-3.5 h-3.5" />}
+                <span>{isAreaRunning ? 'Testing…' : 'Test & Repair'}</span>
               </button>
             </div>
+
+            {/* Per-area repair banner: only after a run finds problems, and only
+                when the resolver points at a service that can actually fix them. */}
+            {target && target.service !== 'none' && (
+              <div
+                data-testid={`repair-banner-${area}`}
+                className="mt-3 rounded-2xl border border-amber-500/40 bg-amber-500/5 p-3 flex flex-wrap items-center justify-between gap-2"
+              >
+                <p className="text-[11px] text-amber-200/90 flex items-start gap-1.5 max-w-xl">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <span>{target.hint}</span>
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void applyRepairTarget(target, (bad.find((r) => r.status === 'fail') ?? bad[0]))}
+                  data-testid={`repair-action-${area}`}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-sky-500/50 bg-sky-500/10 px-3 py-1.5 text-[11px] font-bold text-sky-200 hover:bg-sky-500/20 cursor-pointer"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>{target.label}</span>
+                </button>
+              </div>
+            )}
 
             {!isCollapsed && (
               <div className="mt-4 space-y-2.5">

@@ -57,7 +57,7 @@ import {
 } from '../utils/garageHydration';
 import { planBalanceProbe } from '../utils/schemaSync';
 import { generateBookingEmailHtml } from '../utils/notificationService';
-import { syntheticWeatherReport, ridingConditionsFor } from '../utils/weatherService';
+import { moonPhase, ridingConditionsFor, syntheticWeatherReport } from '../utils/weatherService';
 import {
   encodeMembership,
   encodeMembershipPayload,
@@ -1882,16 +1882,20 @@ export const FEATURE_TESTS: FeatureTest[] = [
     id: 'logic-weather-report',
     area: 'logic',
     label: 'Riding weather report',
-    description: 'Builds a synthetic 7-day forecast and confirms each day grades for riding.',
+    description: 'Builds a 7-day forecast with hourly + moon phase and confirms every day grades for riding.',
     run: async () => {
       const report = syntheticWeatherReport();
       const graded = report.days.every((d) => {
         const c = ridingConditionsFor(d);
         return c && typeof c.grade === 'string' && typeof c.headline === 'string';
       });
-      return report.days.length === 7 && graded
-        ? { status: 'pass', detail: '7-day forecast built; every day has a riding grade + headline.' }
-        : { status: 'fail', detail: `days=${report.days.length}, graded=${graded}` };
+      // Moon phase is a pure helper; verify it on a known full moon.
+      const full = moonPhase(new Date(Date.UTC(2000, 0, 6, 18, 14) + 14.765 * 86400000));
+      const moonOk = full.name === 'Full Moon' && full.illumination > 0.95;
+      const hourlyOk = report.hourly.length === 24;
+      return report.days.length === 7 && graded && moonOk && hourlyOk
+        ? { status: 'pass', detail: '7-day forecast + 24h hourly built; every day graded; moon phase correct.' }
+        : { status: 'fail', detail: `days=${report.days.length}, graded=${graded}, moon=${moonOk}, hourly=${hourlyOk}` };
     },
   },
   {

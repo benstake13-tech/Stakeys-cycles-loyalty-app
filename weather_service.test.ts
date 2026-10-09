@@ -25,6 +25,13 @@ import {
   weatherLabel,
   WEATHER_CACHE_KEY,
   DailyWeather,
+  buildAirQualityUrl,
+  fetchAirQuality,
+  parseAirQuality,
+  moonPhase,
+  compassPoint,
+  aqiBand,
+  uvBand,
 } from './src/utils/weatherService';
 
 const realFetch = globalThis.fetch;
@@ -43,13 +50,19 @@ function makeDay(overrides: Partial<DailyWeather> = {}): DailyWeather {
     label: 'Clear',
     tempMax: 18,
     tempMin: 10,
+    feelsLikeMax: 17,
+    feelsLikeMin: 9,
     precipProb: 0,
     precipMm: 0,
     windMaxKph: 8,
     windGustKph: 15,
+    windDir: 180,
     uvMax: 3,
+    daylightSeconds: 41400,
+    sunshineSeconds: 20000,
     sunrise: '2026-10-06T07:12',
     sunset: '2026-10-06T18:40',
+    moon: { phase: 0.5, name: 'Full Moon', illumination: 1, emoji: '🌕' },
     ...overrides,
   };
 }
@@ -66,21 +79,65 @@ function openMeteoFixture() {
       precipitation: 0.2,
       weather_code: 3,
       wind_speed_10m: 14.2,
+      wind_direction_10m: 210,
+      wind_gusts_10m: 28,
       relative_humidity_2m: 82,
       pressure_msl: 1009.4,
+      dew_point_2m: 10.2,
+      visibility: 14000,
+    },
+    hourly: {
+      time: Array.from({ length: 30 }, (_, i) => {
+        const d = new Date(Date.UTC(2026, 9, 6, 0, 0) + i * 3600_000);
+        return d.toISOString().slice(0, 13) + ':00';
+      }),
+      temperature_2m: Array.from({ length: 30 }, (_, i) => 10 + (i % 8)),
+      apparent_temperature: Array.from({ length: 30 }, (_, i) => 9 + (i % 8)),
+      relative_humidity_2m: Array.from({ length: 30 }, () => 80),
+      precipitation_probability: Array.from({ length: 30 }, (_, i) => (i % 4) * 20),
+      precipitation: Array.from({ length: 30 }, () => 0.1),
+      weather_code: Array.from({ length: 30 }, () => 3),
+      wind_speed_10m: Array.from({ length: 30 }, () => 15),
+      wind_direction_10m: Array.from({ length: 30 }, () => 200),
+      wind_gusts_10m: Array.from({ length: 30 }, () => 26),
+      visibility: Array.from({ length: 30 }, () => 13000),
+      dew_point_2m: Array.from({ length: 30 }, () => 9),
+      uv_index: Array.from({ length: 30 }, (_, i) => (i % 12 < 6 ? 2 : 0)),
+      is_day: Array.from({ length: 30 }, (_, i) => (i % 24 >= 7 && i % 24 <= 19 ? 1 : 0)),
     },
     daily: {
       time,
       weather_code: [3, 61, 0, 80, 2, 95, 45],
       temperature_2m_max: [16.1, 14.2, 18.9, 15.5, 17.0, 13.3, 12.8],
       temperature_2m_min: [9.4, 8.1, 11.2, 7.6, 10.1, 6.9, 5.4],
+      apparent_temperature_max: [15.1, 13.2, 17.9, 14.5, 16.0, 12.3, 11.8],
+      apparent_temperature_min: [8.4, 7.1, 10.2, 6.6, 9.1, 5.9, 4.4],
       precipitation_sum: [0.4, 5.2, 0, 2.1, 0.1, 8.8, 0],
       precipitation_probability_max: [30, 85, 5, 60, 20, 95, 15],
       wind_speed_10m_max: [18, 34, 12, 27, 20, 46, 15],
       wind_gusts_10m_max: [30, 55, 20, 44, 33, 72, 26],
+      wind_direction_10m_dominant: [180, 210, 90, 240, 200, 260, 300],
       uv_index_max: [2.4, 1.1, 3.6, 1.8, 2.9, 0.7, 1.2],
+      daylight_duration: time.map(() => 41400),
+      sunshine_duration: time.map(() => 18000),
       sunrise: time.map((d) => `${d}T07:10`),
       sunset: time.map((d) => `${d}T18:35`),
+    },
+  };
+}
+
+/** A realistic Open-Meteo air-quality response. */
+function airQualityFixture() {
+  return {
+    current: {
+      european_aqi: 32,
+      us_aqi: 41,
+      pm10: 12.4,
+      pm2_5: 8.1,
+      carbon_monoxide: 210,
+      nitrogen_dioxide: 18.2,
+      sulphur_dioxide: 3.4,
+      ozone: 54.1,
     },
   };
 }
@@ -173,11 +230,28 @@ describe('open-meteo parsing', () => {
     expect(report.current.isDay).toBe(true);
     expect(report.current.humidity).toBe(82);
     expect(report.current.pressureHpa).toBe(1009.4);
+    expect(report.current.windDir).toBe(210);
+    expect(report.current.dewPointC).toBe(10.2);
+    expect(report.current.visibilityM).toBe(14000);
     expect(report.days[0]).toMatchObject({ date: '2026-10-06', kind: 'overcast', tempMax: 16, tempMin: 9 });
     expect(report.days[1].kind).toBe('rain');
     expect(report.days[5].kind).toBe('thunder');
     expect(report.days[6].kind).toBe('fog');
+    expect(report.days[0].windDir).toBe(180);
+    expect(report.days[0].daylightSeconds).toBe(41400);
+    expect(report.days[0].moon.name).toMatch(/Moon|Quarter|Gibbous|Crescent/);
     expect(report.fetchedAt).toBe(1000);
+  });
+
+  it('parses hourly readings and keeps the next 24 hours', () => {
+    const report = parseOpenMeteo(openMeteoFixture(), DEFAULT_WEATHER_LOCATION, Date.UTC(2026, 9, 6, 6, 30));
+    expect(report.hourly.length).toBeGreaterThan(0);
+    expect(report.hourly.length).toBeLessThanOrEqual(24);
+    expect(report.hourly[0]).toMatchObject({ kind: 'overcast', humidity: 80 });
+    expect(report.hourly[0].windDir).toBe(200);
+    // Everything returned is at or after the current hour.
+    const firstMs = new Date(report.hourly[0].time).getTime();
+    expect(firstMs).toBeGreaterThanOrEqual(Date.UTC(2026, 9, 6, 6, 0));
   });
 
   it('survives a partial payload without throwing', () => {
@@ -188,16 +262,101 @@ describe('open-meteo parsing', () => {
 });
 
 describe('fetchWeatherReport', () => {
-  it('returns a parsed report on success', async () => {
-    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => openMeteoFixture() })) as any;
+  it('returns a parsed report and attaches air quality on success', async () => {
+    const fetchImpl = vi.fn(async (url: any) =>
+      String(url).includes('air-quality')
+        ? { ok: true, json: async () => airQualityFixture() }
+        : { ok: true, json: async () => openMeteoFixture() }
+    ) as any;
     const report = await fetchWeatherReport(DEFAULT_WEATHER_LOCATION, { fetchImpl });
     expect(report.days).toHaveLength(7);
-    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(report.airQuality?.europeanAqi).toBe(32);
+    // One forecast call + one air-quality call.
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('still returns the forecast when air quality fails', async () => {
+    const fetchImpl = vi.fn(async (url: any) => {
+      if (String(url).includes('air-quality')) throw new Error('aq down');
+      return { ok: true, json: async () => openMeteoFixture() };
+    }) as any;
+    const report = await fetchWeatherReport(DEFAULT_WEATHER_LOCATION, { fetchImpl });
+    expect(report.days).toHaveLength(7);
+    expect(report.airQuality).toBeNull();
   });
 
   it('throws on a non-ok response', async () => {
     const fetchImpl = vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) })) as any;
     await expect(fetchWeatherReport(DEFAULT_WEATHER_LOCATION, { fetchImpl })).rejects.toThrow(/503/);
+  });
+});
+
+describe('air quality', () => {
+  it('builds a key-less air-quality URL', () => {
+    const url = buildAirQualityUrl(53.48, -2.24);
+    expect(url).toContain('air-quality-api.open-meteo.com');
+    expect(url).toContain('european_aqi');
+    expect(url).not.toContain('apikey');
+  });
+
+  it('parses the AQ payload', () => {
+    const aq = parseAirQuality(airQualityFixture(), 5000);
+    expect(aq.europeanAqi).toBe(32);
+    expect(aq.usAqi).toBe(41);
+    expect(aq.pm25).toBe(8.1);
+    expect(aq.fetchedAt).toBe(5000);
+  });
+
+  it('returns null (never throws) when the AQ request fails', async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('offline');
+    }) as any;
+    expect(await fetchAirQuality(DEFAULT_WEATHER_LOCATION, { fetchImpl })).toBeNull();
+  });
+});
+
+describe('moon phase', () => {
+  it('reports a new moon near the reference new moon', () => {
+    const m = moonPhase(new Date(Date.UTC(2000, 0, 6, 18, 14)));
+    expect(m.name).toBe('New Moon');
+    expect(m.illumination).toBeLessThan(0.05);
+    expect(m.emoji).toBe('🌑');
+  });
+
+  it('reports a full moon roughly half a synodic month later', () => {
+    const full = new Date(Date.UTC(2000, 0, 6, 18, 14) + 14.765 * 86400000);
+    const m = moonPhase(full);
+    expect(m.name).toBe('Full Moon');
+    expect(m.illumination).toBeGreaterThan(0.95);
+    expect(m.emoji).toBe('🌕');
+  });
+
+  it('is deterministic and always 0..1', () => {
+    const d = new Date(Date.UTC(2026, 9, 8));
+    const a = moonPhase(d);
+    const b = moonPhase(d);
+    expect(a).toEqual(b);
+    expect(a.phase).toBeGreaterThanOrEqual(0);
+    expect(a.phase).toBeLessThan(1);
+  });
+});
+
+describe('presentation helpers', () => {
+  it('maps bearings to compass points', () => {
+    expect(compassPoint(0)).toBe('N');
+    expect(compassPoint(90)).toBe('E');
+    expect(compassPoint(180)).toBe('S');
+    expect(compassPoint(270)).toBe('W');
+    expect(compassPoint(350)).toBe('N');
+  });
+
+  it('bands AQI and UV', () => {
+    expect(aqiBand(10).label).toBe('Good');
+    expect(aqiBand(90).tone).toBe('very_poor');
+    expect(aqiBand(null).label).toBe('Unknown');
+    expect(uvBand(0)).toBe('None');
+    expect(uvBand(3)).toBe('Moderate');
+    expect(uvBand(12)).toBe('Extreme');
   });
 });
 
