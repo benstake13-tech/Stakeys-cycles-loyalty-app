@@ -480,8 +480,37 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications, tools & station overview' },
   ];
 
+  /**
+   * Keep every staff view mounted and toggle it with CSS visibility instead of
+   * unmounting. Removing a view on a sub-tab change (a) re-ran the opacity-0
+   * entrance and (b) let the seasonal backdrop flash through the gap. The panes
+   * stay in the DOM; only the active one is `block`.
+   */
+  const staffView = (id: StaffTabId, node: React.ReactNode) => (
+    <div
+      key={id}
+      data-staff-view={id}
+      className={staffTab === id ? 'block' : 'hidden'}
+      aria-hidden={staffTab !== id}
+    >
+      {node}
+    </div>
+  );
+
+  /** Same visibility-toggle pattern for the Settings sub-sections. */
+  const settingsPane = (id: SettingsSection, node: React.ReactNode) => (
+    <div
+      key={id}
+      data-settings-pane={id}
+      className={settingsSection === id ? 'block' : 'hidden'}
+      aria-hidden={settingsSection !== id}
+    >
+      {node}
+    </div>
+  );
+
   return (
-    <div className="space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
       {/* 1. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
       {freshBookings.length > 0 && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
@@ -578,7 +607,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {/* 4. WORKSTATION VIEWS */}
 
       {/* VIEW 1: Service Bookings Management */}
-      {staffTab === 'bookings' && (
+      {staffView('bookings', (
         <StaffBookingsTab
           focusBookingId={focusBookingUid || focusBookingId}
           onFocusHandled={() => {
@@ -586,20 +615,20 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             onFocusHandled?.();
           }}
         />
-      )}
+      ))}
 
       {/* VIEW 1B: Staff Management Module (Full CRUD) */}
-      {staffTab === 'staff_roster' && <StaffManagementTab />}
+      {staffView('staff_roster', <StaffManagementTab />)}
 
       {/* VIEW 1C: Promotions Manager (Full CRUD) */}
-      {staffTab === 'promotions' && <PromotionsManagerTab />}
+      {staffView('promotions', <PromotionsManagerTab />)}
 
       {/* VIEW 1C-B: Discount Codes Manager (Full CRUD) */}
-      {staffTab === 'discount_codes' && <DiscountCodesTab />}
-      {staffTab === 'referrals' && <StaffReferralsTab />}
+      {staffView('discount_codes', <DiscountCodesTab />)}
+      {staffView('referrals', <StaffReferralsTab />)}
 
       {/* VIEW 1C-C: Counter Sale / Till — scanned discounts auto-apply */}
-      {staffTab === 'till' && <CounterSaleTab />}
+      {staffView('till', <CounterSaleTab />)}
 
       {/* VIEW 1D: Derailleur Hanger Identifier Module */}
       {/* Removed */}
@@ -608,12 +637,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {/* Removed */}
 
       {/* VIEW 7: Google Business Profile Tab */}
-      {staffTab === 'google_business' && <GoogleBusinessTab />}
-      {staffTab === 'website_cms' && <WebsiteContentManagerTab />}
+      {staffView('google_business', <GoogleBusinessTab />)}
+      {staffView('website_cms', <WebsiteContentManagerTab />)}
 
       {/* VIEW 7C: Live 7-day riding weather for planning workshop capacity */}
-      {staffTab === 'weather' && (
-        <div className="space-y-6">
+      {staffView('weather', (
+        <div className="space-y-6 max-h-[calc(100vh-11rem)] overflow-y-auto pr-1">
           <div>
             <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
               <CloudRain className="w-5 h-5 text-sky-400" /> Riding Weather
@@ -625,14 +654,14 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </div>
           <WeatherForecast isDark />
         </div>
-      )}
+      ))}
 
       {/* VIEW 9: Backend console — Supabase connection, schema audit & repair */}
-      {staffTab === 'backend' && <StaffBackendTab />}
+      {staffView('backend', <StaffBackendTab />)}
 
       {/* VIEW 10: Settings — one home for notification routing and every admin
           tool, paged internally so nothing is duplicated on the top-level nav. */}
-      {staffTab === 'settings' && (
+      {staffView('settings', (
         <div className="space-y-6">
           <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl">
             <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
@@ -657,13 +686,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             ariaLabel="Settings sections"
           />
 
-          {settingsSection === 'notifications' && <StaffNotificationSettings />}
-          {settingsSection === 'assistant' && <AssistantManagerTab />}
-          {settingsSection === 'test_bench' && <StaffDiagnosticsTab />}
-          {settingsSection === 'performance' && <PerformanceTracker />}
-          {settingsSection === 'financials' && <FinancialReportingTab />}
+          {settingsPane('notifications', <StaffNotificationSettings />)}
+          {settingsPane('assistant', <AssistantManagerTab />)}
+          {settingsPane('test_bench', <StaffDiagnosticsTab />)}
+          {settingsPane('performance', <PerformanceTracker />)}
+          {settingsPane('financials', <FinancialReportingTab />)}
 
-          {settingsSection === 'station' && (
+          {settingsPane('station', (
             <div className="space-y-6">
               <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -851,12 +880,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                 </div>
               </div>
             </div>
-          )}
+          ))}
         </div>
-      )}
+      ))}
 
       {/* VIEW 3: Customer Database Roster */}
-      {staffTab === 'customers' && (
+      {staffView('customers', (
         <CustomerDatabaseTab
           focusCustomerUid={focusMemberUid}
           onFocusHandled={() => setFocusMemberUid(null)}
@@ -865,11 +894,11 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             setStaffTab('customers');
           }}
         />
-      )}
+      ))}
 
 
       {/* VIEW 5: Prize Draws & Wheel Hub */}
-      {staffTab === 'draws' && (
+      {staffView('draws', (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Draws List (6 cols) */}
           <div className="lg:col-span-6 space-y-6">
@@ -1055,10 +1084,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             )}
           </div>
         </div>
-      )}
+      ))}
 
       {/* VIEW 6: Stamp Audit History */}
-      {staffTab === 'logs' && (
+      {staffView('logs', (
         <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-neutral-800">
             <div>
@@ -1129,7 +1158,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
               ))}
           </div>
         </div>
-      )}
+      ))}
 
       {/* Winner Celebration Modal */}
       {drawWinnerModal && (

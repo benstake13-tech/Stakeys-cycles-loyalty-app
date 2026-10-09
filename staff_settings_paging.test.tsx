@@ -74,6 +74,18 @@ function openSettings() {
   return screen.getByRole('tablist', { name: 'Settings sections' });
 }
 
+/** Whether a settings pane is the visible one (toggled via the `hidden` class). */
+function isPaneShown(id: string): boolean {
+  const el = document.querySelector(`[data-settings-pane="${id}"]`);
+  return !!el && !el.className.includes('hidden');
+}
+
+/** Whether a staff view pane is the visible one (toggled via the `hidden` class). */
+function isViewShown(id: string): boolean {
+  const el = document.querySelector(`[data-staff-view="${id}"]`);
+  return !!el && !el.className.includes('hidden');
+}
+
 describe('staff Settings tab paging', () => {
   it('no longer duplicates admin tools on the top-level nav', () => {
     render(<StaffPortal />);
@@ -95,30 +107,50 @@ describe('staff Settings tab paging', () => {
 
     const go = (name: string) => fireEvent.click(within(sections).getByRole('tab', { name }));
 
+    // Every section stays mounted; the active one is shown, the rest are
+    // toggled with CSS visibility (never unmounted) so the backdrop can't flash.
     go('Assistant');
     expect(screen.getByTestId('assistant')).toBeTruthy();
-    expect(screen.queryByTestId('notifications')).toBeNull();
+    expect(screen.getByTestId('notifications')).toBeTruthy();
+    expect(isPaneShown('assistant')).toBe(true);
+    expect(isPaneShown('notifications')).toBe(false);
 
     go('Test Bench');
     expect(screen.getByTestId('test-bench')).toBeTruthy();
+    expect(isPaneShown('test_bench')).toBe(true);
 
     go('Performance');
     expect(screen.getByTestId('performance')).toBeTruthy();
+    expect(isPaneShown('performance')).toBe(true);
 
     go('Financials');
     expect(screen.getByTestId('financials')).toBeTruthy();
+    expect(isPaneShown('financials')).toBe(true);
 
     go('Staff Station');
     // The station section folded in the old top-level tab's unique controls.
     expect(screen.getByText(/Staff Command Station/i)).toBeTruthy();
     expect(screen.getByText('Draw Pool')).toBeTruthy();
     expect(screen.getByText(/Scan Member Code/i)).toBeTruthy();
-    expect(screen.queryByTestId('financials')).toBeNull();
+    expect(isPaneShown('station')).toBe(true);
+    expect(isPaneShown('financials')).toBe(false);
   });
 
   it('defaults to Notifications when nothing is remembered', () => {
     openSettings();
     expect(screen.getByTestId('notifications')).toBeTruthy();
+  });
+
+  it('keeps every settings section mounted, toggling visibility', () => {
+    const sections = openSettings();
+    // All six sections exist in the DOM at once (no unmount on switch).
+    for (const pane of ['notifications', 'assistant', 'test_bench', 'performance', 'financials', 'station']) {
+      expect(document.querySelector(`[data-settings-pane="${pane}"]`)).toBeTruthy();
+    }
+    fireEvent.click(within(sections).getByRole('tab', { name: 'Test Bench' }));
+    // The switch flipped visibility rather than removing nodes.
+    expect(isPaneShown('test_bench')).toBe(true);
+    expect(isPaneShown('notifications')).toBe(false);
   });
 
   it('restores the last Settings section across a remount', () => {
@@ -131,8 +163,24 @@ describe('staff Settings tab paging', () => {
     cleanup();
     const restored = openSettings();
     expect(screen.getByTestId('test-bench')).toBeTruthy();
-    expect(screen.queryByTestId('notifications')).toBeNull();
+    expect(isPaneShown('test_bench')).toBe(true);
+    expect(isPaneShown('notifications')).toBe(false);
     // The nav reflects the restored section too.
     expect(within(restored).getByRole('tab', { name: 'Test Bench' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('keeps every staff view mounted and toggles it by CSS visibility', () => {
+    render(<StaffPortal />);
+    // The shell is always present.
+    expect(document.querySelector('[data-staff-view="till"]')).toBeTruthy();
+    // A non-active view is still in the DOM, just hidden.
+    expect(document.querySelector('[data-staff-view="bookings"]')).toBeTruthy();
+    expect(isViewShown('till')).toBe(true);
+    expect(isViewShown('bookings')).toBe(false);
+    fireEvent.click(within(screen.getByRole('tablist', { name: 'Workshop operations' })).getByRole('tab', { name: /Bookings/i }));
+    expect(isViewShown('bookings')).toBe(true);
+    expect(isViewShown('till')).toBe(false);
+    // Nothing was unmounted.
+    expect(document.querySelector('[data-staff-view="till"]')).toBeTruthy();
   });
 });

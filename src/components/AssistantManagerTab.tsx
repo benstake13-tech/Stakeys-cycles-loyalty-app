@@ -37,7 +37,7 @@ export const AssistantManagerTab: React.FC = () => {
   const labelClass = `block text-[11px] font-black uppercase tracking-wider ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`;
 
   return (
-    <div className="space-y-5 animate-fade-in">
+    <div className="space-y-5">
       <div className={cardClass}>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
