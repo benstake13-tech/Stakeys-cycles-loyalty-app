@@ -642,7 +642,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             </button>
           }
         >
-          <TileGrid cols="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+          <TileGrid cols="grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {adminTiles.map((t) => (
               <TileButton
                 key={t.id}

@@ -63,3 +63,29 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 export function collectionsEqual<T>(a: T[], b: T[]): boolean {
   return deepEqual(a, b);
 }
+
+const normalizedKey = (value: string | number | null | undefined): string =>
+  value === null || value === undefined ? '' : String(value).trim().toLowerCase();
+
+/**
+ * True when a roster/profile record is the SAME account as `user`.
+ *
+ * A profile is matched by uid, or by a membership number that BOTH sides
+ * actually carry. The membership half is deliberately strict: a staff/admin
+ * profile has no `membership_number`, so a loose `a.membershipNumber ===
+ * b.membershipNumber` compares `undefined === undefined` and matches ANY other
+ * profile that also lacks one — the wrong account. Merging that stranger over
+ * the signed-in user overwrote their role with 'customer', which is exactly how
+ * staff/admin got silently downgraded to the customer view on login.
+ */
+export function profileMatchesUser(
+  user: { uid?: string; membershipNumber?: string | number | null },
+  candidate: { uid?: string; membershipNumber?: string | number | null }
+): boolean {
+  if (!user || !candidate) return false;
+  if (user.uid && candidate.uid && user.uid === candidate.uid) return true;
+  const a = normalizedKey(user.membershipNumber);
+  const b = normalizedKey(candidate.membershipNumber);
+  return a !== '' && a === b;
+}
+
