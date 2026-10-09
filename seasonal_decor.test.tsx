@@ -7,7 +7,7 @@ const hoisted = vi.hoisted(() => ({ theme: 'none' as string }));
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => ({ seasonalTheme: hoisted.theme }) }));
 
 import { SeasonalDecor } from './src/components/SeasonalDecor';
-import { SeasonalHeroBanner } from './src/components/SeasonalHeroBanner';
+import { SeasonalHeroBanner, swingAngle } from './src/components/SeasonalHeroBanner';
 import { SeasonalFooterDecor } from './src/components/SeasonalFooterDecor';
 import { THEME_DECOR, themeDecorFor, decorDismissKey } from './src/utils/themeDecor';
 import { HOLIDAY_THEME_IDS } from './src/utils/holidayCalendar';
@@ -75,20 +75,30 @@ describe('SeasonalHeroBanner (Halloween)', () => {
     expect(screen.getByTestId('seasonal-hero')).toBeTruthy();
     // The required id lives on the swinging sign container.
     expect(container.querySelector('#halloween-hero-banner')).toBeTruthy();
-    expect(container.querySelector('.chain-left')).toBeTruthy();
-    expect(container.querySelector('.chain-right')).toBeTruthy();
+    // Chains are drawn in SVG (part of the React-driven swing, not CSS keyframes).
+    expect(container.querySelector('.seasonal-banner-chains')).toBeTruthy();
     expect(screen.getByText(/HAPPY HALLOWEEN!/)).toBeTruthy();
     expect(screen.getByText('Spooky savings & eerie repairs await!')).toBeTruthy();
-    // Cobwebs + bats are present.
-    expect(container.querySelectorAll('.seasonal-hero-web').length).toBe(4);
-    expect(container.querySelectorAll('.seasonal-hero-flyer').length).toBe(4);
+    // Cobwebs + flyers are present.
+    expect(container.querySelectorAll('.seasonal-banner-web').length).toBe(4);
+    expect(container.querySelectorAll('.seasonal-banner-flyer').length).toBe(4);
+  });
+
+  it('drives the swing with a React transform whose angle is a pure, testable function', () => {
+    // The motion is computed in React (rAF -> swingAngle), not a CSS keyframe.
+    expect(swingAngle(0)).toBeCloseTo(0);
+    expect(swingAngle(0, true)).toBe(0); // pointer-over parks it upright
+    const quarter = swingAngle(1050); // first extreme
+    expect(Math.abs(quarter)).toBeGreaterThan(1); // clearly swinging
+    expect(swingAngle(3150)).toBeCloseTo(-quarter); // opposite extreme
+    expect(swingAngle(4200)).toBeCloseTo(0); // back to centre after one period
   });
 
   it('shakes when the sign is clicked', () => {
     const { container } = render(<SeasonalHeroBanner theme="halloween" />);
     const sign = screen.getByTestId('seasonal-hero-sign');
     expect(sign.className).not.toContain('is-shaking');
-    fireEvent.click(container.querySelector('.sign-face')!);
+    fireEvent.click(container.querySelector('.seasonal-banner-face')!);
     expect(screen.getByTestId('seasonal-hero-sign').className).toContain('is-shaking');
   });
 
