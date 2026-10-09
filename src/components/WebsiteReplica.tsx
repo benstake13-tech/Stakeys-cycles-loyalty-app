@@ -33,6 +33,7 @@ import {
   validateDiscountCode,
 } from '../utils/discountService';
 import { websiteDiscountCatalogue, discountCodeFromSearch, discountShareUrl } from '../utils/websiteDiscounts';
+import { claimEmailSend } from '../utils/sendOnce';
 import type { DiscountCode } from '../types/bikeShop';
 import { PolicyDisclaimers } from './PolicyDisclaimers';
 import { DISCOUNT_DISCLAIMERS } from '../utils/workshopPolicy';
@@ -239,18 +240,23 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
       if (promoActive && appliedCode) {
         void recordDiscountUsage(appliedCode.id);
       }
-      await supabase.functions
-        .invoke('send-email', {
-          body: {
-            from: 'noreply@stakeyscycles.co.uk',
-            to: 'Benstake13@gmail.com',
-            subject: `🛒 [STAKEY'S SHOP] New order — £${cartTotal.toFixed(2)} (${checkoutName.trim()})`,
-            html: `<h2>New shop order</h2><p><strong>${checkoutName.trim()}</strong> · ${checkoutContact.trim()}</p><p>Total: <strong>£${cartTotal.toFixed(2)}</strong>${promoActive ? ` (code <strong>${appliedCode?.code}</strong>, −£${cartDiscount.toFixed(2)})` : ''}</p><ul>${cart
-              .map((i) => `<li>${i.qty}× ${i.name} — £${(i.price * i.qty).toFixed(2)}</li>`)
-              .join('')}</ul>${checkoutNote.trim() ? `<p>Note: ${checkoutNote.trim()}</p>` : ''}`,
-          },
-        })
-        .catch((err: unknown) => console.warn('[WEBSITE SHOP] Order email skipped:', err));
+      // One shop-order alert per distinct order. Re-clicking "Place order" (or a
+      // retried submit during testing) must not fire duplicate copies.
+      const orderEmailKey = `shop-order:${checkoutName.trim().toLowerCase()}:${cartTotal.toFixed(2)}:${cart.map((i) => `${i.productId}x${i.qty}`).join(',')}`;
+      if (claimEmailSend(orderEmailKey)) {
+        await supabase.functions
+          .invoke('send-email', {
+            body: {
+              from: 'noreply@stakeyscycles.co.uk',
+              to: 'Benstake13@gmail.com',
+              subject: `🛒 [STAKEY'S SHOP] New order — £${cartTotal.toFixed(2)} (${checkoutName.trim()})`,
+              html: `<h2>New shop order</h2><p><strong>${checkoutName.trim()}</strong> · ${checkoutContact.trim()}</p><p>Total: <strong>£${cartTotal.toFixed(2)}</strong>${promoActive ? ` (code <strong>${appliedCode?.code}</strong>, −£${cartDiscount.toFixed(2)})` : ''}</p><ul>${cart
+                .map((i) => `<li>${i.qty}× ${i.name} — £${(i.price * i.qty).toFixed(2)}</li>`)
+                .join('')}</ul>${checkoutNote.trim() ? `<p>Note: ${checkoutNote.trim()}</p>` : ''}`,
+            },
+          })
+          .catch((err: unknown) => console.warn('[WEBSITE SHOP] Order email skipped:', err));
+      }
       setOrderPlaced(true);
       setCart([]);
       setCheckoutNote('');

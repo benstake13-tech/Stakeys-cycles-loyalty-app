@@ -14,6 +14,15 @@ const TONE_ICON: Record<TileTone, string> = {
   sky: 'text-sky-400',
 };
 
+/** RGB used for the animated logo halo + rotating sheen (CSS `--tile-glow`). */
+const TONE_RGB: Record<TileTone, string> = {
+  emerald: '16,185,129',
+  amber: '245,158,11',
+  neutral: '163,163,163',
+  rose: '244,63,94',
+  sky: '14,165,233',
+};
+
 const TONE_ICON_BG: Record<TileTone, string> = {
   emerald: 'bg-emerald-500/10 border-emerald-500/25',
   amber: 'bg-amber-500/10 border-amber-500/25',
@@ -28,6 +37,27 @@ const TONE_ICON_BG_LIGHT: Record<TileTone, string> = {
   neutral: 'bg-neutral-100 border-neutral-200',
   rose: 'bg-rose-50 border-rose-200',
   sky: 'bg-sky-50 border-sky-200',
+};
+
+/**
+ * Brand panel behind each tile: a bold tone-tinted gradient plus a subtle
+ * radial bloom, so a tile reads as a coloured, ownable "app icon" the eye can
+ * identify at a glance rather than a flat grey button.
+ */
+const TONE_PANEL_DARK: Record<TileTone, string> = {
+  emerald: 'from-emerald-500/30 via-emerald-500/[0.08] to-transparent',
+  amber: 'from-amber-500/30 via-amber-500/[0.08] to-transparent',
+  neutral: 'from-neutral-400/20 via-neutral-500/[0.06] to-transparent',
+  rose: 'from-rose-500/30 via-rose-500/[0.08] to-transparent',
+  sky: 'from-sky-500/30 via-sky-500/[0.08] to-transparent',
+};
+
+const TONE_PANEL_LIGHT: Record<TileTone, string> = {
+  emerald: 'from-emerald-100 via-emerald-50/40 to-white',
+  amber: 'from-amber-100 via-amber-50/40 to-white',
+  neutral: 'from-neutral-100 via-neutral-50/40 to-white',
+  rose: 'from-rose-100 via-rose-50/40 to-white',
+  sky: 'from-sky-100 via-sky-50/40 to-white',
 };
 
 const TONE_RING: Record<TileTone, string> = {
@@ -124,7 +154,12 @@ export const TileButton: React.FC<TileButtonProps> = ({
       data-testid={testId}
       aria-pressed={active}
       aria-label={hint ? `${label} — ${hint}` : label}
-      style={{ animationDelay: `${Math.min(index, 20) * 35}ms` }}
+      style={
+        {
+          animationDelay: `${Math.min(index, 20) * 35}ms`,
+          '--tile-glow': TONE_RGB[tone],
+        } as React.CSSProperties
+      }
       className={`tile group relative flex aspect-square flex-col items-start justify-between overflow-hidden rounded-xl border p-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
         active
           ? isDark
@@ -135,8 +170,19 @@ export const TileButton: React.FC<TileButtonProps> = ({
           : `border-neutral-200 bg-white ${TONE_RING[tone]} ${TONE_GLOW[tone]} hover:shadow-lg`
       } ${className}`}
     >
+      {/* Brand gradient panel — the tile's own colour, top-lit. */}
+      <span
+        aria-hidden="true"
+        className={`tile-panel absolute inset-0 bg-gradient-to-br ${
+          isDark ? TONE_PANEL_DARK[tone] : TONE_PANEL_LIGHT[tone]
+        }`}
+      />
+      {/* Soft radial bloom so the icon area glows in the tone colour. */}
+      <span aria-hidden="true" className="tile-bloom absolute -left-6 -top-8 h-20 w-20 rounded-full" />
       {/* Light sheen that sweeps across on hover. */}
       <span className="tile-sheen" aria-hidden="true" />
+      {/* Slow rotating colour sweep — a permanently "live" brand cue. */}
+      <span className="tile-spin" aria-hidden="true" />
       {/* Tone accent rail down the leading edge. */}
       <span
         aria-hidden="true"
@@ -145,13 +191,13 @@ export const TileButton: React.FC<TileButtonProps> = ({
         } transition-opacity`}
       />
 
-      <div className="flex w-full items-start justify-between gap-2 pl-1">
+      <div className="relative z-10 flex w-full items-start justify-between gap-2 pl-1">
         <span
-          className={`tile-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
+          className={`tile-icon relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
             isDark ? TONE_ICON_BG[tone] : TONE_ICON_BG_LIGHT[tone]
           }`}
         >
-          {Icon && <Icon className={`h-4 w-4 ${TONE_ICON[tone]}`} />}
+          {Icon && <Icon className={`tile-glyph relative z-10 h-[18px] w-[18px] ${TONE_ICON[tone]}`} />}
         </span>
         {showBadge && (
           <span
@@ -164,7 +210,7 @@ export const TileButton: React.FC<TileButtonProps> = ({
         )}
       </div>
 
-      <div className="w-full min-w-0 pl-1">
+      <div className="relative z-10 w-full min-w-0 pl-1">
         <div
           className={`truncate text-[11px] font-bold leading-tight ${
             isDark ? 'text-white' : 'text-neutral-900'

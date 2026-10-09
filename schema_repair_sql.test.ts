@@ -55,6 +55,14 @@ describe('generateRepairSqlForTables', () => {
     expect(sql).toContain('counter_sales_status_check');
     expect(sql).toContain('counter_sales_payment_method_check');
   });
+
+  it('drops the legacy discount_codes type CHECK that rejects new codes', () => {
+    const sql = generateRepairSqlForTables(['discount_codes']);
+    // The "Create a discount code" probe inserts type='percent' and was rejected
+    // by this legacy constraint before it could be repaired.
+    expect(sql).toContain('discount_codes_type_check');
+    expect(sql).toContain('DROP CONSTRAINT IF EXISTS');
+  });
 });
 
 describe('generateProfileBalanceProbeSql', () => {
