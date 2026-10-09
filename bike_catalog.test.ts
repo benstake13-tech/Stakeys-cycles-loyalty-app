@@ -56,6 +56,24 @@ describe('bike catalogue integrity', () => {
     expect(brandProfileFor('Bafang')?.types).toContain('Conversion Kit');
   });
 
+  it('covers a wide range of e-scooter makers, each with real models', () => {
+    const scooterBrands = [
+      'Xiaomi', 'Segway-Ninebot', 'NIU', 'Pure Electric', 'Apollo Scooters', 'Vsett',
+      'Dualtron', 'Minimotors', 'Kaabo', 'Nanrobot', 'InMotion', 'NAMI', 'Razor',
+      'Bird', 'Lime', 'Micro', 'Unagi', 'Hiboy', 'GoTrax', 'Okai', 'Levy', 'Boosted',
+      'Fluidfreeride', 'iScooter', 'Wheelspeed', 'Hover-1', 'Swagtron', 'Segway', 'Talaria',
+    ];
+    scooterBrands.forEach((name) => {
+      const profile = brandProfileFor(name);
+      expect(profile, `${name} missing from brand profiles`).toBeTruthy();
+      expect(profile!.types, `${name} not tagged E-Scooter`).toContain('E-Scooter');
+      expect(modelsForBrand(name).length, `${name} has a thin model list`).toBeGreaterThanOrEqual(3);
+    });
+    // Every scooter brand lands in the picker's scooter section.
+    const { scooters } = brandSections();
+    scooterBrands.forEach((name) => expect(scooters.some((b) => b.name === name)).toBe(true));
+  });
+
   it('looks up brands case-insensitively and falls back safely', () => {
     expect(modelsForBrand('trek').length).toBeGreaterThan(5);
     expect(modelsForBrand('Totally Unknown Brand')).toContain('Don’t Know Exact Model');
