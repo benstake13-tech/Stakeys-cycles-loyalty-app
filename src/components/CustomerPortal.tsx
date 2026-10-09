@@ -23,7 +23,11 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useShop } from '../context/ShopContext';
-import { SegmentedTabs, SegmentedTab } from './SegmentedTabs';
+import type { TabTone } from './SegmentedTabs';
+import type { LucideIcon } from 'lucide-react';
+import { TileButton } from './tiles/TileButton';
+import { TileGrid } from './tiles/TileGrid';
+import { TileGroup } from './tiles/TileGroup';
 
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
@@ -117,13 +121,15 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  const customerTabs: SegmentedTab<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>[] = [
-    { id: 'garage', label: `My Garage (${customerBikes.length})`, icon: Bike, tone: 'emerald', hint: 'Your registered bikes' },
+  type CustomerTab = 'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather';
+
+  const customerTiles: { id: CustomerTab; label: string; icon: LucideIcon; tone: TabTone; badge?: number | string; hint: string }[] = [
+    { id: 'garage', label: 'My Garage', icon: Bike, tone: 'emerald', badge: customerBikes.length, hint: 'Your registered bikes' },
     { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
     { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
-    { id: 'repairs', label: `Repairs (${customerBookings.length})`, icon: Activity, tone: 'emerald', hint: 'Live repair progress tracker' },
-    { id: 'bookings', label: `Bookings (${customerBookings.length})`, icon: Calendar, tone: 'emerald', hint: 'Your service bookings' },
-    { id: 'stamps', label: `Loyalty Pass ${currentUser.stamps || 0}/10`, icon: Award, tone: 'emerald', hint: 'Your stamp card' },
+    { id: 'repairs', label: 'Repairs', icon: Activity, tone: 'emerald', badge: customerBookings.length, hint: 'Live repair progress tracker' },
+    { id: 'bookings', label: 'Bookings', icon: Calendar, tone: 'emerald', badge: customerBookings.length, hint: 'Your service bookings' },
+    { id: 'stamps', label: 'Loyalty Pass', icon: Award, tone: 'emerald', badge: `${currentUser.stamps || 0}/10`, hint: 'Your stamp card' },
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
     { id: 'refer', label: 'Refer a Friend', icon: Gift, tone: 'amber', hint: 'Share your code and earn rewards' },
   ];
@@ -294,13 +300,26 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         </div>
       )}
 
-      {/* Primary section navigation */}
-      <SegmentedTabs
-        tabs={customerTabs}
-        active={activeTab}
-        onChange={setActiveTab}
-        ariaLabel="Customer sections"
-      />
+      {/* Primary section navigation — grouped launcher tiles */}
+      <div data-testid="customer-section-launcher">
+        <TileGroup label="Your Account">
+          <TileGrid>
+            {customerTiles.map((t) => (
+              <TileButton
+                key={t.id}
+                icon={t.icon}
+                label={t.label}
+                hint={t.hint}
+                tone={t.tone}
+                badge={t.badge}
+                active={activeTab === t.id}
+                onSelect={() => setActiveTab(t.id)}
+                testId={`customer-tile-${t.id}`}
+              />
+            ))}
+          </TileGrid>
+        </TileGroup>
+      </div>
 
       {/* TAB 1: MY REGISTERED BIKES (GARAGE) */}
       {activeTab === 'garage' && (
