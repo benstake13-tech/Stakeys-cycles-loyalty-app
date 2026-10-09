@@ -36,6 +36,7 @@ import { WebProduct } from '../types/websiteContent';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { ItemScanModal } from './ItemScanModal';
 import { ItemQrModal } from './ItemQrModal';
+import { TillCalculator } from './TillCalculator';
 import {
   validateDiscountCode,
   computeSaleTotals,
@@ -546,6 +547,9 @@ export const CounterSaleTab: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* Manual job calculator — add up a bespoke job and bill it as one line */}
+        <TillCalculator onAddLine={addLine} isDark={theme === 'dark'} />
 
         {/* Live storefront stock — sell a real product so the shop stays accurate */}
         <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
