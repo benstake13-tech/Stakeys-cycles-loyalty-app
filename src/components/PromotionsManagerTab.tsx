@@ -17,6 +17,7 @@ import {
 import { useShop } from '../context/ShopContext';
 import { ShopPromotion, VehicleCategory } from '../types/bikeShop';
 import { DriveImagePicker } from './DriveImagePicker';
+import { PromotionsPlanner } from './PromotionsPlanner';
 
 export const PromotionsManagerTab: React.FC = () => {
   const { promotions, addPromotion, updatePromotion, deletePromotion, refreshPromotionsExpiry } = useShop();
@@ -208,6 +209,9 @@ export const PromotionsManagerTab: React.FC = () => {
           <span>{actionSuccess}</span>
         </div>
       )}
+
+      {/* Promotions Planner — schedule before publishing */}
+      <PromotionsPlanner />
 
       {/* Promotions List */}
       <div className="space-y-4">

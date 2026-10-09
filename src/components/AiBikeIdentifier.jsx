@@ -15,9 +15,11 @@ import {
   RotateCcw,
   Plus,
   CircleAlert,
+  Clock,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { identifyBikeFromImage, isBikeVisionConfigured } from '../api/visionService';
+import { classifyVisionError } from '../api/visionErrors';
 
 const SEVERITY_STYLES = {
   high: 'border-rose-500/40 bg-rose-950/40 text-rose-200',
@@ -53,6 +55,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [errorInfo, setErrorInfo] = useState(null);
   const [savedBike, setSavedBike] = useState(null);
 
   const configured = isBikeVisionConfigured();
@@ -61,6 +64,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     setImageData(null);
     setResult(null);
     setError('');
+    setErrorInfo(null);
     setSavedBike(null);
     setAnalyzing(false);
     setSaving(false);
@@ -74,13 +78,18 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   const runAnalysis = useCallback(async (dataUrl, mime) => {
     setAnalyzing(true);
     setError('');
+    setErrorInfo(null);
     setResult(null);
     try {
       const analysis = await identifyBikeFromImage(dataUrl, mime);
       setResult(analysis);
     } catch (err) {
-      setError(err?.message || 'Could not analyse this photo. Please try again.');
+      // Never surface raw upstream JSON — map it to a friendly, structured alert.
+      const info = classifyVisionError(err);
+      setErrorInfo(info);
+      setError(info.message);
     } finally {
+      // Always release the spinner, even on failure, so Re-analyse is tappable.
       setAnalyzing(false);
     }
   }, []);
@@ -100,6 +109,11 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
       runAnalysis(dataUrl, mime);
     };
     reader.readAsDataURL(file);
+  };
+
+  /** Retry the current photo after a transient failure. */
+  const reanalyse = () => {
+    if (imageData) runAnalysis(imageData, mimeType);
   };
 
   const handleDrop = (e) => {
@@ -205,9 +219,42 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         )}
 
         {error && (
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-rose-700 bg-rose-950/60 px-3 py-2.5 text-xs text-rose-200">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
+          <div
+            role="alert"
+            data-testid="ai-bike-error"
+            className={`mb-4 flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-xs ${
+              errorInfo?.transient
+                ? 'border-amber-600/60 bg-amber-950/40 text-amber-100'
+                : 'border-rose-700 bg-rose-950/60 text-rose-200'
+            }`}
+          >
+            {errorInfo?.transient ? (
+              <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : (
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <div className="min-w-0 flex-1">
+              <span className="block">{error}</span>
+              {imageData && (errorInfo?.retryable ?? true) && (
+                <button
+                  type="button"
+                  onClick={reanalyse}
+                  disabled={analyzing}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-current px-2.5 py-1 text-[11px] font-bold opacity-90 hover:bg-white/5 disabled:opacity-50"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  {analyzing ? 'Re-analysing…' : 'Re-analyse'}
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => { setError(''); setErrorInfo(null); }}
+              aria-label="Dismiss error"
+              className="shrink-0 rounded-lg p-0.5 hover:bg-white/10"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
 
