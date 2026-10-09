@@ -20,6 +20,7 @@ import {
   Gift,
   CloudRain,
   RefreshCw,
+  Pencil,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useShop } from '../context/ShopContext';
@@ -50,6 +51,7 @@ import {
   resolveModel,
 } from './BikeIdentityFields';
 import { scrapeBikeStockSpecs } from '../utils/bikeScraperService';
+import { EditBikeModal } from './EditBikeModal';
 
 interface CustomerPortalProps {
   onStaffScanCustomer?: (membershipNumber: string) => void;
@@ -64,12 +66,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     repairCustomerGarage,
     saveBikeScrapedSpecs,
     updateCustomerAvatar,
+    updateCustomerBikeIdentity,
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>('garage');
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
+  const [editingBike, setEditingBike] = useState<CustomerBike | null>(null);
   const [viewingCustomerInvoice, setViewingCustomerInvoice] = useState<ServiceBooking | null>(null);
 
   const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
@@ -137,6 +141,17 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   const handleStartBookingForBike = (bikeId: string) => {
     setSelectedBikeForBooking(bikeId);
     setActiveTab('booking');
+  };
+
+  /** Persist a hand-edited bike to the signed-in customer's own garage. */
+  const handleSaveEditedBike = async (patch: Partial<CustomerBike>): Promise<boolean> => {
+    if (!editingBike) return false;
+    const res = await updateCustomerBikeIdentity(editingBike.id, patch);
+    if (res.success) {
+      toast.success('Bike details saved.');
+      return true;
+    }
+    return false;
   };
 
   const handleSaveNewBike = async (e: React.FormEvent) => {
@@ -523,6 +538,17 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setEditingBike(bike)}
+                        title="Edit bike details"
+                        className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-emerald-300 border border-neutral-800 transition-colors cursor-pointer"
+                        aria-label="Edit bike details"
+                        data-testid={`edit-bike-${bike.id}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -885,6 +911,15 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
             </div>
           </div>
         </div>
+      )}
+
+      {/* Manual edit of a garage bike's identity/specs */}
+      {editingBike && (
+        <EditBikeModal
+          bike={editingBike}
+          onSave={handleSaveEditedBike}
+          onClose={() => setEditingBike(null)}
+        />
       )}
 
       {/* Viewing Invoice Modal for Customer */}

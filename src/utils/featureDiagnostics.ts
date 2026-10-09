@@ -2106,3 +2106,20 @@ export function summarizeBootScan(results: FeatureTestResult[]): BootScanSummary
 export async function runBootScan(): Promise<BootScanSummary> {
   return summarizeBootScan(await runFeatureTests());
 }
+
+/**
+ * Areas the automatic BOOT scan must not run. The email checks render a real
+ * booking-confirmation template and the reach check pings the push worker — both
+ * are wrong to fire unprompted on every staff login. They stay available from
+ * the Test Bench (run on demand), but the boot scan skips them.
+ */
+export const BOOT_EXCLUDED_AREAS: FeatureArea[] = ['email', 'reach'];
+
+/**
+ * Boot scan that never touches the email/push-delivery checks. Callers that
+ * want a fully clean scan should use this rather than `runBootScan`.
+ */
+export async function runBootScanSafe(): Promise<BootScanSummary> {
+  const ids = FEATURE_TESTS.filter((t) => !BOOT_EXCLUDED_AREAS.includes(t.area)).map((t) => t.id);
+  return summarizeBootScan(await runFeatureTests(undefined, ids));
+}

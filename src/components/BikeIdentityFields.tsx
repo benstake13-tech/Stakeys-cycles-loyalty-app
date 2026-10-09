@@ -533,6 +533,52 @@ export function resolveModel(value: BikeIdentityValue): string {
   return value.model;
 }
 
+/**
+ * Build an editable form value from an existing bike, so the same identity form
+ * can pre-fill "Edit bike details". When a bike's stored model is not one of the
+ * catalogue's options for its brand (a scanned or free-typed model) it goes into
+ * `customModel` and the model dropdown falls back to a custom entry, so saving
+ * without touching it does not discard the real model.
+ */
+export function identityFromBike(bike: {
+  category: VehicleCategory;
+  brand: string;
+  model: string;
+  colour?: string;
+  year?: string | number;
+  serialNumber?: string;
+  frameSizeOrNotes?: string;
+  bikeDetails?: {
+    ebikeStatus?: string;
+    conversionSystem?: string;
+    batteryPosition?: string;
+    driveType?: string;
+    motorDetails?: string;
+    frameSize?: string;
+    year?: string;
+    serialNumber?: string;
+  };
+}): BikeIdentityValue {
+  const details = bike.bikeDetails || {};
+  const known = modelsForBrand(bike.brand);
+  const modelInCatalog = known.includes(bike.model);
+  return {
+    category: bike.category,
+    brand: bike.brand || 'Other / Not Listed',
+    model: modelInCatalog ? bike.model : 'Other Model',
+    customModel: modelInCatalog ? '' : bike.model || '',
+    colour: bike.colour || '',
+    year: String(bike.year || details.year || ''),
+    frameSize: bike.frameSizeOrNotes || details.frameSize || '',
+    serialNumber: bike.serialNumber || details.serialNumber || '',
+    ebikeStatus: (details.ebikeStatus as BikeIdentityValue['ebikeStatus']) || '',
+    conversionSystem: details.conversionSystem || '',
+    batteryPosition: details.batteryPosition || '',
+    driveType: details.driveType || '',
+    motorDetails: details.motorDetails || '',
+  };
+}
+
 /** True when the rider said this is (or was converted into) an e-bike. */
 export function isEbike(value: BikeIdentityValue): boolean {
   return (

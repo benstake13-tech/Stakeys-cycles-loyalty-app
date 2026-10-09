@@ -3,14 +3,14 @@ import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/re
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
-  runBootScan: vi.fn(),
+  runBootScanSafe: vi.fn(),
   executeRepairTarget: vi.fn(async (_target?: unknown, _deps?: unknown) => {}),
 }));
 
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => ({ theme: 'dark' }) }));
 vi.mock('./src/utils/featureDiagnostics', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./src/utils/featureDiagnostics')>()),
-  runBootScan: hoisted.runBootScan,
+  runBootScanSafe: hoisted.runBootScanSafe,
 }));
 vi.mock('./src/utils/repairRunner', () => ({ executeRepairTarget: hoisted.executeRepairTarget }));
 
@@ -28,13 +28,13 @@ const result = (over: Record<string, unknown>) => ({
 
 beforeEach(() => {
   cleanup();
-  hoisted.runBootScan.mockReset();
+  hoisted.runBootScanSafe.mockReset();
   hoisted.executeRepairTarget.mockClear();
 });
 
 describe('StaffHealthBanner', () => {
   it('shows a healthy line when the scan is clean, and opens the Test Bench on click', async () => {
-    hoisted.runBootScan.mockResolvedValue({
+    hoisted.runBootScanSafe.mockResolvedValue({
       healthy: true,
       counts: { pass: 42, fail: 0, warn: 0, skipped: 0 },
       problems: [],
@@ -50,7 +50,7 @@ describe('StaffHealthBanner', () => {
   });
 
   it('builds a Supabase Fix button from a failing DB area and runs the repair', async () => {
-    hoisted.runBootScan.mockResolvedValue({
+    hoisted.runBootScanSafe.mockResolvedValue({
       healthy: false,
       counts: { pass: 1, fail: 1, warn: 0, skipped: 0 },
       failingArea: 'members',
@@ -67,7 +67,7 @@ describe('StaffHealthBanner', () => {
   });
 
   it('labels the Fix button for a push area', async () => {
-    hoisted.runBootScan.mockResolvedValue({
+    hoisted.runBootScanSafe.mockResolvedValue({
       healthy: false,
       counts: { pass: 1, fail: 1, warn: 0, skipped: 0 },
       failingArea: 'reach',

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Activity, AlertTriangle, CheckCircle2, Loader2, Stethoscope, Wrench } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { AREA_LABELS, BootScanSummary, runBootScan } from '../utils/featureDiagnostics';
+import { AREA_LABELS, BootScanSummary, runBootScanSafe } from '../utils/featureDiagnostics';
 import { resolveRepairTarget } from '../utils/repairTargets';
 import { executeRepairTarget } from '../utils/repairRunner';
 
@@ -30,7 +30,7 @@ export const StaffHealthBanner: React.FC<{ onOpenTestBench: () => void }> = ({ o
     let cancelled = false;
     (async () => {
       try {
-        const result = await runBootScan();
+        const result = await runBootScanSafe();
         if (!cancelled) setSummary(result);
       } finally {
         if (!cancelled) setScanning(false);

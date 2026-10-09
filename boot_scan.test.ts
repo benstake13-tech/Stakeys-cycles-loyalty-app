@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
-import { summarizeBootScan, type BootScanSummary } from './src/utils/featureDiagnostics';
+import {
+  summarizeBootScan,
+  BOOT_EXCLUDED_AREAS,
+  FEATURE_TESTS,
+  type BootScanSummary,
+} from './src/utils/featureDiagnostics';
 import type { FeatureTestResult } from './src/utils/featureDiagnostics';
 import { resolveRepairTarget } from './src/utils/repairTargets';
 import { executeRepairTarget } from './src/utils/repairRunner';
@@ -57,6 +62,21 @@ describe('summarizeBootScan', () => {
     ]);
     expect(s.failingArea).toBe('members');
     expect(s.counts.warn).toBe(1);
+  });
+});
+
+describe('boot scan excludes email/push delivery checks', () => {
+  it('never runs an email or reach test during the boot scan', () => {
+    const bootIds = new Set(
+      FEATURE_TESTS.filter((t) => !BOOT_EXCLUDED_AREAS.includes(t.area)).map((t) => t.id)
+    );
+    const leaked = FEATURE_TESTS.filter(
+      (t) => (t.area === 'email' || t.area === 'reach') && bootIds.has(t.id)
+    );
+    expect(leaked).toHaveLength(0);
+    // The excluded areas genuinely have checks that would otherwise fire.
+    expect(FEATURE_TESTS.some((t) => t.area === 'email')).toBe(true);
+    expect(FEATURE_TESTS.some((t) => t.area === 'reach')).toBe(true);
   });
 });
 
