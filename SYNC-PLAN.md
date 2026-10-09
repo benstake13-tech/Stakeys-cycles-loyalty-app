@@ -25,11 +25,14 @@ tooling that enforces it is committed alongside.
 `main` is the GitHub default branch and is **not** a surface — never push
 surface work to it.
 
-## Current state (verified at plan time, 2026-10-09)
+## Current state (verified 2026-10-09)
 
-- `staff-terminal` `6ab3dd3`, `customer-app` `57c5200`, `main-website` `7822b7d`.
+- `staff-terminal` `be2198c`, `customer-app` `f7f2728`, `main-website` `2f3bcd1`.
 - Parity holds: only `src/config/surface.ts` differs. Zero merges anywhere.
-- 334 tracked files; ~724 tests in the vitest suite; `tsc` + `vite build` gates.
+- The tooling below is **built and in use**: the "booking form language" change and
+  the follow-up memory commit were each propagated with `scripts/sync-branch.sh`
+  and gated with `scripts/sync-verify.sh` (98 files / 728 tests, `tsc`, 3 builds).
+- 334 tracked files; the vitest suite; `tsc` + 3-surface `vite build` gates.
 
 ## The upgrade: from "recipe + one diff check" to "recipe + guarded tooling"
 
@@ -148,14 +151,29 @@ scripts/check-parity.sh origin/staff-terminal origin/customer-app origin/main-we
 - Remember this workspace is a **shallow clone**: `git cherry`/patch-id counts
   are unreliable, so trust the **content diff** (`check-parity.sh`), not the
   ahead/behind numbers.
-- `.openhands/memory/*` is edited by tooling; treat it as the one acceptable
-  dirty-tree exception (the scripts do).
+- `.openhands/memory/*` is **tracked**, so it is part of parity: commit memory
+  updates and sync them like any other change. The scripts still tolerate
+  uncommitted memory edits as a dirty-tree exception while you work.
 
 ## Definition of done for this upgrade
 
-- `check-parity.sh` validates content parity **and** the per-branch surface.
+- `check-parity.sh` validates content parity **and** the per-branch surface. ✅
 - `sync-branch.sh` performs a rule-based cherry-pick of one or more SHAs onto the
-  other two branches and self-checks parity.
-- `sync-verify.sh` runs parity + tests + `tsc` + the three surface builds.
-- `.githooks/pre-push` blocks merges, `main` pushes, and drift when enabled.
-- `SYNCING.md` documents the upgraded procedure in one place.
+  other two branches and self-checks parity. ✅
+- `sync-verify.sh` runs parity + tests + `tsc` + the three surface builds. ✅
+- `.githooks/pre-push` blocks merges, `main` pushes, and drift when enabled. ✅
+- `SYNCING.md` documents the upgraded procedure in one place. ✅
+
+## Steady-state loop (after this upgrade)
+
+Every future change is one turn of the same crank:
+
+1. Commit on `staff-terminal` (its own commit, so it can be cherry-picked).
+2. `npm run sync -- <sha>` — propagates, resolving conflicts by the rule.
+3. `npm run sync:verify` — parity + tests + `tsc` + 3 surface builds.
+4. Push `staff-terminal customer-app main-website` (never `main`).
+5. `git fetch origin && npm run check:parity -- origin/staff-terminal origin/customer-app origin/main-website`.
+
+Note: `.openhands/memory/*` is tracked and therefore part of parity too — commit
+memory updates like any other change and sync them the same way (or they will
+show up as drift).
