@@ -68,9 +68,8 @@ beforeEach(() => {
 
 function openSettings() {
   render(<StaffPortal />);
-  // The admin nav is the tablist labelled "Admin and reports".
-  const adminNav = screen.getByRole('tablist', { name: 'Admin and reports' });
-  fireEvent.click(within(adminNav).getByRole('tab', { name: /Settings/i }));
+  // The launcher is a grid of tiles; Settings is the last admin tile.
+  fireEvent.click(screen.getByTestId('staff-tile-settings'));
   return screen.getByRole('tablist', { name: 'Settings sections' });
 }
 
@@ -87,15 +86,21 @@ function isViewShown(id: string): boolean {
 }
 
 describe('staff Settings tab paging', () => {
-  it('no longer duplicates admin tools on the top-level nav', () => {
+  it('exposes one launcher tile per tool and hides the settings-only tools', () => {
     render(<StaffPortal />);
-    for (const label of ['Admin and reports', 'Workshop operations']) {
-      const nav = screen.getByRole('tablist', { name: label });
-      // Tools that live only inside Settings now, including the Staff Station
-      // which used to also have its own top-level tab.
-      for (const gone of ['Assistant', 'Test Bench', 'Performance', 'Financials', 'Staff Station']) {
-        expect(within(nav).queryByRole('tab', { name: gone })).toBeNull();
-      }
+    const launcher = screen.getByTestId('staff-tool-launcher');
+
+    // The tools that live only inside Settings have no launcher tile.
+    for (const gone of ['Assistant', 'Test Bench', 'Performance', 'Financials', 'Staff Station']) {
+      expect(within(launcher).queryByText(gone)).toBeNull();
+    }
+
+    // Launcher shows Operations + Admin groups, each tool as its own tile.
+    expect(within(launcher).getByText('Operations')).toBeTruthy();
+    expect(within(launcher).getByText(/Admin/i)).toBeTruthy();
+    for (const tool of ['till', 'bookings', 'customers', 'draws', 'staff_roster', 'weather',
+      'website_cms', 'promotions', 'discount_codes', 'referrals', 'logs', 'backend', 'settings']) {
+      expect(within(launcher).queryByTestId(`staff-tile-${tool}`)).toBeTruthy();
     }
   });
 
@@ -177,7 +182,7 @@ describe('staff Settings tab paging', () => {
     expect(document.querySelector('[data-staff-view="bookings"]')).toBeTruthy();
     expect(isViewShown('till')).toBe(true);
     expect(isViewShown('bookings')).toBe(false);
-    fireEvent.click(within(screen.getByRole('tablist', { name: 'Workshop operations' })).getByRole('tab', { name: /Bookings/i }));
+    fireEvent.click(screen.getByTestId('staff-tile-bookings'));
     expect(isViewShown('bookings')).toBe(true);
     expect(isViewShown('till')).toBe(false);
     // Nothing was unmounted.
