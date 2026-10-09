@@ -246,6 +246,37 @@ describe('QRCodeScannerModal scan lifecycle', () => {
     expect(hoisted.playScannerError).not.toHaveBeenCalled();
   });
 
+  it('can scan again after a stale lookup is superseded by "Scan Next"', async () => {
+    // First detection: the lookup hangs.
+    let resolveFirst: ((v: { customer: UserProfile | null }) => void) | undefined;
+    hoisted.resolveScannedMemberDetailed.mockImplementationOnce(
+      () => new Promise((res) => { resolveFirst = res; })
+    );
+    const { decode } = await openScanner();
+
+    await act(async () => {
+      decode('STK-123456');
+    });
+    // Staff start a fresh run while the first lookup is still in flight.
+    fireEvent.click(screen.getByRole('button', { name: /Scan Next QR Code/i }));
+    await waitFor(() => expect(hoisted.scanner.start).toHaveBeenCalledTimes(2));
+
+    // The superseded lookup resolves late — it must be dropped, not wedged.
+    await act(async () => {
+      resolveFirst?.({ customer });
+      await Promise.resolve();
+    });
+    expect(screen.queryByText('Ada Rider')).toBeNull();
+
+    // A fresh scan on the new run still resolves normally (guard was released).
+    hoisted.resolveScannedMemberDetailed.mockResolvedValueOnce({ customer });
+    const freshDecode = hoisted.scanner.decodeCb!;
+    await act(async () => {
+      freshDecode('STK-123456');
+    });
+    await waitFor(() => expect(screen.getByText('Ada Rider')).toBeTruthy());
+  });
+
   it('drops a lookup that resolves after the modal was closed (no stale UI)', async () => {
     let resolveLookup: ((v: { customer: UserProfile | null }) => void) | undefined;
     hoisted.resolveScannedMemberDetailed.mockImplementation(
