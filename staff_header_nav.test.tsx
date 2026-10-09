@@ -28,6 +28,7 @@ vi.mock('./src/components/ShopAssistant', () => ({ ShopAssistant: () => null }))
 vi.mock('./src/components/PromotionsCarousel', () => ({ PromotionsCarousel: () => <div data-testid="promotions" /> }));
 vi.mock('./src/components/WinnerAnnouncementBanner', () => ({ WinnerAnnouncementBanner: () => null }));
 vi.mock('./src/components/ThemeStage', () => ({ ThemeStage: () => null }));
+vi.mock('./src/components/ThemeBanner', () => ({ ThemeBanner: () => null }));
 vi.mock('./src/components/ThemeToggle', () => ({ ThemeToggle: () => null }));
 vi.mock('./src/components/StakeysLogo', () => ({ StakeysLogo: () => null }));
 vi.mock('./src/components/DeliverablesViewer', () => ({ DeliverablesViewer: () => <div data-testid="deliverables" /> }));
