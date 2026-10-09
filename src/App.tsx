@@ -515,9 +515,15 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 pb-28 md:pb-8 space-y-8">
-        <div key={activeTab} className="animate-fade-in">
+      {/* Main Content Area.
+
+          The shell keeps a stable, height-reserving wrapper and does NOT key or
+          fade the tab wrapper on switch: re-running an opacity 0 entrance — or
+          unmounting descendants — on every top-level/sub-tab change is what let
+          the seasonal backdrop flash through. The inner panels toggle their own
+          visibility instead. */}
+      <main className="flex-1 min-h-[70vh] max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 pb-28 md:pb-8 space-y-8">
+        <div className="min-w-0">
           {activeTab === 'customer' && <CustomerPortal />}
           {activeTab === 'booking' && <BookingPortal />}
           {activeTab === 'website' && <WebsiteReplica onBookService={handleWebsiteBookService} />}

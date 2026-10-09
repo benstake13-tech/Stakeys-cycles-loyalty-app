@@ -617,7 +617,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header + master controls */}
       <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
