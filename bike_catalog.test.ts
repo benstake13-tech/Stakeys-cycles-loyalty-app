@@ -15,6 +15,9 @@ import {
   isCustomModel,
   brandSections,
   isScooterBrand,
+  brandMatchesCategory,
+  brandsForCategory,
+  firstBrandForCategory,
   UNKNOWN_BRAND_NAMES,
 } from './src/data/bikeCatalog';
 import {
@@ -137,6 +140,46 @@ describe('bike catalogue integrity', () => {
     });
     expect(isScooterBrand(brandProfileFor('Xiaomi')!)).toBe(true);
     expect(isScooterBrand(brandProfileFor('Trek')!)).toBe(false);
+  });
+
+  it('filters brands to a vehicle category, keeping the escape hatches', () => {
+    // E-scooter category: scooters, no bike-only brands.
+    const scooters = brandsForCategory('electric_scooter');
+    expect(scooters.some((b) => b.name === 'Xiaomi')).toBe(true);
+    expect(scooters.some((b) => b.name === 'Segway-Ninebot')).toBe(true);
+    expect(scooters.some((b) => b.name === 'Trek')).toBe(false);
+    expect(scooters.some((b) => b.name === 'Giant')).toBe(false);
+
+    // Bike: bike-family brands, no scooters.
+    const bikes = brandsForCategory('cycle');
+    expect(bikes.some((b) => b.name === 'Giant')).toBe(true);
+    expect(bikes.some((b) => b.name === 'Trek')).toBe(true);
+    expect(bikes.some((b) => b.name === 'Xiaomi')).toBe(false);
+
+    // E-bike: e-bike + conversion-kit makers.
+    const ebikes = brandsForCategory('ebike');
+    expect(ebikes.some((b) => b.name === 'Haibike')).toBe(true);
+    expect(ebikes.some((b) => b.name === 'Swytch')).toBe(true);
+    expect(ebikes.some((b) => b.name === 'Xiaomi')).toBe(false);
+
+    // Escape hatches always remain.
+    UNKNOWN_BRAND_NAMES.forEach((n) => {
+      expect(brandsForCategory('electric_scooter').some((b) => b.name === n)).toBe(true);
+      expect(brandsForCategory('cycle').some((b) => b.name === n)).toBe(true);
+      expect(brandsForCategory('ebike').some((b) => b.name === n)).toBe(true);
+      expect(brandsForCategory('cargo').some((b) => b.name === n)).toBe(true);
+    });
+  });
+
+  it('picks a real first brand for each category', () => {
+    expect(brandMatchesCategory(brandProfileFor('Xiaomi')!, 'cycle')).toBe(false);
+    expect(brandMatchesCategory(brandProfileFor('Trek')!, 'cycle')).toBe(true);
+    expect(brandMatchesCategory(brandProfileFor('Xiaomi')!, 'electric_scooter')).toBe(true);
+    expect(UNKNOWN_BRAND_NAMES).not.toContain(firstBrandForCategory('cycle'));
+    expect(UNKNOWN_BRAND_NAMES).not.toContain(firstBrandForCategory('ebike'));
+    expect(UNKNOWN_BRAND_NAMES).not.toContain(firstBrandForCategory('electric_scooter'));
+    expect(UNKNOWN_BRAND_NAMES).not.toContain(firstBrandForCategory('cargo'));
+    expect(brandMatchesCategory(brandProfileFor('Other / Not Listed')!, 'electric_scooter')).toBe(true);
   });
 });
 
