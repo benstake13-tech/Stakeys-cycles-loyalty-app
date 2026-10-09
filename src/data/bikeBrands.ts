@@ -5,6 +5,7 @@
  * without touching the service catalogue. bikeCatalog re-exports everything
  * here, so existing imports keep working.
  */
+import { VehicleCategory } from '../types/bikeShop';
 
 /**
  * Brand profiles power the searchable brand picker: the type tags let a rider
@@ -1108,11 +1109,48 @@ export function isScooterBrand(profile: BikeBrandProfile): boolean {
 }
 
 /**
- * Splits the brand catalogue into the two digestible sections the picker shows:
- * e-scooter makers and bike makers (bikes, e-bikes, cargo). Each list is sorted
- * alphabetically so a rider can scan it quickly. A brand that builds both — e.g.
- * Pure Electric — appears in each section; a scooter-only maker (Xiaomi) does
- * not show under Bikes. Both keep the "Other / Not Listed" escape hatches apart.
+ * Which brand `types` a `VehicleCategory` maps to. Note the mapping is the
+ * *kept* set — a brand matches a category when ANY of its types is in the set,
+ * so a brand that builds both bikes and e-bikes (Giant) shows under both
+ * "Bike" and "E-Bike", while a scooter-only maker (Xiaomi) only shows
+ * under "E-Scooter".
+ */
+const CATEGORY_BRAND_TYPES: Record<VehicleCategory, BikeBrandType[]> = {
+  cycle: [
+    'Mountain', 'Road', 'Hybrid', 'Gravel', 'Kids', 'City', 'Folding', 'Cargo', 'Touring',
+  ],
+  ebike: ['E-Bike', 'Conversion Kit'],
+  electric_scooter: ['E-Scooter'],
+  cargo: ['Kids', 'Cargo', 'Folding', 'City'],
+};
+
+/** True when a brand builds something for the given vehicle category. */
+export function brandMatchesCategory(profile: BikeBrandProfile, category: VehicleCategory): boolean {
+  if (UNKNOWN_BRAND_NAMES.includes(profile.name)) return true;
+  const allowed = CATEGORY_BRAND_TYPES[category];
+  if (!allowed) return true;
+  return profile.types.some((t) => allowed.includes(t));
+}
+
+/** Every known brand (in catalogue order) that builds something for a category. */
+export function brandsForCategory(category: VehicleCategory): BikeBrandProfile[] {
+  return BIKE_BRAND_PROFILES.filter((b) => brandMatchesCategory(b, category));
+}
+
+/** The first known matching brand for a category — falls back to "Other / Not Listed". */
+export function firstBrandForCategory(category: VehicleCategory): string {
+  const known = brandsForCategory(category).find((b) => !UNKNOWN_BRAND_NAMES.includes(b.name));
+  return known ? known.name : UNKNOWN_BRAND_NAMES[0];
+}
+
+/**
+ * Splits the brand catalogue into the two digestible sections and the escape
+ * hatches. Each list is sorted alphabetically so a rider can scan it quickly.
+ * A brand that builds both — e.g. Pure Electric — appears in each section; a
+ * scooter-only maker (Xiaomi) does not show under Bikes. The picker then
+ * further narrows these sections to the vehicle type chosen in the booking
+ * Step 1 (see brandMatchesCategory). Both sections keep the
+ * "Other / Not Listed" escape hatches apart.
  */
 export function brandSections(): { scooters: BikeBrandProfile[]; bikes: BikeBrandProfile[]; unknown: BikeBrandProfile[] } {
   const byName = (a: BikeBrandProfile, b: BikeBrandProfile) =>

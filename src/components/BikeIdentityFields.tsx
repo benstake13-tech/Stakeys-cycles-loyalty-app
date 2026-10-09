@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Search, Check, X, Bike, Zap, ChevronDown } from 'lucide-react';
 import {
   modelsForBrand,
@@ -6,6 +6,8 @@ import {
   isCustomModel,
   brandSections,
   isScooterBrand,
+  brandMatchesCategory,
+  firstBrandForCategory,
   UNKNOWN_BRAND_NAMES,
   EBIKE_STATUS_OPTIONS,
   EBIKE_MOTOR_SYSTEMS,
@@ -66,14 +68,18 @@ const labelClass = 'block text-xs font-medium text-neutral-300 mb-1.5';
 /**
  * Searchable brand picker. 90+ brands in one flat list is painful on a phone,
  * so the catalogue is split into two alphabetical sections — E-Scooters and
- * Bikes — with a search box that filters across both. A brand that builds both
- * (e.g. Pure Electric) appears in each section.
+ * Bikes — with a search box that filters across both. The sections honour the
+ * vehicle type chosen in the booking's Step 1: picking E-Scooter only offers
+ * e-scooter makers (Xiaomi, Segway…), picking Bike only offers bike/e-bike
+ * makers (Giant, Trek…), and the "Other / Not Listed" escape hatches always
+ * remain so any bike can be booked.
  */
 const BrandPicker: React.FC<{
   brand: string;
+  category: VehicleCategory;
   onSelect: (brand: string) => void;
   idPrefix: string;
-}> = ({ brand, onSelect, idPrefix }) => {
+}> = ({ brand, category, onSelect, idPrefix }) => {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
 
@@ -89,9 +95,14 @@ const BrandPicker: React.FC<{
     );
   };
 
-  const scooterResults = sections.scooters.filter(matches);
-  const bikeResults = sections.bikes.filter(matches);
-  const unknownResults = sections.unknown.filter(matches);
+  // Only brands that can actually be that vehicle type — the whole point of
+  // choosing e.g. "E-Scooter" in Step 1 is being offered scooter makers only.
+  const inCategory = (b: (typeof sections.bikes)[number]) =>
+    brandMatchesCategory(b, category) && matches(b);
+
+  const scooterResults = sections.scooters.filter(inCategory);
+  const bikeResults = sections.bikes.filter(inCategory);
+  const unknownResults = sections.unknown.filter(inCategory);
   const total = scooterResults.length + bikeResults.length + unknownResults.length;
 
   const selected = brandProfileFor(brand);
@@ -184,34 +195,37 @@ const BrandPicker: React.FC<{
               </div>
             ) : (
               <>
-                {scooterResults.length > 0 && (
-                  <div>
-                    <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0d1015] border-y border-neutral-800/80">
-                      <Zap className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
-                        E-Scooters
-                      </span>
-                      <span className="text-[10px] text-neutral-500">{scooterResults.length}</span>
+                {/* Show only the section that belongs to the Step 1 vehicle type. */}
+                {category === 'electric_scooter' ? (
+                  scooterResults.length > 0 && (
+                    <div>
+                      <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0d1015] border-y border-neutral-800/80">
+                        <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                          E-Scooter Brands
+                        </span>
+                        <span className="text-[10px] text-neutral-500">{scooterResults.length}</span>
+                      </div>
+                      {scooterResults.map((b) => (
+                        <BrandRow key={`scooter-${b.name}`} b={b} />
+                      ))}
                     </div>
-                    {scooterResults.map((b) => (
-                      <BrandRow key={`scooter-${b.name}`} b={b} />
-                    ))}
-                  </div>
-                )}
-
-                {bikeResults.length > 0 && (
-                  <div>
-                    <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0d1015] border-y border-neutral-800/80">
-                      <Bike className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
-                        Bikes
-                      </span>
-                      <span className="text-[10px] text-neutral-500">{bikeResults.length}</span>
+                  )
+                ) : (
+                  bikeResults.length > 0 && (
+                    <div>
+                      <div className="sticky top-0 z-10 flex items-center gap-2 px-3 py-1.5 bg-[#0d1015] border-y border-neutral-800/80">
+                        <Bike className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-300">
+                          {category === 'ebike' ? 'E-Bike Brands' : 'Bike Brands'}
+                        </span>
+                        <span className="text-[10px] text-neutral-500">{bikeResults.length}</span>
+                      </div>
+                      {bikeResults.map((b) => (
+                        <BrandRow key={`bike-${b.name}`} b={b} />
+                      ))}
                     </div>
-                    {bikeResults.map((b) => (
-                      <BrandRow key={`bike-${b.name}`} b={b} />
-                    ))}
-                  </div>
+                  )
                 )}
 
                 {unknownResults.length > 0 && (
@@ -253,6 +267,23 @@ export const BikeIdentityFields: React.FC<Props> = ({
     onChange({ brand, model: nextModels[0] || '', customModel: '' });
   };
 
+  // When the vehicle type changes and the selected brand doesn't build that
+  // type (e.g. Xiaomi chosen, then Step 1 switched to "Bike"), drop to the
+  // first brand that does rather than leaving a contradictory selection. Only
+  // fires on a *category change* — never on first render, so opening "Edit
+  // bike details" for an existing scooter keeps its (valid) stored brand.
+  const lastCategoryRef = React.useRef(value.category);
+  useEffect(() => {
+    if (lastCategoryRef.current === value.category) return;
+    lastCategoryRef.current = value.category;
+    const profile = brandProfileFor(value.brand);
+    if (profile && !brandMatchesCategory(profile, value.category)) {
+      const next = firstBrandForCategory(value.category);
+      const nextModels = modelsForBrand(next);
+      onChange({ brand: next, model: nextModels[0] || '', customModel: '' });
+    }
+  }, [value.category]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="space-y-4">
       {showCategory && (
@@ -278,7 +309,7 @@ export const BikeIdentityFields: React.FC<Props> = ({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <BrandPicker brand={value.brand} onSelect={handleBrand} idPrefix={idPrefix} />
+        <BrandPicker brand={value.brand} category={value.category} onSelect={handleBrand} idPrefix={idPrefix} />
 
         <div>
           <label className={labelClass} htmlFor={`${idPrefix}-model`}>
