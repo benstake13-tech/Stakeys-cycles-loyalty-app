@@ -123,6 +123,8 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
 
       // The lookup is async — the camera may have been stopped, flipped, or the
       // modal closed while it ran. Drop the result rather than mutating the UI.
+      // The guard is released when the next run starts, not here, so a stale
+      // return can never clear the guard of a run that is still in flight.
       if (isStale()) return;
 
       if (customer) {
@@ -183,6 +185,10 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
       // Ignore a second start while the previous one is still settling.
       if (startingRef.current) return;
       if (!document.getElementById(READER_ID)) return;
+
+      // A new camera run supersedes any decode still in flight, so release the
+      // duplicate-frame guard here (the session bump below invalidates the old one).
+      handlingRef.current = false;
 
       setCameraError(null);
       setErrorMessage(null);
@@ -330,6 +336,8 @@ export const QRCodeScannerModal: React.FC<QRCodeScannerModalProps> = ({
   // Explicitly clear the pause and re-arm. The ONLY place scanning resumes after
   // a detection, so the modal can never loop back on its own.
   const scanNextCode = () => {
+    // Release the duplicate-frame guard for the new run. A decode that was still
+    // in flight for the previous run is invalidated by the session bump below.
     handlingRef.current = false;
     resumeScanner();
     setScanResult(null);
