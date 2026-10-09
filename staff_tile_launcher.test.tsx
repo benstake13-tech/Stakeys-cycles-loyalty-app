@@ -1,7 +1,10 @@
 import React from 'react';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { Bike, Wrench } from 'lucide-react';
+
+const TILE_CSS = readFileSync('src/index.css', 'utf8');
 
 vi.mock('./src/context/ShopContext', () => ({
   useShop: () => ({ theme: 'dark' }),
@@ -100,5 +103,18 @@ describe('tile primitives', () => {
     expect(container.querySelector('.tile-glyph')).toBeTruthy();
     // The glyph is wrapped in the pulsing icon chip.
     expect(container.querySelector('.tile-icon .tile-glyph')).toBeTruthy();
+  });
+
+  it('does not keep a repaint-heavy animation running on every tile (no forever box-shadow / conic rotation)', () => {
+    // Any perpetual box-shadow or large conic-layer rotation is a per-frame
+    // full-tile repaint that can make a full launcher look jittery. The
+    // "breathing" halo and colour sweep must be opacity/transform-only at rest
+    // and only resume rotating on hover.
+    expect(TILE_CSS).not.toMatch(/@keyframes\s+tile[^{]*\{[^}]*box-shadow\s*:\s*0 0 0 \d+px/);
+    expect(TILE_CSS).not.toMatch(/tile-badge-pulse/);
+    expect(TILE_CSS).toMatch(/\.tile\s+\.tile-spin\s*\{[^}]*animation:\s*tile-spin-in\s+[\d.]+s\s+ease-out\s+both/);
+    expect(TILE_CSS).toMatch(/tile-badge-breathe/);
+    expect(TILE_CSS).toMatch(/tile-spin-in/);
+    expect(TILE_CSS).toMatch(/\.tile:hover:not\(:disabled\) \.tile-spin\s*{[^}]*tile-spin/);
   });
 });
