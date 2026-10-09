@@ -21,7 +21,7 @@ export const StaffBackendTab: React.FC = () => {
   const online = serviceStatus.isOnline;
 
   return (
-    <div className="space-y-6 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
