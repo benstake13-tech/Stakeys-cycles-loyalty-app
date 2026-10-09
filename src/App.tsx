@@ -31,6 +31,7 @@ import { StakeysLogo } from './components/StakeysLogo';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
+import { ThemeBanner } from './components/ThemeBanner';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
@@ -677,6 +678,14 @@ function AppContent() {
 export default function App() {
   return (
     <ShopProvider>
+      <div className="min-h-screen flex flex-col">
+        {/* Celebration overlay for the active seasonal theme, on every surface
+            and every screen (login, guest booking, website, staff, customer). */}
+        <ThemeBanner />
+        <div className="flex-1 flex flex-col min-h-0">
+          <AppContent />
+        </div>
+      </div>
       <Toaster
         position="top-right"
         toastOptions={{
@@ -698,7 +707,6 @@ export default function App() {
           },
         }}
       />
-      <AppContent />
     </ShopProvider>
   );
 }

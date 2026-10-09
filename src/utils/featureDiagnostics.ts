@@ -70,6 +70,8 @@ import { encodeItemCode, itemCodeForProduct, resolveItemByCode } from '../utils/
 import { classifyBookingChannel, didConvert, summarizePerformance } from '../utils/performanceTracker';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
 import { BOOKING_LANGUAGES, getPhrases, isRtlLanguage } from '../utils/bookingTranslator';
+import { HOLIDAY_THEME_IDS } from '../utils/holidayCalendar';
+import { THEME_BANNERS, themeBannerFor } from '../utils/themeBanners';
 import type {
   CustomerBike,
   ServiceBooking,
@@ -2008,6 +2010,24 @@ export const FEATURE_TESTS: FeatureTest[] = [
       return ok
         ? { status: 'pass', detail: `${languages.length} languages x ${englishKeys.length} phrases complete; Arabic + Urdu are RTL.` }
         : { status: 'fail', detail: `languages=${languages.length}; rtl=${rtlOk}; complete=${complete}` };
+    },
+  },
+  {
+    id: 'logic-theme-banner',
+    area: 'logic',
+    label: 'Seasonal theme banners',
+    description: 'Every concrete seasonal theme has a celebration banner with a non-empty greeting and emoji; "none" maps to no banner.',
+    run: async () => {
+      const missing = HOLIDAY_THEME_IDS.filter((id) => !THEME_BANNERS[id as keyof typeof THEME_BANNERS]);
+      const malformed = HOLIDAY_THEME_IDS.filter((id) => {
+        const b = themeBannerFor(id);
+        return !b || !b.greeting.trim() || !b.emoji.trim() || !b.gradient.trim();
+      });
+      const noneOk = themeBannerFor('none') === null && themeBannerFor(undefined) === null;
+      const ok = missing.length === 0 && malformed.length === 0 && noneOk;
+      return ok
+        ? { status: 'pass', detail: `${HOLIDAY_THEME_IDS.length} themes each have a banner; 'none' shows none.` }
+        : { status: 'fail', detail: `missing=[${missing}]; malformed=[${malformed}]; noneOk=${noneOk}` };
     },
   },
 ];
