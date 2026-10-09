@@ -13,7 +13,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 import { LanguageCode } from '../utils/bookingTranslator';
-import { resolveGeminiModel, NO_THINKING } from './geminiModel';
+import { resolveGeminiModel, noThinking } from './geminiModel';
 
 const getApiKey = (): string =>
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || '';
@@ -35,8 +35,9 @@ export async function translateToEnglish(text: string, sourceCode: LanguageCode)
 
   try {
     const ai = new GoogleGenAI({ apiKey });
+    const model = resolveGeminiModel();
     const response = await ai.models.generateContent({
-      model: resolveGeminiModel(),
+      model,
       contents: [
         {
           role: 'user',
@@ -51,7 +52,7 @@ export async function translateToEnglish(text: string, sourceCode: LanguageCode)
           ],
         },
       ],
-      config: { temperature: 0, maxOutputTokens: 400, ...NO_THINKING },
+      config: { temperature: 0, maxOutputTokens: 400, ...noThinking(model) },
     });
     const out = response.text?.trim();
     return out || trimmed;

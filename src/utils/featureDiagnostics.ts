@@ -83,6 +83,7 @@ import {
   calcJobLine,
   applyOp,
 } from '../utils/tillCalculator';
+import { planPromotion, buildTimeline, deriveStatus } from '../utils/promotionPlanner';
 import type {
   CustomerBike,
   ServiceBooking,
@@ -2072,6 +2073,39 @@ export const FEATURE_TESTS: FeatureTest[] = [
       return ok
         ? { status: 'pass', detail: `12.50 + 7.25 = ${sum}; float-safe, ÷0 guarded, % and job line OK.` }
         : { status: 'fail', detail: `sum=${sum}; float=${floatOk}; div0=${divZeroGuarded}; pct=${pctOk}; line=${lineOk}` };
+    },
+  },
+  {
+    id: 'logic-promotion-planner',
+    area: 'logic',
+    label: 'Promotions planner scheduling',
+    description: 'Date-derived status, overlap detection against live campaigns, and timeline layout for a drafted campaign.',
+    run: async () => {
+      const today = new Date(2026, 5, 15);
+      const existing = [
+        { id: 'p1', title: 'Live', status: 'active', startDate: '2026-06-10', endDate: '2026-06-25', eligibleCategories: ['cycle'] },
+      ] as any[];
+      const clash = planPromotion(
+        { title: 'Clash', discountPercentage: 15, startDate: '2026-06-20', endDate: '2026-07-05', eligibleCategories: ['cycle'] },
+        existing,
+        { today }
+      );
+      const clean = planPromotion(
+        { title: 'Clean', discountPercentage: 15, startDate: '2026-07-01', endDate: '2026-07-10', eligibleCategories: ['cycle'] },
+        existing,
+        { today }
+      );
+      const statusOk = deriveStatus('2026-06-01', '2026-06-30', today) === 'active';
+      const clashOk = clash.conflicts.length === 1 && clash.warnings.some((w) => /Overlaps/.test(w));
+      const cleanOk = clean.conflicts.length === 0 && clean.status === 'upcoming';
+      const tl = buildTimeline(existing, clash, { today, spanDays: 120 });
+      const plannedRow = tl.rows.find((r) => r.isPlanned);
+      const tlOk = !!plannedRow && plannedRow.tone === 'conflict' && plannedRow.widthPct > 0;
+
+      const ok = statusOk && clashOk && cleanOk && tlOk;
+      return ok
+        ? { status: 'pass', detail: 'Status derived from dates; overlap flagged; planned row rendered as a conflict.' }
+        : { status: 'fail', detail: `status=${statusOk}; clash=${clashOk}; clean=${cleanOk}; timeline=${tlOk}` };
     },
   },
 ];
