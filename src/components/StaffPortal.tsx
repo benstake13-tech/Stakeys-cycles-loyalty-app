@@ -189,7 +189,35 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'performance'
     | 'financials'
     | 'station';
-  const [settingsSection, setSettingsSection] = useState<SettingsSection>('notifications');
+  const SETTINGS_SECTIONS: SettingsSection[] = [
+    'notifications',
+    'assistant',
+    'test_bench',
+    'performance',
+    'financials',
+    'station',
+  ];
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(() => {
+    // Restore the last-used Settings section for the same reason the tab is
+    // restored: a remount must not snap the operator back to Notifications.
+    try {
+      const saved = localStorage.getItem('stakeys_staff_settings_section');
+      if (saved && SETTINGS_SECTIONS.includes(saved as SettingsSection)) {
+        return saved as SettingsSection;
+      }
+    } catch {
+      /* ignore */
+    }
+    return 'notifications';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('stakeys_staff_settings_section', settingsSection);
+    } catch {
+      /* ignore */
+    }
+  }, [settingsSection]);
   const settingsSections: SegmentedTab<SettingsSection>[] = [
     { id: 'notifications', label: 'Notifications', icon: Bell, tone: 'emerald', hint: 'Workshop alert routing' },
     { id: 'assistant', label: 'Assistant', icon: Bot, tone: 'emerald', hint: 'Customer shop assistant' },

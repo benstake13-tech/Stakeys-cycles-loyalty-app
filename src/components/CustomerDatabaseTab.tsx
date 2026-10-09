@@ -419,246 +419,18 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredCustomers.map((cust) => {
-            const rateStatus = canCustomerReceiveStampToday(cust);
-            const stamps = cust.stamps || 0;
-            const tickets = cust.tickets || 0;
-            const points = cust.points || 0;
-            const bikes = cust.bikes || [];
-
-            return (
-              <div
-                key={cust.uid}
-                className="bg-[#0d1015] border border-neutral-800 hover:border-neutral-700/80 rounded-2xl p-5 sm:p-6 transition-all shadow-md group flex flex-col lg:flex-row items-start lg:items-center justify-between gap-5"
-              >
-                {/* Left: Customer Identity & Contact */}
-                <div className="flex items-start gap-4 min-w-[280px]">
-                  {/* Member profile avatar — the same deterministic face the
-                      customer customises in their own portal (avatarColor is the
-                      serialised FaceAvatarConfig), falling back to a seeded face. */}
-                  <div className="w-12 h-12 rounded-2xl overflow-hidden border border-emerald-500/30 shadow-md shrink-0">
-                    <FaceAvatar
-                      seed={cust.displayName}
-                      configString={cust.avatarColor}
-                      size={48}
-                      className="w-full h-full"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-white text-sm sm:text-base">
-                        {cust.displayName}
-                      </span>
-
-                      {/* Click to Copy Member ID */}
-                      <button
-                        type="button"
-                        onClick={() => handleCopyId(cust.membershipNumber)}
-                        title="Click to copy member ID"
-                        className="font-mono text-xs text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer transition-colors"
-                      >
-                        <span>{cust.membershipNumber}</span>
-                        {copiedId === cust.membershipNumber ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3 h-3 text-emerald-400/60" />
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Contact Info */}
-                    <div className="text-xs text-neutral-400 flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="flex items-center gap-1 text-neutral-300">
-                        <Mail className="w-3 h-3 text-neutral-500" />
-                        {cust.email}
-                      </span>
-                      {cust.phoneNumber && (
-                        <span className="flex items-center gap-1 text-neutral-400">
-                          <Phone className="w-3 h-3 text-neutral-500" />
-                          {cust.phoneNumber}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Registered Bikes */}
-                    {bikes.length > 0 && (
-                      <div className="text-[11px] text-neutral-400 flex items-center gap-1.5 pt-0.5">
-                        <Bike className="w-3.5 h-3.5 text-neutral-500" />
-                        <span>
-                          {bikes.map((b) => `${b.brand} ${b.model}`).join(' · ')}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Middle: Points & Loyalty Balances */}
-                <div className="flex flex-wrap items-center gap-4 bg-neutral-950/80 p-3.5 rounded-xl border border-neutral-800/80">
-                  {/* Stamps Metric */}
-                  <div className="text-left min-w-[100px]">
-                    <div className="text-[10px] uppercase font-mono text-neutral-400 tracking-wider">
-                      Visit Stamps
-                    </div>
-                    <div className="font-mono text-lg font-bold text-white flex items-baseline gap-1 mt-0.5">
-                      <span className={stamps >= 10 ? 'text-purple-400' : 'text-[#05C147]'}>
-                        {stamps}
-                      </span>
-                      <span className="text-xs text-neutral-500">/10</span>
-                      {stamps >= 10 && (
-                        <span className="text-[10px] text-purple-400 font-bold ml-1">
-                          REWARD
-                        </span>
-                      )}
-                    </div>
-                    {/* 10-stamp miniature progress pips */}
-                    <div className="flex gap-0.5 mt-1">
-                      {Array.from({ length: 10 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-2 h-1.5 rounded-sm ${
-                            i < stamps
-                              ? stamps >= 10
-                                ? 'bg-purple-400'
-                                : 'bg-[#05C147]'
-                              : 'bg-neutral-800'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="w-px h-8 bg-neutral-800 hidden sm:block" />
-
-                  {/* Prize Draw Tickets */}
-                  <div className="text-left min-w-[80px]">
-                    <div className="text-[10px] uppercase font-mono text-neutral-400 tracking-wider flex items-center gap-1">
-                      <Ticket className="w-3 h-3 text-amber-400" />
-                      <span>Tickets</span>
-                    </div>
-                    <div className="font-mono text-lg font-bold text-amber-400 tabular-nums mt-0.5">
-                      {tickets}
-                    </div>
-                    <div className="text-[10px] text-neutral-500">Draw entries</div>
-                  </div>
-
-                  <div className="w-px h-8 bg-neutral-800 hidden sm:block" />
-
-                  {/* Store Points */}
-                  <div className="text-left min-w-[80px]">
-                    <div className="text-[10px] uppercase font-mono text-neutral-400 tracking-wider flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-emerald-400" />
-                      <span>Points</span>
-                    </div>
-                    <div className="font-mono text-lg font-bold text-emerald-400 tabular-nums mt-0.5">
-                      {points}
-                    </div>
-                    <div className="text-[10px] text-neutral-500">Loyalty pts</div>
-                  </div>
-
-                  <div className="w-px h-8 bg-neutral-800 hidden sm:block" />
-
-                  {/* Stamp Rate Limit Status */}
-                  <div className="text-left">
-                    <div className="text-[10px] uppercase font-mono text-neutral-400 tracking-wider">
-                      Stamp Status
-                    </div>
-                    <div className="text-xs font-semibold mt-0.5">
-                      {rateStatus.allowed ? (
-                        <span className="text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          Eligible Today
-                        </span>
-                      ) : (
-                        <span className="text-amber-400 flex items-center gap-1" title={rateStatus.reason}>
-                          <Clock className="w-3.5 h-3.5 text-amber-400" />
-                          Stamped Today
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right: Actions */}
-                <div className="flex flex-wrap items-center gap-2 self-end lg:self-center shrink-0">
-                  {/* Mobile loyalty control panel */}
-                  <button
-                    type="button"
-                    onClick={() => setDossierUid(cust.uid)}
-                    className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 hover:border-emerald-500 text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>Manage Member</span>
-                  </button>
-
-                  {/* Manual Point & Profile Editor */}
-                  <button
-                    type="button"
-                    onClick={() => setEditingCustomer(cust)}
-                    className="px-3 py-2 rounded-xl bg-neutral-850 hover:bg-neutral-800 border border-neutral-700/80 hover:border-emerald-500/50 text-white text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-                  >
-                    <SlidersHorizontal className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Edit Points</span>
-                  </button>
-
-                  {/* Quick +1 Stamp */}
-                  <button
-                    type="button"
-                    onClick={() => handleQuickAddStamp(cust)}
-                    title="Add 1 visit stamp right now"
-                    className="px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/40 hover:border-emerald-500 text-emerald-400 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>+1 Stamp</span>
-                  </button>
-
-                  {/* Quick -1 Stamp */}
-                  <button
-                    type="button"
-                    onClick={() => handleQuickMinusStamp(cust)}
-                    disabled={(cust.stamps || 0) <= 0}
-                    title="Correct accidental stamp (-1 stamp)"
-                    className="px-2.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-600 text-neutral-400 hover:text-neutral-200 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-
-                  {/* Quick +1 Ticket */}
-                  <button
-                    type="button"
-                    onClick={() => handleQuickAddTicket(cust)}
-                    title="Add 1 prize draw ticket"
-                    className="px-2.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-amber-500/30 hover:border-amber-500 text-amber-400 text-xs font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <Ticket className="w-3.5 h-3.5" />
-                    <span>+1</span>
-                  </button>
-
-                  {/* Delete Customer Account */}
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteCustomer(cust)}
-                    title="Delete customer loyalty account"
-                    className="p-2 rounded-xl bg-rose-950/40 hover:bg-rose-900/80 border border-rose-800/60 hover:border-rose-700 text-rose-400 hover:text-rose-200 text-xs transition-all cursor-pointer"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-
-                  {/* Send to Scanner */}
-                  {onSelectForScanner && (
-                    <button
-                      type="button"
-                      onClick={() => onSelectForScanner(cust)}
-                      title="Load this customer into till scanner"
-                      className="p-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white text-xs transition-all cursor-pointer"
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="member-tile-grid">
+          {filteredCustomers.map((cust) => (
+            <MemberTile
+              key={cust.uid}
+              cust={cust}
+              copied={copiedId === cust.membershipNumber}
+              onOpen={() => setDossierUid(cust.uid)}
+              onCopyId={() => handleCopyId(cust.membershipNumber)}
+              onDelete={() => handleDeleteCustomer(cust)}
+              onSelectForScanner={onSelectForScanner ? () => onSelectForScanner(cust) : undefined}
+            />
+          ))}
         </div>
       )}
 
@@ -687,6 +459,135 @@ export const CustomerDatabaseTab: React.FC<CustomerDatabaseTabProps> = ({
           }}
         />
       )}
+    </div>
+  );
+};
+
+/* ========================================================================= */
+/* MEMBER TILE                                                               */
+/* ========================================================================= */
+/**
+ * One square in the directory dashboard. Tapping the tile opens the member
+ * panel (edit/update stats); the small buttons are quick actions that don't
+ * open it. Square via `aspect-square`.
+ */
+const MemberTile: React.FC<{
+  cust: UserProfile;
+  copied: boolean;
+  onOpen: () => void;
+  onCopyId: () => void;
+  onDelete: () => void;
+  onSelectForScanner?: () => void;
+}> = ({ cust, copied, onOpen, onCopyId, onDelete, onSelectForScanner }) => {
+  const rateStatus = canCustomerReceiveStampToday(cust);
+  const stamps = cust.stamps || 0;
+  const tickets = cust.tickets || 0;
+  const points = cust.points || 0;
+  const bikes = cust.bikes || [];
+  const rewardReady = stamps >= 10;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      data-testid={`member-tile-${cust.uid}`}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      title={`Open ${cust.displayName}`}
+      className="group relative aspect-square rounded-2xl bg-[#0d1015] border border-neutral-800 hover:border-emerald-500/50 hover:shadow-lg hover:shadow-emerald-500/5 transition-all cursor-pointer p-3 flex flex-col"
+    >
+      {/* Status badge (top-right) */}
+      <span
+        className={`absolute top-2 right-2 px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border ${
+          rewardReady
+            ? 'bg-purple-500/15 text-purple-300 border-purple-500/40'
+            : rateStatus.allowed
+            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+            : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+        }`}
+      >
+        {rewardReady ? 'Reward' : rateStatus.allowed ? 'Eligible' : 'Stamped'}
+      </span>
+
+      {/* Avatar + name */}
+      <div className="flex flex-col items-center text-center">
+        <div className="w-12 h-12 rounded-2xl overflow-hidden border border-emerald-500/30 shadow-md shrink-0">
+          <FaceAvatar seed={cust.displayName} configString={cust.avatarColor} size={48} className="w-full h-full" />
+        </div>
+        <div className="mt-2 w-full">
+          <div className="text-[12px] font-bold text-white truncate">{cust.displayName}</div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopyId();
+            }}
+            title="Click to copy member ID"
+            className="mt-0.5 font-mono text-[10px] text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 cursor-pointer"
+          >
+            <span className="truncate max-w-[92px]">{cust.membershipNumber}</span>
+            {copied ? <Check className="w-2.5 h-2.5" /> : <Copy className="w-2.5 h-2.5 opacity-60" />}
+          </button>
+        </div>
+      </div>
+
+      {/* Stat chips */}
+      <div className="mt-auto grid grid-cols-3 gap-1 pt-2">
+        <div className="rounded-lg bg-neutral-950/80 border border-neutral-800/80 py-1 text-center">
+          <div className={`font-mono text-sm font-bold ${rewardReady ? 'text-purple-400' : 'text-[#05C147]'}`}>
+            {stamps}
+          </div>
+          <div className="text-[8px] uppercase tracking-wider text-neutral-500">Stamps</div>
+        </div>
+        <div className="rounded-lg bg-neutral-950/80 border border-neutral-800/80 py-1 text-center">
+          <div className="font-mono text-sm font-bold text-amber-400">{tickets}</div>
+          <div className="text-[8px] uppercase tracking-wider text-neutral-500">Tickets</div>
+        </div>
+        <div className="rounded-lg bg-neutral-950/80 border border-neutral-800/80 py-1 text-center">
+          <div className="font-mono text-sm font-bold text-emerald-400">{points}</div>
+          <div className="text-[8px] uppercase tracking-wider text-neutral-500">Points</div>
+        </div>
+      </div>
+
+      {bikes.length > 0 && (
+        <div className="mt-1 text-[9px] text-neutral-500 flex items-center justify-center gap-1 truncate">
+          <Bike className="w-3 h-3 shrink-0" />
+          <span className="truncate">{bikes.length} bike{bikes.length === 1 ? '' : 's'}</span>
+        </div>
+      )}
+
+      {/* Quick actions (stop propagation so they don't open the member panel) */}
+      <div className="mt-1.5 flex items-center justify-center gap-1">
+        {onSelectForScanner && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectForScanner();
+            }}
+            title="Load this customer into the till scanner"
+            className="p-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white cursor-pointer"
+          >
+            <ChevronRight className="w-3 h-3" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          title="Delete customer loyalty account"
+          className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/80 border border-rose-800/60 hover:border-rose-700 text-rose-400 hover:text-rose-200 cursor-pointer"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   );
 };
