@@ -1,4 +1,9 @@
 import { OAuthProvider, getValidAccessToken } from './oauthService';
+import {
+  MetaPoint,
+  buildMetaTimeline,
+  META_DAILY_METRICS,
+} from './performanceInsights';
 
 export interface BusinessMetric {
   label: string;
@@ -193,6 +198,82 @@ export async function fetchMetaInsights(): Promise<BusinessInsights> {
       : insights.ok
         ? 'Connected, but Meta returned no insights for this Page.'
         : `Connected, but Meta rejected the insights request${insights.error ? ` (${insights.error})` : ''}.`,
+  };
+}
+
+export interface MetaTimelineResult {
+  connected: boolean;
+  live: boolean;
+  pageName?: string;
+  pageId?: string;
+  followers?: number;
+  igUsername?: string;
+  igFollowers?: number;
+  igMediaCount?: number;
+  timeline: MetaPoint[];
+  message?: string;
+}
+
+/**
+ * Detailed Meta series for the Business Stats charts: per-day Facebook Page
+ * metrics aligned onto one timeline, plus the linked Instagram account's
+ * follower/media counts. Falls back to the server-managed token when the browser
+ * has none (mirrors `fetchMetaInsights`).
+ */
+export async function fetchMetaTimeline(): Promise<MetaTimelineResult> {
+  const empty: MetaTimelineResult = { connected: false, live: false, timeline: [] };
+
+  const pages = await proxyFetch('meta', 'me/accounts', {
+    fields: 'id,name,fan_count,followers_count,access_token,instagram_business_account{id,username}',
+  });
+  if (!pages.ok) {
+    return { ...empty, message: pages.error === 'not_connected' ? 'Not connected' : 'Meta API unavailable' };
+  }
+
+  const page = (pages.data?.data || [])[0];
+  if (!page) return { ...empty, connected: true, message: 'No Facebook Page is linked to this account.' };
+
+  const pageToken: string | undefined = page.access_token;
+
+  const daily = await proxyFetch(
+    'meta',
+    `${page.id}/insights`,
+    { metric: META_DAILY_METRICS, period: 'day' },
+    pageToken
+  );
+  const timeline = daily.ok ? buildMetaTimeline(daily.data?.data || []) : [];
+
+  // Instagram counts come from the linked business account; ignore failures so
+  // the Facebook charts still render if IG is not reachable.
+  let igUsername: string | undefined;
+  let igFollowers: number | undefined;
+  let igMediaCount: number | undefined;
+  const igId = page.instagram_business_account?.id;
+  if (igId) {
+    const ig = await proxyFetch(
+      'meta',
+      igId,
+      { fields: 'username,followers_count,media_count' },
+      pageToken
+    );
+    if (ig.ok) {
+      igUsername = ig.data?.username;
+      igFollowers = ig.data?.followers_count;
+      igMediaCount = ig.data?.media_count;
+    }
+  }
+
+  return {
+    connected: true,
+    live: timeline.length > 0,
+    pageName: page.name,
+    pageId: page.id,
+    followers: page.followers_count ?? page.fan_count,
+    igUsername,
+    igFollowers,
+    igMediaCount,
+    timeline,
+    message: timeline.length ? undefined : 'Connected, but Meta returned no daily insights for this Page.',
   };
 }
 
