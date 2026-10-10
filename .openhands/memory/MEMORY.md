@@ -345,3 +345,9 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - file_editor `create` can't make a NEW directory → `mkdir -p` first.
 - Heads (pushed): staff-terminal `40a6ddc` / customer-app `bcdddd6` / main-website `2cb40ea`. Suite 114 files / 871 tests (6 theme-id failures = paused theme WIP, not regressions). Detail in `2026-10-09.md`.
 
+
+## Session 42 (2026-10-08) — Meta Growth tab: real fix + static-token path
+- Meta card never worked for THREE code reasons (not just config): (1) insights called with the USER token — Graph needs a **Page Access Token** (`#190`); fix reads `me/accounts?fields=…,access_token` and uses that token. (2) metrics `page_impressions/page_engaged_users/page_fan_adds` are **retired** (`#100`); valid v21 set: `page_media_view,page_total_media_view_unique,page_post_engagements,page_follows,page_views_total,page_video_views`. (3) Meta has NO refresh-token grant → code used `grant_type=refresh_token` and disconnected after ~1h; now swaps for a ~60-day token via `fb_exchange_token`.
+- "Invalid App ID: …does not look like a valid app ID" from the FB dialog = `client_id` is not the app that owns the creds. `/debug_token` revealed the pasted token was issued by app `1114620961018703` ("Stakes cycles"), NOT the configured `61595029330806` (app named "ben"). Confirm the App ID with `GET /app` or `/debug_token`.
+- **Server-side static Meta token (no login)**: new server-only `META_SYSTEM_USER_TOKEN`; `/api/business/insights` falls back to it for Meta; new `GET /api/business/status` → `{meta:{serverManaged}}`; `businessInsights.ts` `refreshServerManaged()`/`isServerManaged()`; `BusinessPerformanceTab` shows "Server linked" + Refresh (no popup). Never inlined in the client bundle.
+- Heads (pushed): staff-terminal `4c49b5b` / customer-app `1de0d84` / main-website `da89a91`. Suite 121 files / 966 tests.
