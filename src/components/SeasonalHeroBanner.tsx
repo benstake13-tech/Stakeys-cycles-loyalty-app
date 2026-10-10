@@ -175,8 +175,21 @@ export const SeasonalHeroBanner: React.FC<{ theme?: string | null }> = ({ theme 
       }
       raf = requestAnimationFrame(tick);
     };
+    // Stop animating while the tab is hidden; resume when it is visible again.
+    const onVisibility = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      } else if (!raf) {
+        raf = requestAnimationFrame(tick);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [decor, dismissed]);
 
   useEffect(
