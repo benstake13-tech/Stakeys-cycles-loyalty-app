@@ -131,9 +131,14 @@ async function exchangeMetaLongLived(clientId: string, clientSecret: string, sho
    * ------------------------------------------------------------------ */
   app.post('/api/business/insights', async (req, res) => {
     const { provider, accessToken, path: apiPath, params = {} } = req.body || {};
-    if (!accessToken) return res.status(401).json({ error: 'not_connected' });
 
-    const authHeader = { Authorization: `Bearer ${accessToken}` };
+    // Meta can run from the server-managed system-user token, so a missing browser
+    // token only means "not connected" for providers without a server credential.
+    const token =
+      provider === 'meta' ? (accessToken || process.env.META_SYSTEM_USER_TOKEN || null) : accessToken;
+    if (!token) return res.status(401).json({ error: 'not_connected' });
+
+    const authHeader = { Authorization: `Bearer ${token}` };
 
     try {
       if (provider === 'meta') {
@@ -233,6 +238,15 @@ async function exchangeMetaLongLived(clientId: string, clientSecret: string, sho
       console.error('Business insights proxy error:', error);
       res.status(500).json({ error: 'Upstream request failed' });
     }
+  });
+
+  /**
+   * Which providers can be read without a browser token because the server
+   * holds a credential (Meta via META_SYSTEM_USER_TOKEN). Returns a boolean
+   * only — never the token.
+   */
+  app.get('/api/business/status', (_req, res) => {
+    res.json({ meta: { serverManaged: Boolean(process.env.META_SYSTEM_USER_TOKEN) } });
   });
 
   /* ------------------------------------------------------------------ *

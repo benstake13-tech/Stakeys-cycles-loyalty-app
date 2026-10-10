@@ -9,6 +9,7 @@ import { resolveProvider, exchangeToken, exchangeMetaLongLived } from './api/oau
 import tokenHandler from './api/oauth/token.js';
 import refreshHandler from './api/oauth/refresh.js';
 import insightsHandler from './api/business/insights.js';
+import statusHandler from './api/business/status.js';
 
 function mockRes() {
   const res: any = {
@@ -145,7 +146,7 @@ describe('api/oauth/refresh handler', () => {
 
 describe('exchangeMetaLongLived', () => {
   it('requests a long-lived token via fb_exchange_token', async () => {
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ access_token: 'LL' }) }));
+    const fetchMock = vi.fn(async (url: string) => ({ ok: true, status: 200, json: async () => ({ access_token: 'LL' }) }));
     vi.stubGlobal('fetch', fetchMock);
     const out = await exchangeMetaLongLived('appid', 'secret', 'short');
     expect(out.access_token).toBe('LL');
@@ -159,11 +160,38 @@ describe('exchangeMetaLongLived', () => {
 });
 
 describe('api/business/insights handler', () => {
-  it('requires an access token', async () => {
+  it('requires an access token when the server holds none', async () => {
+    delete process.env.META_SYSTEM_USER_TOKEN;
     const res = mockRes();
     await insightsHandler({ method: 'POST', body: { provider: 'meta' } }, res);
     expect(res.statusCode).toBe(401);
     expect(res.body.error).toBe('not_connected');
+  });
+
+  it('falls back to META_SYSTEM_USER_TOKEN for Meta when the browser sends none', async () => {
+    process.env.META_SYSTEM_USER_TOKEN = 'SYS_TOKEN';
+    const fetchMock = vi.fn(async (url: string, init: any) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ id: 'p1', name: 'Stakeys' }] }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = mockRes();
+    await insightsHandler({ method: 'POST', body: { provider: 'meta', path: 'me/accounts', params: {} } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data[0].name).toBe('Stakeys');
+    // The server credential is used as the bearer token.
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer SYS_TOKEN');
+    delete process.env.META_SYSTEM_USER_TOKEN;
+  });
+
+  it('does not use the Meta server token for other providers', async () => {
+    process.env.META_SYSTEM_USER_TOKEN = 'SYS_TOKEN';
+    const res = mockRes();
+    await insightsHandler({ method: 'POST', body: { provider: 'google', path: 'accounts', params: {} } }, res);
+    expect(res.statusCode).toBe(401);
+    expect(res.body.error).toBe('not_connected');
+    delete process.env.META_SYSTEM_USER_TOKEN;
   });
 
   it('proxies the Meta Graph API and passes the error envelope through', async () => {
@@ -186,5 +214,27 @@ describe('api/business/insights handler', () => {
     );
     expect(res.statusCode).toBe(200);
     expect(res.body.data[0].name).toBe('Stakeys');
+  });
+});
+
+describe('api/business/status handler', () => {
+  it('reports serverManaged=true only when META_SYSTEM_USER_TOKEN is set', async () => {
+    delete process.env.META_SYSTEM_USER_TOKEN;
+    let res = mockRes();
+    statusHandler({ method: 'GET' }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.meta.serverManaged).toBe(false);
+
+    process.env.META_SYSTEM_USER_TOKEN = 'SYS';
+    res = mockRes();
+    statusHandler({ method: 'GET' }, res);
+    expect(res.body.meta.serverManaged).toBe(true);
+    delete process.env.META_SYSTEM_USER_TOKEN;
+  });
+
+  it('rejects non-GET', async () => {
+    const res = mockRes();
+    statusHandler({ method: 'POST' }, res);
+    expect(res.statusCode).toBe(405);
   });
 });

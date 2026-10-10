@@ -10,6 +10,16 @@
 
 const GRAPH_VERSION = 'v21.0';
 
+/**
+ * Resolves the Meta credential: the browser-supplied token when present, else
+ * the server-managed `META_SYSTEM_USER_TOKEN` (a Business Manager system-user
+ * token). The latter lets the Growth tab read Page insights with no Facebook
+ * login at all — the credential never reaches the browser.
+ */
+function resolveMetaToken(accessToken) {
+  return accessToken || process.env.META_SYSTEM_USER_TOKEN || null;
+}
+
 async function metaInsights(apiPath, params, authHeader) {
   const url = new URL(`https://graph.facebook.com/${GRAPH_VERSION}/${apiPath}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
@@ -112,9 +122,12 @@ export default async function handler(req, res) {
   }
 
   const { provider, accessToken, path: apiPath, params = {} } = req.body || {};
-  if (!accessToken) return res.status(401).json({ error: 'not_connected' });
 
-  const authHeader = { Authorization: `Bearer ${accessToken}` };
+  // Meta can run from the server-managed system-user token, so a missing browser
+  // token only means "not connected" for providers without a server credential.
+  const token = provider === 'meta' ? resolveMetaToken(accessToken) : accessToken;
+  if (!token) return res.status(401).json({ error: 'not_connected' });
+  const authHeader = { Authorization: `Bearer ${token}` };
 
   try {
     if (provider === 'meta') {
