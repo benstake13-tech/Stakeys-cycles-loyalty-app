@@ -26,6 +26,15 @@ function fmt(n: number | undefined | null): string {
   return String(Math.round(n));
 }
 
+/** Pulls a readable message out of a provider error body (Graph `{error:{…}}`, plain string, …). */
+function errorMessage(data: any, fallback: string): string {
+  const e = data?.error;
+  if (typeof e === 'string') return e;
+  if (e && typeof e === 'object') return e.message || e.error_user_msg || e.type || fallback;
+  if (typeof e === 'number') return fallback;
+  return fallback;
+}
+
 /** Calls our server-side proxy which attaches the bearer token to provider APIs. */
 async function proxyFetch(provider: OAuthProvider, path: string, params: Record<string, string> = {}) {
   const token = await getValidAccessToken(provider);
@@ -37,7 +46,11 @@ async function proxyFetch(provider: OAuthProvider, path: string, params: Record<
     body: JSON.stringify({ provider, accessToken: token, path, params }),
   });
   const data = await res.json().catch(() => null);
-  if (!res.ok) return { ok: false, data, error: data?.error || 'request_failed' };
+  if (!res.ok) {
+    // Surface the Graph `{ error: … }` envelope (or proxy error) verbatim so the
+    // UI can show e.g. "no Page linked", "missing read_insights scope", "token expired".
+    return { ok: false, data, error: errorMessage(data, 'request_failed') };
+  }
   return { ok: true, data, error: null };
 }
 
