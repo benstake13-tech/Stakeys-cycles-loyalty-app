@@ -120,6 +120,76 @@ describe('fetchMetaInsights', () => {
     expect(result.message).toMatch(/valid insights metric/i);
   });
 
+  it('recovers when the batched metric list is rejected but most metrics still work', async () => {
+    // Meta retires Page metrics on a rolling schedule; a single retired name
+    // fails the whole batched call with #100. The fetch must retry per-metric
+    // and keep the surviving series instead of blanking the panel.
+    const RETIRED = 'page_total_media_view_unique';
+    const metricCalls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: any) => {
+        const body = init?.body ? JSON.parse(init.body) : {};
+        if (body.path === 'me/accounts') {
+          return jsonResponse({ data: [{ id: 'p1', name: 'Stakeys', fan_count: 121, access_token: PAGE_TOKEN }] });
+        }
+        const metric = String(body.params.metric);
+        metricCalls.push(metric);
+        // The batched multi-metric request is rejected because one name is retired.
+        if (metric.includes(',')) {
+          return jsonResponse(
+            { error: { message: 'The value must be a valid insights metric', code: 100 } },
+            false,
+            400
+          );
+        }
+        if (metric === RETIRED) {
+          return jsonResponse(
+            { error: { message: 'The value must be a valid insights metric', code: 100 } },
+            false,
+            400
+          );
+        }
+        return jsonResponse({ data: [{ name: metric, values: [{ value: 7 }] }] });
+      })
+    );
+
+    const result = await fetchMetaInsights();
+
+    expect(result.connected).toBe(true);
+    expect(result.live).toBe(true);
+    // The batched call was attempted first, then split per-metric.
+    expect(metricCalls[0]).toContain(',');
+    const byLabel = Object.fromEntries(result.metrics.map((m) => [m.label, m.value]));
+    expect(byLabel['Media Views']).toBe('7');
+    expect(byLabel['Page Views']).toBe('7');
+    // The retired metric renders as an em dash, not a crash or a blank panel.
+    expect(byLabel['Unique Viewers']).toBe('—');
+    // The surviving data is still reported as live, and the drop is surfaced.
+    expect(result.message).toMatch(/no longer supported/i);
+  });
+
+  it('does not fan out per-metric on a non-metric error such as an expired token', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: any) => {
+        const body = init?.body ? JSON.parse(init.body) : {};
+        if (body.path === 'me/accounts') {
+          return jsonResponse({ data: [{ id: 'p1', name: 'Stakeys', access_token: PAGE_TOKEN }] });
+        }
+        calls.push(String(body.params.metric));
+        return jsonResponse({ error: { message: 'Error validating access token: Session has expired', code: 190 } }, false, 400);
+      })
+    );
+
+    const result = await fetchMetaInsights();
+    expect(result.live).toBe(false);
+    // Only the single batched request — no per-metric retry storm.
+    expect(calls).toHaveLength(1);
+    expect(result.message).toMatch(/expired/i);
+  });
+
   it('loads Meta with the server token when there is no browser token', async () => {
     h.userToken = null;
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ meta: { serverManaged: true } })));
