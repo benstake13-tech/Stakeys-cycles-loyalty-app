@@ -25,6 +25,12 @@ interface Star {
 }
 
 const MAX_DPR = 1.5; // cap the backing-store scale so 4K screens stay smooth
+// The scene is decorative, so it does not need to run at the display's full
+// refresh rate. Throttling to ~30fps roughly halves the per-frame CPU cost on
+// high-refresh displays, which is the main cause of the "jittery" feel while
+// the user interacts with the page on top of the canvas.
+const TARGET_FPS = 30;
+const FRAME_INTERVAL = 1000 / TARGET_FPS;
 
 /**
  * Full-screen, non-interactive software-rendered world for the active seasonal
@@ -153,9 +159,20 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: SeasonalThemeId | strin
 
     // --- Main loop --------------------------------------------------------
     let last = performance.now();
+    let acc = 0; // time accumulated since the last painted frame (throttle)
     const draw = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
+
+      // Throttle to TARGET_FPS: skip painting until enough time has elapsed,
+      // but keep the rAF loop alive so a later frame paints.
+      acc += dt * 1000;
+      if (acc < FRAME_INTERVAL) {
+        raf = requestAnimationFrame(draw);
+        return;
+      }
+      acc = 0;
+
       const key = themeRef.current;
       const s = sceneFor(key);
       if (key !== lastKey) {
@@ -168,6 +185,7 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: SeasonalThemeId | strin
         return;
       }
       const pal = s.palette;
+      const spec = weatherFor(key);
 
       drawSky(pal);
       if (pal.night) drawStars(now / 1000);
@@ -205,7 +223,6 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: SeasonalThemeId | strin
       ambient.draw(ctx);
 
       // Weather.
-      const spec = weatherFor(key);
       if (spec && !reducedMotion) {
         for (const p of particles) {
           stepParticle(p, spec, w, h);
@@ -231,11 +248,27 @@ export const SeasonalThemeCanvas = ({ theme }: { theme?: SeasonalThemeId | strin
 
     resize();
     window.addEventListener('resize', resize);
+
+    // Pause the loop entirely while the tab is hidden — a decorative canvas
+    // has no reason to render off-screen, and doing so wastes CPU/battery.
+    const onVisibility = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      } else if (!raf) {
+        last = performance.now();
+        acc = 0;
+        raf = requestAnimationFrame(draw);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     raf = requestAnimationFrame(draw);
 
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
