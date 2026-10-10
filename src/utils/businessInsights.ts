@@ -36,8 +36,15 @@ function errorMessage(data: any, fallback: string): string {
 }
 
 /** Calls our server-side proxy which attaches the bearer token to provider APIs. */
-async function proxyFetch(provider: OAuthProvider, path: string, params: Record<string, string> = {}) {
-  const token = await getValidAccessToken(provider);
+async function proxyFetch(
+  provider: OAuthProvider,
+  path: string,
+  params: Record<string, string> = {},
+  overrideToken?: string | null
+) {
+  // Meta Page insights reject a user token (#190 "must be called with a Page
+  // Access Token"), so callers pass the Page token resolved from `me/accounts`.
+  const token = overrideToken || (await getValidAccessToken(provider));
   if (!token) return { ok: false, data: null as any, error: 'not_connected' };
 
   const res = await fetch('/api/business/insights', {
@@ -94,7 +101,9 @@ export async function fetchGoogleInsights(): Promise<BusinessInsights> {
 }
 
 export async function fetchMetaInsights(): Promise<BusinessInsights> {
-  const pages = await proxyFetch('meta', 'me/accounts');
+  const pages = await proxyFetch('meta', 'me/accounts', {
+    fields: 'id,name,fan_count,followers_count,access_token',
+  });
   if (!pages.ok) {
     return offline('meta', pages.error === 'not_connected' ? 'Not connected' : 'Meta API unavailable', pages.error);
   }
@@ -111,15 +120,32 @@ export async function fetchMetaInsights(): Promise<BusinessInsights> {
     };
   }
 
-  const insights = await proxyFetch('meta', `${page.id}/insights`, {
-    metric: 'page_impressions,page_engaged_users,page_post_engagements,page_follows',
-    period: 'days_28',
-  });
+  // Insights must be requested with the PAGE token (a user token is rejected
+  // with #190). `me/accounts` returns one per Page; fall back to the user token
+  // only if Meta omitted it so the request still surfaces a real API error.
+  const pageToken: string | undefined = page.access_token;
+
+  // Only request metrics Graph v21 still serves on this Page. The previous set
+  // (page_impressions / page_engaged_users / page_fan_adds) was retired and made
+  // the whole call fail with #100 "must be a valid insights metric".
+  const insights = await proxyFetch(
+    'meta',
+    `${page.id}/insights`,
+    {
+      metric:
+        'page_media_view,page_total_media_view_unique,page_post_engagements,page_follows,page_views_total,page_video_views',
+      period: 'days_28',
+    },
+    pageToken
+  );
 
   const rows: any[] = insights.data?.data || [];
   const byName: Record<string, number> = {};
   rows.forEach((row) => {
-    const value = row?.values?.[0]?.value ?? row?.values?.[0]?.value?.value;
+    // days_28 metrics return a series; take the most recent bucket. Some rows
+    // shape the payload as { value: { value: n } }.
+    const last = row?.values?.[row.values.length - 1];
+    const value = last?.value ?? last?.value?.value;
     if (typeof value === 'number') byName[row.name] = value;
   });
 
@@ -130,13 +156,18 @@ export async function fetchMetaInsights(): Promise<BusinessInsights> {
     accountLabel: page.name || 'Meta Business Page',
     windowLabel: WINDOW_LABEL,
     metrics: [
-      { label: 'Page Impressions', value: fmt(byName.page_impressions), hint: 'Times your Page content was seen' },
-      { label: 'Engaged Users', value: fmt(byName.page_engaged_users) },
+      { label: 'Media Views', value: fmt(byName.page_media_view), hint: 'Times your Page content was displayed' },
+      { label: 'Unique Viewers', value: fmt(byName.page_total_media_view_unique) },
       { label: 'Post Engagements', value: fmt(byName.page_post_engagements) },
-      { label: 'New Follows', value: fmt(byName.page_follows) },
-      { label: 'Fans / Likes', value: fmt(page.fan_count), hint: 'Total Page likes' },
+      { label: 'Page Views', value: fmt(byName.page_views_total) },
+      { label: 'Video Views', value: fmt(byName.page_video_views) },
+      { label: 'Followers', value: fmt(byName.page_follows ?? page.followers_count ?? page.fan_count), hint: 'Total Page followers' },
     ],
-    message: rows.length ? undefined : 'Connected, but Meta returned no insights for this Page.',
+    message: rows.length
+      ? undefined
+      : insights.ok
+        ? 'Connected, but Meta returned no insights for this Page.'
+        : `Connected, but Meta rejected the insights request${insights.error ? ` (${insights.error})` : ''}.`,
   };
 }
 
