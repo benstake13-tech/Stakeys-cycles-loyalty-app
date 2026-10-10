@@ -379,3 +379,7 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - **Guard:** `vercel_function_budget.test.ts` fails the suite if `api/` exceeds 12 functions. Run it whenever you touch `api/`.
 - Deleting the old per-route files is mandatory — each one counted.
 - Meta "not connecting" on the live staff project is NOT a code bug: `/api/business/status` → `serverManaged:false` (`META_SYSTEM_USER_TOKEN` unset) and `/api/oauth/token` for meta returns Graph `OAuthException code 101` (the configured Meta app id/secret looks invalid/mismatched). Set the env vars / fix the app, and ensure a deploy actually succeeds.
+
+## Session 50 (2026-10-10) — Meta shows results, never a link prompt
+- The Growth tab Meta card used to show "Authorise with Meta" + "Not linked"; user wanted **results only, no linking**. Now Meta is server-token only: `BusinessPerformanceTab` always loads Meta on mount (no popup), badge is `Live`/`Server linked`/`Token not set` (never `Not linked`), button is `Refresh` (never `Authorise`); the Authorise button + env warning are Google-only. `businessInsights` prefers the server credential for Meta and ignores stale browser tokens; Meta's not-connected copy no longer says "authorise".
+- Test convention: this repo has **no jest-dom** — assert with `.toBeTruthy()` / `queryByText(...)===null`, NOT `.toBeInTheDocument()`.
