@@ -12,6 +12,14 @@ vi.mock('./src/api/promotionAdvisorService', () => ({
   isPromotionAdvisorConfigured: () => true,
   advisePromotion: hoisted.advisePromotion,
 }));
+vi.mock('./src/utils/weatherService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./src/utils/weatherService')>();
+  return {
+    ...actual,
+    loadCachedWeather: () => null,
+    fetchWeatherReport: vi.fn(() => Promise.reject(new Error('offline in tests'))),
+  };
+});
 
 import { PromotionsPlanner } from './src/components/PromotionsPlanner';
 import { ShopPromotion } from './src/types/bikeShop';
@@ -110,5 +118,16 @@ describe('PromotionsPlanner', () => {
     render(<PromotionsPlanner />);
     fireEvent.click(screen.getByTestId('promo-advisor-run'));
     await waitFor(() => expect(screen.getByTestId('promo-advisor-source').textContent).toBe('Offline'));
+  });
+
+  it('renders the deterministic weather→demand forecast offline', () => {
+    render(<PromotionsPlanner />);
+    expect(screen.getByTestId('promo-demand-forecast')).toBeTruthy();
+    expect(screen.getByTestId('promo-demand-headline').textContent).toMatch(/expect|weather/i);
+    // signals are rendered and seed the draft when clicked
+    const signals = screen.getByTestId('promo-demand-signals');
+    expect(signals.children.length).toBeGreaterThan(0);
+    fireEvent.click(signals.children[0] as HTMLElement);
+    expect((screen.getByTestId('planner-title') as HTMLInputElement).value.length).toBeGreaterThan(0);
   });
 });

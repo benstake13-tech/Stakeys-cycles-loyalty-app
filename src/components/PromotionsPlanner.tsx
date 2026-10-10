@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarRange,
   Sparkles,
@@ -12,6 +12,7 @@ import {
   Bot,
   Loader2,
   Lightbulb,
+  CloudRain,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ShopPromotion, VehicleCategory } from '../types/bikeShop';
@@ -28,6 +29,14 @@ import {
 import { buildPromotionBrief } from '../utils/promotionAdvisor';
 import { advisePromotion, isPromotionAdvisorConfigured } from '../api/promotionAdvisorService';
 import type { AdvisorResult } from '../utils/promotionAdvisor';
+import {
+  fetchWeatherReport,
+  loadCachedWeather,
+  DEFAULT_WEATHER_LOCATION,
+  type WeatherReport,
+} from '../utils/weatherService';
+import { signalHeadline, type DemandSignal } from '../utils/repairWeatherModel';
+import { seasonalDemand, type SeasonalPart } from '../utils/seasonalDemand';
 
 const CATEGORIES: { id: VehicleCategory; label: string }[] = [
   { id: 'cycle', label: 'Cycle' },
@@ -60,25 +69,60 @@ const emptyDraft = (): PlannerInput => ({
  * to the existing addPromotion flow.
  */
 export const PromotionsPlanner: React.FC = () => {
-  const { promotions, addPromotion, discountCodes } = useShop();
+  const { promotions, addPromotion, discountCodes, bookings, sales } = useShop();
   const [draft, setDraft] = useState<PlannerInput>(emptyDraft);
   const [showTimeline, setShowTimeline] = useState(true);
   const [created, setCreated] = useState<string | null>(null);
   const [advice, setAdvice] = useState<AdvisorResult | null>(null);
   const [advising, setAdvising] = useState(false);
+  const [weather, setWeather] = useState<WeatherReport | null>(() => loadCachedWeather());
+  const mounted = useRef(true);
 
   const plan = useMemo(() => planPromotion(draft, promotions), [draft, promotions]);
   const timeline = useMemo(() => buildTimeline(promotions, draft, { spanDays: 120 }), [promotions, draft]);
   const windows = useMemo(() => suggestWindows(promotions, { count: 3 }), [promotions]);
 
+  // Fetch the forecast once, non-blocking; keep the cached report on failure and
+  // always fall back to the deterministic season model when there is no weather.
+  useEffect(() => {
+    mounted.current = true;
+    if (!weather) {
+      fetchWeatherReport(DEFAULT_WEATHER_LOCATION)
+        .then((fresh) => {
+          if (mounted.current) setWeather(fresh);
+        })
+        .catch(() => {
+          /* offline — the deterministic forecast stands on its own */
+        });
+    }
+    return () => {
+      mounted.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const forecast = useMemo(() => seasonalDemand(weather, new Date()), [weather]);
+  const signals: DemandSignal[] = forecast.signals;
+  const parts: SeasonalPart[] = forecast.parts;
+  const headline = useMemo(() => signalHeadline(signals, new Date()), [signals]);
+
   const runAdvisor = async () => {
     setAdvising(true);
     try {
-      const brief = buildPromotionBrief(promotions, discountCodes || []);
+      const brief = buildPromotionBrief(promotions, discountCodes || [], new Date(), weather, bookings, sales);
       setAdvice(await advisePromotion(brief));
     } finally {
       setAdvising(false);
     }
+  };
+
+  /** Seed the draft from a forecast signal (title + category). */
+  const seedFromSignal = (signal: DemandSignal) => {
+    setDraft((d) => ({
+      ...d,
+      title: d.title.trim() ? d.title : `${signal.issue} — book ahead`,
+      eligibleCategories: [signal.category],
+    }));
   };
 
   /** Load a suggested action into the draft so it can be reviewed and created. */
@@ -227,6 +271,57 @@ export const PromotionsPlanner: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Weather → demand forecast (deterministic, works offline) */}
+      <div data-testid="promo-demand-forecast" className="rounded-2xl border border-sky-500/20 bg-[#0b1116] p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h4 className="text-xs font-bold text-sky-200 flex items-center gap-1.5">
+              <CloudRain className="w-4 h-4" /> What the weather means for demand
+            </h4>
+            <p className="text-[11px] text-neutral-400 mt-0.5" data-testid="promo-demand-headline">
+              {headline}
+            </p>
+          </div>
+          <span className="text-[10px] uppercase tracking-wider text-neutral-500">
+            {weather ? 'Live forecast' : 'Season model'}
+          </span>
+        </div>
+
+        {signals.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-2" data-testid="promo-demand-signals">
+            {signals.slice(0, 4).map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => seedFromSignal(s)}
+                data-testid={`promo-signal-${s.id}`}
+                className="text-left rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 space-y-1 hover:border-sky-500/50"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-white">{s.issue}</span>
+                  <span className="shrink-0 text-[10px] font-bold text-emerald-300">+{s.estimatedUpliftPct}%</span>
+                </div>
+                <p className="text-[11px] text-neutral-400">{s.reason}</p>
+                <span className="inline-block rounded bg-neutral-900 px-1.5 py-0.5 text-[10px] text-neutral-400">
+                  {s.category}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {parts.length > 0 && (
+          <div className="flex flex-wrap gap-1.5" data-testid="promo-demand-parts">
+            <span className="text-[10px] uppercase tracking-wider text-neutral-500 self-center">Parts at risk:</span>
+            {parts.slice(0, 6).map((p) => (
+              <span key={p.componentId} className="rounded-full border border-neutral-800 bg-neutral-900 px-2 py-0.5 text-[10px] text-neutral-300">
+                {p.name} · {p.offer}
+              </span>
+            ))}
           </div>
         )}
       </div>

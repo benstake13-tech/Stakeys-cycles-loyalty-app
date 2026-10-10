@@ -1,5 +1,14 @@
-import { ShopPromotion, DiscountCode, DiscountAudience, VehicleCategory } from '../types/bikeShop';
+import {
+  ShopPromotion,
+  DiscountCode,
+  DiscountAudience,
+  VehicleCategory,
+  ServiceBooking,
+  SaleTransaction,
+} from '../types/bikeShop';
 import { suggestWindows, SuggestedWindow, toDateOnly } from './promotionPlanner';
+import { seasonalDemand } from './seasonalDemand';
+import type { WeatherReport } from './weatherService';
 
 /**
  * Turns the shop's live promotions, coupon codes and (optionally) past usage
@@ -50,6 +59,45 @@ export interface PromotionBrief {
   bestCampaign: CampaignPerformance | null;
   codesByUsage: CampaignPerformance[];
   upcomingSeasonalHooks: string[];
+  /** Weather/season→demand forecast (always present; deterministic). */
+  demandForecast: {
+    season: string;
+    signals: { id: string; category: VehicleCategory; issue: string; direction: 'up' | 'down'; magnitude: number; estimatedUpliftPct: number; reason: string }[];
+    parts: { componentId: string; name: string; offer: string }[];
+  };
+  /** Signals derived from the shop's own bookings + sales history. */
+  shopSignals: {
+    topServices: { label: string; count: number }[];
+    topCategories: { category: VehicleCategory; count: number }[];
+  };
+}
+
+/** Counts the shop's own bookings/sales into top services and categories. */
+export function deriveShopSignals(
+  bookings: ServiceBooking[] = [],
+  sales: SaleTransaction[] = []
+): PromotionBrief['shopSignals'] {
+  const services = new Map<string, number>();
+  for (const b of bookings) {
+    const label = b.serviceTitle || 'Workshop job';
+    services.set(label, (services.get(label) || 0) + 1);
+  }
+  const categories = new Map<VehicleCategory, number>();
+  for (const b of bookings) categories.set(b.vehicleCategory, (categories.get(b.vehicleCategory) || 0) + 1);
+  for (const s of sales) {
+    for (const item of s.items || []) {
+      const label = item.category === 'Labour' ? 'Counter labour' : item.category;
+      services.set(label, (services.get(label) || 0) + 1);
+    }
+  }
+  const topServices = [...services.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  const topCategories = [...categories.entries()]
+    .map(([category, count]) => ({ category, count }))
+    .sort((a, b) => b.count - a.count);
+  return { topServices, topCategories };
 }
 
 /**
@@ -85,9 +133,13 @@ export function seasonalHooks(today: Date = new Date()): string[] {
 export function buildPromotionBrief(
   promotions: ShopPromotion[] = [],
   codes: DiscountCode[] = [],
-  today: Date = new Date()
+  today: Date = new Date(),
+  weather?: WeatherReport | null,
+  bookings: ServiceBooking[] = [],
+  sales: SaleTransaction[] = []
 ): PromotionBrief {
   const perf = campaignPerformance(codes);
+  const demand = seasonalDemand(weather, today);
   return {
     today: toDateOnly(today),
     liveCampaigns: promotions
@@ -103,6 +155,20 @@ export function buildPromotionBrief(
     bestCampaign: bestCampaign(perf),
     codesByUsage: perf.slice(0, 5),
     upcomingSeasonalHooks: seasonalHooks(today),
+    demandForecast: {
+      season: demand.season,
+      signals: demand.signals.map((s) => ({
+        id: s.id,
+        category: s.category,
+        issue: s.issue,
+        direction: s.direction,
+        magnitude: s.magnitude,
+        estimatedUpliftPct: s.estimatedUpliftPct,
+        reason: s.reason,
+      })),
+      parts: demand.parts.map((p) => ({ componentId: p.componentId, name: p.name, offer: p.offer })),
+    },
+    shopSignals: deriveShopSignals(bookings, sales),
   };
 }
 
@@ -144,6 +210,27 @@ export function recommendPromotion(brief: PromotionBrief, today: Date = new Date
   const window = brief.clearWindows[0];
   const { startDate, endDate } = weekFrom(window, today);
 
+  const topSignal = brief.demandForecast.signals[0];
+  const topPart = brief.demandForecast.parts[0];
+
+  // 1. Lead with the weather-driven demand forecast — the shop's own, real reason.
+  if (topSignal) {
+    const partLine = brief.demandForecast.parts.slice(0, 3).map((p) => p.name).join(', ');
+    actions.push({
+      title: topPart ? `Capitalise on ${topSignal.issue.toLowerCase()}` : topSignal.issue,
+      rationale: `${topSignal.reason} Target ${partLine || 'the affected systems'}${
+        topPart ? ` (e.g. "${topPart.offer}")` : ''
+      }. Forecast demand uplift ≈ +${topSignal.estimatedUpliftPct}%.`,
+      discountPercentage: 12,
+      categories: [topSignal.category],
+      startDate,
+      endDate,
+      audience: 'public',
+      confidence: Math.min(0.85, 0.55 + topSignal.magnitude * 0.4),
+    });
+  }
+
+  // 2. Repeat the best-performing code, if there is one.
   if (best) {
     actions.push({
       title: `Repeat your best seller: ${best.title}`,
@@ -160,6 +247,7 @@ export function recommendPromotion(brief: PromotionBrief, today: Date = new Date
     });
   }
 
+  // 3. Always offer a seasonal-hook campaign too, so there is always a time-boxed option.
   const hook = brief.upcomingSeasonalHooks[0];
   actions.push({
     title: hook ? `Tie a campaign to ${hook.split(' (')[0]}` : 'Run a short, focused weekend offer',
@@ -189,9 +277,11 @@ export function recommendPromotion(brief: PromotionBrief, today: Date = new Date
   }
 
   return {
-    headline: best
-      ? `Start from what works: your best code is "${best.code}", and the next clear window opens ${startDate}.`
-      : `No redemptions logged yet — start with a short, clear-window offer from ${startDate} and measure it.`,
+    headline: topSignal
+      ? `Weather-led: ${topSignal.issue} looks set to rise (+${topSignal.estimatedUpliftPct}%). The next clear window opens ${startDate}.`
+      : best
+        ? `Start from what works: your best code is "${best.code}", and the next clear window opens ${startDate}.`
+        : `No redemptions logged yet — start with a short, clear-window offer from ${startDate} and measure it.`,
     actions,
     source: 'offline',
   };
@@ -221,5 +311,35 @@ export function briefToPrompt(brief: PromotionBrief): string {
     }`
   );
   lines.push(`Upcoming seasonal hooks: ${brief.upcomingSeasonalHooks.join('; ') || 'none'}`);
+  lines.push(
+    `Demand forecast (${brief.demandForecast.season}): ${
+      brief.demandForecast.signals.length
+        ? brief.demandForecast.signals
+            .map((s) => `${s.issue} (+${s.estimatedUpliftPct}%, ${s.category}) — ${s.reason}`)
+            .join('; ')
+        : 'no standout pressure'
+    }`
+  );
+  lines.push(
+    `At-risk parts: ${
+      brief.demandForecast.parts.length
+        ? brief.demandForecast.parts.map((p) => `${p.name} (${p.offer})`).join('; ')
+        : 'none flagged'
+    }`
+  );
+  lines.push(
+    `Shop history (top services): ${
+      brief.shopSignals.topServices.length
+        ? brief.shopSignals.topServices.map((s) => `${s.label}×${s.count}`).join('; ')
+        : 'no history'
+    }`
+  );
+  lines.push(
+    `Shop history (top vehicle categories): ${
+      brief.shopSignals.topCategories.length
+        ? brief.shopSignals.topCategories.map((c) => `${c.category}×${c.count}`).join('; ')
+        : 'none'
+    }`
+  );
   return lines.join('\n');
 }
