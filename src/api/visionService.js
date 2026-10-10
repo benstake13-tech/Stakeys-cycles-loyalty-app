@@ -19,14 +19,19 @@ export const isBikeVisionConfigured = () => Boolean(getApiKey());
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const BIKE_IDENTIFICATION_PROMPT = `You are Stakey's Cycles' master mechanic and bike identification engine.
-Study the photo of the bicycle or scooter carefully and return a precise, structured assessment.
+Study the photo(s) of the bicycle or scooter carefully and return a precise, structured assessment.
+You may receive more than one photo: a full side-on shot, a close-up of the brand/head badge, and a
+close-up of the model name/decal. Use the close-ups to pin down make and model; use the full shot for
+geometry, wheel/tyre size and overall condition.
 
 Rules:
 - Identify the make and model as accurately as you can from frame decals, geometry and components. If unsure of an exact model, give the closest family and lower the confidence.
 - "type" must be exactly one of: "cycle", "ebike", "electric_scooter", "cargo".
 - Determine the bike's positioning: what kind of riding it is built for, whether the fit/setup suits the rider visible in the shot, and estimate the frame size and wheel size from proportions.
+- Read the wheels and tyres closely: report the wheel size (e.g. "700c", "27.5in", "26in", "20in"), the exact tyre size printed on the sidewall (imperial like "26x1.95" or ETRTO/ISO like "622-25"), and the valve type (Presta = thin threaded with a locknut; Schrader = car-type; Woods/Dunlop = older/utility). If not legible, leave the field empty — do not guess.
+- Look for the frame serial number, usually stamped under the bottom bracket shell or on the rear dropout, and report it exactly if legible.
+- List the main specs you can actually see (drivetrain and number of speeds, brake type and brand, fork/suspension and travel, wheels/tyres, cockpit, electrical).
 - Look specifically for an electric conversion kit or factory e-system: motor (brand, hub/mid-drive, approx watts), battery (brand, location, volts), controller and wiring. Flag if it looks like an aftermarket conversion rather than a factory e-bike.
-- List the main specs you can actually see (drivetrain, brakes, fork/suspension, wheels/tyres, cockpit, electrical).
 - List any obvious problems, wear or damage you can see (worn tyres, rusty chain, broken parts, flat tyres, misaligned wheels, damaged frame, etc.) with a severity.
 - Never invent details you cannot see. If something is not visible, omit it or say so in notes.
 - Keep every text field short and factual (no sentences longer than ~20 words).`;
@@ -41,6 +46,7 @@ const BIKE_RESPONSE_SCHEMA = {
     year: { type: Type.STRING, description: "Approx year or era, or empty" },
     colour: { type: Type.STRING },
     frameMaterial: { type: Type.STRING, description: "e.g. Aluminium, Carbon, Steel" },
+    serialNumber: { type: Type.STRING, description: "Frame serial number exactly as stamped (usually under the bottom bracket or on the rear dropout), or empty if not legible" },
     confidence: { type: Type.NUMBER, description: "0 to 1 confidence in the identification" },
     summary: { type: Type.STRING, description: "One-line overview of the bike" },
     positioning: {
@@ -49,7 +55,9 @@ const BIKE_RESPONSE_SCHEMA = {
         ridingStyle: { type: Type.STRING, description: "What the bike is built for" },
         riderFit: { type: Type.STRING, description: "Whether the setup suits the rider" },
         frameSizeEstimate: { type: Type.STRING, description: "e.g. 'Medium (~17in)'" },
-        wheelSize: { type: Type.STRING, description: "e.g. '700c', '27.5in'" },
+        wheelSize: { type: Type.STRING, description: "e.g. '700c', '27.5in', '26in'" },
+        tyreSize: { type: Type.STRING, description: "Tyre size exactly as printed, e.g. '700x25c', '26x1.95', or ETRTO '622-25'" },
+        valveType: { type: Type.STRING, description: "One of: Presta, Schrader, Woods/Dunlop, Unknown" },
         cockpitSetup: { type: Type.STRING },
         saddleSetup: { type: Type.STRING },
       },
@@ -108,8 +116,26 @@ const BIKE_RESPONSE_SCHEMA = {
 };
 
 /**
- * Sends a bike photo to Gemini and returns a structured identification:
- * make/model, positioning, e-kit detection, main specs and obvious problems.
+ * Normalises one supplied image into a Gemini inline-data part. Accepts either a
+ * raw data URL / base64 string, or an object `{ data, mimeType }` so callers can
+ * pass several photos (full shot + brand badge + model decal) in one call.
+ */
+function toImagePart(image, fallbackMime) {
+  if (typeof image === "string") {
+    return { inlineData: { data: image.split(",").pop(), mimeType: fallbackMime } };
+  }
+  return { inlineData: { data: image.data, mimeType: image.mimeType || fallbackMime } };
+}
+
+/**
+ * Sends one or more bike photos to Gemini and returns a structured
+ * identification: make/model, positioning, e-kit detection, main specs and
+ * obvious problems.
+ *
+ * `images` may be a single data URL / base64 string (legacy) or an array of
+ * strings / `{ data, mimeType }` objects. Passing a brand close-up and a model
+ * close-up alongside the full side-on shot markedly improves make/model accuracy
+ * for the same single request (so it does not cost extra quota).
  *
  * The SDK's default retry policy (5 attempts, up to 60s apart) is what made a
  * busy model hang for ~2 minutes. We disable it and run our own bounded loop:
@@ -117,14 +143,19 @@ const BIKE_RESPONSE_SCHEMA = {
  * errors (503/500/429) back off and retry up to twice, and any failure is
  * rethrown as a `VisionError` the UI can show as a clean banner.
  */
-export async function identifyBikeFromImage(base64Image, mimeType = "image/jpeg") {
+export async function identifyBikeFromImage(images, mimeType = "image/jpeg") {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new VisionError(classifyVisionError(new Error("AI vision is not configured."), { configured: false }));
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const data = typeof base64Image === "string" ? base64Image.split(",").pop() : base64Image;
+  const imageParts = (Array.isArray(images) ? images : [images])
+    .filter(Boolean)
+    .map((image) => toImagePart(image, mimeType));
+  if (!imageParts.length) {
+    throw new VisionError(classifyVisionError(new Error("No image supplied."), { configured: true }));
+  }
 
   let lastError;
   for (let attempt = 1; attempt <= VISION_MAX_ATTEMPTS; attempt++) {
@@ -141,10 +172,7 @@ export async function identifyBikeFromImage(base64Image, mimeType = "image/jpeg"
         contents: [
           {
             role: "user",
-            parts: [
-              { inlineData: { data, mimeType } },
-              { text: BIKE_IDENTIFICATION_PROMPT },
-            ],
+            parts: [...imageParts, { text: BIKE_IDENTIFICATION_PROMPT }],
           },
         ],
         config: {
