@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Save,
   Search,
+  Sparkles,
   Trash2,
   X,
 } from 'lucide-react';
@@ -228,6 +229,7 @@ function CollapsibleItem({
 
 const WEBSITE_SECTIONS = [
   { id: 'hero', label: 'Hero & Contact', icon: Home },
+  { id: 'about', label: 'Brand Story', icon: Sparkles },
   { id: 'location', label: 'Location', icon: MapPin },
   { id: 'join', label: 'Join the Team', icon: Users },
   { id: 'faqs', label: 'FAQs', icon: HelpCircle },
@@ -263,7 +265,10 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const isDark = theme === 'dark';
   const content = useWebsiteContent();
 
-  const [draft, setDraft] = useState<WebsiteContent>(content);
+  const [draft, setDraft] = useState<WebsiteContent>(() => ({
+    ...content,
+    brandStory: { ...DEFAULT_WEBSITE_CONTENT.brandStory, ...(content.brandStory || {}) },
+  }));
   const [editorTab, setEditorTab] = useState<'website' | 'shop' | 'gallery'>('website');
   // The focused section for the Main Website area ('all' = show every section).
   const [activeSection, setActiveSection] = useState<'all' | WebsiteSectionId>('all');
@@ -385,6 +390,36 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const setPriceField = (index: number, key: keyof WebPriceItem, value: string) => {
     applyDraft({ priceList: draft.priceList.map((r, i) => (i === index ? ({ ...r, [key]: value } as WebPriceItem) : r)) });
   };
+  const setPriceUnit = (index: number, raw: string) => {
+    const trimmed = raw.trim();
+    const numeric = trimmed === '' ? undefined : Number(trimmed);
+    applyDraft({
+      priceList: draft.priceList.map((r, i) =>
+        i === index ? { ...r, unitPrice: numeric === undefined || Number.isNaN(numeric) ? undefined : numeric } : r
+      ),
+    });
+  };
+
+  // ---- Brand story ------------------------------------------------------
+  const setBrandField = (key: keyof WebsiteContent['brandStory'], value: string) =>
+    applyDraft({ brandStory: { ...draft.brandStory, [key]: value } });
+  const setBrandBullet = (index: number, value: string) =>
+    applyDraft({ brandStory: { ...draft.brandStory, bullets: draft.brandStory.bullets.map((b, i) => (i === index ? value : b)) } });
+  const addBrandBullet = () =>
+    applyDraft({ brandStory: { ...draft.brandStory, bullets: [...draft.brandStory.bullets, ''] } });
+  const removeBrandBullet = (index: number) =>
+    applyDraft({ brandStory: { ...draft.brandStory, bullets: draft.brandStory.bullets.filter((_, i) => i !== index) } });
+  const setBrandStep = (index: number, key: 'title' | 'body', value: string) =>
+    applyDraft({
+      brandStory: {
+        ...draft.brandStory,
+        howWeWorkSteps: draft.brandStory.howWeWorkSteps.map((s, i) => (i === index ? { ...s, [key]: value } : s)),
+      },
+    });
+  const addBrandStep = () =>
+    applyDraft({ brandStory: { ...draft.brandStory, howWeWorkSteps: [...draft.brandStory.howWeWorkSteps, { title: '', body: '' }] } });
+  const removeBrandStep = (index: number) =>
+    applyDraft({ brandStory: { ...draft.brandStory, howWeWorkSteps: draft.brandStory.howWeWorkSteps.filter((_, i) => i !== index) } });
   const addPriceRow = (scope: WebPriceItem['scope']) => {
     const row: WebPriceItem = { id: uid('p'), scope, group: '', item: '', desc: '', price: '', note: '' };
     applyDraft({ priceList: [...draft.priceList, row] });
@@ -507,6 +542,16 @@ export const WebsiteContentManagerTab: React.FC = () => {
       draft.siteAnnouncements.join(' ')
     ),
     location: match('Location', draft.locationQuote, draft.mobileTitle, draft.mobileBody, draft.locationImage),
+    about: match(
+      'Brand Story',
+      draft.brandStory.eyebrow,
+      draft.brandStory.title,
+      draft.brandStory.body,
+      draft.brandStory.bullets.join(' '),
+      draft.brandStory.howWeWorkTitle,
+      draft.brandStory.qualityClaim,
+      draft.brandStory.howWeWorkSteps.map((s) => `${s.title} ${s.body}`).join(' ')
+    ),
     join: match('Join the Team', draft.joinTitle, draft.joinBody, draft.joinCtaLabel, draft.joinBullets.join(' ')),
     faqs: true,
     prices: true,
@@ -724,6 +769,64 @@ export const WebsiteContentManagerTab: React.FC = () => {
         </div>
       )}
 
+      {editorTab === 'website' && sectionVisible.about && sectionActive('about') && (
+        <div>
+          <SectionCard title="Brand Story" subtitle="Leads the Home page — who we are, what we do, how we work and the quality claim." isDark={isDark}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Eyebrow" isDark={isDark} value={draft.brandStory.eyebrow} onChange={(v) => setBrandField('eyebrow', v)} />
+              <Field label="Title" isDark={isDark} value={draft.brandStory.title} onChange={(v) => setBrandField('title', v)} />
+            </div>
+            <Field label="Who we are (intro paragraph)" isDark={isDark} textarea value={draft.brandStory.body} onChange={(v) => setBrandField('body', v)} />
+            <Field label="Quality claim — 'show big companies how it's done' (hero)" isDark={isDark} textarea value={draft.brandStory.qualityClaim} onChange={(v) => setBrandField('qualityClaim', v)} />
+
+            <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-neutral-950/40 border-neutral-800' : 'bg-neutral-50 border-neutral-200'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-neutral-200' : 'text-neutral-800'}`}>What we do (bullet points)</span>
+                <button type="button" onClick={addBrandBullet} className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer">
+                  <Plus className="w-3 h-3" /> Add bullet
+                </button>
+              </div>
+              {draft.brandStory.bullets.map((b, i) => (
+                <div key={i} className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Field label={`Bullet ${i + 1}`} isDark={isDark} value={b} onChange={(v) => setBrandBullet(i, v)} />
+                  </div>
+                  <button type="button" onClick={() => removeBrandBullet(i)} className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer" aria-label={`Remove bullet ${i + 1}`}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <Field label='"How we work" heading' isDark={isDark} value={draft.brandStory.howWeWorkTitle} onChange={(v) => setBrandField('howWeWorkTitle', v)} />
+            <div className={`rounded-xl border p-3.5 space-y-2.5 ${isDark ? 'bg-neutral-950/40 border-neutral-800' : 'bg-neutral-50 border-neutral-200'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className={`block text-xs font-black uppercase tracking-wider ${isDark ? 'text-neutral-200' : 'text-neutral-800'}`}>How we work (steps)</span>
+                <button type="button" onClick={addBrandStep} className="pressable inline-flex items-center gap-1 rounded-lg border border-emerald-700 px-2 py-1 text-[10px] font-bold text-emerald-400 hover:bg-emerald-950/40 cursor-pointer">
+                  <Plus className="w-3 h-3" /> Add step
+                </button>
+              </div>
+              {draft.brandStory.howWeWorkSteps.map((s, i) => (
+                <div key={i} className="flex items-end gap-2">
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Field label={`Step ${i + 1} title`} isDark={isDark} value={s.title} onChange={(v) => setBrandStep(i, 'title', v)} />
+                    <Field label={`Step ${i + 1} body`} isDark={isDark} value={s.body} onChange={(v) => setBrandStep(i, 'body', v)} />
+                  </div>
+                  <button type="button" onClick={() => removeBrandStep(i)} className="pressable mb-1 inline-flex items-center rounded-lg border border-rose-900 px-2 py-1.5 text-rose-400 hover:bg-rose-950/40 cursor-pointer" aria-label={`Remove step ${i + 1}`}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Field label="Embedded-app hero subtitle override (optional)" isDark={isDark} hint="Shown only inside the customer app's Website tab." value={draft.homeHeadlineOverride?.embedded ?? ''} onChange={(v) => applyDraft({ homeHeadlineOverride: { ...draft.homeHeadlineOverride, embedded: v } })} />
+              <Field label="Public-website hero subtitle override (optional)" isDark={isDark} hint="Shown only on the standalone public website." value={draft.homeHeadlineOverride?.public ?? ''} onChange={(v) => applyDraft({ homeHeadlineOverride: { ...draft.homeHeadlineOverride, public: v } })} />
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
       {editorTab === 'website' && sectionVisible.location && sectionActive('location') && (
         <div>
           <SectionCard title="Location Page" isDark={isDark}>
@@ -862,6 +965,23 @@ export const WebsiteContentManagerTab: React.FC = () => {
                   <Field label="Item" isDark={isDark} value={row.item} onChange={(v) => setPriceField(index, 'item', v)} />
                   <Field label="Description" isDark={isDark} value={row.desc} onChange={(v) => setPriceField(index, 'desc', v)} />
                   <Field label="Ballpark price" isDark={isDark} value={row.price} onChange={(v) => setPriceField(index, 'price', v)} />
+                  <div className="block">
+                    <label className="block">
+                      <span className={labelCls}>Numeric price for the till (£)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={row.unitPrice ?? ''}
+                        placeholder="e.g. 20"
+                        onChange={(e) => setPriceUnit(index, e.target.value)}
+                        className={inputCls(isDark)}
+                      />
+                    </label>
+                    <span className={`mt-1 block text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                      Leave blank when the display price is a range — the till will prompt for a price instead.
+                    </span>
+                  </div>
                   <Field label="Footnote / note (optional)" isDark={isDark} value={row.note ?? ''} onChange={(v) => setPriceField(index, 'note', v)} />
                 </CollapsibleItem>
               ))}

@@ -31,6 +31,8 @@ export interface WebPriceItem {
   item: string;
 /** Ballpark price range as displayed — e.g. "£20" */
   price: string;
+/** Numeric price the till can quote and bill — omitted when the display price is a range or ambiguous. */
+  unitPrice?: number;
 /** Footnote — e.g. "parts not included" */
   note?: string;
 /** Optional descriptor — e.g. "Replace inner tube (wheel in bike)" */
@@ -143,5 +145,22 @@ export interface WebsiteContent {
   joinCtaLabel: string;
 /** Socials + footer contact links. */
   socials: WebSocialLink[];
+/** Home brand-story block — who we are, what we do, how we work, quality claim. */
+  brandStory: {
+    /** Small eyebrow above the block, e.g. "Who we are". */
+    eyebrow: string;
+    title: string;
+/** First paragraph: who Stakeys Cycles is. */
+    body: string;
+/** Short "what we do" bullet points. */
+    bullets: string[];
+/** "How we work" step-by-step cards. */
+    howWeWorkTitle: string;
+    howWeWorkSteps: { title: string; body: string }[];
+/** The quality/ambition claim — e.g. showing big companies how it's done. */
+    qualityClaim: string;
+  };
+/** Optional per-context hero subtitle overrides (public website vs embedded app tab). */
+  homeHeadlineOverride?: { public?: string; embedded?: string };
   updatedAt: string;
 }
