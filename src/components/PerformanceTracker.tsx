@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { BusinessPerformanceTab } from './BusinessPerformanceTab';
+import { EngagementPanel } from './EngagementPanel';
 import {
   weeklyServiceRequests,
   callLog,
@@ -149,6 +150,9 @@ export const PerformanceTracker: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Member engagement: activity, popular features, promotions */}
+      <EngagementPanel />
 
       {/* Weekly requests + channel split */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
