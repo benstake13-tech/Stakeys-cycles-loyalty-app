@@ -231,7 +231,8 @@ describe('fetchMetaInsights', () => {
     vi.stubGlobal('fetch', fetchMock);
     const result = await fetchMetaInsights();
     expect(result.connected).toBe(false);
-    expect(result.message).toMatch(/authorise/i);
+    // Meta never asks the user to link — it reports the server token is missing.
+    expect(result.message).toMatch(/server-side Meta token/i);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
