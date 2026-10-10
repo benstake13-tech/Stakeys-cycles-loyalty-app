@@ -18,13 +18,22 @@ import {
   Clock,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { identifyBikeFromImage, isBikeVisionConfigured } from '../api/visionService';
+import { diagnoseFault, isBikeVisionConfigured } from '../api/visionService';
 import { classifyVisionError } from '../api/visionErrors';
+import { SPEC_SYSTEMS, specCoverage, systemIdForItem } from '../utils/bikeSpecTaxonomy';
 
 const SEVERITY_STYLES = {
   high: 'border-rose-500/40 bg-rose-950/40 text-rose-200',
   medium: 'border-amber-500/40 bg-amber-950/40 text-amber-200',
   low: 'border-sky-500/40 bg-sky-950/40 text-sky-200',
+};
+
+// Diagnostic fault severities are worded differently from obviousProblems.
+const FAULT_SEVERITY_STYLES = {
+  'Critical safety risk': 'border-rose-500/60 bg-rose-950/50 text-rose-200',
+  High: 'border-rose-500/40 bg-rose-950/40 text-rose-200',
+  Medium: 'border-amber-500/40 bg-amber-950/40 text-amber-200',
+  Low: 'border-sky-500/40 bg-sky-950/40 text-sky-200',
 };
 
 const CONDITION_STYLES = {
@@ -54,6 +63,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   // Up to three shots: the full side-on view (required) plus optional close-ups
   // of the brand badge and the model decal, which sharpen make/model accuracy.
   const [shots, setShots] = useState({ full: null, brand: null, model: null });
+  const [notes, setNotes] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
@@ -65,6 +75,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
 
   const reset = useCallback(() => {
     setShots({ full: null, brand: null, model: null });
+    setNotes('');
     setResult(null);
     setError('');
     setErrorInfo(null);
@@ -78,21 +89,24 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     onClose?.();
   };
 
-  const runAnalysis = useCallback(async (current) => {
+  const runAnalysis = useCallback(async (current, currentNotes) => {
     const images = ['full', 'brand', 'model']
       .map((key) => current[key])
       .filter(Boolean)
       .map((shot) => ({ data: shot.dataUrl.split(',').pop(), mimeType: shot.mime }));
-    if (!images.length) return;
+    const text = typeof currentNotes === 'string' ? currentNotes.trim() : '';
+    if (!images.length && !text) return;
     setAnalyzing(true);
     setError('');
     setErrorInfo(null);
     setResult(null);
     try {
-      const analysis = await identifyBikeFromImage(images);
+      // diagnoseFault never throws for an unavailable service — it returns a
+      // structured fallback built from the notes, so intake never blocks.
+      const analysis = await diagnoseFault({ images, userNotes: text });
       setResult(analysis);
     } catch (err) {
-      // Never surface raw upstream JSON — map it to a friendly, structured alert.
+      // Defensive: only a truly unexpected error reaches here.
       const info = classifyVisionError(err);
       setErrorInfo(info);
       setError(info.message);
@@ -120,19 +134,25 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     setShots(next);
     // Analyse as soon as the required full shot exists; re-runs when a close-up
     // is added or removed, so the result always uses every photo supplied.
-    if (next.full) runAnalysis(next);
+    if (next.full) runAnalysis(next, notes);
   };
 
   const clearSlot = (slot) => {
     const next = { ...shots, [slot]: null };
     setShots(next);
-    if (next.full) runAnalysis(next);
-    else setResult(null);
+    if (next.full) runAnalysis(next, notes);
+    else if (!notes.trim()) setResult(null);
+  };
+
+  /** Text-only submission (no photo): the fallback path always answers. */
+  const submitNotes = () => {
+    if (!notes.trim()) return;
+    runAnalysis(shots, notes);
   };
 
   /** Retry the current photos after a transient failure. */
   const reanalyse = () => {
-    if (shots.full) runAnalysis(shots);
+    if (shots.full || notes.trim()) runAnalysis(shots, notes);
   };
 
   /** Point the shared hidden input at a slot, then open the camera/file picker. */
@@ -147,7 +167,10 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     setError('');
     try {
       const problems = result.obviousProblems || [];
-      const hasSeriousProblem = problems.some((p) => p.severity === 'high' || p.severity === 'medium');
+      const faults = result.faults || [];
+      const hasSeriousProblem =
+        problems.some((p) => p.severity === 'high' || p.severity === 'medium') ||
+        faults.some((f) => f.severity === 'High' || f.severity === 'Critical safety risk');
       const isElectric = Boolean(result.electricKit?.isElectric);
 
       const components = (result.mainSpecs || []).map((spec, index) => ({
@@ -159,6 +182,13 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         isUpgraded: false,
         condition: spec.condition,
         mechanicNotes: spec.notes,
+        systemId: spec.systemId || systemIdForItem(spec),
+        componentId: spec.componentId,
+        specValue: spec.specValue,
+        brand: spec.brand,
+        model: spec.model,
+        visibility: spec.visibility,
+        confidence: spec.confidence,
       }));
 
       const scrapedData = {
@@ -173,6 +203,16 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         sourceUrl: 'AI photo identification',
         scrapedAt: new Date().toISOString(),
         aiIdentification: result,
+        notVisible: result.notVisible || [],
+        coverage: result.coverage,
+        // Structured diagnostic intake (multilingual notes + fallback-safe faults).
+        inputLanguageDetected: result.inputLanguageDetected,
+        userNotesTranslated: result.userNotesTranslated,
+        hasVisualData: result.hasVisualData,
+        overallCondition: result.overallCondition,
+        wheelSizeAndSpecs: result.wheelSizeAndSpecs,
+        faults: result.faults || [],
+        usedFallback: Boolean(result.usedFallback),
       };
 
       const created = await persistBike({
@@ -227,7 +267,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
           <div>
             <h3 className="font-display text-xl font-black">AI Bike Identifier</h3>
             <p className="text-xs text-neutral-400">
-              Snap a photo and Stakey's AI will identify the bike, read its positioning, spot any electric kit, list the main specs (including wheel size, tyre size and valve type) and flag obvious problems — then add it to your garage. Add a close-up of the brand name and one of the model for the most accurate read.
+              Snap a photo and Stakey's AI will identify the bike, read its positioning, spot any electric kit, list the main specs (including wheel size, tyre size and valve type) and flag obvious problems — then add it to your garage. Add a close-up of the brand name and one of the model for the most accurate read. No photo? Just describe the fault below in any language and we'll take it from there.
             </p>
           </div>
         </div>
@@ -311,7 +351,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                   <Camera className="h-10 w-10 text-emerald-400" />
                   <span className="text-sm font-bold text-white">Take or upload a full side-on photo</span>
                   <span className="text-[11px] text-neutral-500">
-                    A clear side-on shot in good light works best. Drag &amp; drop also works.
+                    A clear side-on shot in good light works best. Drag &amp; drop also works — or skip the photo and describe the fault below.
                   </span>
                   <span className="pressable mt-1 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-950">
                     Choose photo
@@ -371,6 +411,33 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                 e.target.value = '';
               }}
             />
+
+            {/* Free-text intake: works with or without a photo, any language. */}
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/50 p-3">
+              <label htmlFor="ai-bike-notes" className="flex items-center gap-2 text-[11px] font-bold text-neutral-300">
+                <Wrench className="h-3.5 w-3.5 text-emerald-400" />
+                <span>Describe the fault (optional — any language)</span>
+              </label>
+              <textarea
+                id="ai-bike-notes"
+                data-testid="ai-bike-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                placeholder="e.g. Rear brake squeals when wet; gears skip under load. Written in any language."
+                className="mt-2 w-full resize-none rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-xs text-white placeholder:text-neutral-600 focus:border-emerald-500/60 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={submitNotes}
+                disabled={!notes.trim() || analyzing}
+                data-testid="ai-bike-notes-submit"
+                className="pressable mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-40 cursor-pointer"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>{shots.full ? 'Re-analyse with notes' : 'Diagnose from description'}</span>
+              </button>
+            </div>
           </div>
 
           {/* Results column */}
@@ -393,6 +460,33 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
 
             {result && (
               <div className="space-y-3 animate-fade-in">
+                {result.usedFallback && (
+                  <div
+                    role="status"
+                    data-testid="ai-bike-fallback"
+                    className="flex items-start gap-2.5 rounded-xl border border-amber-500/40 bg-amber-950/40 px-3 py-2.5 text-[11px] text-amber-100"
+                  >
+                    <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <span className="block font-bold">Visual diagnostic offline — using your description.</span>
+                      <span className="opacity-90">
+                        We couldn't reach the photo diagnostic, so this intake is based on your notes. A mechanic will confirm everything at the workshop.
+                      </span>
+                      {(shots.full || notes.trim()) && (
+                        <button
+                          type="button"
+                          onClick={reanalyse}
+                          disabled={analyzing}
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-current px-2.5 py-1 text-[11px] font-bold opacity-90 hover:bg-white/5 disabled:opacity-50"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          {analyzing ? 'Retrying…' : 'Retry visual diagnostic'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Identification */}
                 <div className="rounded-2xl border border-neutral-800 bg-[#0b0e13] p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -414,6 +508,9 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                     <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300" style={{ width: `${confidencePct}%` }} />
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
+                    {result.overallCondition && <Chip>Condition {result.overallCondition}</Chip>}
+                    {result.wheelSizeAndSpecs && <Chip>{result.wheelSizeAndSpecs}</Chip>}
+                    {result.inputLanguageDetected && <Chip>Notes: {result.inputLanguageDetected}</Chip>}
                     {result.frameMaterial && <Chip>{result.frameMaterial}</Chip>}
                     {result.positioning?.wheelSize && <Chip>Wheel {result.positioning.wheelSize}</Chip>}
                     {result.positioning?.tyreSize && <Chip>Tyre {result.positioning.tyreSize}</Chip>}
@@ -422,6 +519,12 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                     {result.colour && <Chip>{result.colour}</Chip>}
                     {result.serialNumber && <Chip>Serial {result.serialNumber}</Chip>}
                   </div>
+                  {result.userNotesTranslated && result.userNotesTranslated !== 'No user notes provided' && (
+                    <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Your notes (translated)</div>
+                      <p className="mt-1 text-[11px] text-neutral-300">{result.userNotesTranslated}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Electric kit */}
@@ -481,34 +584,96 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         {/* Full-width detail sections */}
         {result && (
           <div className="mt-5 space-y-3">
-            {/* Main specs */}
-            {result.mainSpecs?.length > 0 && (
-              <div className="rounded-2xl border border-neutral-800 bg-[#0b0e13] p-4">
-                <div className="flex items-center gap-2 text-xs font-bold text-white">
-                  <Wrench className="h-4 w-4 text-emerald-400" />
-                  <span>Main specs detected ({result.mainSpecs.length})</span>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {result.mainSpecs.map((spec, i) => (
-                    <div key={i} className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-                          {spec.category}
-                        </span>
-                        {spec.condition && (
-                          <span className={`text-[10px] font-semibold capitalize ${CONDITION_STYLES[spec.condition] || 'text-neutral-400'}`}>
-                            {spec.condition.replace('_', ' ')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-xs font-semibold text-white">{spec.componentName}</div>
-                      <div className="text-[11px] text-neutral-400">{spec.currentPart}</div>
-                      {spec.notes && <div className="mt-0.5 text-[10px] text-neutral-500">{spec.notes}</div>}
+            {/* Full spec sheet, grouped by system */}
+            {result.mainSpecs?.length > 0 && (() => {
+              const coverage = specCoverage(result.mainSpecs || []);
+              const grouped = SPEC_SYSTEMS.map((system) => ({
+                system,
+                items: (result.mainSpecs || []).filter((s) => systemIdForItem(s) === system.id),
+              })).filter((g) => g.items.length > 0);
+              return (
+                <div className="rounded-2xl border border-neutral-800 bg-[#0b0e13] p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-white">
+                      <Wrench className="h-4 w-4 text-emerald-400" />
+                      <span>Full spec sheet ({result.mainSpecs.length} parts)</span>
                     </div>
-                  ))}
+                    <span className="text-[10px] font-semibold text-neutral-400">
+                      {coverage.detected}/{coverage.total} parts · {coverage.pct}% coverage
+                    </span>
+                  </div>
+                  {/* Completeness meter */}
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-all"
+                      style={{ width: `${coverage.pct}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-3 space-y-3">
+                    {grouped.map(({ system, items }) => (
+                      <div key={system.id}>
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                            {system.label}
+                          </span>
+                          <span className="text-[10px] text-neutral-500">
+                            {items.length}/{system.components.length}
+                          </span>
+                        </div>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {items.map((spec, i) => (
+                            <div key={`${system.id}-${i}`} className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-semibold text-white">{spec.componentName}</span>
+                                <span className="flex items-center gap-1.5">
+                                  {spec.visibility && spec.visibility !== 'visible' && (
+                                    <span className="rounded-full border border-neutral-700 bg-neutral-900 px-1.5 py-0.5 text-[9px] font-bold uppercase text-neutral-400">
+                                      {spec.visibility}
+                                    </span>
+                                  )}
+                                  {spec.condition && (
+                                    <span className={`text-[10px] font-semibold capitalize ${CONDITION_STYLES[spec.condition] || 'text-neutral-400'}`}>
+                                      {spec.condition.replace('_', ' ')}
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-neutral-400">{spec.currentPart}</div>
+                              {(spec.specValue || spec.brand || spec.model) && (
+                                <div className="mt-0.5 flex flex-wrap gap-x-2 text-[10px] text-emerald-300/80">
+                                  {spec.specValue && <span className="font-mono">{spec.specValue}</span>}
+                                  {spec.brand && <span>{spec.brand}</span>}
+                                  {spec.model && <span className="text-neutral-500">{spec.model}</span>}
+                                </div>
+                              )}
+                              {typeof spec.confidence === 'number' && (
+                                <div className="mt-0.5 text-[9px] text-neutral-600">
+                                  confidence {Math.round(spec.confidence * 100)}%
+                                </div>
+                              )}
+                              {spec.notes && <div className="mt-0.5 text-[10px] text-neutral-500">{spec.notes}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {result.notVisible?.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3">
+                      <div className="flex items-center gap-2 text-[11px] font-bold text-amber-300">
+                        <CircleAlert className="h-3.5 w-3.5" />
+                        <span>Confirm at intake ({result.notVisible.length})</span>
+                      </div>
+                      <div className="mt-1 text-[10px] text-amber-200/80">
+                        {result.notVisible.join(' · ')}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Obvious problems */}
             <div className="rounded-2xl border border-neutral-800 bg-[#0b0e13] p-4">
@@ -542,6 +707,34 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                 <p className="mt-2 text-[11px] text-emerald-300">No obvious problems spotted — the bike looks sound from this photo.</p>
               )}
             </div>
+
+            {/* Diagnostic faults — from the photos and/or the customer's notes. */}
+            {result.faults?.length > 0 && (
+              <div className="rounded-2xl border border-neutral-800 bg-[#0b0e13] p-4" data-testid="ai-bike-faults">
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <Wrench className="h-4 w-4 text-rose-400" />
+                  <span>Fault list</span>
+                  <span className="rounded-full border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[10px] font-bold text-neutral-300">
+                    {result.faults.length}
+                  </span>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {result.faults.map((f, i) => (
+                    <div key={i} className={`rounded-xl border p-3 ${FAULT_SEVERITY_STYLES[f.severity] || FAULT_SEVERITY_STYLES.Low}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold">{f.faultTitle}</span>
+                        <span className="shrink-0 rounded-full border border-current px-2 py-0.5 text-[10px] font-bold uppercase">
+                          {f.severity}
+                        </span>
+                      </div>
+                      {f.component && <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide opacity-70">{f.component}</div>}
+                      {f.description && <div className="mt-1 text-[11px] opacity-85">{f.description}</div>}
+                      {f.source && <div className="mt-1 text-[10px] opacity-60">Source: {f.source}</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {!savedBike && (
               <p className="text-center text-[10px] text-neutral-500">

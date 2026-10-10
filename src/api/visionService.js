@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { resolveGeminiModel } from "./geminiModel";
 import { classifyVisionError, VisionError } from "./visionErrors";
+import { SPEC_SYSTEMS } from "../utils/bikeSpecTaxonomy";
 
 /**
  * Per-attempt ceiling. The SDK's own retry policy is overridden (see below) so
@@ -18,35 +19,86 @@ export const isBikeVisionConfigured = () => Boolean(getApiKey());
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The taxonomy rendered as a part-by-part checklist for the prompt. */
+export const taxonomyChecklist = SPEC_SYSTEMS.map(
+  (system) => `- ${system.label}: ${system.components.map((c) => c.name).join(", ")}`
+).join("\n");
+
 const BIKE_IDENTIFICATION_PROMPT = `You are Stakey's Cycles' master mechanic and bike identification engine.
 Study the photo(s) of the bicycle or scooter carefully and return a precise, structured assessment.
 You may receive more than one photo: a full side-on shot, a close-up of the brand/head badge, and a
 close-up of the model name/decal. Use the close-ups to pin down make and model; use the full shot for
 geometry, wheel/tyre size and overall condition.
 
-Rules:
-- Identify the make and model as accurately as you can from frame decals, geometry and components. If unsure of an exact model, give the closest family and lower the confidence.
+EXHAUSTIVE PART SWEEP (most important):
+Work through the checklist below top to bottom and emit ONE entry in "mainSpecs" for EVERY component,
+whether or not it is clearly visible. Set "visibility" honestly:
+- "visible"  = you can clearly see it,
+- "partial"  = you can partly see it / infer it from a related part,
+- "assumed"  = not visible but implied by the bike type (e.g. inner tubes on a ridden bike).
+Never invent a specific measurement you cannot see: leave "specValue"/brand/model empty and lower
+"confidence" instead. This is a completeness exercise, not a summary — do not stop after a few items.
+
+Checklist:
+${taxonomyChecklist}
+
+For each entry provide: "systemId" (use the exact system id you are working within), "componentId"
+(use the exact component id from the checklist), "componentName", "category" (keep the broad legacy
+bucket: Drivetrain, Brakes, Suspension / Fork, Wheels & Tires, Cockpit & Controls, or
+Electrical / Battery), "currentPart" (what is fitted, with any visible brand), "specValue" (the
+measured dimension/size/spec, e.g. "700x32c", "11-34T", "160mm rotor", "622-25"), "brand", "model",
+"condition" (excellent | good | worn | needs_attention), "visibility"
+(visible | partial | assumed), "confidence" (0 to 1) and "notes".
+
+Also return:
+- "notVisible": an array of the component names you could NOT assess from these photos and that the
+  mechanic must confirm at intake.
+- "coverage": a 0-1 estimate of how much of the bike's components you were able to assess.
+
+Other required fields:
 - "type" must be exactly one of: "cycle", "ebike", "electric_scooter", "cargo".
 - Determine the bike's positioning: what kind of riding it is built for, whether the fit/setup suits the rider visible in the shot, and estimate the frame size and wheel size from proportions.
 - Read the wheels and tyres closely: report the wheel size (e.g. "700c", "27.5in", "26in", "20in"), the exact tyre size printed on the sidewall (imperial like "26x1.95" or ETRTO/ISO like "622-25"), and the valve type (Presta = thin threaded with a locknut; Schrader = car-type; Woods/Dunlop = older/utility). If not legible, leave the field empty — do not guess.
 - Look for the frame serial number, usually stamped under the bottom bracket shell or on the rear dropout, and report it exactly if legible.
-- List the main specs you can actually see (drivetrain and number of speeds, brake type and brand, fork/suspension and travel, wheels/tyres, cockpit, electrical).
 - Look specifically for an electric conversion kit or factory e-system: motor (brand, hub/mid-drive, approx watts), battery (brand, location, volts), controller and wiring. Flag if it looks like an aftermarket conversion rather than a factory e-bike.
 - List any obvious problems, wear or damage you can see (worn tyres, rusty chain, broken parts, flat tyres, misaligned wheels, damaged frame, etc.) with a severity.
-- Never invent details you cannot see. If something is not visible, omit it or say so in notes.
-- Keep every text field short and factual (no sentences longer than ~20 words).`;
+- Never invent details you cannot see. If something is not visible, mark it "assumed"/"partial" and add it to "notVisible".
+- Keep every text field short and factual (no sentences longer than ~20 words).
+
+DIAGNOSTIC INTAKE (multilingual + graceful fallback):
+- Detect the language of any customer notes supplied with the photos and report it as
+  "inputLanguageDetected" (ISO code or name, e.g. "es", "en", "pl"). Translate the notes to English
+  into "userNotesTranslated", keeping every technical detail (noises, component behaviour, history).
+  If no notes were supplied, set it to "No user notes provided".
+- Set "hasVisualData" true only when at least one usable photo was supplied and analysed.
+- Rate the bike's overall condition as "overallCondition": one of Excellent | Good | Fair | Poor | Critical.
+- Provide "faults": the list of faults a mechanic should act on, each with "component",
+  "faultTitle", "description", "severity" (Low | Medium | High | Critical safety risk) and "source"
+  (Visual Inspection | User Note | Combined). Include faults reported in the customer notes even when
+  not visible in the photos, marking their source "User Note".
+- Provide "wheelSizeAndSpecs": the wheel + tyre spec as one string (e.g. "700x32c", "27.5 x 2.10",
+  "10x2.5 pneumatic"). If it cannot be read, use "Standard / Requires Workshop Measurement".
+- FALLBACK: if a photo is missing, unclear, or a detail cannot be determined, set "make" (brand) to
+  "Unknown / To Be Inspected" (or take it from the notes), "model" likewise, and rely on the notes.
+  If neither photos nor notes give anything usable, return a single fault titled
+  "General Workshop Assessment Needed" rather than empty data.`;
 
 const BIKE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
-    make: { type: Type.STRING, description: "Brand/make, e.g. Trek, Specialized, Giant" },
-    model: { type: Type.STRING, description: "Model name/family, or 'Unknown'" },
+    make: { type: Type.STRING, description: "Brand/make, e.g. Trek, Specialized, Giant. Use 'Unknown / To Be Inspected' when it cannot be determined." },
+    model: { type: Type.STRING, description: "Model name/family, or 'Unknown / To Be Inspected' when it cannot be determined" },
     type: { type: Type.STRING, description: "One of: cycle, ebike, electric_scooter, cargo" },
     categoryLabel: { type: Type.STRING, description: "Human label, e.g. 'Hybrid Commuter'" },
     year: { type: Type.STRING, description: "Approx year or era, or empty" },
     colour: { type: Type.STRING },
     frameMaterial: { type: Type.STRING, description: "e.g. Aluminium, Carbon, Steel" },
     serialNumber: { type: Type.STRING, description: "Frame serial number exactly as stamped (usually under the bottom bracket or on the rear dropout), or empty if not legible" },
+    inputLanguageDetected: { type: Type.STRING, description: "ISO code or name of the customer notes language, e.g. 'es', 'en', 'pl'" },
+    userNotesTranslated: { type: Type.STRING, description: "English translation of the customer notes, or 'No user notes provided'" },
+    hasVisualData: { type: Type.BOOLEAN, description: "True only when at least one usable photo was analysed" },
+    overallCondition: { type: Type.STRING, description: "One of: Excellent, Good, Fair, Poor, Critical" },
+    wheelSizeAndSpecs: { type: Type.STRING, description: "Wheel + tyre spec as one string, e.g. '700x32c', '27.5 x 2.10', '10x2.5 pneumatic'; else 'Standard / Requires Workshop Measurement'" },
     confidence: { type: Type.NUMBER, description: "0 to 1 confidence in the identification" },
     summary: { type: Type.STRING, description: "One-line overview of the bike" },
     positioning: {
@@ -81,21 +133,40 @@ const BIKE_RESPONSE_SCHEMA = {
     },
     mainSpecs: {
       type: Type.ARRAY,
-      description: "Visible main components/specs",
+      description: "One entry per component in the taxonomy checklist (walk the whole bike)",
       items: {
         type: Type.OBJECT,
         properties: {
+          systemId: {
+            type: Type.STRING,
+            description: "System id from the taxonomy, e.g. frame, wheels, brakes, drivetrain, cockpit, seating, suspension, electric, accessories, safety",
+          },
+          componentId: { type: Type.STRING, description: "Exact component id from the taxonomy checklist" },
           category: {
             type: Type.STRING,
             description: "One of: Drivetrain, Brakes, Suspension / Fork, Wheels & Tires, Cockpit & Controls, Electrical / Battery",
           },
           componentName: { type: Type.STRING },
           currentPart: { type: Type.STRING, description: "What is fitted, with any visible brand" },
+          specValue: { type: Type.STRING, description: "Measured dimension/size/spec, e.g. '700x32c', '11-34T', '160mm rotor'" },
+          brand: { type: Type.STRING },
+          model: { type: Type.STRING },
           condition: { type: Type.STRING, description: "One of: excellent, good, worn, needs_attention" },
+          visibility: { type: Type.STRING, description: "One of: visible, partial, assumed, not_visible" },
+          confidence: { type: Type.NUMBER, description: "0 to 1 confidence in this component" },
           notes: { type: Type.STRING },
         },
-        required: ["category", "componentName", "currentPart"],
+        required: ["systemId", "componentId", "category", "componentName", "currentPart", "visibility"],
       },
+    },
+    notVisible: {
+      type: Type.ARRAY,
+      description: "Component names that could not be assessed from the photos and must be confirmed at intake",
+      items: { type: Type.STRING },
+    },
+    coverage: {
+      type: Type.NUMBER,
+      description: "0 to 1 estimate of how much of the bike's components were assessed",
     },
     obviousProblems: {
       type: Type.ARRAY,
@@ -111,8 +182,23 @@ const BIKE_RESPONSE_SCHEMA = {
         required: ["issue", "severity"],
       },
     },
+    faults: {
+      type: Type.ARRAY,
+      description: "Actionable faults, from the photos and/or the customer notes",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          component: { type: Type.STRING, description: "e.g. Rear Hydraulic Brake, Drive Chain, Hub Motor" },
+          faultTitle: { type: Type.STRING, description: "Short summary of the issue" },
+          description: { type: Type.STRING, description: "Detailed explanation of the observed or reported issue" },
+          severity: { type: Type.STRING, description: "One of: Low, Medium, High, Critical safety risk" },
+          source: { type: Type.STRING, description: "One of: Visual Inspection, User Note, Combined" },
+        },
+        required: ["component", "faultTitle", "description", "severity", "source"],
+      },
+    },
   },
-  required: ["make", "model", "type", "confidence", "electricKit", "mainSpecs", "obviousProblems", "summary"],
+  required: ["make", "model", "type", "confidence", "electricKit", "mainSpecs", "obviousProblems", "summary", "faults", "overallCondition", "wheelSizeAndSpecs", "hasVisualData", "inputLanguageDetected", "userNotesTranslated"],
 };
 
 /**
@@ -143,7 +229,7 @@ function toImagePart(image, fallbackMime) {
  * errors (503/500/429) back off and retry up to twice, and any failure is
  * rethrown as a `VisionError` the UI can show as a clean banner.
  */
-export async function identifyBikeFromImage(images, mimeType = "image/jpeg") {
+export async function identifyBikeFromImage(images, mimeType = "image/jpeg", userNotes = "") {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new VisionError(classifyVisionError(new Error("AI vision is not configured."), { configured: false }));
@@ -156,6 +242,11 @@ export async function identifyBikeFromImage(images, mimeType = "image/jpeg") {
   if (!imageParts.length) {
     throw new VisionError(classifyVisionError(new Error("No image supplied."), { configured: true }));
   }
+
+  const notes = typeof userNotes === "string" ? userNotes.trim() : "";
+  const promptText = notes
+    ? `${BIKE_IDENTIFICATION_PROMPT}\n\nCUSTOMER NOTES (may be in any language — detect it, translate to English, and use it):\n${notes}`
+    : BIKE_IDENTIFICATION_PROMPT;
 
   let lastError;
   for (let attempt = 1; attempt <= VISION_MAX_ATTEMPTS; attempt++) {
@@ -172,7 +263,7 @@ export async function identifyBikeFromImage(images, mimeType = "image/jpeg") {
         contents: [
           {
             role: "user",
-            parts: [...imageParts, { text: BIKE_IDENTIFICATION_PROMPT }],
+            parts: [...imageParts, { text: promptText }],
           },
         ],
         config: {
@@ -228,3 +319,76 @@ export async function analyzeBikeImage(base64Image) {
     })),
   };
 }
+
+/**
+ * Local fallback diagnostic used when Gemini is unreachable, rate-limited,
+ * offline or returns nothing usable. It builds a valid diagnostic purely from
+ * the customer's text so the booking / garage flow never blocks or hangs.
+ * Shape matches the structured diagnostic contract in the prompt above.
+ */
+export function getFallbackDiagnostic(userNotes = "") {
+  const hasText = typeof userNotes === "string" && userNotes.trim().length > 0;
+  const notes = hasText ? userNotes.trim() : "";
+  return {
+    inputLanguageDetected: "en",
+    userNotesTranslated: hasText ? notes : "No user notes provided",
+    hasVisualData: false,
+    brand: "Unknown / To Be Inspected",
+    make: "Unknown / To Be Inspected",
+    model: "Unknown / To Be Inspected",
+    wheelSizeAndSpecs: "Standard / Requires Workshop Measurement",
+    overallCondition: "Fair",
+    faults: [
+      {
+        component: "General Intake",
+        faultTitle: hasText ? "Customer Reported Issue" : "General Workshop Assessment Needed",
+        description: hasText
+          ? `Reported: "${notes}". Visual diagnostic offline — staff will inspect upon arrival.`
+          : "Full manual inspection required upon workshop drop-off.",
+        severity: "Medium",
+        source: hasText ? "User Note" : "Visual Inspection",
+      },
+    ],
+    // Keep the richer identification fields present (empty) so any consumer that
+    // reads them — the garage save path, the UI — never sees undefined.
+    type: "cycle",
+    confidence: 0,
+    summary: hasText ? "Reported issue — awaiting workshop inspection" : "Awaiting workshop inspection",
+    positioning: {},
+    electricKit: { isElectric: false },
+    mainSpecs: [],
+    notVisible: [],
+    coverage: 0,
+    obviousProblems: hasText
+      ? [{ issue: "Customer Reported Issue", severity: "medium", location: "Per customer notes" }]
+      : [],
+  };
+}
+
+/**
+ * Diagnostic entry point for the intake flow. Sends 1-4 photos plus optional
+ * free-text notes (any language) to Gemini, and — crucially — never throws for
+ * an unavailable service: if the service is unconfigured, no photo was supplied,
+ * or the call fails after its bounded retries, it returns the local
+ * `getFallbackDiagnostic` payload instead so the UI keeps working.
+ *
+ * Returns `{ ...diagnostic, usedFallback, fallbackReason }`.
+ */
+export async function diagnoseFault({ images = [], userNotes = "" } = {}) {
+  const hasImages = (Array.isArray(images) ? images : [images]).filter(Boolean).length > 0;
+  if (!hasImages || !isBikeVisionConfigured()) {
+    return {
+      ...getFallbackDiagnostic(userNotes),
+      usedFallback: true,
+      fallbackReason: hasImages ? "not-configured" : "no-images",
+    };
+  }
+  try {
+    const diagnostic = await identifyBikeFromImage(images, "image/jpeg", userNotes);
+    return { ...diagnostic, usedFallback: false, fallbackReason: null };
+  } catch (err) {
+    const info = classifyVisionError(err);
+    return { ...getFallbackDiagnostic(userNotes), usedFallback: true, fallbackReason: info.kind || "error" };
+  }
+}
+
