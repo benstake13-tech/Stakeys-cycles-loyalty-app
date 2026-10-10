@@ -20,7 +20,7 @@ import {
   disconnectProvider,
   startOAuthPopup,
 } from '../utils/oauthService';
-import { fetchInsights, BusinessInsights } from '../utils/businessInsights';
+import { fetchInsights, BusinessInsights, refreshServerManaged, isServerManaged } from '../utils/businessInsights';
 
 interface ProviderState {
   insights: BusinessInsights | null;
@@ -59,12 +59,16 @@ export const BusinessPerformanceTab: React.FC = () => {
     patch(provider, { insights, loading: false });
   }, []);
 
-  // On mount, load any already-authorised providers.
+  // On mount, load any already-authorised providers, plus any the server can
+  // read on its own (Meta via META_SYSTEM_USER_TOKEN) with no popup.
   useEffect(() => {
-    (['google', 'meta'] as OAuthProvider[]).forEach((provider) => {
-      const token = getStoredToken(provider);
-      if (token && !isTokenExpired(token)) void load(provider);
-    });
+    void (async () => {
+      await refreshServerManaged();
+      (['google', 'meta'] as OAuthProvider[]).forEach((provider) => {
+        const token = getStoredToken(provider);
+        if ((token && !isTokenExpired(token)) || isServerManaged(provider)) void load(provider);
+      });
+    })();
   }, [load]);
 
   const handleConnect = async (provider: OAuthProvider) => {
@@ -94,7 +98,8 @@ export const BusinessPerformanceTab: React.FC = () => {
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
               Authorise Stakey's to read your business profiles and see how customers find the shop
               across Google Search, Maps, Facebook and Instagram. Tokens are exchanged server-side and
-              stored only in this browser session.
+              stored only in this browser session; Meta can also be read from a server-side token with
+              no login at all.
             </p>
           </div>
         </div>
@@ -105,7 +110,9 @@ export const BusinessPerformanceTab: React.FC = () => {
             const state = states[provider];
             const configured = isProviderConfigured(provider);
             const token = getStoredToken(provider);
-            const connected = Boolean(token && !isTokenExpired(token));
+            const browserConnected = Boolean(token && !isTokenExpired(token));
+            const serverManaged = isServerManaged(provider);
+            const connected = browserConnected || serverManaged;
             const Icon = meta.icon;
 
             return (
@@ -126,7 +133,7 @@ export const BusinessPerformanceTab: React.FC = () => {
 
                   {connected ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wide">
-                      <ShieldCheck className="w-3 h-3" /> Authorised
+                      <ShieldCheck className="w-3 h-3" /> {serverManaged && !browserConnected ? 'Server linked' : 'Authorised'}
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-400 text-[10px] font-bold uppercase tracking-wide">
@@ -135,7 +142,7 @@ export const BusinessPerformanceTab: React.FC = () => {
                   )}
                 </div>
 
-                {!configured && (
+                {!configured && !serverManaged && (
                   <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-[11px] text-amber-300">
                     <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
@@ -143,6 +150,13 @@ export const BusinessPerformanceTab: React.FC = () => {
                       enable the “Authorise with {provider === 'google' ? 'Google' : 'Meta'}” button.
                     </span>
                   </div>
+                )}
+
+                {serverManaged && !browserConnected && (
+                  <p className="text-[11px] text-neutral-400 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    Read with the server-side Meta token — no Facebook login required.
+                  </p>
                 )}
 
                 {connected && state.insights && (
@@ -213,13 +227,21 @@ export const BusinessPerformanceTab: React.FC = () => {
                 )}
 
                 <div className="flex items-center gap-2 mt-auto pt-1">
-                  {connected ? (
+                  {browserConnected ? (
                     <button
                       type="button"
                       onClick={() => handleDisconnect(provider)}
                       className="pressable px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold"
                     >
                       Disconnect
+                    </button>
+                  ) : serverManaged ? (
+                    <button
+                      type="button"
+                      onClick={() => load(provider)}
+                      className="pressable px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center gap-2"
+                    >
+                      <RefreshCcw className={`w-4 h-4 ${state.loading ? 'animate-spin' : ''}`} /> Refresh
                     </button>
                   ) : (
                     <button

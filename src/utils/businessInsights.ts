@@ -35,7 +35,30 @@ function errorMessage(data: any, fallback: string): string {
   return fallback;
 }
 
-/** Calls our server-side proxy which attaches the bearer token to provider APIs. */
+/** Providers whose credential may live on the server (no browser OAuth needed). */
+const SERVER_MANAGED: Partial<Record<OAuthProvider, boolean>> = {};
+
+/** Probes the server for provider credentials it holds (e.g. META_SYSTEM_USER_TOKEN). */
+export async function refreshServerManaged(): Promise<void> {
+  try {
+    const res = await fetch('/api/business/status');
+    if (!res.ok) return;
+    const data = await res.json();
+    SERVER_MANAGED.meta = Boolean(data?.meta?.serverManaged);
+  } catch {
+    // Non-fatal: the popup flow still works when the probe fails.
+  }
+}
+
+export function isServerManaged(provider: OAuthProvider): boolean {
+  return Boolean(SERVER_MANAGED[provider]);
+}
+
+/**
+ * Calls our server-side proxy which attaches the bearer token to provider APIs.
+ * When the provider is server-managed the token is omitted and the server uses
+ * its own credential.
+ */
 async function proxyFetch(
   provider: OAuthProvider,
   path: string,
@@ -45,7 +68,9 @@ async function proxyFetch(
   // Meta Page insights reject a user token (#190 "must be called with a Page
   // Access Token"), so callers pass the Page token resolved from `me/accounts`.
   const token = overrideToken || (await getValidAccessToken(provider));
-  if (!token) return { ok: false, data: null as any, error: 'not_connected' };
+  if (!token && !isServerManaged(provider)) {
+    return { ok: false, data: null as any, error: 'not_connected' };
+  }
 
   const res = await fetch('/api/business/insights', {
     method: 'POST',
