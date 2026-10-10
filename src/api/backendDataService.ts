@@ -670,6 +670,38 @@ export async function deleteAllCounterSalesFromDb(): Promise<boolean> {
   }
 }
 
+/** Delete a single counter/till sale (income-ledger row). */
+export async function deleteCounterSaleFromDb(saleId: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('counter_sales').delete().eq('id', saleId);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE counter_sale failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteCounterSaleFromDb:', err);
+    return false;
+  }
+}
+
+/** Delete a single online (website) order. */
+export async function deleteOrderFromDb(orderId: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('ecommerce_orders').delete().eq('id', orderId);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE ecommerce_order failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteOrderFromDb:', err);
+    return false;
+  }
+}
+
 /** Wipe every online (website) order — the other half of the income ledger. */
 export async function deleteAllOrdersFromDb(): Promise<boolean> {
   const supabase = getSupabaseClient();
