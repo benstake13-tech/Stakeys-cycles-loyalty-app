@@ -12,6 +12,8 @@ import {
   Printer,
   CheckCircle2,
   AlertCircle,
+  Trash2,
+  RefreshCcw,
 } from 'lucide-react';
 import {
   buildFinancialLedger,
@@ -31,6 +33,10 @@ import {
   type FinancialExportMeta,
 } from '../utils/financialExport';
 import { StakeysLogo } from './StakeysLogo';
+import {
+  deleteCounterSaleFromDb,
+  deleteOrderFromDb,
+} from '../api/backendDataService';
 
 interface ShopOrder {
   id: string;
@@ -55,7 +61,13 @@ const money = (n: number) => `£${n.toFixed(2)}`;
  * surfaced separately so nothing silently disappears from the totals.
  */
 export const FinancialReportingTab: React.FC = () => {
-  const { bookings, sales } = useShop();
+  const { bookings, sales, deleteBooking, resetBookingsAndFinancials, hardResetApp } = useShop();
+  const [removedSaleIds, setRemovedSaleIds] = useState<string[]>([]);
+  const [removedBookingIds, setRemovedBookingIds] = useState<string[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
+  const liveSales = sales.filter((s) => !removedSaleIds.includes(s.id));
+  const liveBookings = bookings.filter((b) => !removedBookingIds.includes(b.id));
 
   const [startDate, setStartDate] = useState(() => {
     const d = new Date();
@@ -92,8 +104,8 @@ export const FinancialReportingTab: React.FC = () => {
   }, []);
 
   const fullLedger = useMemo(
-    () => buildFinancialLedger({ sales, bookings, orders, start: startDate, end: endDate }),
-    [sales, bookings, orders, startDate, endDate]
+    () => buildFinancialLedger({ sales: liveSales, bookings: liveBookings, orders, start: startDate, end: endDate }),
+    [liveSales, liveBookings, orders, startDate, endDate]
   );
 
   const ledger = useMemo(
@@ -107,8 +119,8 @@ export const FinancialReportingTab: React.FC = () => {
   const totals = useMemo(() => summarizeLedger(ledger), [ledger]);
 
   const pendingQuotes = useMemo(
-    () => (sales || []).filter((s) => s.status === 'quote' || s.status === 'approved'),
-    [sales]
+    () => (liveSales || []).filter((s) => s.status === 'quote' || s.status === 'approved'),
+    [liveSales]
   );
 
   const download = (contents: Blob | string, filename: string, type = 'text/csv') => {
@@ -162,6 +174,64 @@ export const FinancialReportingTab: React.FC = () => {
   };
 
   const handlePrint = () => window.print();
+
+  const handleResetAll = async () => {
+    if (
+      !window.confirm(
+        'Reset ALL saved financials and bookings?\n\nThis wipes every workshop booking and the financial records (till sales + online orders) from the database, clears local app data, and reloads so the sections start fresh. This cannot be undone.'
+      )
+    ) {
+      return;
+    }
+    setResetting(true);
+    try {
+      const res = await resetBookingsAndFinancials();
+      if (!res.success) {
+        window.alert(res.message);
+        setResetting(false);
+        return;
+      }
+    } catch (e) {
+      console.warn('[FINANCIALS] reset failed:', e);
+      setResetting(false);
+      return;
+    }
+    hardResetApp();
+  };
+
+  const handleDeleteRecord = async (row: FinancialLedgerRow) => {
+    if (!row.recordId) return;
+    const label = row.id;
+    const recordId = row.recordId;
+    if (!window.confirm(`Delete financial record ${label} (${money(row.total)})?\n\nThis permanently removes the ${row.channel === 'workshop' ? 'workshop booking and its invoice' : row.channel === 'till' ? 'till sale' : 'online order'} from the database and the income ledger. This cannot be undone.`)) {
+      return;
+    }
+    setDeletingId(recordId);
+    try {
+      let ok = false;
+      if (row.channel === 'till') {
+        ok = await deleteCounterSaleFromDb(recordId);
+        if (ok) setRemovedSaleIds((prev) => [...prev, recordId]);
+      } else if (row.channel === 'online') {
+        ok = await deleteOrderFromDb(recordId);
+        if (ok) setOrders((prev) => prev.filter((o) => o.id !== recordId));
+      } else if (row.channel === 'workshop') {
+        const res = await deleteBooking(recordId);
+        ok = res.success;
+        if (ok) setRemovedBookingIds((prev) => [...prev, recordId]);
+      }
+      if (!ok) {
+        window.alert(`Could not delete ${label}. The record is unchanged.`);
+        return;
+      }
+      window.alert(row.channel === 'workshop' ? `Deleted booking ${label} (invoice removed).` : `Deleted financial record ${label}.`);
+    } catch (e) {
+      console.warn('[FINANCIALS] delete failed:', e);
+      window.alert(`Could not delete ${label}.`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const paymentBadge = (row: FinancialLedgerRow) =>
     row.paymentState === 'paid' ? (
@@ -317,6 +387,14 @@ export const FinancialReportingTab: React.FC = () => {
           <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2 bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold rounded-lg text-xs transition-colors cursor-pointer">
             <Download className="w-4 h-4" /> Export CSV
           </button>
+          <button
+            onClick={handleResetAll}
+            disabled={resetting}
+            data-testid="reset-financials-bookings"
+            className="flex items-center gap-2 px-4 py-2 bg-neutral-800 hover:bg-rose-950/60 text-rose-400 hover:text-white border border-rose-900 font-bold rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCcw className="w-4 h-4" /> {resetting ? 'Resetting…' : 'Reset all financials & bookings'}
+          </button>
         </div>
       </div>
 
@@ -424,12 +502,13 @@ export const FinancialReportingTab: React.FC = () => {
               <th className="p-3 text-right">Net</th>
               <th className="p-3 text-right">VAT</th>
               <th className="p-3 text-right">Total</th>
+              <th className="p-3 no-print text-right">Manage</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-800">
             {ledger.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-6 text-center text-neutral-500">
+                <td colSpan={10} className="p-6 text-center text-neutral-500">
                   <FileText className="w-6 h-6 mx-auto mb-2 opacity-50" />
                   No income recorded in this period.
                 </td>
@@ -455,6 +534,20 @@ export const FinancialReportingTab: React.FC = () => {
                 <td className="p-3 font-mono text-right">{money(r.net)}</td>
                 <td className="p-3 font-mono text-right">{money(r.vat)}</td>
                 <td className="p-3 font-mono text-[#05C147] text-right font-bold">{money(r.total)}</td>
+                <td className="p-3 no-print text-right">
+                  <button
+                    type="button"
+                    data-testid={`delete-ledger-${r.channel}-${r.recordId || r.id}`}
+                    onClick={() => handleDeleteRecord(r)}
+                    disabled={deletingId === r.recordId}
+                    title={`Delete ${r.id}`}
+                    aria-label={`Delete financial record ${r.id}`}
+                    className="pressable inline-flex cursor-pointer items-center gap-1 rounded-lg border border-rose-900 px-2 py-1 text-[10px] font-semibold text-rose-400 hover:bg-rose-950/60 hover:text-white disabled:opacity-40"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deletingId === r.recordId ? 'Deleting…' : 'Delete'}
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

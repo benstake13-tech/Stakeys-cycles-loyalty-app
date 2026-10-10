@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { SaleTransaction } from './src/types/bikeShop';
 
@@ -7,10 +7,26 @@ const hoisted = vi.hoisted(() => ({
   sales: [] as unknown[],
   bookings: [] as unknown[],
   orders: [] as unknown[],
+  deleteBooking: vi.fn(async () => ({ success: true })),
+  resetBookingsAndFinancials: vi.fn(async () => ({ success: true, message: 'ok' })),
+  hardResetApp: vi.fn(),
+  deleteCounterSaleFromDb: vi.fn(async () => true),
+  deleteOrderFromDb: vi.fn(async () => true),
 }));
 
 vi.mock('./src/context/ShopContext', () => ({
-  useShop: () => ({ sales: hoisted.sales, bookings: hoisted.bookings }),
+  useShop: () => ({
+    sales: hoisted.sales,
+    bookings: hoisted.bookings,
+    deleteBooking: hoisted.deleteBooking,
+    resetBookingsAndFinancials: hoisted.resetBookingsAndFinancials,
+    hardResetApp: hoisted.hardResetApp,
+  }),
+}));
+
+vi.mock('./src/api/backendDataService', () => ({
+  deleteCounterSaleFromDb: hoisted.deleteCounterSaleFromDb,
+  deleteOrderFromDb: hoisted.deleteOrderFromDb,
 }));
 
 vi.mock('./src/lib/supabase', () => ({
@@ -45,6 +61,13 @@ beforeEach(() => {
   hoisted.sales = [];
   hoisted.bookings = [];
   hoisted.orders = [];
+  hoisted.deleteBooking.mockClear();
+  hoisted.resetBookingsAndFinancials.mockClear();
+  hoisted.hardResetApp.mockClear();
+  hoisted.deleteCounterSaleFromDb.mockClear();
+  hoisted.deleteOrderFromDb.mockClear();
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
+  vi.spyOn(window, 'alert').mockImplementation(() => {});
 });
 
 describe('FinancialReportingTab — branded, informative, anonymised print document', () => {
@@ -102,5 +125,74 @@ describe('FinancialReportingTab — branded, informative, anonymised print docum
     expect(screen.getByText('Export CSV')).toBeTruthy();
     expect(screen.getByText('Excel (.xlsx)')).toBeTruthy();
     expect(screen.getByText('Tax Summary PDF')).toBeTruthy();
+  });
+});
+
+describe('FinancialReportingTab — per-record delete and full reset', () => {
+  it('renders a Delete button on every ledger row', () => {
+    hoisted.sales = [sale()];
+    render(<FinancialReportingTab />);
+    expect(screen.getByTestId('delete-ledger-till-sale-1')).toBeTruthy();
+  });
+
+  it('deletes a till sale from the DB and drops the row', async () => {
+    hoisted.sales = [sale()];
+    render(<FinancialReportingTab />);
+    fireEvent.click(screen.getByTestId('delete-ledger-till-sale-1'));
+    await waitFor(() => expect(hoisted.deleteCounterSaleFromDb).toHaveBeenCalledWith('sale-1'));
+    // The row disappears from the ledger once removed.
+    await waitFor(() => expect(screen.queryByTestId('delete-ledger-till-sale-1')).toBeNull());
+  });
+
+  it('deletes an online order from the DB', async () => {
+    hoisted.orders = [
+      { id: 'order-abc123', customer_name: 'Pat', contact: '', total: 25, items: [{ name: 'x', qty: 1, price: 25 }], created_at: new Date().toISOString() },
+    ];
+    render(<FinancialReportingTab />);
+    fireEvent.click(await screen.findByTestId('delete-ledger-online-order-abc123'));
+    await waitFor(() => expect(hoisted.deleteOrderFromDb).toHaveBeenCalledWith('order-abc123'));
+  });
+
+  it('deletes a workshop booking (and its invoice) through the context', async () => {
+    hoisted.bookings = [
+      {
+        id: 'bk-1',
+        customerName: 'Sam',
+        serviceTitle: 'Full service',
+        vehicleModel: 'Trek Domane',
+        status: 'completed',
+        preferredDate: new Date().toISOString(),
+        invoice: { invoiceNumber: 'INV-1', grandTotal: 120, vatAmount: 20, paymentStatus: 'paid_card', completedAt: new Date().toISOString() },
+      },
+    ];
+    render(<FinancialReportingTab />);
+    fireEvent.click(await screen.findByTestId('delete-ledger-workshop-bk-1'));
+    await waitFor(() => expect(hoisted.deleteBooking).toHaveBeenCalledWith('bk-1'));
+  });
+
+  it('leaves the record in place when the DB delete fails', async () => {
+    hoisted.deleteCounterSaleFromDb.mockResolvedValueOnce(false);
+    hoisted.sales = [sale()];
+    render(<FinancialReportingTab />);
+    fireEvent.click(screen.getByTestId('delete-ledger-till-sale-1'));
+    await waitFor(() => expect(hoisted.deleteCounterSaleFromDb).toHaveBeenCalled());
+    expect(screen.getByTestId('delete-ledger-till-sale-1')).toBeTruthy();
+  });
+
+  it('does not delete when the confirmation is cancelled', () => {
+    (window.confirm as any).mockReturnValueOnce(false);
+    hoisted.sales = [sale()];
+    render(<FinancialReportingTab />);
+    fireEvent.click(screen.getByTestId('delete-ledger-till-sale-1'));
+    expect(hoisted.deleteCounterSaleFromDb).not.toHaveBeenCalled();
+    expect(screen.getByTestId('delete-ledger-till-sale-1')).toBeTruthy();
+  });
+
+  it('resets all financials and bookings, then reloads the app', async () => {
+    hoisted.sales = [sale()];
+    render(<FinancialReportingTab />);
+    fireEvent.click(screen.getByTestId('reset-financials-bookings'));
+    await waitFor(() => expect(hoisted.resetBookingsAndFinancials).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(hoisted.hardResetApp).toHaveBeenCalledTimes(1));
   });
 });
