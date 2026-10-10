@@ -319,3 +319,20 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - Heads after push: staff-terminal `8fe30ba` / customer-app `4877bed` /
   main-website `89ccaf0`. `SeasonalHeroBanner.tsx` verified byte-identical on all
   three branches; parity OK.
+
+## Session 37 (2026-10-09) — promotion AI advisor + engagement analytics + reviews manager + Clean Slate reset
+- Promotion advisor: pure `src/utils/promotionAdvisor.ts` + `src/api/promotionAdvisorService.ts` (Gemini `gemini-flash-lite-latest`, cached, retry=1) wired into `PromotionsPlanner.tsx`.
+- Engagement analytics: pure `src/utils/engagementTracker.ts` (`memberActivity`/`featureUsage`/`mostEngagedMembers`/`promotionPerformance`/`promotionOverview`; `distinct()` = spread, never `.concat`) + `EngagementPanel.tsx` in `PerformanceTracker.tsx`. Login frequency is DERIVED from existing records (lastStampedAt/lastSpunAt/createdAt) — the app writes nothing extra at login.
+- Reviews feature: `CustomerReview` type, `reviews` table in `schemaSync.ts`, fetch/upsert/delete in `backendDataService.ts`; `reviews` state + add/update/delete in `ShopContext` (15s poll + realtime + initial load, equality-guarded like promos); new `ReviewsTab.tsx` staff tool `'reviews'` (launcher tile + `staffView('reviews', ...)`, StaffTab union + STAFF_TABS).
+- **Clean Slate** (`StaffPortal.tsx`, `data-testid="clean-slate"`) now calls `resetBookingsAndFinancials()`: wipes workshop bookings + counter/till sales + online orders from local state AND DB (`deleteAllCounterSalesFromDb`/`deleteAllOrdersFromDb`) before `hardResetApp()`.
+- Suite **831 tests** green; tsc + 3 surface builds clean. Heads: staff-terminal `0d99ef1` / customer-app `8bcda97` / main-website `4c0c552`.
+- **Fetch gotcha (important)**: this clone's `remote.origin.fetch` was `+refs/heads/staff-terminal:refs/remotes/origin/staff-terminal` ONLY, so `git fetch origin --prune` never moved `origin/customer-app` / `origin/main-website` and remote parity checks read stale SHAs. Fix: `git config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*' && git fetch origin --prune`. `git ls-remote origin` is the ground truth for what actually landed.
+
+## Session 38 (2026-10-09) — sync tooling v2 (idempotent sync + history gate + network status)
+- **Latent history drift found & FIXED**: the change `fix(sync): force non-interactive editor…` was SPLIT across two commits on customer-app (`1c2e0c5`+`a3ff1dd`) / main-website (`3308f58`+`25f290a`) vs one on staff-terminal (`2ed3449`); trees matched, logs did not. `check-parity` can't see it — only a history check can. Healed by SQUASHING each pair (rebase `fixup`), NOT dropping one; trees verified byte-identical; 230/234 commits now.
+- **`scripts/sync-branch.sh` now idempotent**: skips a SHA already on the target (primary: the `git cherry-pick -x` `(cherry picked from commit <sha>)` trailer; fallback: patch-id). All picks use `-x`.
+- **NEW `scripts/check-history.sh`**: 0 merges + matching commit-subject multiset over the last `HISTORY_WINDOW` (default 60) subjects vs canonical. Window is deliberate — this is a SHALLOW clone with per-branch log depths, so whole-log compare gives false drift; `--deep` for full history.
+- **NEW `scripts/network-status.sh`**: HEAD/commits/merges/surface/lockstep table. Do NOT use `--cherry-mark` for lockstep — patch-equivalent picks collapse to 0/0 even with a real duplicate.
+- **`sync-verify.sh`** = parity + history + tests + tsc + 3 builds (6 steps). **`.githooks/pre-push`** now also runs the history check; `core.hooksPath=.githooks` set in this clone. **`SYNCING.md`** rewritten as the playbook; **`SYNC-PLAN.md`** at v2. `package.json` gained `check:history` + `network:status`.
+- Validated in a throwaway 3-branch repo: clean pick, idempotent re-run skips (no dup), incoming-wins-except-`surface.ts` conflict rule, surface-only commit refuses+aborts, drift detected.
+

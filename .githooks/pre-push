@@ -30,4 +30,9 @@ if ! bash scripts/check-parity.sh >/dev/null; then
   echo "pre-push: three-branch parity check failed — run 'npm run check:parity' for details." >&2
   exit 1
 fi
+
+if ! bash scripts/check-history.sh >/dev/null; then
+  echo "pre-push: three-branch history check failed — run 'npm run check:history' for details." >&2
+  exit 1
+fi
 exit 0
