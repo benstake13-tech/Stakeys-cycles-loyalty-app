@@ -13,26 +13,29 @@ set -u
 BRANCHES=(staff-terminal customer-app main-website)
 SURFACES=(staff customer website)
 
-echo "==> 1/6 parity"
+echo "==> 1/7 parity"
 bash scripts/check-parity.sh || exit 1
 
-echo "==> 2/6 history"
+echo "==> 2/7 history"
 bash scripts/check-history.sh || exit 1
 
 if [ ! -d node_modules ]; then
-  echo "==> 3/6 installing dependencies"
+  echo "==> 3/7 installing dependencies"
   npm ci || exit 1
 else
-  echo "==> 3/6 dependencies present"
+  echo "==> 3/7 dependencies present"
 fi
 
-echo "==> 4/6 tests"
+echo "==> 4/7 tests"
 npx vitest run || exit 1
 
-echo "==> 5/6 typecheck"
+echo "==> 5/7 typecheck"
 npm run lint || exit 1
 
-echo "==> 6/6 surface builds"
+echo "==> 6/7 Vercel function budget"
+bash scripts/check-vercel-budget.sh || exit 1
+
+echo "==> 7/7 surface builds"
 for s in "${SURFACES[@]}"; do
   echo "  building VITE_SURFACE=$s"
   rm -rf "dist-$s"
