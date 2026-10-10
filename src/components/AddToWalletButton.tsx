@@ -67,7 +67,7 @@ export const AddToWalletButton: React.FC<AddToWalletButtonProps> = ({ user }) =>
     <div className="flex flex-wrap items-center gap-2" data-testid="add-to-wallet">
       {config.apple.configured && (
         <a
-          href={`/api/wallet/apple?membership=${encodeURIComponent(user.membershipNumber)}`}
+          href={`/api/wallet/apple?membership=${encodeURIComponent(user.membershipNumber)}&name=${encodeURIComponent(user.displayName)}&stamps=${user.stamps || 0}&points=${user.points || 0}`}
           className="inline-flex items-center gap-2 rounded-lg bg-neutral-950 px-3.5 py-2 text-xs font-bold text-white hover:bg-neutral-800"
         >
           <Wallet className="w-4 h-4" /> Add to Apple Wallet
