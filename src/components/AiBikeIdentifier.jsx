@@ -47,10 +47,13 @@ const toCategory = (type) =>
 export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   const { addCustomerBike } = useShop();
   const fileRef = useRef(null);
+  // Which slot the shared hidden file input should fill next.
+  const targetSlot = useRef('full');
   const persistBike = addBike || addCustomerBike;
 
-  const [imageData, setImageData] = useState(null);
-  const [mimeType, setMimeType] = useState('image/jpeg');
+  // Up to three shots: the full side-on view (required) plus optional close-ups
+  // of the brand badge and the model decal, which sharpen make/model accuracy.
+  const [shots, setShots] = useState({ full: null, brand: null, model: null });
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
@@ -61,7 +64,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   const configured = isBikeVisionConfigured();
 
   const reset = useCallback(() => {
-    setImageData(null);
+    setShots({ full: null, brand: null, model: null });
     setResult(null);
     setError('');
     setErrorInfo(null);
@@ -75,13 +78,18 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     onClose?.();
   };
 
-  const runAnalysis = useCallback(async (dataUrl, mime) => {
+  const runAnalysis = useCallback(async (current) => {
+    const images = ['full', 'brand', 'model']
+      .map((key) => current[key])
+      .filter(Boolean)
+      .map((shot) => ({ data: shot.dataUrl.split(',').pop(), mimeType: shot.mime }));
+    if (!images.length) return;
     setAnalyzing(true);
     setError('');
     setErrorInfo(null);
     setResult(null);
     try {
-      const analysis = await identifyBikeFromImage(dataUrl, mime);
+      const analysis = await identifyBikeFromImage(images);
       setResult(analysis);
     } catch (err) {
       // Never surface raw upstream JSON — map it to a friendly, structured alert.
@@ -94,31 +102,43 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     }
   }, []);
 
-  const handleFile = (file) => {
+  const readImage = (file) =>
+    new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve({ dataUrl: reader.result, mime: file.type || 'image/jpeg' });
+      reader.readAsDataURL(file);
+    });
+
+  const setSlot = async (slot, file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setError('Please choose an image file.');
       return;
     }
-    const mime = file.type || 'image/jpeg';
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const dataUrl = reader.result;
-      setImageData(dataUrl);
-      setMimeType(mime);
-      runAnalysis(dataUrl, mime);
-    };
-    reader.readAsDataURL(file);
+    const shot = await readImage(file);
+    const next = { ...shots, [slot]: shot };
+    setShots(next);
+    // Analyse as soon as the required full shot exists; re-runs when a close-up
+    // is added or removed, so the result always uses every photo supplied.
+    if (next.full) runAnalysis(next);
   };
 
-  /** Retry the current photo after a transient failure. */
+  const clearSlot = (slot) => {
+    const next = { ...shots, [slot]: null };
+    setShots(next);
+    if (next.full) runAnalysis(next);
+    else setResult(null);
+  };
+
+  /** Retry the current photos after a transient failure. */
   const reanalyse = () => {
-    if (imageData) runAnalysis(imageData, mimeType);
+    if (shots.full) runAnalysis(shots);
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    handleFile(e.dataTransfer.files?.[0]);
+  /** Point the shared hidden input at a slot, then open the camera/file picker. */
+  const openPicker = (slot) => {
+    targetSlot.current = slot;
+    fileRef.current?.click();
   };
 
   const handleSave = async () => {
@@ -162,6 +182,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         model: result.model || 'Unidentified',
         year: result.year || undefined,
         colour: result.colour || undefined,
+        serialNumber: result.serialNumber || undefined,
         frameSizeOrNotes: result.positioning?.frameSizeEstimate
           ? `AI: ${result.positioning.frameSizeEstimate}${isElectric ? ' · E-bike' : ''}`
           : isElectric
@@ -206,7 +227,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
           <div>
             <h3 className="font-display text-xl font-black">AI Bike Identifier</h3>
             <p className="text-xs text-neutral-400">
-              Snap a photo and Stakey's AI will identify the bike, read its positioning, spot any electric kit, list the main specs and flag obvious problems — then add it to your garage.
+              Snap a photo and Stakey's AI will identify the bike, read its positioning, spot any electric kit, list the main specs (including wheel size, tyre size and valve type) and flag obvious problems — then add it to your garage. Add a close-up of the brand name and one of the model for the most accurate read.
             </p>
           </div>
         </div>
@@ -235,7 +256,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
             )}
             <div className="min-w-0 flex-1">
               <span className="block">{error}</span>
-              {imageData && (errorInfo?.retryable ?? true) && (
+              {shots.full && (errorInfo?.retryable ?? true) && (
                 <button
                   type="button"
                   onClick={reanalyse}
@@ -263,14 +284,17 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
           <div className="space-y-3">
             <div
               onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
+              onDrop={(e) => {
+                e.preventDefault();
+                setSlot('full', e.dataTransfer.files?.[0]);
+              }}
               className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed ${
-                imageData ? 'border-neutral-700' : 'border-neutral-700/80 bg-neutral-950/60'
+                shots.full ? 'border-neutral-700' : 'border-neutral-700/80 bg-neutral-950/60'
               }`}
             >
-              {imageData ? (
+              {shots.full ? (
                 <>
-                  <img src={imageData} alt="Bike to identify" className="h-full w-full object-cover" />
+                  <img src={shots.full.dataUrl} alt="Bike to identify" className="h-full w-full object-cover" />
                   {analyzing && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-sm">
                       <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
@@ -281,11 +305,11 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
               ) : (
                 <button
                   type="button"
-                  onClick={() => fileRef.current?.click()}
+                  onClick={() => openPicker('full')}
                   className="flex cursor-pointer flex-col items-center gap-3 p-6 text-center"
                 >
                   <Camera className="h-10 w-10 text-emerald-400" />
-                  <span className="text-sm font-bold text-white">Take or upload a photo</span>
+                  <span className="text-sm font-bold text-white">Take or upload a full side-on photo</span>
                   <span className="text-[11px] text-neutral-500">
                     A clear side-on shot in good light works best. Drag &amp; drop also works.
                   </span>
@@ -296,19 +320,37 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
               )}
             </div>
 
+            {/* Optional close-ups that make the make/model reading far more reliable. */}
+            <div className="grid grid-cols-2 gap-2">
+              <PhotoSlot
+                label="Brand name"
+                hint="Close-up of the head badge / logo"
+                shot={shots.brand}
+                onPick={() => openPicker('brand')}
+                onClear={() => clearSlot('brand')}
+              />
+              <PhotoSlot
+                label="Model"
+                hint="Close-up of the model decal"
+                shot={shots.model}
+                onPick={() => openPicker('model')}
+                onClear={() => clearSlot('model')}
+              />
+            </div>
+
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => openPicker('full')}
                 className="pressable flex flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-300 hover:text-white cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>{imageData ? 'Retake' : 'Upload'}</span>
+                <span>{shots.full ? 'Retake' : 'Upload'}</span>
               </button>
-              {imageData && (
+              {shots.full && (
                 <button
                   type="button"
-                  onClick={() => runAnalysis(imageData, mimeType)}
+                  onClick={reanalyse}
                   disabled={analyzing}
                   className="pressable flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50 cursor-pointer"
                 >
@@ -317,14 +359,17 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                 </button>
               )}
             </div>
-            {/* Hidden file input, triggered by the capture button */}
+            {/* One hidden input, retargeted to whichever slot was tapped. */}
             <input
               ref={fileRef}
               type="file"
               accept="image/*"
               capture="environment"
               className="hidden"
-              onChange={(e) => handleFile(e.target.files?.[0])}
+              onChange={(e) => {
+                setSlot(targetSlot.current, e.target.files?.[0]);
+                e.target.value = '';
+              }}
             />
           </div>
 
@@ -370,9 +415,12 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                   </div>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {result.frameMaterial && <Chip>{result.frameMaterial}</Chip>}
-                    {result.positioning?.wheelSize && <Chip>{result.positioning.wheelSize}</Chip>}
+                    {result.positioning?.wheelSize && <Chip>Wheel {result.positioning.wheelSize}</Chip>}
+                    {result.positioning?.tyreSize && <Chip>Tyre {result.positioning.tyreSize}</Chip>}
+                    {result.positioning?.valveType && <Chip>Valve {result.positioning.valveType}</Chip>}
                     {result.positioning?.frameSizeEstimate && <Chip>{result.positioning.frameSizeEstimate}</Chip>}
                     {result.colour && <Chip>{result.colour}</Chip>}
+                    {result.serialNumber && <Chip>Serial {result.serialNumber}</Chip>}
                   </div>
                 </div>
 
@@ -416,6 +464,10 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                     <div className="mt-2 space-y-1.5 text-[11px]">
                       {result.positioning.ridingStyle && <Field label="Riding style" value={result.positioning.ridingStyle} />}
                       {result.positioning.riderFit && <Field label="Rider fit" value={result.positioning.riderFit} />}
+                      {result.positioning.wheelSize && <Field label="Wheel size" value={result.positioning.wheelSize} />}
+                      {result.positioning.tyreSize && <Field label="Tyre size" value={result.positioning.tyreSize} />}
+                      {result.positioning.valveType && <Field label="Valve type" value={result.positioning.valveType} />}
+                      {result.serialNumber && <Field label="Serial no." value={result.serialNumber} />}
                       {result.positioning.cockpitSetup && <Field label="Cockpit" value={result.positioning.cockpitSetup} />}
                       {result.positioning.saddleSetup && <Field label="Saddle" value={result.positioning.saddleSetup} />}
                     </div>
@@ -535,6 +587,40 @@ const Chip = ({ children }) => (
   <span className="rounded-full border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-[10px] font-semibold text-neutral-300">
     {children}
   </span>
+);
+
+/** One of the optional close-up slots (brand badge / model decal). */
+const PhotoSlot = ({ label, hint, shot, onPick, onClear }) => (
+  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/50 p-2">
+    <div className="flex items-center justify-between gap-1 px-1">
+      <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{label}</span>
+      {shot && (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label={`Remove ${label} photo`}
+          className="rounded p-0.5 text-neutral-500 hover:text-white"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+    <button
+      type="button"
+      onClick={onPick}
+      className="mt-1.5 flex aspect-video w-full items-center justify-center overflow-hidden rounded-xl border border-dashed border-neutral-700/80 bg-neutral-950/60 text-center hover:border-emerald-500/40"
+    >
+      {shot ? (
+        <img src={shot.dataUrl} alt={label} className="h-full w-full object-cover" />
+      ) : (
+        <span className="flex flex-col items-center gap-1 px-2">
+          <Camera className="h-5 w-5 text-neutral-500" />
+          <span className="text-[10px] font-semibold text-neutral-300">Add photo</span>
+          <span className="text-[9px] text-neutral-500">{hint}</span>
+        </span>
+      )}
+    </button>
+  </div>
 );
 
 const Field = ({ label, value }) => (
