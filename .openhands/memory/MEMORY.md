@@ -364,3 +364,11 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - New stores `WishlistStore`/`TradeInStore`: `useSyncExternalStore` + localStorage + best-effort Supabase `app_settings` JSON column probe (local-only when absent — anon can't DDL).
 - Adding a customer tab touches BOTH the local `type CustomerTab` and the outer `useState` union in CustomerPortal; adding a staff tab touches `StaffTab` + `StaffTabId` + `STAFF_TABS`. Wallet API: `api/wallet/{_shared,config,google}.js` + dev mirror in server.ts; Apple `.pkpass` endpoint still a TODO.
 - Push needs token URL: `git push https://x-access-token:${GITHUB_TOKEN}@github.com/benstake13-tech/Stakeys-cycles-loyalty-app.git <branch>` (plain `git push` prompts for username).
+
+## Session 48 (2026-10-10) — "Fix my APIs": prod serverless functions + real Apple Wallet
+- **Trap**: dev-only API mirrors in `server.ts` hide missing Vercel functions. When a client `/api/*` route has no `api/**/*.js`, the deployed static site's SPA rewrite returns index.html (200, HTML) — looks "broken". Audit: `grep -rhoE "/api/[a-zA-Z0-9/_-]+" src/` vs `find api -name '*.js' ! -name '_shared.js'`. Fixed missing: `/api/drive/{list,resolve}`, `/api/google-business`, `/api/wallet/apple`.
+- **Apple Wallet `.pkpass` now real** (was TODO/503-only). `buildApplePass(member, env)` in `api/wallet/_shared.js`: node-forge unzips the Pass Type ID `.p12` + detached PKCS#7/CMS-signs `manifest.json` (SHA-1 per file); jszip bundles it. Env `APPLE_PASS_CERT_P12` (base64), `APPLE_PASS_CERT_PASSWORD`, `APPLE_PASS_TYPE_ID`, `APPLE_TEAM_ID`, optional `APPLE_WWDR_CERT_PEM`. Deps: node-forge, jszip, @types/node-forge.
+  - node-forge `pkcs7.verify()` is unimplemented — test the CMS by shelling to `openssl smime -verify -inform DER -in sig.der -content manifest.json -noverify` (success text lands on **stderr**).
+  - `resolveWalletConfig().apple` now returns `teamId` too. Buttons stay hidden until `/api/wallet/config` reports the provider configured; Apple link carries name/stamps/points.
+- Deleted `api/firebaseService.js` (dead dup of `src/api/firebaseService.ts`; not a handler). Documented wallet/Drive/Business env in `.env.example`.
+- Tests added `api_drive_functions.test.ts` (17), `api_google_business.test.ts` (4), Apple pass coverage in `api_wallet_functions.test.ts`. Suite 137 files / 1116 tests; `sync-verify.sh` OK.
