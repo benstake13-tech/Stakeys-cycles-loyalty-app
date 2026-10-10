@@ -14,6 +14,7 @@ import {
   supabaseSqlEditorUrl,
   oneSignalDashboardUrl,
 } from './src/utils/repairTargets';
+import { executeRepairTarget } from './src/utils/repairRunner';
 
 beforeEach(() => {
   localStorage.clear();
@@ -59,5 +60,35 @@ describe('repairTargets resolver', () => {
   it('builds stable dashboard URLs', () => {
     expect(supabaseSqlEditorUrl()).toContain('/project/lhojocpygcnkxvkrcuxh/sql');
     expect(oneSignalDashboardUrl('abc')).toBe('https://dashboard.onesignal.com/apps/abc');
+  });
+});
+
+describe('executeRepairTarget', () => {
+  it('copies the repair SQL and opens the editor for a Supabase target', async () => {
+    const copySql = vi.fn();
+    const openUrl = vi.fn();
+    const target = resolveRepairTarget({ area: 'members', tables: ['profiles'] });
+    await executeRepairTarget(target, { copySql, openUrl });
+    expect(copySql).toHaveBeenCalledTimes(1);
+    expect((copySql.mock.calls[0][0] as string).length).toBeGreaterThan(0);
+    expect(openUrl).toHaveBeenCalledWith(target.openUrl);
+  });
+
+  it('runs the push repair chain then opens OneSignal for a reach target', async () => {
+    const runPushRepair = vi.fn(async () => {});
+    const openUrl = vi.fn();
+    await executeRepairTarget(resolveRepairTarget({ area: 'reach' }), { runPushRepair, openUrl });
+    expect(runPushRepair).toHaveBeenCalledTimes(1);
+    expect(openUrl).toHaveBeenCalled();
+  });
+
+  it('navigates to email settings for an email target and does nothing for none', async () => {
+    const onEmail = vi.fn();
+    await executeRepairTarget(resolveRepairTarget({ area: 'email' }), { onEmail });
+    expect(onEmail).toHaveBeenCalledTimes(1);
+
+    const openUrl = vi.fn();
+    await executeRepairTarget(resolveRepairTarget({ area: 'logic' }), { openUrl });
+    expect(openUrl).not.toHaveBeenCalled();
   });
 });
