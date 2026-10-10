@@ -6,6 +6,8 @@ import {
   PrizeWheel,
   PrizeWheelSegment,
   PrizeDraw,
+  ScratchCardConfig,
+  ScratchPrize,
   StampLog,
   WinnerAnnouncement,
   ServiceBooking,
@@ -50,6 +52,11 @@ import {
   statusForStage,
 } from '../utils/repairProgress';
 import { DEFAULT_PRIZE_WHEEL } from '../utils/prizeWheelHelper';
+import {
+  DEFAULT_SCRATCH_CARD,
+  normalizeScratchCard,
+  scratchPrizeAmountLabel,
+} from '../utils/scratchCardHelper';
 import { roundMoney } from '../utils/discountService';
 import {
   REFERRER_REWARD,
@@ -327,6 +334,17 @@ interface ShopContextType {
   ) => Promise<{ success: boolean; message: string }>;
   resetUserSpinCooldown: (userId: string) => void;
   dismissAnnouncement: () => void;
+  // Scratch card (Prize Hub managed)
+  scratchCard: ScratchCardConfig | null;
+  updateScratchCard: (updates: Partial<ScratchCardConfig>) => Promise<void>;
+  awardScratchCardPrize: (userId: string, prize: ScratchPrize) => Promise<{
+    success: boolean;
+    message: string;
+    prize?: ScratchPrize;
+    stampsAwarded?: number;
+    isFull?: boolean;
+    voucher?: CollectedVoucher;
+  }>;
   // Theme state
   theme: ThemeMode;
   toggleTheme: () => void;
@@ -1971,6 +1989,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setNotificationEventEnabled = (id: NotificationEventId, enabled: boolean) =>
     setNotificationPreferencesState((prev) => setEventEnabled(prev, id, enabled));
 
+  // Scratch card config (Prize Hub managed). Null until the Settings row has
+  // loaded; the customer tab stays hidden while it is null or disabled.
+  const [scratchCard, setScratchCardState] = useState<ScratchCardConfig | null>(null);
+
+  const updateScratchCard = async (updates: Partial<ScratchCardConfig>) => {
+    const next = normalizeScratchCard({ ...(scratchCard || DEFAULT_SCRATCH_CARD), ...updates });
+    setScratchCardState(next);
+    const persisted = await upsertAppSettingsToDb({ scratchCardConfig: next });
+    if (!persisted) {
+      toast.error('Could not save the scratch card settings to the database.');
+    }
+  };
+
   // Configurable reminder behaviour. Stored as one object so the staff UI has a
   // single source of truth; the legacy pushOnly/ownerEmail fields are kept in
   // sync for older callers and the DB columns that predate this.
@@ -2094,6 +2125,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
         return same ? prev : next;
       });
+    }
+
+    // Adopt the scratch card configured on another staff terminal. Keep the
+    // previous object when identical so the editor isn't reset mid-typing.
+    if (settings.scratchCardConfig) {
+      setScratchCardState((prev) =>
+        deepEqual(prev, settings.scratchCardConfig)
+          ? prev
+          : normalizeScratchCard(settings.scratchCardConfig)
+      );
     }
   };
 
@@ -3027,6 +3068,130 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return {
       success: true,
       message: `Congratulations! You won ${segment.label}!`,
+      stampsAwarded,
+      isFull,
+      voucher: newVoucher,
+    };
+  };
+
+  const awardScratchCardPrize = async (
+    userId: string,
+    prize: ScratchPrize
+  ): Promise<{
+    success: boolean;
+    message: string;
+    prize?: ScratchPrize;
+    stampsAwarded?: number;
+    isFull?: boolean;
+    voucher?: CollectedVoucher;
+  }> => {
+    const target = users.find((u) => u.uid === userId);
+    if (!target) return { success: false, message: 'User profile not found.' };
+
+    const now = new Date();
+    let stampsAwarded = 0;
+    let extraTickets = 0;
+    let extraPoints = 0;
+    let newVoucher: CollectedVoucher | undefined;
+
+    if (prize.rewardType === 'stamp') {
+      stampsAwarded = prize.stampsAmount ?? 1;
+    } else if (prize.rewardType === 'ticket') {
+      extraTickets = prize.ticketAmount ?? 1;
+    } else if (prize.rewardType === 'points') {
+      extraPoints = prize.pointsAmount ?? 50;
+    } else if (
+      prize.rewardType === 'discount' ||
+      prize.rewardType === 'merch' ||
+      prize.rewardType === 'service'
+    ) {
+      newVoucher = {
+        id: `vouch-scratch-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        code: `STK-SCR-${Math.floor(100000 + Math.random() * 900000)}`,
+        title: prize.label,
+        description: prize.rewardValue || prize.label,
+        value: prize.rewardType === 'discount' ? 10 : 0,
+        type: prize.rewardType === 'discount' ? 'discount' : 'merch',
+        terms: 'Won on the Scratch Card. Present voucher code or barcode at till.',
+        claimedAt: now,
+        status: 'available',
+      };
+    }
+
+    const currentStamps = target.stamps || 0;
+    const updatedStamps = currentStamps + stampsAwarded;
+    const isFull = updatedStamps >= STAMPS_PER_CARD;
+    const ticketCost = scratchCard?.ticketCost ?? 0;
+    const updatedTickets = Math.max(0, (target.tickets || 0) + extraTickets - ticketCost);
+    const updatedPoints = (target.points || 0) + extraPoints;
+
+    const updatedUser: UserProfile = {
+      ...target,
+      stamps: updatedStamps,
+      tickets: updatedTickets,
+      points: updatedPoints,
+      lastScratchedAt: now,
+      serviceVouchers: newVoucher
+        ? [...(target.serviceVouchers || []), newVoucher]
+        : target.serviceVouchers,
+    };
+
+    setUsers((prev) => prev.map((u) => (u.uid === userId ? updatedUser : u)));
+    if (currentUser?.uid === userId) {
+      setCurrentUser(updatedUser);
+    }
+
+    const logNote =
+      stampsAwarded > 0
+        ? `Scratch Card: Won ${prize.label} (+${stampsAwarded} stamp${
+            stampsAwarded === 1 ? '' : 's'
+          }! Card is now ${updatedStamps}/10${
+            isFull ? ' - FULL CARD READY TO COLLECT £40 SERVICE!' : ''
+          })`
+        : `Scratch Card: Won ${prize.label}`;
+
+    const newLog: StampLog = {
+      id: `log-scratch-${Date.now()}`,
+      customerId: userId,
+      customerName: target.displayName,
+      membershipNumber: target.membershipNumber,
+      staffId: 'scratch-card',
+      staffName: 'Scratch Card',
+      action: 'redeem_reward',
+      stampsBefore: currentStamps,
+      stampsAfter: updatedStamps,
+      timestamp: now,
+      note: logNote,
+    };
+    setStampLogs((prev) => [newLog, ...prev]);
+
+    updateUserProfileInDb(userId, target.membershipNumber, {
+      stamps: updatedStamps,
+      tickets: updatedTickets,
+      points: updatedPoints,
+      lastScratchedAt: now,
+    }).catch((e) => console.warn('[DB SYNC] Error saving scratch card win in DB:', e));
+    insertStampLogToDb(newLog).catch((e) =>
+      console.warn('[DB SYNC] Error inserting scratch card log in DB:', e)
+    );
+    if (newVoucher) {
+      insertVoucherToDb(userId, newVoucher).catch((e) =>
+        console.warn('[DB SYNC] Error saving scratch card voucher in DB:', e)
+      );
+    }
+
+    const summary = scratchPrizeAmountLabel(prize);
+    toast.success(
+      stampsAwarded > 0 || extraTickets > 0 || extraPoints > 0
+        ? `🎉 You won ${prize.label}! (${summary})`
+        : `🎉 You won ${prize.label}!`,
+      { icon: '🎟️', duration: 5000 }
+    );
+
+    return {
+      success: true,
+      message: `Congratulations! You won ${prize.label}!`,
+      prize,
       stampsAwarded,
       isFull,
       voucher: newVoucher,
@@ -4515,6 +4680,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         redeemServiceVoucher,
         resetUserSpinCooldown,
         dismissAnnouncement,
+        scratchCard,
+        updateScratchCard,
+        awardScratchCardPrize,
         theme,
         toggleTheme,
         setTheme,

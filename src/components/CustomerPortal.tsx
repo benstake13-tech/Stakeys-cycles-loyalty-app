@@ -34,6 +34,7 @@ import { RideTransition, useRideTransition } from './tiles/RideTransition';
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
+import { ScratchCard } from './ScratchCard';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
 import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
@@ -68,9 +69,10 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     saveBikeScrapedSpecs,
     updateCustomerAvatar,
     updateCustomerBikeIdentity,
+    scratchCard,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>('garage');
+  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>('garage');
 
   // Bicycle-inspired transition when opening a section from the tile launcher.
   const ride = useRideTransition();
@@ -129,11 +131,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  type CustomerTab = 'garage' | 'wheel' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather';
+  type CustomerTab = 'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather';
 
   const customerTiles: { id: CustomerTab; label: string; icon: LucideIcon; tone: TabTone; badge?: number | string; hint: string }[] = [
     { id: 'garage', label: 'My Garage', icon: Bike, tone: 'emerald', badge: customerBikes.length, hint: 'Your registered bikes' },
     { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
+    ...(scratchCard?.enabled
+      ? [{ id: 'scratch' as CustomerTab, label: 'Scratch Card', icon: Gift, tone: 'amber' as TabTone, hint: 'Scratch to reveal a hidden prize' }]
+      : []),
     { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
     { id: 'repairs', label: 'Repairs', icon: Activity, tone: 'emerald', badge: customerBookings.length, hint: 'Live repair progress tracker' },
     { id: 'bookings', label: 'Bookings', icon: Calendar, tone: 'emerald', badge: customerBookings.length, hint: 'Your service bookings' },
@@ -691,6 +696,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       {/* TAB: WEEKLY PRIZE WHEEL */}
       {activeTab === 'wheel' && (
         <WeeklyPrizeWheel
+          onGoToStamps={() => setActiveTab('stamps')}
+          onGoToBooking={() => setActiveTab('booking')}
+        />
+      )}
+
+      {/* TAB: SCRATCH CARD (Prize Hub managed; hidden unless enabled) */}
+      {activeTab === 'scratch' && scratchCard?.enabled && (
+        <ScratchCard
           onGoToStamps={() => setActiveTab('stamps')}
           onGoToBooking={() => setActiveTab('booking')}
         />

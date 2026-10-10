@@ -55,6 +55,8 @@ import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
 
 import { PrizeWheelModal } from './PrizeWheelModal';
 import { WheelEditorModal } from './WheelEditorModal';
+import { ScratchCardEditorModal } from './ScratchCardEditorModal';
+import { scratchPrizeProbability } from '../utils/scratchCardHelper';
 import { StaffBookingsTab } from './StaffBookingsTab';
 import { CustomerDatabaseTab } from './CustomerDatabaseTab';
 import { StaffManagementTab } from './StaffManagementTab';
@@ -159,6 +161,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     resetBookingsAndFinancials,
     reviews = [],
     notificationPreferences,
+    scratchCard,
+    updateScratchCard,
   } = useShop();
 
   // The bell feed: every workshop activity, filtered to the events whose Visual
@@ -301,6 +305,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   // Wheel preview & editor
   const [previewWheel, setPreviewWheel] = useState<any | null>(null);
   const [isEditingWheel, setIsEditingWheel] = useState(false);
+
+  // Scratch card editor (Prize Hub)
+  const [isEditingScratch, setIsEditingScratch] = useState(false);
 
   // Log filter
   const [logFilterAction, setLogFilterAction] = useState<string>('all');
@@ -1002,6 +1009,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* VIEW 5: Prize Draws & Wheel Hub */}
       {staffView('draws', (
+        <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Draws List (6 cols) */}
           <div className="lg:col-span-6 space-y-6">
@@ -1186,6 +1194,77 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
               </div>
             )}
           </div>
+        </div>
+
+        {/* Scratch Card (managed feature, toggled here in the Prize Hub) */}
+        <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+            <div>
+              <div className="flex items-center gap-2 text-white font-bold text-base">
+                <Sparkles className="w-5 h-5 text-emerald-500" />
+                Scratch Card
+              </div>
+              <p className="text-xs text-neutral-400 mt-0.5">
+                {scratchCard
+                  ? `${scratchCard.prizes.length} prize${scratchCard.prizes.length === 1 ? '' : 's'} configured${
+                      scratchCard.cooldownHours > 0
+                        ? ` · ${scratchCard.cooldownHours}h cooldown`
+                        : ' · no cooldown'
+                    }`
+                  : 'Loading scratch card configuration…'}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => updateScratchCard({ enabled: !(scratchCard?.enabled === true) })}
+                disabled={!scratchCard}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs uppercase tracking-wider border transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  scratchCard?.enabled
+                    ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border-emerald-500/40'
+                    : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border-neutral-700'
+                }`}
+                title="Enable or disable the scratch card feature"
+              >
+                {scratchCard?.enabled ? 'Enabled' : 'Disabled'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsEditingScratch(true)}
+                disabled={!scratchCard}
+                className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-semibold text-xs border border-neutral-700 flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Manage Prizes</span>
+              </button>
+            </div>
+          </div>
+
+          {scratchCard && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {scratchCard.prizes.map((prize, idx) => (
+                <div
+                  key={prize.id || idx}
+                  className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 flex items-center justify-between text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <Gift className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="font-semibold text-neutral-200 truncate">{prize.label}</span>
+                  </div>
+                  <span className="font-mono text-emerald-400 font-bold bg-neutral-900 px-2 py-0.5 rounded text-[11px] shrink-0">
+                    {Math.round(scratchPrizeProbability(prize, scratchCard.prizes) * 100)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-[11px] text-neutral-500">
+            When enabled, a "Scratch Card" section appears in every rider's loyalty
+            area. Turn it off to hide the feature everywhere instantly.
+          </p>
+        </div>
         </div>
       ))}
 
@@ -1481,6 +1560,22 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             setActionFeedback({
               success: true,
               message: 'Prize Wheel updated successfully!',
+            });
+          }}
+        />
+      )}
+
+      {/* Scratch Card Editor Modal for Staff */}
+      {scratchCard && (
+        <ScratchCardEditorModal
+          config={scratchCard}
+          isOpen={isEditingScratch}
+          onClose={() => setIsEditingScratch(false)}
+          onSave={(updated) => {
+            updateScratchCard(updated);
+            setActionFeedback({
+              success: true,
+              message: 'Scratch Card prizes updated successfully!',
             });
           }}
         />
