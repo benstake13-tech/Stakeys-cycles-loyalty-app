@@ -48,6 +48,7 @@ import {
   CloudRain,
   LayoutGrid,
   MessageSquare,
+  Zap,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -74,6 +75,7 @@ import { StaffThemeSelector } from './StaffThemeSelector';
 import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { NotificationBell } from './NotificationBell';
 import { StaffNotificationSettings } from './StaffNotificationSettings';
+import { ErrorCodeLookupTab } from './ErrorCodeLookupTab';
 import { buildWorkshopActivities } from '../utils/notificationActivity';
 
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
@@ -106,6 +108,7 @@ type StaffTab =
   | 'reviews'
   | 'backend'
   | 'weather'
+  | 'ev_codes'
   | 'settings';
 
 /** Every staff tab, used to validate the persisted last-used tab on restore. */
@@ -124,6 +127,7 @@ const STAFF_TABS: StaffTab[] = [
   'reviews',
   'backend',
   'weather',
+  'ev_codes',
   'settings',
 ];
 
@@ -480,6 +484,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'reviews'
     | 'backend'
     | 'weather'
+    | 'ev_codes'
     | 'settings';
 
   // Tile launcher metadata. The old segmented strips became Windows-8-style
@@ -500,6 +505,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel' },
     { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
+    { id: 'ev_codes', label: 'Error Codes', icon: Zap, tone: 'amber', hint: 'E-Scooter / E-Bike fault code lookup' },
   ];
 
   const adminTiles: StaffTile[] = [
@@ -749,6 +755,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           <WeatherForecast isDark />
         </div>
       ))}
+
+      {/* VIEW 8: E-Scooter / E-Bike error-code lookup with AI assist */}
+      {staffView('ev_codes', <ErrorCodeLookupTab />)}
 
       {/* VIEW 9: Backend console — Supabase connection, schema audit & repair */}
       {staffView('backend', <StaffBackendTab />)}
