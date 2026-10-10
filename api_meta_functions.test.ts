@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resolveManagedPage, publishToPage, publishToInstagram, fetchPagePosts } from './api/meta/_shared.js';
-import publishHandler from './api/meta/publish.js';
-import postsHandler from './api/meta/posts.js';
+import metaHandler from './api/meta/[action].js';
+const publishHandler = (req: any, res: any) =>
+  metaHandler({ ...req, query: { ...(req?.query || {}), action: 'publish' } }, res);
+const postsHandler = (req: any, res: any) =>
+  metaHandler({ ...req, query: { ...(req?.query || {}), action: 'posts' } }, res);
 
 /**
  * The publishing path resolves the Page (and its linked Instagram account) from
