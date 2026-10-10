@@ -13,6 +13,7 @@
 export type VisionErrorKind =
   | 'MODEL_OVERLOADED'
   | 'RATE_LIMITED'
+  | 'QUOTA_EXHAUSTED'
   | 'TIMEOUT'
   | 'OFFLINE'
   | 'CANCELLED'
@@ -118,6 +119,12 @@ export function classifyVisionError(err: unknown, opts: VisionErrorOptions = {})
   const code = parsed.code;
   const status = (parsed.status || '').toUpperCase();
 
+  // Billing / prepayment exhaustion is a 402 and is NOT transient — retrying
+  // just burns more time. Detect it by status first so a depleted project is
+  // reported accurately instead of as a generic rate limit.
+  if (code === 402 || status === 'PAYMENT_REQUIRED' || /prepayment credits? (are )?depleted|billing|prepay|payment required/.test(lower)) {
+    return infoForKind('QUOTA_EXHAUSTED');
+  }
   if (code && STATUS_TO_KIND[code]) {
     return infoForKind(STATUS_TO_KIND[code]);
   }
@@ -154,6 +161,13 @@ function infoForKind(kind: VisionErrorKind): VisionErrorInfo {
         retryable: true,
         transient: true,
         message: "The AI scanner is handling a lot of requests right now. Please tap 'Re-analyse' in a few seconds.",
+      };
+    case 'QUOTA_EXHAUSTED':
+      return {
+        kind,
+        retryable: false,
+        transient: false,
+        message: "AI scanning is paused because the Google Gemini billing quota for this project is exhausted. Add credits in Google AI Studio, then try again.",
       };
     case 'EMPTY_RESPONSE':
       return {

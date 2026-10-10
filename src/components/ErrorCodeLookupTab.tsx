@@ -33,6 +33,7 @@ import {
   assistECodeLookup,
   isECodeAssistConfigured,
   ECodeAssistItem,
+  ECodeAssistResult,
 } from '../api/eVehicleCodeAssist';
 
 const SYSTEM_META: Record<string, { label: string; icon: React.ReactNode }> = {
@@ -134,7 +135,7 @@ export function ErrorCodeLookupTab() {
   const [symptom, setSymptom] = useState('');
   const [search, setSearch] = useState('');
   const [assistState, setAssistState] = useState<'idle' | 'thinking' | 'done'>('idle');
-  const [assistResult, setAssistResult] = useState<{ matches: ECodeAssistItem[]; guidance: string } | null>(null);
+  const [assistResult, setAssistResult] = useState<{ matches: ECodeAssistItem[]; guidance: string; error?: ECodeAssistResult['error'] } | null>(null);
 
   const brands = useMemo(() => brandsForEVehicleCategory(category), [category]);
   const models = useMemo(() => {
@@ -185,6 +186,7 @@ export function ErrorCodeLookupTab() {
     setAssistResult({
       matches: result.matches,
       guidance: result.guidance,
+      error: result.error,
     });
     setAssistState('done');
   };
@@ -311,6 +313,15 @@ export function ErrorCodeLookupTab() {
         </div>
         {assistState === 'done' && assistResult && (
           <div className="mt-4 space-y-3" data-testid="ev-assist-results">
+            {assistResult.error && (
+              <div
+                data-testid="ev-assist-error"
+                className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200"
+              >
+                <AlertTriangle className="mt-0.5 w-3.5 h-3.5 shrink-0" />
+                <span>{assistResult.error.message}</span>
+              </div>
+            )}
             {assistResult.matches.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">Most likely codes</span>
