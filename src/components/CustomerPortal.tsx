@@ -21,6 +21,11 @@ import {
   CloudRain,
   RefreshCw,
   Pencil,
+  Wallet,
+  Stethoscope,
+  CalendarClock,
+  BookOpen,
+  Heart,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useShop } from '../context/ShopContext';
@@ -40,6 +45,14 @@ import { CustomerRepairTracker } from './CustomerRepairTracker';
 import { AiBikeIdentifier } from './AiBikeIdentifier';
 import { MembershipPassCard } from './MembershipPassCard';
 import { ReferAFriendCard } from './ReferAFriendCard';
+import { RewardsWallet } from './RewardsWallet';
+import { CareSchedulePanel } from './CareSchedulePanel';
+import { SymptomChecker } from './SymptomChecker';
+import { CareGuides } from './CareGuides';
+import { TradeInRequestForm } from './TradeInRequestForm';
+import { WishlistPanel } from './WishlistPanel';
+import { RewardNudges } from './RewardNudges';
+import { buildRewardNudges } from '../utils/rewardNudges';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
 import { FaceAvatar } from './FaceAvatar';
@@ -72,12 +85,17 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     scratchCard,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather'>('garage');
+  const [activeTab, setActiveTab] = useState<
+    'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist'
+  >('garage');
 
   // Bicycle-inspired transition when opening a section from the tile launcher.
   const ride = useRideTransition();
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
+  // Symptoms carried from the guided Symptom Checker into the booking form.
+  const [seedIssueIds, setSeedIssueIds] = useState<string[] | undefined>(undefined);
+  const [seedNotes, setSeedNotes] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
   const [editingBike, setEditingBike] = useState<CustomerBike | null>(null);
   const [viewingCustomerInvoice, setViewingCustomerInvoice] = useState<ServiceBooking | null>(null);
@@ -131,7 +149,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  type CustomerTab = 'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather';
+  type CustomerTab = 'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist';
 
   const customerTiles: { id: CustomerTab; label: string; icon: LucideIcon; tone: TabTone; badge?: number | string; hint: string }[] = [
     { id: 'garage', label: 'My Garage', icon: Bike, tone: 'emerald', badge: customerBikes.length, hint: 'Your registered bikes' },
@@ -143,6 +161,12 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     { id: 'repairs', label: 'Repairs', icon: Activity, tone: 'emerald', badge: customerBookings.length, hint: 'Live repair progress tracker' },
     { id: 'bookings', label: 'Bookings', icon: Calendar, tone: 'emerald', badge: customerBookings.length, hint: 'Your service bookings' },
     { id: 'stamps', label: 'Loyalty Pass', icon: Award, tone: 'emerald', badge: `${currentUser.stamps || 0}/10`, hint: 'Your stamp card' },
+    { id: 'wallet', label: 'Rewards Wallet', icon: Wallet, tone: 'emerald', hint: 'All your vouchers, credits and points' },
+    { id: 'symptom', label: 'Symptom Checker', icon: Stethoscope, tone: 'sky', hint: 'Describe the fault — we pre-fill your booking' },
+    { id: 'care', label: 'Care Schedule', icon: CalendarClock, tone: 'emerald', hint: 'When each bike is next due a service' },
+    { id: 'guides', label: 'How-To Guides', icon: BookOpen, tone: 'emerald', hint: 'Short care and maintenance guides' },
+    { id: 'tradein', label: 'Trade-In', icon: RefreshCw, tone: 'amber', hint: 'Value your old bike against a new one' },
+    { id: 'wishlist', label: 'Watchlist', icon: Heart, tone: 'rose', hint: 'Items you want back in stock' },
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
     { id: 'refer', label: 'Refer a Friend', icon: Gift, tone: 'amber', hint: 'Share your code and earn rewards' },
   ];
@@ -324,6 +348,12 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         </div>
       )}
 
+      {/* Proactive "almost there" reward nudges */}
+      <RewardNudges
+        user={currentUser}
+        onNavigate={(target) => setActiveTab(target === 'stamps' ? 'stamps' : target === 'wallet' ? 'wallet' : 'refer')}
+      />
+
       {/* Primary section navigation — grouped launcher tiles */}
       <RideTransition state={ride.state}>
       <div data-testid="customer-section-launcher">
@@ -340,6 +370,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                 active={activeTab === t.id}
                 onSelect={() => {
                   ride.rideIn();
+                  // Entering Booking from the launcher starts a clean form; the
+                  // Symptom Checker seeds issues when it routes here instead.
+                  if (t.id === 'booking') {
+                    setSeedIssueIds(undefined);
+                    setSeedNotes(undefined);
+                    setSelectedBikeForBooking(undefined);
+                  }
                   setActiveTab(t.id);
                 }}
                 testId={`customer-tile-${t.id}`}
@@ -575,6 +612,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       {activeTab === 'booking' && (
         <BookingPortal
           initialBikeId={selectedBikeForBooking}
+          initialIssueIds={seedIssueIds}
+          initialOtherNotes={seedNotes}
           onGoToMyBikes={() => setActiveTab('garage')}
         />
       )}
@@ -776,6 +815,45 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           <ReferAFriendCard isDark />
         </div>
       )}
+
+      {/* TAB: REWARDS WALLET */}
+      {activeTab === 'wallet' && (
+        <RewardsWallet
+          user={currentUser}
+          onGoToStamps={() => setActiveTab('stamps')}
+          onGoToBooking={() => setActiveTab('booking')}
+          onGoToRefer={() => setActiveTab('refer')}
+        />
+      )}
+
+      {/* TAB: GUIDED SYMPTOM CHECKER */}
+      {activeTab === 'symptom' && (
+        <SymptomChecker
+          bikes={customerBikes}
+          onCancel={() => setActiveTab('garage')}
+          onComplete={(ids, notes, bikeId) => {
+            setSeedIssueIds(ids.length ? ids : undefined);
+            setSeedNotes(notes || undefined);
+            setSelectedBikeForBooking(bikeId);
+            ride.rideIn();
+            setActiveTab('booking');
+          }}
+        />
+      )}
+
+      {/* TAB: CARE SCHEDULE */}
+      {activeTab === 'care' && (
+        <CareSchedulePanel bikes={customerBikes} onBookBike={handleStartBookingForBike} />
+      )}
+
+      {/* TAB: HOW-TO / CARE GUIDES */}
+      {activeTab === 'guides' && <CareGuides />}
+
+      {/* TAB: TRADE-IN / PART-EXCHANGE */}
+      {activeTab === 'tradein' && <TradeInRequestForm />}
+
+      {/* TAB: WISHLIST / NOTIFY ME */}
+      {activeTab === 'wishlist' && <WishlistPanel />}
       </RideTransition>
 
       {/* ADD BIKE MODAL */}

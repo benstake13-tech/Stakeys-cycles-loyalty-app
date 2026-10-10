@@ -27,6 +27,7 @@ import { SegmentedTab, SegmentedTabs } from './SegmentedTabs';
 import { SocialBrandIcon } from './SocialBrandIcon';
 import { ShareMenu } from './ShareMenu';
 import { WebsitePageId, WebProductCategory, WebCartItem, WebProduct } from '../types/websiteContent';
+import { NotifyMeButton } from './NotifyMeButton';
 import {
   applyDiscountToTotal,
   findDiscountCode,
@@ -1255,6 +1256,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
                             <ShoppingCart className="w-3.5 h-3.5" /> {soldOut ? 'Out of stock' : 'Add to basket'}
                           </button>
                         )}
+                        <div className="pt-2">
+                          <NotifyMeButton product={p} isDark={isDark} />
+                        </div>
                       </div>
                     </div>
                   </div>

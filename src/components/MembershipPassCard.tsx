@@ -8,6 +8,7 @@ import {
   membershipBalance,
   STAKEYS_URN_PREFIX,
 } from '../utils/membershipCode';
+import { AddToWalletButton } from './AddToWalletButton';
 
 interface MembershipPassCardProps {
   user: UserProfile;
@@ -103,6 +104,9 @@ export const MembershipPassCard: React.FC<MembershipPassCardProps> = ({ user }) 
 
           <div className="mt-3 rounded-lg bg-white ring-1 ring-neutral-200 p-2 overflow-hidden">
             <svg ref={barcodeRef} className="w-full h-14" aria-label={`Barcode ${membership}`} />
+          </div>
+          <div className="mt-3">
+            <AddToWalletButton user={user} />
           </div>
           <p className="text-[11px] text-neutral-500 mt-2">
             Present this pass at the till. Staff scan the barcode or QR code to load your account —
