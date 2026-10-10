@@ -128,4 +128,94 @@ describe('identifyBikeFromImage', () => {
     expect(parts[0].inlineData.data).toBe('LEGACY');
     expect(parts[0].inlineData.mimeType).toBe('image/jpeg');
   });
+
+  it('exposes the exhaustive taxonomy fields in the response schema + prompt', async () => {
+    generateContent.mockResolvedValueOnce({ text: '{"make":"Trek"}' });
+    const { identifyBikeFromImage } = await import('./src/api/visionService');
+    await identifyBikeFromImage('AAAA');
+    const schema = generateContent.mock.calls[0][0].config.responseSchema;
+    const itemProps = schema.properties.mainSpecs.items.properties;
+    for (const field of ['systemId', 'componentId', 'specValue', 'visibility', 'confidence']) {
+      expect(itemProps[field]).toBeTruthy();
+    }
+    expect(schema.properties.notVisible.type).toBe('ARRAY');
+    expect(schema.properties.coverage.type).toBe('NUMBER');
+    expect(schema.properties.mainSpecs.items.required).toContain('systemId');
+    // The prompt instructs a full part-by-part sweep.
+    const promptText = generateContent.mock.calls[0][0].contents[0].parts.at(-1).text;
+    expect(promptText).toMatch(/EXHAUSTIVE PART SWEEP/i);
+    expect(promptText).toMatch(/Wheels & Tyres/);
+  });
+
+  it('appends the customer notes to the prompt when supplied', async () => {
+    generateContent.mockResolvedValueOnce({ text: '{"make":"Trek"}' });
+    const { identifyBikeFromImage } = await import('./src/api/visionService');
+    await identifyBikeFromImage('AAAA', 'image/jpeg', 'el freno chirría');
+    const promptText = generateContent.mock.calls[0][0].contents[0].parts.at(-1).text;
+    expect(promptText).toMatch(/CUSTOMER NOTES/);
+    expect(promptText).toContain('el freno chirría');
+  });
+
+  it('exposes the diagnostic intake fields in the response schema', async () => {
+    generateContent.mockResolvedValueOnce({ text: '{"make":"Trek"}' });
+    const { identifyBikeFromImage } = await import('./src/api/visionService');
+    await identifyBikeFromImage('AAAA');
+    const props = generateContent.mock.calls[0][0].config.responseSchema.properties;
+    for (const field of ['inputLanguageDetected', 'userNotesTranslated', 'hasVisualData', 'overallCondition', 'wheelSizeAndSpecs', 'faults']) {
+      expect(props[field]).toBeTruthy();
+    }
+    const faultProps = props.faults.items.properties;
+    for (const field of ['component', 'faultTitle', 'description', 'severity', 'source']) {
+      expect(faultProps[field]).toBeTruthy();
+    }
+  });
+});
+
+describe('getFallbackDiagnostic', () => {
+  it('builds a valid diagnostic from the notes when the service is down', async () => {
+    const { getFallbackDiagnostic } = await import('./src/api/visionService');
+    const d = getFallbackDiagnostic('Rear brake squeals when wet');
+    expect(d.hasVisualData).toBe(false);
+    expect(d.overallCondition).toBe('Fair');
+    expect(d.wheelSizeAndSpecs).toBe('Standard / Requires Workshop Measurement');
+    expect(d.make).toBe('Unknown / To Be Inspected');
+    expect(d.faults).toHaveLength(1);
+    expect(d.faults[0].source).toBe('User Note');
+    expect(d.faults[0].description).toContain('Rear brake squeals when wet');
+  });
+
+  it('returns a "General Workshop Assessment Needed" fault when there is neither text nor image', async () => {
+    const { getFallbackDiagnostic } = await import('./src/api/visionService');
+    const d = getFallbackDiagnostic('');
+    expect(d.faults).toHaveLength(1);
+    expect(d.faults[0].faultTitle).toBe('General Workshop Assessment Needed');
+    expect(d.userNotesTranslated).toBe('No user notes provided');
+  });
+});
+
+describe('diagnoseFault — graceful degradation', () => {
+  it('falls back (without calling the model) when no image is supplied', async () => {
+    const { diagnoseFault } = await import('./src/api/visionService');
+    const d = await diagnoseFault({ images: [], userNotes: 'chain skips' });
+    expect(d.usedFallback).toBe(true);
+    expect(d.fallbackReason).toBe('no-images');
+    expect(generateContent).not.toHaveBeenCalled();
+    expect(d.faults[0].description).toContain('chain skips');
+  });
+
+  it('falls back to the notes when the model errors out', async () => {
+    generateContent.mockRejectedValue(new Error('boom: unexpected upstream failure'));
+    const { diagnoseFault } = await import('./src/api/visionService');
+    const d = await diagnoseFault({ images: [{ data: 'AAAA', mimeType: 'image/jpeg' }] as any, userNotes: 'wobble' });
+    expect(d.usedFallback).toBe(true);
+    expect(d.faults[0].source).toBe('User Note');
+  });
+
+  it('returns the live diagnostic (no fallback) on success', async () => {
+    generateContent.mockResolvedValueOnce({ text: '{"make":"Trek","faults":[]}' });
+    const { diagnoseFault } = await import('./src/api/visionService');
+    const d = await diagnoseFault({ images: [{ data: 'AAAA', mimeType: 'image/jpeg' }] as any });
+    expect(d.usedFallback).toBe(false);
+    expect(d.make).toBe('Trek');
+  });
 });
