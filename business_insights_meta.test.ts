@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchMetaInsights } from './src/utils/businessInsights';
+import { fetchMetaInsights, refreshServerManaged, isServerManaged } from './src/utils/businessInsights';
 
 /**
  * Meta Page insights regressions:
@@ -7,9 +7,13 @@ import { fetchMetaInsights } from './src/utils/businessInsights';
  *    returned by me/accounts must be used instead.
  *  - Several legacy metrics (page_impressions, page_engaged_users,
  *    page_fan_adds) were retired and fail the whole call with #100.
+ *  - The server can read Meta with its own META_SYSTEM_USER_TOKEN, so the tab
+ *    works with no browser token at all.
  */
+const h = vi.hoisted(() => ({ userToken: 'USER_TOKEN' as string | null }));
+
 vi.mock('./src/utils/oauthService', () => ({
-  getValidAccessToken: vi.fn(async () => 'USER_TOKEN'),
+  getValidAccessToken: vi.fn(async () => h.userToken),
 }));
 
 const PAGE_TOKEN = 'PAGE_TOKEN_123';
@@ -18,8 +22,13 @@ function jsonResponse(body: any, ok = true, status = 200) {
   return { ok, status, json: async () => body };
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.restoreAllMocks();
+  h.userToken = 'USER_TOKEN';
+  // Reset the module-level server-managed cache so tests don't leak into each other.
+  vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ meta: { serverManaged: false } })));
+  await refreshServerManaged();
+  vi.unstubAllGlobals();
 });
 
 afterEach(() => {
@@ -109,5 +118,50 @@ describe('fetchMetaInsights', () => {
     const result = await fetchMetaInsights();
     expect(result.live).toBe(false);
     expect(result.message).toMatch(/valid insights metric/i);
+  });
+
+  it('loads Meta with the server token when there is no browser token', async () => {
+    h.userToken = null;
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ meta: { serverManaged: true } })));
+    await refreshServerManaged();
+    expect(isServerManaged('meta')).toBe(true);
+
+    const calls: Array<{ url: string; body: any }> = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: any) => {
+        const body = init?.body ? JSON.parse(init.body) : {};
+        calls.push({ url: String(url), body });
+        if (body.path === 'me/accounts') {
+          return jsonResponse({ data: [{ id: 'p1', name: 'Stakeys', fan_count: 121, access_token: PAGE_TOKEN }] });
+        }
+        return jsonResponse({ data: [{ name: 'page_follows', values: [{ value: 121 }] }] });
+      })
+    );
+
+    const result = await fetchMetaInsights();
+    expect(result.connected).toBe(true);
+    expect(result.live).toBe(true);
+
+    // The token is omitted so the server uses META_SYSTEM_USER_TOKEN itself;
+    // the Page token still comes from me/accounts and is used for insights.
+    const accounts = calls.find((c) => c.body.path === 'me/accounts')!;
+    expect(accounts.body.accessToken).toBeNull();
+    const insights = calls.find((c) => String(c.body.path).endsWith('/insights'))!;
+    expect(insights.body.accessToken).toBe(PAGE_TOKEN);
+  });
+
+  it('still reports not connected when neither browser nor server token exists', async () => {
+    h.userToken = null;
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ meta: { serverManaged: false } })));
+    await refreshServerManaged();
+    expect(isServerManaged('meta')).toBe(false);
+
+    const fetchMock = vi.fn(async () => jsonResponse({ data: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await fetchMetaInsights();
+    expect(result.connected).toBe(false);
+    expect(result.message).toMatch(/authorise/i);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
