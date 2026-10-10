@@ -72,7 +72,12 @@ async function proxyFetch(
 ) {
   // Meta Page insights reject a user token (#190 "must be called with a Page
   // Access Token"), so callers pass the Page token resolved from `me/accounts`.
-  const token = overrideToken || (await getValidAccessToken(provider));
+  // When a server credential exists (Meta via META_SYSTEM_USER_TOKEN) prefer it
+  // and ignore any stale browser token, so the panel just shows results.
+  let token: string | null | undefined = overrideToken;
+  if (!token) {
+    token = isServerManaged(provider) ? null : await getValidAccessToken(provider);
+  }
   if (!token && !isServerManaged(provider)) {
     return { ok: false, data: null as any, error: 'not_connected' };
   }
@@ -328,6 +333,13 @@ export async function fetchMetaTimeline(): Promise<MetaTimelineResult> {
 }
 
 function offline(provider: OAuthProvider, accountLabel: string, error?: string | null): BusinessInsights {
+  // Meta is read with a server-side credential (META_SYSTEM_USER_TOKEN), so it
+  // never asks the user to link an account — it either returns results or states
+  // that the server token is missing. Google still uses the OAuth popup.
+  const notConnectedMessage =
+    provider === 'meta'
+      ? 'Meta results aren’t available yet — the server-side Meta token isn’t set.'
+      : 'Authorise with the provider to load live performance data.';
   return {
     provider,
     connected: false,
@@ -337,7 +349,7 @@ function offline(provider: OAuthProvider, accountLabel: string, error?: string |
     metrics: [],
     message:
       error === 'not_connected'
-        ? 'Authorise with the provider to load live performance data.'
+        ? notConnectedMessage
         : `Could not reach the ${provider === 'google' ? 'Google' : 'Meta'} API${error ? ` (${error})` : ''}.`,
   };
 }
