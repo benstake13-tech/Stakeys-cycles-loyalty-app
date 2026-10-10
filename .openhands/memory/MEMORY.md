@@ -394,3 +394,9 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - Live Meta verified end-to-end: server token → `me/accounts` → Page "Stakey's cycles" (102879316007828) + Page token → `{page}/insights` returns 6 rows (media_view 277, unique 26, engagements 1, views 24, video 2, follows 121). **`{page}/insights` needs the PAGE token** (user token → #190); resolve it from `me/accounts` first.
 - **Growth UI lives in the lazy `assets/StaffPortal-*.js` chunk**, not `index-*.js` — grep that to check liveness.
 - Env vars are per-project: only the staff project (`stakeys-cycles-loyalty-app`) has the Meta token. Website/customer projects have none.
+
+## Session 53 (2026-10-10) — CI added; deploy hardening
+- **Automated CI now exists** (`.github/workflows/ci.yml`): on push/PR to the deployment branches it runs `check-vercel-budget.sh` → `tsc` → `vitest` → `vite build`. Previously there was NO CI, so broken pushes only showed up as silent Vercel deploy failures.
+- `scripts/check-vercel-budget.sh` (fails >12 non-`_` files under `api/`) is part of `sync-verify.sh`. `AGENTS.md` now documents the branch model, Hobby limits, per-project build-time env vars, and deploy verification.
+- **Pushing 3 branches = 3 Vercel deploys and often trips the Hobby build rate limit.** Push sparingly; after a rate-limited push, use the Vercel dashboard **Redeploy** on the specific project rather than re-pushing.
+- Staff domain is live on `ca0d1c5` with the polished Meta card; main-website/customer-app code is on origin but their deploys were rate-limited (dashboard Redeploy needed).
