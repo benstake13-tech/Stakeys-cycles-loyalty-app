@@ -1,14 +1,23 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import { spawnSync } from 'node:child_process';
+import forge from 'node-forge';
+import JSZip from 'jszip';
 import {
   resolveWalletConfig,
   signJwtRS256,
   buildGoogleWalletSaveUrl,
+  buildApplePass,
+  loadAppleSigningIdentity,
   APPLE_ENV_NAMES,
   GOOGLE_ENV_NAMES,
 } from './api/wallet/_shared.js';
 import configHandler from './api/wallet/config.js';
 import googleHandler from './api/wallet/google.js';
+import appleHandler from './api/wallet/apple.js';
 
 /**
  * Wallet passes are gated on server-only signing material. These tests pin the
@@ -20,11 +29,20 @@ function mockRes() {
   const res: any = {
     statusCode: 200,
     body: undefined as any,
+    headers: {} as Record<string, string>,
     status(code: number) {
       this.statusCode = code;
       return this;
     },
     json(payload: any) {
+      this.body = payload;
+      return this;
+    },
+    setHeader(name: string, value: string) {
+      this.headers[name] = value;
+      return this;
+    },
+    send(payload: any) {
       this.body = payload;
       return this;
     },
@@ -143,5 +161,131 @@ describe('google wallet handler', () => {
     googleHandler({ body: { member: { membershipNumber: 'STK-9', displayName: 'Ada', stamps: 1 } } }, res);
     expect(res.statusCode).toBe(200);
     expect(res.body.url).toContain('pay.google.com/gp/v/save/');
+  });
+});
+
+/* -------------------------------------------------------------------------- *
+ * Apple Wallet `.pkpass`
+ *
+ * A throwaway Pass Type ID identity is generated in-process with node-forge
+ * (never a real secret) so the tests exercise the real p12 unzip, manifest
+ * hashing and CMS signing without any external certificate.
+ * -------------------------------------------------------------------------- */
+
+function makeAppleEnv() {
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = '01';
+  cert.validity.notBefore = new Date(Date.now() - 86400000);
+  cert.validity.notAfter = new Date(Date.now() + 31536000000);
+  const attrs = [{ name: 'commonName', value: 'Pass Type ID: pass.com.stakeys.loyalty' }];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+
+  const p12Asn1 = forge.pkcs12.toPkcs12Asn1(keys.privateKey, [cert], 'testpass');
+  const p12Base64 = forge.util.encode64(forge.asn1.toDer(p12Asn1).getBytes());
+
+  return {
+    [APPLE_ENV_NAMES.passTypeId]: 'pass.com.stakeys.loyalty',
+    [APPLE_ENV_NAMES.teamId]: 'TEAM123',
+    [APPLE_ENV_NAMES.certP12]: p12Base64,
+    [APPLE_ENV_NAMES.certPassword]: 'testpass',
+  };
+}
+
+describe('buildApplePass', () => {
+  const env = makeAppleEnv();
+
+  it('throws when Apple Wallet is not configured', async () => {
+    await expect(buildApplePass({ membershipNumber: 'STK-1' }, {})).rejects.toThrow(/not configured/i);
+  });
+
+  it('loads the signing identity out of the p12', () => {
+    const id = loadAppleSigningIdentity(env);
+    expect(id.certificatePem).toContain('BEGIN CERTIFICATE');
+    expect(id.privateKeyPem).toContain('BEGIN RSA PRIVATE KEY');
+  });
+
+  it('builds a valid .pkpass bundle whose manifest hashes match', async () => {
+    const buf = await buildApplePass(
+      { membershipNumber: 'SC-000123', displayName: 'Ben Stakey', stamps: 7, points: 250 },
+      env
+    );
+    expect(Buffer.isBuffer(buf)).toBe(true);
+
+    const zip = await JSZip.loadAsync(buf);
+    const names = Object.keys(zip.files);
+    expect(names).toContain('pass.json');
+    expect(names).toContain('manifest.json');
+    expect(names).toContain('signature');
+
+    const passJson = JSON.parse(await zip.file('pass.json')!.async('string'));
+    expect(passJson.passTypeIdentifier).toBe('pass.com.stakeys.loyalty');
+    expect(passJson.teamIdentifier).toBe('TEAM123');
+    expect(passJson.serialNumber).toBe('SC-000123');
+    expect(passJson.storeCard.secondaryFields[0].value).toBe('7');
+
+    const manifest = JSON.parse(await zip.file('manifest.json')!.async('string'));
+    const crypto = await import('node:crypto');
+    for (const [name, hash] of Object.entries(manifest)) {
+      const bytes = await zip.file(name)!.async('uint8array');
+      const got = crypto.createHash('sha1').update(bytes).digest('hex');
+      expect(got).toBe(hash);
+    }
+
+    // The detached CMS signature must verify against the manifest bytes.
+    // node-forge cannot verify PKCS#7, so shell out to OpenSSL (present on CI).
+    const signature = await zip.file('signature')!.async('nodebuffer');
+    const manifestBytes = await zip.file('manifest.json')!.async('nodebuffer');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pkpass-'));
+    try {
+      const sigPath = path.join(dir, 'signature.der');
+      const manifestPath = path.join(dir, 'manifest.json');
+      fs.writeFileSync(sigPath, signature);
+      fs.writeFileSync(manifestPath, manifestBytes);
+      const proc = spawnSync(
+        'openssl',
+        ['smime', '-verify', '-inform', 'DER', '-in', sigPath, '-content', manifestPath, '-noverify'],
+        { encoding: 'utf8' }
+      );
+      expect(`${proc.stdout}${proc.stderr}`).toContain('Verification successful');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('apple wallet handler', () => {
+  const env = makeAppleEnv();
+
+  it('responds 503 when not configured', async () => {
+    const res = mockRes();
+    await appleHandler({ method: 'GET', query: { membership: 'STK-1' } } as any, res);
+    expect(res.statusCode).toBe(503);
+    expect(res.body.error).toMatch(/not configured/i);
+  });
+
+  it('responds 400 when the membership number is missing', async () => {
+    Object.assign(process.env, env);
+    const res = mockRes();
+    await appleHandler({ method: 'GET', query: {} } as any, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('returns a signed pkpass when configured', async () => {
+    Object.assign(process.env, env);
+    const res = mockRes();
+    await appleHandler(
+      { method: 'GET', query: { membership: 'SC-777', name: 'Ada Rider', stamps: '3' } } as any,
+      res
+    );
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['Content-Type']).toBe('application/vnd.apple.pkpass');
+    const zip = await JSZip.loadAsync(res.body);
+    const passJson = JSON.parse(await zip.file('pass.json')!.async('string'));
+    expect(passJson.serialNumber).toBe('SC-777');
+    expect(passJson.logoText).toContain('Stakey');
   });
 });
