@@ -537,6 +537,144 @@
   --theme-bg-gradient: linear-gradient(145deg, #1c2a06, #1a0606);
   --theme-glow: rgba(132, 204, 22, 0.4);
 }
+.theme-spring {
+  --theme-accent-primary: #f472b6;
+  --theme-accent-secondary: #86efac;
+  --theme-bg-gradient: linear-gradient(145deg, #2a0f1c, #07240f);
+  --theme-glow: rgba(244, 114, 182, 0.4);
+}
+.theme-summer {
+  --theme-accent-primary: #f59e0b;
+  --theme-accent-secondary: #38bdf8;
+  --theme-bg-gradient: linear-gradient(145deg, #2b2106, #06202e);
+  --theme-glow: rgba(245, 158, 11, 0.4);
+}
+.theme-autumn {
+  --theme-accent-primary: #d97706;
+  --theme-accent-secondary: #b45309;
+  --theme-bg-gradient: linear-gradient(145deg, #241203, #120a02);
+  --theme-glow: rgba(217, 119, 6, 0.4);
+}
+.theme-winter {
+  --theme-accent-primary: #38bdf8;
+  --theme-accent-secondary: #c7d2fe;
+  --theme-bg-gradient: linear-gradient(145deg, #0a1c33, #050a14);
+  --theme-glow: rgba(56, 189, 248, 0.4);
+}
+.theme-mayday {
+  --theme-accent-primary: #34d399;
+  --theme-accent-secondary: #f9a8d4;
+  --theme-bg-gradient: linear-gradient(145deg, #062a1d, #2a0f20);
+  --theme-glow: rgba(52, 211, 153, 0.4);
+}
+.theme-springbank {
+  --theme-accent-primary: #16a34a;
+  --theme-accent-secondary: #a3e635;
+  --theme-bg-gradient: linear-gradient(145deg, #062a12, #0d2405);
+  --theme-glow: rgba(22, 163, 74, 0.4);
+}
+.theme-summerbank {
+  --theme-accent-primary: #0ea5e9;
+  --theme-accent-secondary: #fde68a;
+  --theme-bg-gradient: linear-gradient(145deg, #062632, #2b2106);
+  --theme-glow: rgba(14, 165, 233, 0.4);
+}
+.theme-fathersday {
+  --theme-accent-primary: #0ea5e9;
+  --theme-accent-secondary: #38bdf8;
+  --theme-bg-gradient: linear-gradient(145deg, #06233a, #05121f);
+  --theme-glow: rgba(14, 165, 233, 0.4);
+}
+.theme-mothersday {
+  --theme-accent-primary: #f472b6;
+  --theme-accent-secondary: #fb7185;
+  --theme-bg-gradient: linear-gradient(145deg, #2a0f1e, #15050c);
+  --theme-glow: rgba(244, 114, 182, 0.4);
+}
+.theme-pancakes {
+  --theme-accent-primary: #f59e0b;
+  --theme-accent-secondary: #fbbf24;
+  --theme-bg-gradient: linear-gradient(145deg, #2a1f06, #150f03);
+  --theme-glow: rgba(245, 158, 11, 0.4);
+}
+.theme-ramadan {
+  --theme-accent-primary: #14b8a6;
+  --theme-accent-secondary: #facc15;
+  --theme-bg-gradient: linear-gradient(145deg, #04241f, #03130f);
+  --theme-glow: rgba(20, 184, 166, 0.4);
+}
+.theme-dussehra {
+  --theme-accent-primary: #f97316;
+  --theme-accent-secondary: #fbbf24;
+  --theme-bg-gradient: linear-gradient(145deg, #2a1204, #150a02);
+  --theme-glow: rgba(249, 115, 22, 0.4);
+}
+.theme-stgeorge {
+  --theme-accent-primary: #dc2626;
+  --theme-accent-secondary: #e5e7eb;
+  --theme-bg-gradient: linear-gradient(145deg, #2a0606, #0f0f12);
+  --theme-glow: rgba(220, 38, 38, 0.4);
+}
+.theme-aprilsfools {
+  --theme-accent-primary: #a3e635;
+  --theme-accent-secondary: #38bdf8;
+  --theme-bg-gradient: linear-gradient(145deg, #16240a, #06202e);
+  --theme-glow: rgba(163, 230, 53, 0.4);
+}
+.theme-earthday {
+  --theme-accent-primary: #22c55e;
+  --theme-accent-secondary: #38bdf8;
+  --theme-bg-gradient: linear-gradient(145deg, #062a12, #051d2b);
+  --theme-glow: rgba(34, 197, 94, 0.4);
+}
+.theme-backtoschool {
+  --theme-accent-primary: #ea580c;
+  --theme-accent-secondary: #f59e0b;
+  --theme-bg-gradient: linear-gradient(145deg, #2a1305, #150c02);
+  --theme-glow: rgba(234, 88, 12, 0.4);
+}
+.theme-bonfirenight {
+  --theme-accent-primary: #f97316;
+  --theme-accent-secondary: #ef4444;
+  --theme-bg-gradient: linear-gradient(145deg, #2a1204, #12030f);
+  --theme-glow: rgba(249, 115, 22, 0.4);
+}
+.theme-remembranceday {
+  --theme-accent-primary: #b91c1c;
+  --theme-accent-secondary: #f87171;
+  --theme-bg-gradient: linear-gradient(145deg, #260505, #0f0f12);
+  --theme-glow: rgba(185, 28, 28, 0.4);
+}
+.theme-boxingday {
+  --theme-accent-primary: #e11d48;
+  --theme-accent-secondary: #38bdf8;
+  --theme-bg-gradient: linear-gradient(145deg, #2a0a14, #06202e);
+  --theme-glow: rgba(225, 29, 72, 0.4);
+}
+.theme-januarysales {
+  --theme-accent-primary: #f59e0b;
+  --theme-accent-secondary: #ef4444;
+  --theme-bg-gradient: linear-gradient(145deg, #2a2106, #1a0606);
+  --theme-glow: rgba(245, 158, 11, 0.4);
+}
+.theme-blackfriday {
+  --theme-accent-primary: #f59e0b;
+  --theme-accent-secondary: #fde047;
+  --theme-bg-gradient: linear-gradient(145deg, #2a2106, #0a0a0a);
+  --theme-glow: rgba(245, 158, 11, 0.4);
+}
+.theme-cybermonday {
+  --theme-accent-primary: #06b6d4;
+  --theme-accent-secondary: #67e8f9;
+  --theme-bg-gradient: linear-gradient(145deg, #062226, #04121a);
+  --theme-glow: rgba(6, 182, 212, 0.4);
+}
+.theme-smallbusinesssaturday {
+  --theme-accent-primary: #10b981;
+  --theme-accent-secondary: #fbbf24;
+  --theme-bg-gradient: linear-gradient(145deg, #062a1d, #2a2106);
+  --theme-glow: rgba(16, 185, 129, 0.4);
+}
 
 /* --- Keyframes ---------------------------------------------------------- */
 @keyframes flyerFlutter {

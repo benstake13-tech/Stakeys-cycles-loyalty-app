@@ -36,7 +36,30 @@ export type SeasonalThemeId =
   | 'eidfitr'
   | 'eidadha'
   | 'hanukkah'
-  | 'cincodemayo';
+  | 'cincodemayo'
+  | 'spring'
+  | 'summer'
+  | 'autumn'
+  | 'winter'
+  | 'mayday'
+  | 'springbank'
+  | 'summerbank'
+  | 'fathersday'
+  | 'mothersday'
+  | 'pancakes'
+  | 'ramadan'
+  | 'dussehra'
+  | 'stgeorge'
+  | 'aprilsfools'
+  | 'earthday'
+  | 'backtoschool'
+  | 'bonfirenight'
+  | 'remembranceday'
+  | 'boxingday'
+  | 'januarysales'
+  | 'blackfriday'
+  | 'cybermonday'
+  | 'smallbusinesssaturday';
 
 /** 'AUTO' follows the calendar; a concrete id forces that theme; null = AUTO. */
 export type ThemeOverride = SeasonalThemeId | 'AUTO' | null;

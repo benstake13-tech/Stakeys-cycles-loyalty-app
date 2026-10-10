@@ -9,6 +9,14 @@ import {
 import { sceneFor, SCENES } from './src/components/theme/scenes';
 import { weatherFor } from './src/components/theme/weather';
 import { v3, box, prism, merge, compose, project, CAM } from './src/components/theme/sceneKit';
+import {
+  blackFriday,
+  cyberMonday,
+  smallBusinessSaturday,
+  fathersDayUk,
+  springBankHolidayUk,
+  summerBankHolidayUk,
+} from './src/utils/lunar';
 
 describe('seasonal theme calendar', () => {
   it('activates Halloween across its window', () => {
@@ -42,6 +50,28 @@ describe('seasonal theme calendar', () => {
     expect(isSeasonalThemeId('halloween')).toBe(true);
     expect(isSeasonalThemeId('none')).toBe(true);
     expect(isSeasonalThemeId('nonsense')).toBe(false);
+  });
+
+  it('activates the new-season and UK-calendar themes on their dates', () => {
+    expect(activeHoliday(new Date('2025-11-05T12:00:00Z'))?.theme).toBe('bonfirenight');
+    expect(activeHoliday(new Date('2026-04-23T12:00:00Z'))?.theme).toBe('stgeorge');
+    expect(activeHoliday(new Date('2026-01-04T12:00:00Z'))?.theme).toBe('januarysales');
+    expect(activeHoliday(new Date('2026-04-15T12:00:00Z'))?.theme).toBe('earthday');
+    expect(activeHoliday(new Date('2026-12-15T12:00:00Z'))?.theme).toBe('winter');
+    expect(activeHoliday(new Date('2025-03-04T12:00:00Z'))?.theme).toBe('pancakes');
+  });
+
+  it('computes the Thanksgiving-offset shopping holidays', () => {
+    // Thanksgiving 2026 = 26 Nov → Black Friday 27, Small Business Sat 28, Cyber Mon 30.
+    expect(blackFriday(2026)).toEqual({ year: 2026, month: 11, day: 27 });
+    expect(smallBusinessSaturday(2026)).toEqual({ year: 2026, month: 11, day: 28 });
+    expect(cyberMonday(2026)).toEqual({ year: 2026, month: 11, day: 30 });
+  });
+
+  it('computes UK bank holidays and Father’s Day', () => {
+    expect(fathersDayUk(2026)).toEqual({ year: 2026, month: 6, day: 21 });
+    expect(springBankHolidayUk(2026)).toEqual({ year: 2026, month: 5, day: 25 });
+    expect(summerBankHolidayUk(2026)).toEqual({ year: 2026, month: 8, day: 31 });
   });
 });
 
