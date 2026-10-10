@@ -164,6 +164,11 @@ export const AREA_LABELS: Record<FeatureArea, string> = {
 const SENTINEL = '__stakeys_diag__';
 const sentinel = (suffix: string) => `${SENTINEL}${suffix}`;
 const diagBookingId = () => `${SENTINEL}booking-${Date.now()}`;
+// discount_codes has a UNIQUE index on upper(code). A fixed probe code therefore
+// collides (23505) with a row left behind by a previous run, or with the sibling
+// discount probe in the same pass. Derive a fresh, short, uppercase code each run.
+const diagCode = () =>
+  `DIAG${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
 
 function err(e: unknown): string {
   const anyE = e as any;
@@ -858,9 +863,10 @@ export const FEATURE_TESTS: FeatureTest[] = [
     writes: true,
     run: async () => {
       const id = sentinel(`code-${Date.now()}`);
+      const codeValue = diagCode();
       const code: DiscountCode = {
         id,
-        code: 'DIAGTEST',
+        code: codeValue,
         title: 'Diagnostics code',
         type: 'percent',
         value: 10,
@@ -879,7 +885,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
         // with an actionable hint instead of a generic "rejected".
         const client = getSupabaseClient();
         const { error } = await client.from('discount_codes').upsert(
-          { id, code: 'DIAGTEST', title: 'Diagnostics code', type: 'percent', value: 10, status: 'active' },
+          { id, code: codeValue, title: 'Diagnostics code', type: 'percent', value: 10, status: 'active' },
           { onConflict: 'id' }
         );
         await client.from('discount_codes').delete().eq('id', id);
@@ -907,7 +913,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
       const client = getSupabaseClient();
       const code: DiscountCode = {
         id,
-        code: 'DIAGTEST',
+        code: diagCode(),
         title: 'Diagnostics code',
         type: 'percent',
         value: 10,
