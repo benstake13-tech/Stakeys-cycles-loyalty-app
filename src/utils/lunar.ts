@@ -25,7 +25,16 @@ export type ResolverName =
   | 'midAutumn'
   | 'diwali'
   | 'thanksgivingUS'
-  | 'hanukkah';
+  | 'hanukkah'
+  | 'fathersDayUk'
+  | 'shroveTuesday'
+  | 'summerBankHolidayUk'
+  | 'blackFriday'
+  | 'cyberMonday'
+  | 'smallBusinessSaturday'
+  | 'ramadanStart'
+  | 'dussehra'
+  | 'springBankHolidayUk';
 
 const DAY_MS = 86_400_000;
 
@@ -92,6 +101,47 @@ export function thanksgivingUS(year: number): YearMonthDay {
   const first = new Date(toUTC(year, 11, 1));
   const offset = (4 - first.getUTCDay() + 7) % 7; // days until first Thursday
   return { year, month: 11, day: 1 + offset + 21 };
+}
+
+/** UK Father's Day: the 3rd Sunday of June. */
+export function fathersDayUk(year: number): YearMonthDay {
+  const first = new Date(toUTC(year, 6, 1));
+  const offset = (0 - first.getUTCDay() + 7) % 7; // days until first Sunday
+  return { year, month: 6, day: 1 + offset + 14 };
+}
+
+/** Shrove Tuesday (Pancake Day): Easter − 47 days. */
+export function shroveTuesday(year: number): YearMonthDay {
+  return dateToYmd(addDays(ymdToDate(easterSunday(year)), -47));
+}
+
+/** UK Summer Bank Holiday: the last Monday of August. */
+export function summerBankHolidayUk(year: number): YearMonthDay {
+  const last = new Date(toUTC(year, 8, 31));
+  const offset = (1 - last.getUTCDay() + 7) % 7; // days back to Monday
+  return { year, month: 8, day: 31 - offset };
+}
+
+/** UK Spring Bank Holiday: the last Monday of May. */
+export function springBankHolidayUk(year: number): YearMonthDay {
+  const last = new Date(toUTC(year, 5, 31));
+  const offset = (last.getUTCDay() - 1 + 7) % 7; // days back to the most recent Monday
+  return { year, month: 5, day: 31 - offset };
+}
+
+/** Black Friday: the day after US Thanksgiving. */
+export function blackFriday(year: number): YearMonthDay {
+  return dateToYmd(addDays(ymdToDate(thanksgivingUS(year)), 1));
+}
+
+/** Cyber Monday: the Monday after US Thanksgiving (Thanksgiving + 4 days). */
+export function cyberMonday(year: number): YearMonthDay {
+  return dateToYmd(addDays(ymdToDate(thanksgivingUS(year)), 4));
+}
+
+/** Small Business Saturday: the Saturday after US Thanksgiving (+2 days). */
+export function smallBusinessSaturday(year: number): YearMonthDay {
+  return dateToYmd(addDays(ymdToDate(thanksgivingUS(year)), 2));
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +228,17 @@ export function holi(year: number): YearMonthDay {
   return dateToYmd(new Date(best + 15.5 * DAY_MS));
 }
 
+/** Dussehra (Vijayadashami): the 10th day of Ashvin ≈ 20 days after the autumn new moon. */
+export function dussehra(year: number): YearMonthDay {
+  const approxK = Math.round((toUTC(year, 10, 1) - Date.UTC(2000, 0, 6, 18, 14)) / (29.530588853 * DAY_MS));
+  let best = meanNewMoon(approxK);
+  for (let k = approxK - 2; k <= approxK + 2; k++) {
+    const t = meanNewMoon(k);
+    if (Math.abs(t - toUTC(year, 10, 1)) < Math.abs(best - toUTC(year, 10, 1))) best = t;
+  }
+  return dateToYmd(new Date(best + 9 * DAY_MS));
+}
+
 // ---------------------------------------------------------------------------
 // Islamic calendar (Eid al-Fitr, Eid al-Adha)
 // ---------------------------------------------------------------------------
@@ -212,6 +273,11 @@ function fromTable(table: Record<number, [number, number]>, year: number): YearM
 
 export const eidAlFitr = (year: number): YearMonthDay => fromTable(EID_FITR, year);
 export const eidAlAdha = (year: number): YearMonthDay => fromTable(EID_ADHA, year);
+
+/** First day of Ramadan: 1 Ramadan ≈ 29 days before Eid al-Fitr. */
+export function ramadanStart(year: number): YearMonthDay {
+  return dateToYmd(addDays(ymdToDate(eidAlFitr(year)), -29));
+}
 
 // ---------------------------------------------------------------------------
 // Hanukkah (25 Kislev) — Hebrew calendar arithmetic
@@ -264,6 +330,15 @@ export const RESOLVERS: Record<ResolverName, (year: number) => YearMonthDay> = {
   diwali,
   thanksgivingUS,
   hanukkah,
+  fathersDayUk,
+  shroveTuesday,
+  summerBankHolidayUk,
+  blackFriday,
+  cyberMonday,
+  smallBusinessSaturday,
+  ramadanStart,
+  dussehra,
+  springBankHolidayUk,
 };
 
 export function resolveHolidayDate(
