@@ -388,3 +388,9 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - To answer "is my push live / did my env change take effect", check the **GitHub commit-status API** on the origin head: `GET /repos/<o>/<r>/commits/<sha>/status`. Every surface originally pushed here reports context `Vercel – stakeys-cycles-loyalty-app-*`. When they say `failure` with `upgradeToPro=build-rate-limit`, **no deploy is happening** → env vars and code changes are inert until a build succeeds.
 - No local Vercel CLI/token exists → deploys can ONLY be triggered by Vercel's Git integration (a push). Don't promise to "redeploy" from the agent side.
 - Two independent gates for this repo's staff deploy: (1) Hobby build-rate limit cleared (~24h after the last failed attempt, or Pro); (2) `api/` ≤ 12 functions (session-49 fix, needs pushing).
+
+## Session 52 (2026-10-10) — Meta is LIVE on the staff domain
+- Deploy of `a00a4bc` succeeded 23:04Z (rate-limit cleared ~2h after the 21:12Z failures). `META_SYSTEM_USER_TOKEN` now active: staff `/api/business/status` → `serverManaged:true`.
+- Live Meta verified end-to-end: server token → `me/accounts` → Page "Stakey's cycles" (102879316007828) + Page token → `{page}/insights` returns 6 rows (media_view 277, unique 26, engagements 1, views 24, video 2, follows 121). **`{page}/insights` needs the PAGE token** (user token → #190); resolve it from `me/accounts` first.
+- **Growth UI lives in the lazy `assets/StaffPortal-*.js` chunk**, not `index-*.js` — grep that to check liveness.
+- Env vars are per-project: only the staff project (`stakeys-cycles-loyalty-app`) has the Meta token. Website/customer projects have none.
