@@ -357,3 +357,10 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 
 ## Scratch Card (session 43, 2026-10-08)
 - Shop-wide scratch card, Prize Hub managed, mirrors the Weekly Prize Wheel. Config = `app_settings.scratch_card_config` (jsonb, one blob); per-rider cooldown = `profiles.last_scratched_at`. Pure logic `src/utils/scratchCardHelper.ts`; customer `src/components/ScratchCard.tsx` (canvas foil); staff `ScratchCardEditorModal.tsx` + Prize Hub card. Context: `scratchCard`, `updateScratchCard`, `awardScratchCardPrize(userId, prize)` (component picks the prize, like the wheel). Customer tab hidden unless `scratchCard.enabled`. Migration `supabase/migrations/20261010_scratch_card.sql`. Synced by cherry-pick to all 3 branches (7377e9b / 7800fb6 / 52b2e45).
+
+## Session 47 (2026-10-10) — Customer rewards/care pack (9 features)
+- Shipped 9 customer features on `staff-terminal`, cherry-picked to customer-app + main-website (0 merges, parity+history OK). Commit `f3fc65a`; heads staff-terminal f3fc65a / customer-app 49dd755 / main-website 716953d. Suite 135 files / 1093 tests.
+- Features: Rewards Wallet; "almost there" RewardNudges; referral-credit nudge; per-bike CareSchedulePanel; guided SymptomChecker (seeds BookingPortal via new `initialIssueIds`/`initialOtherNotes`); CareGuides (Sheldon-Brown-derived, `src/data/customerGuides.ts`); Trade-in form + staff `StaffTradeInsTab`; Wishlist/NotifyMe store; Apple/Google Wallet pass buttons on MembershipPassCard (server-gated).
+- New stores `WishlistStore`/`TradeInStore`: `useSyncExternalStore` + localStorage + best-effort Supabase `app_settings` JSON column probe (local-only when absent — anon can't DDL).
+- Adding a customer tab touches BOTH the local `type CustomerTab` and the outer `useState` union in CustomerPortal; adding a staff tab touches `StaffTab` + `StaffTabId` + `STAFF_TABS`. Wallet API: `api/wallet/{_shared,config,google}.js` + dev mirror in server.ts; Apple `.pkpass` endpoint still a TODO.
+- Push needs token URL: `git push https://x-access-token:${GITHUB_TOKEN}@github.com/benstake13-tech/Stakeys-cycles-loyalty-app.git <branch>` (plain `git push` prompts for username).
