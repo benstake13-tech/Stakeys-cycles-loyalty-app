@@ -372,6 +372,28 @@ export interface DiscountCode {
   createdBy?: string;
 }
 
+/**
+ * A customer review / feedback entry. Collected from the website "Leave a
+ * Review" section or the app, and shown back on the marketing surfaces once a
+ * staff member publishes it.
+ */
+export interface CustomerReview {
+  id: string;
+  /** Signed-in author uid when known; anonymous website reviews omit it. */
+  customerUid?: string;
+  customerName: string;
+  membershipNumber?: string;
+  /** Star rating 1-5. */
+  rating: number;
+  title?: string;
+  comment: string;
+  status: 'pending' | 'published' | 'hidden';
+  /** Which surface the review came from. */
+  source: 'website' | 'app' | 'in_store';
+  createdAt: any;
+}
+
+
 /** The £15-off-a-full-service reward a referred friend books with. */
 export interface ReferralFriendReward {
   code: string;

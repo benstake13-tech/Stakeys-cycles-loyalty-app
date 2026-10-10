@@ -25,6 +25,7 @@ import {
   RepairProgressEvent,
   ReferralRecord,
   ReferralReward,
+  CustomerReview,
   ReminderChannel,
   ReminderRecipients,
   ReminderSettings,
@@ -114,6 +115,8 @@ import {
   updateServiceBookingInDb,
   deleteServiceBookingFromDb,
   deleteAllServiceBookingsFromDb,
+  deleteAllCounterSalesFromDb,
+  deleteAllOrdersFromDb,
   fetchStampLogsFromDb,
   insertStampLogToDb,
   updateUserProfileInDb,
@@ -149,6 +152,9 @@ import {
   fetchPromotionsFromDb,
   upsertPromotionToDb,
   deletePromotionFromDb,
+  fetchReviewsFromDb,
+  upsertReviewToDb,
+  deleteReviewFromDb,
   fetchAppSettingsFromDb,
   upsertAppSettingsToDb,
   AppSettings,
@@ -345,6 +351,12 @@ interface ShopContextType {
   deletePromotion: (id: string) => Promise<boolean>;
   refreshPromotionsExpiry: () => void;
 
+  // Customer reviews / feedback
+  reviews: CustomerReview[];
+  addReview: (review: Omit<CustomerReview, 'id' | 'createdAt'>) => Promise<CustomerReview>;
+  updateReview: (id: string, updates: Partial<CustomerReview>) => Promise<CustomerReview | null>;
+  deleteReview: (id: string) => Promise<boolean>;
+
   // Discount codes & till sales
   discountCodes: DiscountCode[];
   sales: SaleTransaction[];
@@ -409,6 +421,12 @@ interface ShopContextType {
   confirmSosQuote: (bookingId: string) => Promise<{ success: boolean; message?: string }>;
   deleteBooking: (bookingId: string) => Promise<{ success: boolean; message?: string }>;
   clearAllBookings: () => Promise<{ success: boolean; message?: string; deleted: number }>;
+  /**
+   * Launch-prep reset: wipe all workshop bookings AND the financial records
+   * (counter/till sales + online orders) in one action. Clears local state and
+   * the database so the ledger and booking list both start clean.
+   */
+  resetBookingsAndFinancials: () => Promise<{ success: boolean; message: string }>;
   setRepairStage: (
     bookingId: string,
     stage: RepairStageId,
@@ -717,6 +735,47 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await deletePromotionFromDb(id);
     } catch (e) {
       console.warn('[DB SYNC] deletePromotion persist failed:', e);
+    }
+    return true;
+  };
+
+  // 3b. Customer reviews / feedback (Supabase-backed, like promotions)
+  const [reviews, setReviews] = useState<CustomerReview[]>([]);
+
+  const addReview = async (reviewData: Omit<CustomerReview, 'id' | 'createdAt'>): Promise<CustomerReview> => {
+    const newReview: CustomerReview = {
+      ...reviewData,
+      id: `review-${Date.now().toString().slice(-6)}`,
+      createdAt: new Date().toISOString(),
+    };
+    setReviews((prev) => [newReview, ...prev]);
+    try {
+      await upsertReviewToDb(newReview);
+    } catch (e) {
+      console.warn('[DB SYNC] addReview persist failed:', e);
+    }
+    return newReview;
+  };
+
+  const updateReview = async (id: string, updates: Partial<CustomerReview>): Promise<CustomerReview | null> => {
+    const target = reviews.find((r) => r.id === id);
+    if (!target) return null;
+    const updated: CustomerReview = { ...target, ...updates };
+    setReviews((prev) => prev.map((r) => (r.id === id ? updated : r)));
+    try {
+      await upsertReviewToDb(updated);
+    } catch (e) {
+      console.warn('[DB SYNC] updateReview persist failed:', e);
+    }
+    return updated;
+  };
+
+  const deleteReview = async (id: string): Promise<boolean> => {
+    setReviews((prev) => prev.filter((r) => r.id !== id));
+    try {
+      await deleteReviewFromDb(id);
+    } catch (e) {
+      console.warn('[DB SYNC] deleteReview persist failed:', e);
     }
     return true;
   };
@@ -1568,7 +1627,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshDatabaseState = async () => {
-    const [allProfiles, remoteWheels, remoteDraws, remoteCodes, remoteSales, remoteStaff, remotePromos, remoteSettings] = await Promise.all([
+    const [allProfiles, remoteWheels, remoteDraws, remoteCodes, remoteSales, remoteStaff, remotePromos, remoteReviews, remoteSettings] = await Promise.all([
       fetchAllProfilesFromDb(),
       fetchPrizeWheelsFromDb(),
       fetchPrizeDrawsFromDb(),
@@ -1576,6 +1635,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       fetchCounterSalesFromDb(),
       fetchStaffMembersFromDb(),
       fetchPromotionsFromDb(),
+      fetchReviewsFromDb(),
       fetchAppSettingsFromDb(),
     ]);
     // Each branch below only writes when the fetched data differs from what we
@@ -1627,6 +1687,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     if (remotePromos && remotePromos.length > 0 && !collectionsEqual(promotionsRef.current, remotePromos)) {
       setPromotions(remotePromos);
+    }
+    if (remoteReviews && remoteReviews.length > 0 && !collectionsEqual(reviewsRef.current, remoteReviews)) {
+      setReviews(remoteReviews);
     }
     if (remoteSettings) {
       const prev = ownerConfigRef.current;
@@ -1704,6 +1767,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     fetchPromotionsFromDb().then((remotePromos) => {
       if (remotePromos && remotePromos.length > 0) setPromotions(remotePromos);
+    }).catch(() => {});
+
+    fetchReviewsFromDb().then((remoteReviews) => {
+      if (remoteReviews && remoteReviews.length > 0) setReviews(remoteReviews);
     }).catch(() => {});
 
     fetchAppSettingsFromDb().then((settings) => {
@@ -1857,6 +1924,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   staffMembersRef.current = staffMembers;
   const promotionsRef = useRef<ShopPromotion[]>(promotions);
   promotionsRef.current = promotions;
+  const reviewsRef = useRef<CustomerReview[]>(reviews);
+  reviewsRef.current = reviews;
   const ownerConfigRef = useRef<OwnerNotificationConfig>(ownerConfig);
   ownerConfigRef.current = ownerConfig;
   const bookingsRef = useRef<ServiceBooking[]>(bookings);
@@ -4131,6 +4200,56 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
+  /**
+   * Launch-prep reset. Wipes the workshop booking list AND the financial
+   * records (till/counter sales + online orders) from both local state and the
+   * database, then reloads so every surface re-reads a clean slate.
+   */
+  const resetBookingsAndFinancials = async (): Promise<{ success: boolean; message: string }> => {
+    const bookingCount = bookingsRef.current.length;
+    const saleCount = salesRef.current.length;
+
+    // Clear local state immediately so the UI reflects the reset.
+    setBookings([]);
+    setSales([]);
+
+    const [bookingsOk, salesOk, ordersOk] = await Promise.all([
+      deleteAllServiceBookingsFromDb().catch((e) => {
+        console.warn('[DB SYNC] Error clearing bookings in DB:', e);
+        return false;
+      }),
+      deleteAllCounterSalesFromDb().catch((e) => {
+        console.warn('[DB SYNC] Error clearing counter sales in DB:', e);
+        return false;
+      }),
+      deleteAllOrdersFromDb().catch((e) => {
+        console.warn('[DB SYNC] Error clearing online orders in DB:', e);
+        return false;
+      }),
+    ]);
+
+    const auditLog: StampLog = {
+      id: `log-reset-${Date.now()}`,
+      customerId: 'system',
+      customerName: 'Workshop',
+      membershipNumber: '-',
+      staffId: currentUser?.uid || 'staff-001',
+      staffName: currentUser?.displayName || 'Workshop Staff',
+      action: 'edit_profile',
+      timestamp: new Date(),
+      note: `🧹 CLEAN SLATE: cleared ${bookingCount} booking(s) and ${saleCount} till sale(s) plus all online orders.`,
+    };
+    setStampLogs((prev) => [auditLog, ...prev]);
+
+    const allOk = bookingsOk && salesOk && ordersOk;
+    return {
+      success: allOk,
+      message: allOk
+        ? `Clean slate — cleared ${bookingCount} booking(s) and the financial records.`
+        : `Cleared locally, but one or more database deletes failed (bookings:${bookingsOk ? 'ok' : 'fail'}, sales:${salesOk ? 'ok' : 'fail'}, orders:${ordersOk ? 'ok' : 'fail'}).`,
+    };
+  };
+
   const saveRepairInvoice = async (
     bookingId: string,
     invoice: RepairInvoice
@@ -4412,6 +4531,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatePromotion,
         deletePromotion,
         refreshPromotionsExpiry,
+        reviews,
+        addReview,
+        updateReview,
+        deleteReview,
         discountCodes,
         sales,
         addDiscountCode,
@@ -4448,6 +4571,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         confirmSosQuote,
         deleteBooking,
         clearAllBookings,
+        resetBookingsAndFinancials,
         saveRepairInvoice,
         updateInvoicePaymentStatus,
         updateOwnerConfig,
