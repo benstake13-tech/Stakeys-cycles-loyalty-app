@@ -6,6 +6,12 @@
 #   every conflict resolves to the INCOMING change, EXCEPT src/config/surface.ts
 #   which always keeps the target branch's own version.
 #
+# The sync is IDEMPOTENT: a commit that is already present on a target (matched
+# by its `-x` provenance trailer, or best-effort by patch-id) is skipped instead
+# of re-applied, so re-running the sync can never duplicate a commit. Every
+# propagated commit is stamped with `git cherry-pick -x` so the trail is
+# explicit and check-history.sh can see it.
+#
 # Usage:
 #   scripts/sync-branch.sh <sha> [more shas...]
 #
@@ -53,6 +59,35 @@ if [ -f .git/CHERRY_PICK_HEAD ] || [ -d .git/sequencer ]; then
   echo "ERROR: a cherry-pick is already in progress; finish or abort it first." >&2
   exit 1
 fi
+
+# Commit subjects on a branch (one per line), used to detect a commit whose
+# provenance trailer already names the source SHA.
+subjects_on() {
+  git log --format='%s' "$1" 2>/dev/null
+}
+
+# True (0) when $sha's own patch-id already appears among $target's commits.
+# Best-effort: patch-id changes if a commit is re-picked from a different base
+# (see the duplicated sync-fix in this repo), so it supplements — never
+# replaces — the `-x` trailer signal.
+patch_present_on() {
+  local sha="$1" target="$2" want have
+  want="$(git show "$sha" | git patch-id --stable 2>/dev/null | awk '{print $1}')"
+  [ -n "$want" ] || return 1
+  have="$(git log -p "$target" 2>/dev/null | git patch-id --stable 2>/dev/null | awk '{print $1}')"
+  printf '%s\n' "$have" | grep -qxF "$want"
+}
+
+# True (0) when the commit is already on $target: by explicit `-x` provenance
+# trailer (primary) or by patch-id (fallback).
+already_present() {
+  local sha="$1" target="$2"
+  # `git cherry-pick -x` appends: "(cherry picked from commit <sha>)"
+  if subjects_on "$target" | grep -Fq "cherry picked from commit $sha"; then
+    return 0
+  fi
+  patch_present_on "$sha" "$target"
+}
 
 # Resolve a conflicted cherry-pick using the project rule, continue, and detect
 # an empty result (which means the target was already ahead -> divergence).
@@ -106,8 +141,14 @@ for target in "${BRANCHES[@]}"; do
     break
   fi
   for sha in "${commits[@]}"; do
-    echo "  cherry-pick $sha"
-    if git cherry-pick "$sha" >/dev/null 2>&1; then
+    if already_present "$sha" "$target"; then
+      echo "  skip ${sha:0:7} — already on $target (idempotent)"
+      continue
+    fi
+    echo "  cherry-pick ${sha:0:7}"
+    # -x appends "(cherry picked from commit <sha>)" so the trail is explicit and
+    # a re-run detects the commit without relying on patch-id.
+    if git cherry-pick -x "$sha" >/dev/null 2>&1; then
       echo "  applied cleanly"
       continue
     fi

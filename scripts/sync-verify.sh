@@ -13,23 +13,26 @@ set -u
 BRANCHES=(staff-terminal customer-app main-website)
 SURFACES=(staff customer website)
 
-echo "==> 1/5 parity"
+echo "==> 1/6 parity"
 bash scripts/check-parity.sh || exit 1
 
+echo "==> 2/6 history"
+bash scripts/check-history.sh || exit 1
+
 if [ ! -d node_modules ]; then
-  echo "==> 2/5 installing dependencies"
+  echo "==> 3/6 installing dependencies"
   npm ci || exit 1
 else
-  echo "==> 2/5 dependencies present"
+  echo "==> 3/6 dependencies present"
 fi
 
-echo "==> 3/5 tests"
+echo "==> 4/6 tests"
 npx vitest run || exit 1
 
-echo "==> 4/5 typecheck"
+echo "==> 5/6 typecheck"
 npm run lint || exit 1
 
-echo "==> 5/5 surface builds"
+echo "==> 6/6 surface builds"
 for s in "${SURFACES[@]}"; do
   echo "  building VITE_SURFACE=$s"
   rm -rf "dist-$s"
@@ -37,4 +40,4 @@ for s in "${SURFACES[@]}"; do
 done
 rm -rf dist-staff dist-customer dist-website
 
-echo "SYNC VERIFY OK: ${BRANCHES[*]} in parity; tests, types and all three surfaces built."
+echo "SYNC VERIFY OK: ${BRANCHES[*]} in parity; history, tests, types and all three surfaces built."

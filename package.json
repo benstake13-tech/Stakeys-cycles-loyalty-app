@@ -11,6 +11,8 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "check:parity": "bash scripts/check-parity.sh",
+    "check:history": "bash scripts/check-history.sh",
+    "network:status": "bash scripts/network-status.sh",
     "sync": "bash scripts/sync-branch.sh",
     "sync:verify": "bash scripts/sync-verify.sh"
   },

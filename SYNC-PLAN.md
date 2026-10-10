@@ -27,8 +27,13 @@ surface work to it.
 
 ## Current state (verified 2026-10-09)
 
-- `staff-terminal` `be2198c`, `customer-app` `f7f2728`, `main-website` `2f3bcd1`.
-- Parity holds: only `src/config/surface.ts` differs. Zero merges anywhere.
+- `staff-terminal` `0d99ef1`, `customer-app` `8bcda97`, `main-website` `4c0c552`.
+- Content parity holds: only `src/config/surface.ts` differs. Zero merges anywhere.
+- **History is NOT in lockstep:** `fix(sync): force non-interactive editor on
+  cherry-pick --continue` was cherry-picked **twice** onto `customer-app` and
+  `main-website` (versus once on `staff-terminal`). The trees match, the logs do
+  not. `check-history.sh` flags it; `SYNCING.md` documents the fix (drop the
+  duplicate commit).
 - The tooling below is **built and in use**: the "booking form language" change and
   the follow-up memory commit were each propagated with `scripts/sync-branch.sh`
   and gated with `scripts/sync-verify.sh` (98 files / 728 tests, `tsc`, 3 builds).
@@ -155,14 +160,20 @@ scripts/check-parity.sh origin/staff-terminal origin/customer-app origin/main-we
   updates and sync them like any other change. The scripts still tolerate
   uncommitted memory edits as a dirty-tree exception while you work.
 
-## Definition of done for this upgrade
+## Definition of done for this upgrade (v2 — implemented)
 
 - `check-parity.sh` validates content parity **and** the per-branch surface. ✅
 - `sync-branch.sh` performs a rule-based cherry-pick of one or more SHAs onto the
-  other two branches and self-checks parity. ✅
-- `sync-verify.sh` runs parity + tests + `tsc` + the three surface builds. ✅
-- `.githooks/pre-push` blocks merges, `main` pushes, and drift when enabled. ✅
+  other two branches, is **idempotent** (`-x` trailer + patch-id), and
+  self-checks parity. ✅
+- `check-history.sh` proves linear history and matching commit sequences. ✅
+- `network-status.sh` prints each branch's lockstep verdict vs canonical. ✅
+- `sync-verify.sh` runs parity + history + tests + `tsc` + the three surface builds. ✅
+- `.githooks/pre-push` blocks merges, `main` pushes, and drift (parity **and**
+  history) when enabled. ✅
 - `SYNCING.md` documents the upgraded procedure in one place. ✅
+- **Open:** the existing duplicate sync-fix on `customer-app`/`main-website` still
+  needs the one-off heal described in `SYNCING.md` (drop the extra commit).
 
 ## Steady-state loop (after this upgrade)
 
