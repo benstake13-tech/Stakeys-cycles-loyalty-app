@@ -383,3 +383,8 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 ## Session 50 (2026-10-10) — Meta shows results, never a link prompt
 - The Growth tab Meta card used to show "Authorise with Meta" + "Not linked"; user wanted **results only, no linking**. Now Meta is server-token only: `BusinessPerformanceTab` always loads Meta on mount (no popup), badge is `Live`/`Server linked`/`Token not set` (never `Not linked`), button is `Refresh` (never `Authorise`); the Authorise button + env warning are Google-only. `businessInsights` prefers the server credential for Meta and ignores stale browser tokens; Meta's not-connected copy no longer says "authorise".
 - Test convention: this repo has **no jest-dom** — assert with `.toBeTruthy()` / `queryByText(...)===null`, NOT `.toBeInTheDocument()`.
+
+## Session 51 (2026-10-10) — Vercel deploy status is authoritative
+- To answer "is my push live / did my env change take effect", check the **GitHub commit-status API** on the origin head: `GET /repos/<o>/<r>/commits/<sha>/status`. Every surface originally pushed here reports context `Vercel – stakeys-cycles-loyalty-app-*`. When they say `failure` with `upgradeToPro=build-rate-limit`, **no deploy is happening** → env vars and code changes are inert until a build succeeds.
+- No local Vercel CLI/token exists → deploys can ONLY be triggered by Vercel's Git integration (a push). Don't promise to "redeploy" from the agent side.
+- Two independent gates for this repo's staff deploy: (1) Hobby build-rate limit cleared (~24h after the last failed attempt, or Pro); (2) `api/` ≤ 12 functions (session-49 fix, needs pushing).
