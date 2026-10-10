@@ -97,7 +97,8 @@ describe('recommendPromotion (deterministic fallback)', () => {
     const result = recommendPromotion(brief, TODAY);
     expect(result.source).toBe('offline');
     expect(result.actions.length).toBeGreaterThanOrEqual(2);
-    expect(result.headline).toMatch(/STK-BEST/);
+    // The forecast leads, but the best-performing code is still surfaced as an action.
+    expect(result.actions.some((a) => /STK-BEST/.test(a.rationale))).toBe(true);
     // every action has concrete dates
     for (const a of result.actions) {
       expect(a.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -105,9 +106,36 @@ describe('recommendPromotion (deterministic fallback)', () => {
     }
   });
 
+  it('leads with the weather-driven forecast', () => {
+    const brief = buildPromotionBrief([], [], TODAY);
+    const result = recommendPromotion(brief, TODAY);
+    expect(brief.demandForecast.signals.length).toBeGreaterThan(0);
+    expect(result.headline).toMatch(/Weather-led/i);
+    expect(result.actions.length).toBeGreaterThan(0);
+  });
+
   it('still offers advice when nothing has redeemed', () => {
     const result = recommendPromotion(buildPromotionBrief([], [], TODAY), TODAY);
     expect(result.actions.length).toBeGreaterThan(0);
-    expect(result.headline).toMatch(/No redemptions/i);
+    // no best-seller action is fabricated when there are no redemptions
+    expect(result.actions.some((a) => /best seller/i.test(a.title))).toBe(false);
+  });
+
+  it('folds shop history into the brief', () => {
+    const brief = buildPromotionBrief(
+      [],
+      [],
+      TODAY,
+      null,
+      [
+        { serviceTitle: 'Full Service', vehicleCategory: 'cycle' } as any,
+        { serviceTitle: 'Full Service', vehicleCategory: 'cycle' } as any,
+        { serviceTitle: 'Brake Bleed', vehicleCategory: 'ebike' } as any,
+      ],
+      []
+    );
+    expect(brief.shopSignals.topServices[0]).toEqual({ label: 'Full Service', count: 2 });
+    expect(brief.shopSignals.topCategories[0]).toEqual({ category: 'cycle', count: 2 });
+    expect(briefToPrompt(brief)).toMatch(/Shop history \(top services\):/);
   });
 });
