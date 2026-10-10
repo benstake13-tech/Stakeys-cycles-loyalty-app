@@ -205,6 +205,7 @@ export interface UserProfile {
   createdAt: any; // Timestamp
   lastStampedAt?: any; // Timestamp of last visit stamp for 1-per-day rate limiting
   lastSpunAt?: any; // Timestamp of last wheel spin for 1-per-week rate limiting
+  lastScratchedAt?: any; // Timestamp of last scratch-card play for the cooldown
   phoneNumber?: string;
   avatarColor?: string; // High-quality SVG FaceAvatar configuration
   bikes?: CustomerBike[]; // Personal registered bikes in customer's garage
@@ -247,6 +248,39 @@ export interface PrizeDraw {
   winnerUid: string | null;
   winnerName?: string | null;
   completedAt?: any;
+}
+
+/**
+ * One hidden prize on a scratch card. `rewardType` mirrors the wheel segment
+ * vocabulary so the award path (stamps / tickets / points / voucher) is shared.
+ */
+export interface ScratchPrize {
+  id: string;
+  label: string;
+  /** Relative weight; the helper normalizes these into probabilities. */
+  weight: number;
+  rewardType: 'stamp' | 'ticket' | 'points' | 'discount' | 'merch' | 'service';
+  rewardValue?: string;
+  stampsAmount?: number;
+  ticketAmount?: number;
+  pointsAmount?: number;
+}
+
+/**
+ * The single shop-wide scratch card, managed from the Prize Hub. `enabled` is
+ * the master on/off switch — when false the customer tab and entry points are
+ * hidden entirely.
+ */
+export interface ScratchCardConfig {
+  id: string;
+  title: string;
+  enabled: boolean;
+  /** Cooldown between plays, in hours. 0 = no limit. */
+  cooldownHours: number;
+  /** Ticket cost per play. 0 = free. */
+  ticketCost: number;
+  prizes: ScratchPrize[];
+  updatedAt?: any;
 }
 
 export interface WinnerAnnouncement {
