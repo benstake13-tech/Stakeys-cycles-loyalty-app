@@ -372,3 +372,10 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
   - `resolveWalletConfig().apple` now returns `teamId` too. Buttons stay hidden until `/api/wallet/config` reports the provider configured; Apple link carries name/stamps/points.
 - Deleted `api/firebaseService.js` (dead dup of `src/api/firebaseService.ts`; not a handler). Documented wallet/Drive/Business env in `.env.example`.
 - Tests added `api_drive_functions.test.ts` (17), `api_google_business.test.ts` (4), Apple pass coverage in `api_wallet_functions.test.ts`. Suite 137 files / 1116 tests; `sync-verify.sh` OK.
+
+## Session 49 (2026-10-10) — Vercel Hobby 12-function cap: the silent deploy-killer
+- **Hobby allows max 12 Vercel Functions per deployment**; for a non-Next app (Vite) EVERY `api/**/*.js` is one function (`_`-prefixed files/dirs are ignored). Exceeding 12 **fails the whole deployment**, so the domain keeps serving the last good build → looks like "feature X worked before but not now" / "APIs broken". Verified live: `www.stakeys-cycles.co.uk` served `index-Bq2JO1OV.js` with no Growth tab at all.
+- **Rule: never add a bare `api/*.js`.** Consolidate each route family into ONE `api/<family>/[action].js` dispatcher (path segment = `req.query.action`); client URLs stay identical. Session 49 took 14 → 7 functions this way.
+- **Guard:** `vercel_function_budget.test.ts` fails the suite if `api/` exceeds 12 functions. Run it whenever you touch `api/`.
+- Deleting the old per-route files is mandatory — each one counted.
+- Meta "not connecting" on the live staff project is NOT a code bug: `/api/business/status` → `serverManaged:false` (`META_SYSTEM_USER_TOKEN` unset) and `/api/oauth/token` for meta returns Graph `OAuthException code 101` (the configured Meta app id/secret looks invalid/mismatched). Set the env vars / fix the app, and ensure a deploy actually succeeds.
