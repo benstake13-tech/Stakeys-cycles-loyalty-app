@@ -6,10 +6,23 @@ import type { ServiceBooking, UserProfile } from './src/types/bikeShop';
 const hoisted = vi.hoisted(() => ({
   bookings: [] as ServiceBooking[],
   users: [] as UserProfile[],
+  stampLogs: [] as any[],
+  draws: [] as any[],
+  referrals: [] as any[],
+  promotions: [] as any[],
+  discountCodes: [] as any[],
 }));
 
 vi.mock('./src/context/ShopContext', () => ({
-  useShop: () => ({ bookings: hoisted.bookings, users: hoisted.users }),
+  useShop: () => ({
+    bookings: hoisted.bookings,
+    users: hoisted.users,
+    stampLogs: hoisted.stampLogs,
+    draws: hoisted.draws,
+    referrals: hoisted.referrals,
+    promotions: hoisted.promotions,
+    discountCodes: hoisted.discountCodes,
+  }),
 }));
 
 import { PerformanceTracker } from './src/components/PerformanceTracker';
@@ -36,6 +49,11 @@ function booking(partial: Partial<ServiceBooking>): ServiceBooking {
 
 describe('PerformanceTracker', () => {
   it('merges service requests, call log and growth into one view', () => {
+    hoisted.stampLogs = [];
+    hoisted.draws = [];
+    hoisted.referrals = [];
+    hoisted.promotions = [];
+    hoisted.discountCodes = [];
     hoisted.bookings = [
       booking({ id: 'online-1' }),
       booking({ id: 'call-1', notes: 'BOOKING CHANNEL: Phone call (staff-entered)', customerName: 'Sam Carter', customerPhone: '+44 7911 123456' }),
@@ -56,13 +74,37 @@ describe('PerformanceTracker', () => {
     // Growth section (Google & Meta) is merged in and expanded by default
     expect(screen.getByText(/Growth — Google/i)).toBeTruthy();
     expect(screen.getByText(/Google & Meta Business Performance/i)).toBeTruthy();
+    // Member engagement panel is merged in too
+    expect(screen.getByText(/Member Activity/i)).toBeTruthy();
+    expect(screen.getByText(/Popular Features/i)).toBeTruthy();
+    expect(screen.getByText(/Promotion Performance/i)).toBeTruthy();
   });
 
   it('collapses the growth section on click', () => {
     hoisted.bookings = [];
     hoisted.users = [];
+    hoisted.stampLogs = [];
+    hoisted.draws = [];
+    hoisted.referrals = [];
+    hoisted.promotions = [];
+    hoisted.discountCodes = [];
     render(<PerformanceTracker />);
     fireEvent.click(screen.getByText(/Growth — Google/i));
     expect(screen.queryByText(/Google & Meta Business Performance/i)).toBeNull();
+  });
+
+  it('lists the most engaged members in the engagement panel', () => {
+    hoisted.bookings = [];
+    hoisted.stampLogs = [];
+    hoisted.draws = [];
+    hoisted.referrals = [];
+    hoisted.promotions = [];
+    hoisted.discountCodes = [];
+    hoisted.users = [
+      { uid: 'u1', role: 'customer', displayName: 'Top Rider', membershipNumber: 'STK-9', stamps: 8, points: 30, createdAt: new Date().toISOString() } as UserProfile,
+    ];
+    render(<PerformanceTracker />);
+    expect(screen.getByText('Top Rider')).toBeTruthy();
+    expect(screen.getByText('STK-9')).toBeTruthy();
   });
 });
