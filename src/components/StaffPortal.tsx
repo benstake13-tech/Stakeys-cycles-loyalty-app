@@ -39,6 +39,7 @@ import {
   VolumeX,
   Bell,
   RefreshCcw,
+  RefreshCw,
   TrendingUp,
   Gauge,
   ShoppingCart,
@@ -71,6 +72,7 @@ import { AssistantManagerTab } from './AssistantManagerTab';
 import { PerformanceTracker } from './PerformanceTracker';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { StaffReferralsTab } from './StaffReferralsTab';
+import { StaffTradeInsTab } from './StaffTradeInsTab';
 import { ReviewsTab } from './ReviewsTab';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
@@ -109,6 +111,7 @@ type StaffTab =
   | 'logs'
   | 'google_business'
   | 'referrals'
+  | 'tradeins'
   | 'reviews'
   | 'backend'
   | 'weather'
@@ -129,6 +132,7 @@ const STAFF_TABS: StaffTab[] = [
   'logs',
   'google_business',
   'referrals',
+  'tradeins',
   'reviews',
   'backend',
   'weather',
@@ -492,6 +496,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'logs'
     | 'google_business'
     | 'referrals'
+    | 'tradeins'
     | 'reviews'
     | 'backend'
     | 'weather'
@@ -526,6 +531,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
     { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme' },
+    { id: 'tradeins', label: 'Trade-Ins', icon: RefreshCw, tone: 'amber', hint: 'Part-exchange leads to value' },
     { id: 'reviews', label: 'Reviews', icon: MessageSquare, tone: 'amber', badge: reviews.length, hint: 'Customer reviews & feedback' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
     { id: 'backend', label: 'Backend', icon: Server, tone: 'sky', hint: 'Supabase connection, schema & repair' },
@@ -738,6 +744,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {/* VIEW 1C-B: Discount Codes Manager (Full CRUD) */}
       {staffView('discount_codes', <DiscountCodesTab />)}
       {staffView('referrals', <StaffReferralsTab />)}
+      {staffView('tradeins', <StaffTradeInsTab />)}
       {staffView('reviews', <ReviewsTab />)}
 
       {/* VIEW 1C-C: Counter Sale / Till — scanned discounts auto-apply */}
