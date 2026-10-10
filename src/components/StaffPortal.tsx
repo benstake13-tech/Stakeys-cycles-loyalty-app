@@ -49,6 +49,7 @@ import {
   LayoutGrid,
   MessageSquare,
   Zap,
+  BookOpen,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -78,6 +79,7 @@ import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { NotificationBell } from './NotificationBell';
 import { StaffNotificationSettings } from './StaffNotificationSettings';
 import { ErrorCodeLookupTab } from './ErrorCodeLookupTab';
+import { StaffRepairGuideTab } from './StaffRepairGuideTab';
 import { buildWorkshopActivities } from '../utils/notificationActivity';
 
 import { canCustomerReceiveStampToday } from '../api/firebaseService';
@@ -111,6 +113,7 @@ type StaffTab =
   | 'backend'
   | 'weather'
   | 'ev_codes'
+  | 'repair_guide'
   | 'settings';
 
 /** Every staff tab, used to validate the persisted last-used tab on restore. */
@@ -130,6 +133,7 @@ const STAFF_TABS: StaffTab[] = [
   'backend',
   'weather',
   'ev_codes',
+  'repair_guide',
   'settings',
 ];
 
@@ -492,6 +496,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'backend'
     | 'weather'
     | 'ev_codes'
+    | 'repair_guide'
     | 'settings';
 
   // Tile launcher metadata. The old segmented strips became Windows-8-style
@@ -513,6 +518,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
     { id: 'ev_codes', label: 'Error Codes', icon: Zap, tone: 'amber', hint: 'E-Scooter / E-Bike fault code lookup' },
+    { id: 'repair_guide', label: 'Repair Guide', icon: BookOpen, tone: 'emerald', hint: 'Workshop repair & training guide (Sheldon Brown)' },
   ];
 
   const adminTiles: StaffTile[] = [
@@ -765,6 +771,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* VIEW 8: E-Scooter / E-Bike error-code lookup with AI assist */}
       {staffView('ev_codes', <ErrorCodeLookupTab />)}
+
+      {/* VIEW 8b: Workshop repair & training guide (static bundle in /guide) */}
+      {staffView('repair_guide', <StaffRepairGuideTab />)}
 
       {/* VIEW 9: Backend console — Supabase connection, schema audit & repair */}
       {staffView('backend', <StaffBackendTab />)}
