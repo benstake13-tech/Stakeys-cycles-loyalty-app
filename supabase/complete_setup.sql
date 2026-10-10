@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   last_spun_at TIMESTAMPTZ,
   last_spin_date TEXT,
   last_stamped_at TIMESTAMPTZ,
+  last_scratched_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -260,6 +261,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS merit_points INTEGER DEFAUL
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spun_at TIMESTAMPTZ;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_spin_date TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_stamped_at TIMESTAMPTZ;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS last_scratched_at TIMESTAMPTZ;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 -- The app creates a profile at login, before a membership code exists.
@@ -585,6 +587,7 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   reminder_quiet_end_hour INTEGER DEFAULT 8,
   reminder_quiet_hours_enabled BOOLEAN DEFAULT TRUE,
   notification_preferences JSONB,
+  scratch_card_config JSONB,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS owner_email TEXT;
@@ -603,6 +606,7 @@ ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_quiet_start_ho
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_quiet_end_hour INTEGER DEFAULT 8;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS reminder_quiet_hours_enabled BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS notification_preferences JSONB;
+ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS scratch_card_config JSONB;
 ALTER TABLE public.app_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 INSERT INTO public.app_settings (id)

@@ -14,6 +14,7 @@ import {
   PrizeWheel,
   PrizeWheelSegment,
   PrizeDraw,
+  ScratchCardConfig,
   CollectedVoucher,
   DiscountCode,
   SaleTransaction,
@@ -31,6 +32,7 @@ import {
   resolveNotificationPreferences,
   type NotificationPreferences,
 } from '../utils/notificationPreferences';
+import { normalizeScratchCard } from '../utils/scratchCardHelper';
 
 export interface DatabaseSyncStatus {
   lastSyncAt: string;
@@ -1015,6 +1017,7 @@ export async function updateUserProfileInDb(
     lastStampedAt?: Date | null;
     lastSpinDate?: string | null;
     lastSpunAt?: Date | string | null;
+    lastScratchedAt?: Date | string | null;
   }
 ): Promise<boolean> {
   const supabase = getSupabaseClient();
@@ -1053,6 +1056,12 @@ export async function updateUserProfileInDb(
       payload.last_spin_date = updates.lastSpinDate;
     } else if (spunIso !== undefined) {
       payload.last_spin_date = spunIso;
+    }
+    if (updates.lastScratchedAt !== undefined) {
+      payload.last_scratched_at =
+        updates.lastScratchedAt instanceof Date
+          ? updates.lastScratchedAt.toISOString()
+          : updates.lastScratchedAt;
     }
 
     // PATCH the existing row rather than upsert: profiles.display_name is NOT
@@ -1142,6 +1151,7 @@ export async function fetchUserProfileFromDb(
           : row.last_spin_date
           ? new Date(row.last_spin_date)
           : undefined,
+        lastScratchedAt: row.last_scratched_at ? new Date(row.last_scratched_at) : undefined,
       };
     }
   } catch (err) {
@@ -1195,6 +1205,7 @@ export async function fetchAllProfilesFromDbDetailed(): Promise<{
             : row.last_spin_date
             ? new Date(row.last_spin_date)
             : undefined,
+          lastScratchedAt: row.last_scratched_at ? new Date(row.last_scratched_at) : undefined,
           createdAt: row.created_at ? new Date(row.created_at) : new Date(),
         })),
       };
@@ -1690,6 +1701,8 @@ export interface AppSettings {
   reminderQuietHoursEnabled: boolean;
   /** Staff-managed per-event channel matrix (visual/email/push). */
   notificationPreferences: NotificationPreferences;
+  /** Prize Hub scratch-card configuration (enabled flag + prizes + cooldown). */
+  scratchCardConfig: ScratchCardConfig;
 }
 
 export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | null> {
@@ -1728,6 +1741,8 @@ export async function fetchAppSettingsFromDb(): Promise<Partial<AppSettings> | n
         row.notification_preferences == null
           ? undefined
           : resolveNotificationPreferences(row.notification_preferences),
+      scratchCardConfig:
+        row.scratch_card_config == null ? undefined : normalizeScratchCard(row.scratch_card_config),
     };
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] fetchAppSettingsFromDb:', err);
@@ -1762,6 +1777,9 @@ export async function upsertAppSettingsToDb(settings: Partial<AppSettings>): Pro
     }
     if (settings.notificationPreferences !== undefined) {
       payload.notification_preferences = settings.notificationPreferences;
+    }
+    if (settings.scratchCardConfig !== undefined) {
+      payload.scratch_card_config = settings.scratchCardConfig;
     }
     const { error } = await supabase.from('app_settings').upsert(payload, { onConflict: 'id' });
     if (error) {
