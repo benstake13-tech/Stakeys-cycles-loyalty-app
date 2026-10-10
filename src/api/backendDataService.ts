@@ -23,6 +23,7 @@ import {
   StaffMember,
   ShopPromotion,
   ReferralRecord,
+  CustomerReview,
   ReminderChannel,
   ReminderRecipients,
 } from '../types/bikeShop';
@@ -648,6 +649,40 @@ export async function deleteAllServiceBookingsFromDb(): Promise<boolean> {
     return true;
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] deleteAllServiceBookingsFromDb:', err);
+    return false;
+  }
+}
+
+/** Wipe every counter sale (till/financial record) in one go. */
+export async function deleteAllCounterSalesFromDb(): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('counter_sales').delete().not('id', 'is', null);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE ALL counter_sales failed:', error.message);
+      return false;
+    }
+    console.log('[SUPABASE NET SUCCESS] DELETE ALL counter_sales succeeded');
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteAllCounterSalesFromDb:', err);
+    return false;
+  }
+}
+
+/** Wipe every online (website) order — the other half of the income ledger. */
+export async function deleteAllOrdersFromDb(): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('ecommerce_orders').delete().not('id', 'is', null);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] DELETE ALL ecommerce_orders failed:', error.message);
+      return false;
+    }
+    console.log('[SUPABASE NET SUCCESS] DELETE ALL ecommerce_orders succeeded');
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteAllOrdersFromDb:', err);
     return false;
   }
 }
@@ -1525,6 +1560,77 @@ export async function deletePromotionFromDb(id: string): Promise<boolean> {
     return true;
   } catch (err) {
     console.error('[SUPABASE NET EXCEPTION] deletePromotionFromDb:', err);
+    return false;
+  }
+}
+
+export async function fetchReviewsFromDb(): Promise<CustomerReview[]> {
+  const supabase = getSupabaseClient();
+  try {
+    const { data, error } = await supabase
+      .from('reviews')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] fetch reviews failed:', error.message);
+      return [];
+    }
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      customerUid: row.customer_uid || undefined,
+      customerName: row.customer_name || 'Anonymous',
+      membershipNumber: row.membership_number || undefined,
+      rating: Number(row.rating) || 5,
+      title: row.title || undefined,
+      comment: row.comment || '',
+      status: (row.status || 'pending') as CustomerReview['status'],
+      source: (row.source || 'website') as CustomerReview['source'],
+      createdAt: row.created_at || new Date().toISOString(),
+    }));
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] fetchReviewsFromDb:', err);
+    return [];
+  }
+}
+
+export async function upsertReviewToDb(review: CustomerReview): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const payload = {
+      id: review.id,
+      customer_uid: review.customerUid || null,
+      customer_name: review.customerName,
+      membership_number: review.membershipNumber || null,
+      rating: review.rating,
+      title: review.title || null,
+      comment: review.comment,
+      status: review.status,
+      source: review.source,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = await supabase.from('reviews').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.error('[SUPABASE NET ERROR] upsert reviews failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] upsertReviewToDb:', err);
+    return false;
+  }
+}
+
+export async function deleteReviewFromDb(id: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  try {
+    const { error } = await supabase.from('reviews').delete().eq('id', id);
+    if (error) {
+      console.error('[SUPABASE NET ERROR] delete reviews failed:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('[SUPABASE NET EXCEPTION] deleteReviewFromDb:', err);
     return false;
   }
 }
