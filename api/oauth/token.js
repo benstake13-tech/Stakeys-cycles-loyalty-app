@@ -6,7 +6,7 @@
  * deployment, so the deployed site's Growth tab can authorise Google / Meta.
  * The client secret is server-only and never reaches the browser.
  */
-import { resolveProvider, exchangeToken } from './_shared.js';
+import { resolveProvider, exchangeToken, exchangeMetaLongLived } from './_shared.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -29,6 +29,16 @@ export default async function handler(req, res) {
     });
     const { status, ok, data } = await exchangeToken(resolved.cfg.tokenUrl, params);
     if (!ok) return res.status(status).json(data);
+
+    // Meta: upgrade to a ~60-day long-lived token (no refresh grant exists).
+    if (provider === 'meta' && data?.access_token) {
+      const longLived = await exchangeMetaLongLived(
+        resolved.clientId,
+        resolved.clientSecret,
+        data.access_token
+      );
+      if (longLived) return res.status(200).json(longLived);
+    }
     return res.status(200).json(data);
   } catch (error) {
     console.error('OAuth token exchange error:', error);
