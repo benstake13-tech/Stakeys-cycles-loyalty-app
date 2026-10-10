@@ -47,6 +47,7 @@ import {
   Gift,
   CloudRain,
   LayoutGrid,
+  MessageSquare,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -66,6 +67,7 @@ import { AssistantManagerTab } from './AssistantManagerTab';
 import { PerformanceTracker } from './PerformanceTracker';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { StaffReferralsTab } from './StaffReferralsTab';
+import { ReviewsTab } from './ReviewsTab';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
 import { StaffThemeSelector } from './StaffThemeSelector';
@@ -101,6 +103,7 @@ type StaffTab =
   | 'logs'
   | 'google_business'
   | 'referrals'
+  | 'reviews'
   | 'backend'
   | 'weather'
   | 'settings';
@@ -118,6 +121,7 @@ const STAFF_TABS: StaffTab[] = [
   'logs',
   'google_business',
   'referrals',
+  'reviews',
   'backend',
   'weather',
   'settings',
@@ -148,6 +152,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     cycleWorkshopAudioVolume,
     requestPushNotificationPermission,
     hardResetApp,
+    resetBookingsAndFinancials,
+    reviews = [],
     notificationPreferences,
   } = useShop();
 
@@ -471,6 +477,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'logs'
     | 'google_business'
     | 'referrals'
+    | 'reviews'
     | 'backend'
     | 'weather'
     | 'settings';
@@ -500,6 +507,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
     { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme' },
+    { id: 'reviews', label: 'Reviews', icon: MessageSquare, tone: 'amber', badge: reviews.length, hint: 'Customer reviews & feedback' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
     { id: 'backend', label: 'Backend', icon: Server, tone: 'sky', hint: 'Supabase connection, schema & repair' },
     { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications, tools & station overview' },
@@ -633,10 +641,25 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           action={
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm('Are you absolutely sure you want to clean the slate? This will clear all local app data and reload the page.')) {
-                  hardResetApp();
+              data-testid="clean-slate"
+              onClick={async () => {
+                if (
+                  !window.confirm(
+                    'Clean the slate? This wipes ALL workshop bookings and the financial records (till sales + online orders) from the database, clears local app data, and reloads the page.'
+                  )
+                ) {
+                  return;
                 }
+                try {
+                  const res = await resetBookingsAndFinancials();
+                  if (!res.success) {
+                    window.alert(res.message);
+                    return;
+                  }
+                } catch (e) {
+                  console.warn('[CLEAN SLATE] reset failed:', e);
+                }
+                hardResetApp();
               }}
               className="pressable flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-rose-900 px-3 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-950/60 hover:text-white"
             >
@@ -696,6 +719,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {/* VIEW 1C-B: Discount Codes Manager (Full CRUD) */}
       {staffView('discount_codes', <DiscountCodesTab />)}
       {staffView('referrals', <StaffReferralsTab />)}
+      {staffView('reviews', <ReviewsTab />)}
 
       {/* VIEW 1C-C: Counter Sale / Till — scanned discounts auto-apply */}
       {staffView('till', <CounterSaleTab />)}
