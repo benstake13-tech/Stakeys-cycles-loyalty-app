@@ -100,6 +100,20 @@ export interface BikeComponentSpec {
   estimatedUpgradeValue?: number;
   condition?: 'excellent' | 'good' | 'worn' | 'needs_attention';
   mechanicNotes?: string;
+  /** Taxonomy system this part belongs to (e.g. 'wheels', 'drivetrain'). */
+  systemId?: string;
+  /** Exact taxonomy component id (e.g. 'rear-tyre'). */
+  componentId?: string;
+  /** Measured dimension/size/spec, e.g. '700x32c', '11-34T', '160mm rotor'. */
+  specValue?: string;
+  /** Visible brand of the fitted part. */
+  brand?: string;
+  /** Visible model of the fitted part. */
+  model?: string;
+  /** How well the part could be seen: visible | partial | assumed | not_visible. */
+  visibility?: 'visible' | 'partial' | 'assumed' | 'not_visible';
+  /** 0-1 confidence in this component's assessment. */
+  confidence?: number;
 }
 
 export interface BikeScrapeResult {
@@ -114,6 +128,12 @@ export interface BikeScrapeResult {
   totalEstimatedUpgradeValue: number;
   sourceUrl?: string;
   scrapedAt: string;
+  /** Raw AI identification payload (rich, taxonomy-based). */
+  aiIdentification?: any;
+  /** Component names the AI could not assess from the photos. */
+  notVisible?: string[];
+  /** 0-1 AI estimate of how much of the bike was assessed. */
+  coverage?: number;
 }
 
 export interface CustomerBike {
