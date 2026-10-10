@@ -46,20 +46,26 @@ import {
   describeDiscountValue,
 } from '../utils/discountService';
 import { normalizeScannedCode, resolveCustomer, membershipBalance, MembershipBalance } from '../utils/membershipCode';
-import { stockLabel, qtyInBasket, tillStockRows } from '../utils/tillStock';
+import { stockLabel, qtyInBasket } from '../utils/tillStock';
+import {
+  addLine as addLinePure,
+  updateLine,
+  setLinePrice,
+  setLineQty,
+  setLineCategory,
+  setLineDescription,
+  removeLine as removeLinePure,
+  buildCatalogue,
+  searchCatalogue,
+  catalogueLine,
+  basketSubtotal,
+  lineTotal,
+  type CatalogueRow,
+} from '../utils/posCart';
 import { PolicyDisclaimers } from './PolicyDisclaimers';
 import { SALES_POLICY_DISCLAIMERS } from '../utils/workshopPolicy';
 
-const QUICK_ITEMS: Omit<SaleLineItem, 'id'>[] = [
-  { description: 'Standard Workshop Labour (30 min)', category: 'Labour', quantity: 1, unitPrice: 30 },
-  { description: 'Full Service Labour', category: 'Labour', quantity: 1, unitPrice: 60 },
-  { description: 'Puncture Repair & Tube', category: 'Part', quantity: 1, unitPrice: 18 },
-  { description: 'Hydraulic Brake Bleed', category: 'Labour', quantity: 1, unitPrice: 35 },
-  { description: 'Inner Tube (Presta)', category: 'Part', quantity: 1, unitPrice: 6.5 },
-  { description: 'Chain & Cassette Fitting', category: 'Labour', quantity: 1, unitPrice: 25 },
-  { description: 'Muc-Off Bike Cleaner', category: 'Consumable', quantity: 1, unitPrice: 9.99 },
-  { description: 'Safety Check & Tune', category: 'Labour', quantity: 1, unitPrice: 40 },
-];
+const CATEGORIES: SaleLineItem['category'][] = ['Labour', 'Part', 'Consumable', 'Diagnostic'];
 
 let lineSeq = 0;
 const nextLineId = () => `line-${Date.now().toString(36)}-${lineSeq++}`;
@@ -93,6 +99,7 @@ export const CounterSaleTab: React.FC = () => {
   const [scannedItem, setScannedItem] = useState<WebProduct | null>(null);
   const [qrProduct, setQrProduct] = useState<WebProduct | null>(null);
   const [lastSale, setLastSale] = useState<SaleTransaction | null>(null);
+  const [catalogueQuery, setCatalogueQuery] = useState('');
 
   // Live shop stock, so staff can sell a real product at the till and the
   // storefront quantity is decremented when the sale is processed. Every item
@@ -134,10 +141,16 @@ export const CounterSaleTab: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQuotePanel, setShowQuotePanel] = useState(false);
 
-  const subtotal = useMemo(
-    () => roundMoney(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0)),
-    [lines]
+  const subtotal = useMemo(() => basketSubtotal(lines), [lines]);
+
+  // The till catalogue: the staff-editable website price list (jobs) plus live
+  // shop stock, searchable in one place. Stock rows re-evaluate as the basket
+  // changes so the remaining/out-of-stock hints stay honest.
+  const catalogue = useMemo(
+    () => buildCatalogue(webContent.priceList ?? [], stockProducts, lines),
+    [webContent.priceList, stockProducts, lines]
   );
+  const catalogueRows = useMemo(() => searchCatalogue(catalogue, catalogueQuery), [catalogue, catalogueQuery]);
 
   /**
    * The active discount is re-evaluated on every basket change, so the amount off
@@ -181,44 +194,74 @@ export const CounterSaleTab: React.FC = () => {
   }, [effectiveDiscount]);
 
   const addLine = (item: Omit<SaleLineItem, 'id'>) => {
-    setLines((prev) => {
-      const existing = prev.find(
-        (l) => l.description === item.description && l.unitPrice === item.unitPrice
-      );
-      if (existing) {
-        return prev.map((l) =>
-          l.id === existing.id ? { ...l, quantity: l.quantity + 1 } : l
-        );
-      }
-      return [...prev, { ...item, id: nextLineId() }];
-    });
+    setLines((prev) => addLinePure(prev, item, nextLineId()));
     setLastSale(null);
   };
 
-  const changeQty = (id: string, delta: number) => {
-    setLines((prev) =>
-      prev
-        .map((l) => {
-          if (l.id !== id) return l;
-          const next = Math.max(0, l.quantity + delta);
-          // Never let the till oversell the shelf: cap stock-backed lines.
-          if (delta > 0 && l.productId) {
-            const product = stockProducts.find((p) => p.id === l.productId);
-            const others = prev
-              .filter((o) => o.id !== id && o.productId === l.productId)
-              .reduce((sum, o) => sum + o.quantity, 0);
-            if (product && others + next > product.stock) {
-              setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${stockLabel(product)} in stock.` });
-              return l;
-            }
-          }
-          return { ...l, quantity: next };
-        })
-        .filter((l) => l.quantity > 0)
-    );
+  /** Add a catalogue row (job or stock) as an editable basket line. */
+  const addFromCatalogue = (row: CatalogueRow) => {
+    if (row.disabled) {
+      setDiscountMessage({ ok: false, text: `${row.label} is out of stock.` });
+      return;
+    }
+    const line = catalogueLine(row);
+    // A stock-backed line must respect the shelf; reuse the pure merge.
+    if (line.productId) {
+      const remaining = line.productId
+        ? (stockProducts.find((p) => p.id === line.productId)?.stock ?? 0) - qtyInBasketFor(line.productId)
+        : 1;
+      if (remaining <= 0) {
+        setDiscountMessage({ ok: false, text: `Only ${stockProducts.find((p) => p.id === line.productId)?.stock ?? 0} × ${row.label} in stock.` });
+        return;
+      }
+    }
+    setLines((prev) => addLinePure(prev, line, nextLineId()));
+    setLastSale(null);
+    setDiscountMessage(null);
   };
 
-  const removeLine = (id: string) => setLines((prev) => prev.filter((l) => l.id !== id));
+  const changeQty = (id: string, delta: number) => {
+    const line = lines.find((l) => l.id === id);
+    if (!line) return;
+    const next = line.quantity + delta;
+    if (delta > 0 && line.productId) {
+      const product = stockProducts.find((p) => p.id === line.productId);
+      const others = lines
+        .filter((o) => o.id !== id && o.productId === line.productId)
+        .reduce((sum, o) => sum + o.quantity, 0);
+      if (product && others + next > product.stock) {
+        setDiscountMessage({ ok: false, text: `Only ${product.stock} × ${stockLabel(product)} in stock.` });
+        return;
+      }
+    }
+    setLines((prev) => setLineQty(prev, id, next, stockProducts));
+  };
+
+  /** Type a quantity straight into a basket line. */
+  const setQty = (id: string, qty: number) => setLines((prev) => setLineQty(prev, id, qty, stockProducts));
+  const setPrice = (id: string, price: number) => setLines((prev) => setLinePrice(prev, id, price));
+  const setDescription = (id: string, description: string) => setLines((prev) => setLineDescription(prev, id, description));
+  const setCategory = (id: string, category: SaleLineItem['category']) => setLines((prev) => setLineCategory(prev, id, category));
+
+  const removeLine = (id: string) => {
+    setLines((prev) => removeLinePure(prev, id));
+    setLastSale(null);
+  };
+
+  /** Detach the customer from the transaction without touching the basket. */
+  const unlinkCustomer = () => {
+    setSelectedCustomer(null);
+    setScannedBalance(null);
+    // Revert any auto-applied customer/voucher discount; a public code can stay.
+    if (discount && discount.source !== 'discount_code') {
+      setDiscount(null);
+    } else if (discount?.source === 'discount_code') {
+      const code = discountCodes.find((c) => c.id === discount.discountCodeId);
+      const assigned = code?.assignedToUid;
+      if (assigned) setDiscount(null);
+    }
+    setDiscountMessage({ ok: true, text: 'Customer unlinked — basket kept. Customer-specific discounts removed.' });
+  };
 
   const applyDiscountCode = (code: DiscountCode, customer?: UserProfile | null) => {
     const sub = roundMoney(lines.reduce((s, l) => s + l.quantity * l.unitPrice, 0));
@@ -479,7 +522,7 @@ export const CounterSaleTab: React.FC = () => {
         </div>
 
         {selectedCustomer && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2">
+          <div data-testid="till-customer-bar" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-sky-500/30 bg-sky-500/5 px-3 py-2">
             <span className="flex items-center gap-1.5 text-xs font-bold text-sky-200">
               <UserCheck className="w-3.5 h-3.5" />
               {selectedCustomer.displayName}
@@ -506,6 +549,14 @@ export const CounterSaleTab: React.FC = () => {
                 </span>
               );
             })()}
+            <button
+              type="button"
+              data-testid="till-unlink-customer"
+              onClick={unlinkCustomer}
+              className="ml-auto rounded-lg border border-sky-500/40 px-2.5 py-1 text-[11px] font-bold text-sky-200 hover:bg-sky-500/10"
+            >
+              Unlink
+            </button>
           </div>
         )}
 
@@ -528,77 +579,77 @@ export const CounterSaleTab: React.FC = () => {
           </button>
         </form>
 
-        {/* Quick add grid */}
+        {/* Searchable catalogue — every staff-editable price-list job plus shop stock */}
         <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-            Quick add
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {QUICK_ITEMS.map((item) => (
-              <button
-                key={item.description}
-                type="button"
-                onClick={() => addLine(item)}
-                className="flex items-center justify-between rounded-xl border border-neutral-800 bg-black px-3 py-2 text-left text-xs text-neutral-300 hover:border-emerald-500/40 hover:text-white"
-              >
-                <span className="pr-2">{item.description}</span>
-                <span className="font-mono font-semibold text-emerald-400">£{item.unitPrice.toFixed(2)}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Manual job calculator — add up a bespoke job and bill it as one line */}
-        <TillCalculator onAddLine={addLine} isDark={theme === 'dark'} />
-
-        {/* Live storefront stock — sell a real product so the shop stays accurate */}
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-              Shop stock ({stockProducts.length})
+              Catalogue ({catalogueRows.length})
             </span>
-            <span className="text-[10px] text-neutral-600">Selling decrements the storefront</span>
+            <span className="text-[10px] text-neutral-600">Jobs from the website price list + shop stock</span>
           </div>
-          {stockProducts.length === 0 ? (
+          <div className="relative mb-2">
+            <Scan className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+            <input
+              data-testid="till-catalogue-search"
+              value={catalogueQuery}
+              onChange={(e) => setCatalogueQuery(e.target.value)}
+              placeholder="Search jobs, parts, stock…"
+              className="w-full rounded-xl border border-neutral-700 bg-black py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-emerald-500"
+            />
+          </div>
+          {catalogueRows.length === 0 ? (
             <p className="py-4 text-center text-xs text-neutral-600">
-              No products set up yet. Add them in Staff Station → Website → Shop &amp; Stock.
+              {catalogue.length === 0
+                ? 'No items yet. Add prices in Staff Station → Website → Price List, or stock in Shop & Stock.'
+                : `No items match “${catalogueQuery}”.`}
             </p>
           ) : (
-            <div className="grid max-h-64 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {tillStockRows(stockProducts, lines).map(({ product: p, label, remaining, soldOut }) => (
-                  <div key={p.id} className="flex items-stretch gap-1">
-                    <button
-                      type="button"
-                      disabled={soldOut}
-                      onClick={() => addStockProduct(p)}
-                      className={`flex flex-1 items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${
-                        soldOut
-                          ? 'cursor-not-allowed border-neutral-900 bg-neutral-950 text-neutral-600'
-                          : 'border-neutral-800 bg-black text-neutral-300 hover:border-emerald-500/40 hover:text-white'
-                      }`}
-                    >
-                      <span className="min-w-0 pr-2">
-                        <span className="block truncate">{label}</span>
-                        <span className={`block text-[10px] ${soldOut ? 'text-rose-400' : 'text-neutral-500'}`}>
-                          {soldOut ? 'Out of stock' : `${remaining} of ${p.stock} available`}
-                        </span>
+            <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {catalogueRows.map((row) => (
+                <div key={row.id} className="flex items-stretch gap-1">
+                  <button
+                    type="button"
+                    data-testid={`catalogue-${row.id}`}
+                    disabled={row.disabled}
+                    onClick={() => addFromCatalogue(row)}
+                    className={`flex flex-1 items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${
+                      row.disabled
+                        ? 'cursor-not-allowed border-neutral-900 bg-neutral-950 text-neutral-600'
+                        : 'border-neutral-800 bg-black text-neutral-300 hover:border-emerald-500/40 hover:text-white'
+                    }`}
+                  >
+                    <span className="min-w-0 pr-2">
+                      <span className="block truncate">{row.label}</span>
+                      <span className={`block text-[10px] ${row.disabled ? 'text-rose-400' : 'text-neutral-500'}`}>
+                        {row.hint ?? row.category}
                       </span>
-                      <span className="font-mono font-semibold text-emerald-400">£{p.price.toFixed(2)}</span>
-                    </button>
+                    </span>
+                    <span className={`font-mono font-semibold ${row.price === undefined ? 'text-neutral-500' : 'text-emerald-400'}`}>
+                      {row.price === undefined ? 'set price' : `£${row.price.toFixed(2)}`}
+                    </span>
+                  </button>
+                  {row.kind === 'stock' && row.productId && (
                     <button
                       type="button"
-                      onClick={() => setQrProduct(p)}
-                      title="Print this item's QR code"
-                      aria-label={`Print QR code for ${label}`}
+                      onClick={() => {
+                        const product = stockProducts.find((p) => p.id === row.productId);
+                        if (product) setQrProduct(product);
+                      }}
+                      title={`Print QR code for ${row.label}`}
+                      aria-label={`Print QR code for ${row.label}`}
                       className="shrink-0 rounded-xl border border-neutral-800 px-2 text-neutral-400 hover:border-emerald-500/40 hover:text-emerald-400"
                     >
                       <QrCode className="w-3.5 h-3.5" />
                     </button>
-                  </div>
-                ))}
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
+
+        {/* Manual job calculator — add up a bespoke job and bill it as one line */}
+        <TillCalculator onAddLine={addLine} isDark={theme === 'dark'} />
 
         {/* Basket */}
         <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
@@ -620,12 +671,26 @@ export const CounterSaleTab: React.FC = () => {
           ) : (
             <div className="divide-y divide-neutral-900">
               {lines.map((l) => (
-                <div key={l.id} className="flex items-center gap-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-white">{l.description}</div>
-                    <div className="text-[11px] text-neutral-500">
-                      {l.category} · £{l.unitPrice.toFixed(2)} each
-                    </div>
+                <div key={l.id} data-testid={`till-line-${l.id}`} className="flex items-center gap-2 py-2">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <input
+                      value={l.description}
+                      onChange={(e) => setDescription(l.id, e.target.value)}
+                      aria-label={`Description for ${l.description}`}
+                      className="w-full rounded-lg border border-neutral-800 bg-black px-2 py-1 text-sm text-white outline-none focus:border-emerald-500"
+                    />
+                    <select
+                      value={l.category}
+                      onChange={(e) => setCategory(l.id, e.target.value as SaleLineItem['category'])}
+                      aria-label={`Category for ${l.description}`}
+                      className="rounded-lg border border-neutral-800 bg-black px-2 py-1 text-[11px] text-neutral-300 outline-none focus:border-emerald-500"
+                    >
+                      {CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -635,7 +700,14 @@ export const CounterSaleTab: React.FC = () => {
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
-                    <span className="w-6 text-center text-sm font-semibold text-white">{l.quantity}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={l.quantity}
+                      onChange={(e) => setQty(l.id, Number(e.target.value))}
+                      aria-label={`Quantity for ${l.description}`}
+                      className="w-12 rounded-lg border border-neutral-800 bg-black px-1 py-1 text-center text-sm font-semibold text-white outline-none focus:border-emerald-500"
+                    />
                     <button
                       type="button"
                       onClick={() => changeQty(l.id, 1)}
@@ -644,8 +716,20 @@ export const CounterSaleTab: React.FC = () => {
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                   </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-neutral-500">£</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={l.unitPrice}
+                      onChange={(e) => setPrice(l.id, Number(e.target.value))}
+                      aria-label={`Unit price for ${l.description}`}
+                      className="w-20 rounded-lg border border-neutral-800 bg-black px-2 py-1 text-right font-mono text-sm text-white outline-none focus:border-emerald-500"
+                    />
+                  </div>
                   <div className="w-16 text-right font-mono text-sm text-white">
-                    £{(l.quantity * l.unitPrice).toFixed(2)}
+                    £{lineTotal(l).toFixed(2)}
                   </div>
                   <button
                     type="button"
