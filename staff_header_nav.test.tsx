@@ -43,6 +43,7 @@ vi.mock('./src/utils/pushNotifications', () => ({
 }));
 
 import App from './src/App';
+import { isWebsiteSurface } from './src/config/surface';
 
 beforeEach(() => {
   cleanup();
@@ -62,6 +63,14 @@ describe('staff header navigation', () => {
   it('still shows staff tools to a signed-in staff user', () => {
     hoisted.user = { uid: 's1', displayName: 'Sam Staff', membershipNumber: '001', role: 'staff' };
     render(<App />);
-    expect(screen.getByRole('tab', { name: /Staff Terminal/i })).toBeTruthy();
+    // The website surface ships a public-only shell (guest booking + marketing
+    // site) with no tabbed nav at all, so it must never surface a staff door;
+    // the Staff Terminal tab only exists on surfaces that render the nav.
+    const staffTab = screen.queryByRole('tab', { name: /Staff Terminal/i });
+    if (isWebsiteSurface) {
+      expect(staffTab).toBeNull();
+      return;
+    }
+    expect(staffTab).toBeTruthy();
   });
 });
