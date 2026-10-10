@@ -19,9 +19,13 @@ import {
   Target,
   ChevronDown,
   ChevronRight,
+  BarChart3,
+  Megaphone,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { BusinessPerformanceTab } from './BusinessPerformanceTab';
+import { BusinessStats } from './BusinessStats';
+import { SocialPromoter } from './SocialPromoter';
 import { EngagementPanel } from './EngagementPanel';
 import {
   weeklyServiceRequests,
@@ -86,6 +90,8 @@ const STATUS_LABEL: Record<string, string> = {
 export const PerformanceTracker: React.FC = () => {
   const { bookings, users } = useShop();
   const [showGrowth, setShowGrowth] = useState(true);
+  const [showStats, setShowStats] = useState(true);
+  const [showPromote, setShowPromote] = useState(false);
 
   const week = useMemo(() => weeklyServiceRequests(bookings), [bookings]);
   const summary = useMemo(() => summarizePerformance(bookings), [bookings]);
@@ -153,6 +159,54 @@ export const PerformanceTracker: React.FC = () => {
 
       {/* Member engagement: activity, popular features, promotions */}
       <EngagementPanel />
+
+      {/* Detailed business stats: Meta reach + shop-side performance */}
+      <div className={cardCls}>
+        <button
+          type="button"
+          onClick={() => setShowStats((s) => !s)}
+          className="w-full flex items-center justify-between gap-3 text-left cursor-pointer"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold text-neutral-200">
+            <BarChart3 className="w-4 h-4 text-emerald-400" />
+            Business Stats — detailed view
+          </span>
+          {showStats ? (
+            <ChevronDown className="w-4 h-4 text-neutral-400" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-neutral-400" />
+          )}
+        </button>
+        {showStats && (
+          <div className="mt-5">
+            <BusinessStats />
+          </div>
+        )}
+      </div>
+
+      {/* Promote to Social */}
+      <div className={cardCls}>
+        <button
+          type="button"
+          onClick={() => setShowPromote((s) => !s)}
+          className="w-full flex items-center justify-between gap-3 text-left cursor-pointer"
+        >
+          <span className="flex items-center gap-2 text-sm font-bold text-neutral-200">
+            <Megaphone className="w-4 h-4 text-emerald-400" />
+            Promote to Social — Facebook &amp; Instagram
+          </span>
+          {showPromote ? (
+            <ChevronDown className="w-4 h-4 text-neutral-400" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-neutral-400" />
+          )}
+        </button>
+        {showPromote && (
+          <div className="mt-5">
+            <SocialPromoter />
+          </div>
+        )}
+      </div>
 
       {/* Weekly requests + channel split */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

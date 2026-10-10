@@ -3,6 +3,12 @@ import express from 'express';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import {
+  resolveManagedPage,
+  publishToPage,
+  publishToInstagram,
+  fetchPagePosts,
+} from './api/meta/_shared.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -247,6 +253,59 @@ async function exchangeMetaLongLived(clientId: string, clientSecret: string, sho
    */
   app.get('/api/business/status', (_req, res) => {
     res.json({ meta: { serverManaged: Boolean(process.env.META_SYSTEM_USER_TOKEN) } });
+  });
+
+  /* ------------------------------------------------------------------ *
+   * Meta publishing. Reads AND writes use the server-managed system-user
+   * token; the Page token is resolved server-side and never sent to the
+   * browser. Mirrors api/meta/*.js for the static Vercel deployment.
+   * ------------------------------------------------------------------ */
+  app.post('/api/meta/publish', async (req, res) => {
+    const token = process.env.META_SYSTEM_USER_TOKEN;
+    if (!token) return res.status(401).json({ error: 'not_configured' });
+
+    const { target, message, imageUrl, pageId } = req.body || {};
+    if (!target || !['facebook', 'instagram'].includes(target)) {
+      return res.status(400).json({ error: 'target must be facebook or instagram' });
+    }
+    if (!message || !String(message).trim()) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    try {
+      const resolved = await resolveManagedPage(token, pageId);
+      if (resolved.error) return res.status(resolved.error.status).json(resolved.error.data);
+      const { page, igId } = resolved;
+
+      if (target === 'instagram') {
+        if (!igId) return res.status(404).json({ error: 'No Instagram account is linked to the Page' });
+        const result = await publishToInstagram(igId, page.access_token, message, imageUrl);
+        if (result.error) return res.status(result.error.status).json(result.error.data);
+        return res.json({ id: result.id, target: 'instagram' });
+      }
+
+      const result = await publishToPage(page.access_token, page.id, message, imageUrl);
+      if (result.error) return res.status(result.error.status).json(result.error.data);
+      return res.json({ id: result.id, target: 'facebook' });
+    } catch (error) {
+      console.error('Meta publish error:', error);
+      res.status(500).json({ error: 'Publish failed' });
+    }
+  });
+
+  app.get('/api/meta/posts', async (req, res) => {
+    const token = process.env.META_SYSTEM_USER_TOKEN;
+    if (!token) return res.json({ posts: [] });
+    try {
+      const resolved = await resolveManagedPage(token, req.query?.pageId);
+      if (resolved.error) return res.status(resolved.error.status).json(resolved.error.data);
+      const result = await fetchPagePosts(resolved.page.access_token, resolved.page.id);
+      if (result.error) return res.status(result.error.status).json(result.error.data);
+      res.json({ posts: result.posts, page: { id: resolved.page.id, name: resolved.page.name } });
+    } catch (error) {
+      console.error('Meta posts error:', error);
+      res.json({ posts: [] });
+    }
   });
 
   /* ------------------------------------------------------------------ *
