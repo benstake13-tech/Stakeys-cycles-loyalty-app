@@ -42,6 +42,8 @@ import { WeatherForecast } from './weather/WeatherForecast';
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
   onBookService: () => void;
+/** Which surface is showing the site: the public website or the embedded customer-app tab. */
+  context?: 'public' | 'embedded';
 }
 
 const CART_TITLE = 'Your Basket';
@@ -55,10 +57,11 @@ function isCheckoutReady(name: string, contact: string, itemCount: number): bool
   return itemCount > 0 && name.trim().length > 1 && contact.trim().length > 4;
 }
 
-export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService }) => {
+export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, context = 'public' }) => {
   const { currentUser, theme, promotions, discountCodes, recordDiscountUsage } = useShop();
   const content = useWebsiteContent();
   const isDark = theme === 'dark';
+  const isEmbedded = context === 'embedded';
 
   const livePromotions = promotions.filter((p) => p.status === 'active');
   // Live codes plus the curated public set, so the coupon panel works before
@@ -482,6 +485,13 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
             <span className="w-1.5 h-1.5 rounded-full bg-[#05C147] animate-pulse" />
             {content.heroBadge}
           </span>
+          <span
+            data-testid="website-context-badge"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'border-neutral-700 bg-neutral-900/70 text-neutral-400' : 'border-neutral-200 bg-white/80 text-neutral-500'}`}
+          >
+            <Globe className="w-3 h-3" />
+            {isEmbedded ? 'Customer app preview' : 'Public website'}
+          </span>
           <h2 className={`font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.05] ${isDark ? 'text-white' : 'text-neutral-900'}`}>
             Stakey's{' '}
             <span className="bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent">
@@ -489,7 +499,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
             </span>
           </h2>
           <p className={`text-base font-bold ${isDark ? 'text-emerald-200/90' : 'text-emerald-700'}`}>
-            {content.heroSubtitle}
+            {content.homeHeadlineOverride?.[context] || content.heroSubtitle}
           </p>
           <p className={`text-sm leading-relaxed max-w-xl ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
             {content.heroBlurb}
@@ -516,7 +526,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
               className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer hover:scale-[1.02]"
             >
               <CalendarCheck className="w-4 h-4" />
-              {content.calloutCta}
+              {isEmbedded ? 'Book a repair' : content.calloutCta}
             </button>
             <a
               href={call}
@@ -527,8 +537,26 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
             </a>
           </div>
         </div>
-        {promotionsPanel}
-        {couponPanel}
+        {/* Quality claim — the "show big companies how it's done" promise leads the hero. */}
+        <div
+          data-testid="hero-quality-claim"
+          className={`relative rounded-[1.75rem] border p-6 sm:p-8 shadow-xl ${isDark ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}
+        >
+          <Sparkles className="w-7 h-7 text-emerald-500" />
+          <p className={`mt-3 text-lg sm:text-xl font-display font-black leading-snug ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+            {content.brandStory.qualityClaim}
+          </p>
+          <div className={`mt-4 space-y-2 border-t border-dashed pt-4 ${isDark ? 'border-neutral-800' : 'border-neutral-200'}`}>
+            {content.brandStory.howWeWorkSteps.slice(0, 3).map((step, i) => (
+              <div key={step.title} className="flex items-start gap-3">
+                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-black text-emerald-500">
+                  {i + 1}
+                </span>
+                <span className={`text-xs font-semibold ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>{step.title}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -579,14 +607,58 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
     </div>
   );
 
-  const discountStrip = liveDiscountCodes.length > 0 && (
-    <div className={`rounded-3xl border p-5 sm:p-6 shadow-lg ${isDark ? 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <BadgePoundSterling className="w-5 h-5 text-emerald-500" />
-          <h3 className={`text-base font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-            Current discount codes
-          </h3>
+  const brandStoryBlock = (
+    <div data-testid="home-brand-story" className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-white/80'}`}>
+      <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+        {content.brandStory.eyebrow}
+      </span>
+      <h3 className={`mt-1 font-display text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+        {content.brandStory.title}
+      </h3>
+      <p className={`mt-3 text-sm leading-relaxed max-w-3xl ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
+        {content.brandStory.body}
+      </p>
+      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+        {content.brandStory.bullets.map((b) => (
+          <li key={b} className={`flex items-start gap-2 text-xs leading-relaxed ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
+            <Check className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <h4 className={`mt-6 text-xs font-black uppercase tracking-widest ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>
+        {content.brandStory.howWeWorkTitle}
+      </h4>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {content.brandStory.howWeWorkSteps.map((step, i) => (
+          <div key={step.title} className={`rounded-2xl border p-4 ${isDark ? 'border-neutral-800 bg-neutral-950/60' : 'border-neutral-200 bg-neutral-50/70'}`}>
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-[11px] font-black text-emerald-500">
+              {i + 1}
+            </span>
+            <h5 className={`mt-2 text-xs font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{step.title}</h5>
+            <p className={`mt-1 text-[11px] leading-relaxed ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{step.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Discount codes are demoted to a single secondary row below the brand story.
+  const offersTeaser = (
+    <div data-testid="home-offers-teaser" className={`rounded-3xl border p-5 sm:p-6 ${isDark ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-500/8 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <BadgePoundSterling className="w-6 h-6 text-emerald-500" />
+          <div>
+            <h3 className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+              {liveDiscountCodes.length > 0
+                ? `${liveDiscountCodes.length} live offer${liveDiscountCodes.length === 1 ? '' : 's'} running`
+                : 'Offers & member rewards'}
+            </h3>
+            <p className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+              Loyalty stamps, member codes and seasonal deals — kept out of the way until you want them.
+            </p>
+          </div>
         </div>
         <button
           type="button"
@@ -595,34 +667,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         >
           <Tag className="w-3.5 h-3.5" /> See all offers
         </button>
-      </div>
-      <p className={`text-xs leading-relaxed mt-1.5 ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-        Tap a code to drop it straight into your basket — public codes work for everyone, member codes unlock when you sign in.
-      </p>
-      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-        {liveDiscountCodes.slice(0, 4).map((coupon) => (
-          <button
-            key={coupon.id}
-            type="button"
-            onClick={() => useCoupon(coupon)}
-            className={`pressable text-left rounded-2xl border p-3 space-y-1 cursor-pointer transition-colors ${
-              isDark
-                ? 'border-neutral-800 bg-neutral-900/70 hover:border-emerald-500/50'
-                : 'border-neutral-200 bg-white/80 hover:border-emerald-500/50'
-            }`}
-          >
-            <span className="block rounded-lg border border-dashed border-emerald-500/50 px-2 py-1 font-mono text-[11px] font-black text-emerald-500 text-center">
-              {coupon.code}
-            </span>
-            <span className={`block text-[11px] font-bold leading-snug ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>
-              {coupon.title}
-            </span>
-            <span className={`block text-[10px] font-bold ${coupon.audience === 'member' ? 'text-emerald-400' : isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-              {coupon.type === 'percent' ? `${coupon.value}% off` : `£${coupon.value} off`}
-              {coupon.audience === 'member' ? ' · Members' : ''}
-            </span>
-          </button>
-        ))}
       </div>
     </div>
   );
@@ -1316,8 +1360,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService })
         return (
           <div className="space-y-6">
             {heroCard}
-            {discountStrip}
+            {brandStoryBlock}
             {valueBand}
+            {offersTeaser}
             {reviewCard}
             {footerBar}
           </div>

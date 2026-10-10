@@ -284,7 +284,7 @@ function AppContent() {
           {showGuestBooking ? (
             <BookingPortal onBookingComplete={() => setShowGuestBooking(false)} />
           ) : (
-            <WebsiteReplica onBookService={() => setShowGuestBooking(true)} />
+            <WebsiteReplica context="public" onBookService={() => setShowGuestBooking(true)} />
           )}
         </main>
         <ShopAssistant surface="website" />
@@ -376,7 +376,7 @@ function AppContent() {
             </div>
           </header>
           <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <WebsiteReplica onBookService={() => setShowGuestBooking(true)} />
+            <WebsiteReplica context="public" onBookService={() => setShowGuestBooking(true)} />
           </main>
           <ShopAssistant surface="website" />
         </div>
@@ -528,7 +528,7 @@ function AppContent() {
         <div className="min-w-0">
           {activeTab === 'customer' && <CustomerPortal />}
           {activeTab === 'booking' && <BookingPortal />}
-          {activeTab === 'website' && <WebsiteReplica onBookService={handleWebsiteBookService} />}
+          {activeTab === 'website' && <WebsiteReplica context="embedded" onBookService={handleWebsiteBookService} />}
           {activeTab === 'promotions' && <PromotionsCarousel />}
           {activeTab === 'staff' &&
             (isStaff ? (

@@ -51,6 +51,19 @@ function clone(content: WebsiteContent): WebsiteContent {
   return JSON.parse(JSON.stringify(content)) as WebsiteContent;
 }
 
+/**
+ * Saved drafts (and Supabase rows) can predate newer content fields. Fill any
+ * missing brand-story block/arrays from the defaults so the Home page never
+ * renders a blank section for a returning visitor.
+ */
+function normalizeContent(content: WebsiteContent): WebsiteContent {
+  const defaults = clone(DEFAULT_WEBSITE_CONTENT);
+  const brand = { ...defaults.brandStory, ...(content.brandStory || {}) };
+  brand.bullets = brand.bullets?.length ? brand.bullets : defaults.brandStory.bullets;
+  brand.howWeWorkSteps = brand.howWeWorkSteps?.length ? brand.howWeWorkSteps : defaults.brandStory.howWeWorkSteps;
+  return { ...content, brandStory: brand };
+}
+
 let isSyncing = false;
 export async function syncFromSupabase(): Promise<void> {
   if (isSyncing || typeof window === 'undefined') return;
@@ -70,7 +83,7 @@ export async function syncFromSupabase(): Promise<void> {
       merged.shopDisclaimers = merged.shopDisclaimers ?? clone(DEFAULT_WEBSITE_CONTENT).shopDisclaimers;
       merged.siteAnnouncements = merged.siteAnnouncements ?? clone(DEFAULT_WEBSITE_CONTENT).siteAnnouncements;
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-      cached = merged;
+      cached = normalizeContent(merged);
       notify();
       console.log('[WEBSITE CONTENT] Successfully synchronized with Supabase.');
     }
@@ -108,7 +121,7 @@ export function getWebsiteContent(): WebsiteContent {
         // returning visitor's saved draft is cleaned, not just new installs.
         if (isCarriedImage(merged.locationImage)) merged.locationImage = '';
         merged.galleryImages = (merged.galleryImages ?? []).filter((g) => !isCarriedImage(g.url));
-        cached = merged;
+        cached = normalizeContent(merged);
         return cached!;
       }
     } catch (err) {
