@@ -27,15 +27,42 @@ async function startServer() {
     },
   } as const;
 
+function resolveOAuth(provider: string) {
+  const cfg = OAUTH_CONFIG[provider as keyof typeof OAUTH_CONFIG];
+  if (!cfg) return { error: { status: 400, body: { error: 'Unknown provider' } } };
+  const clientId = cfg.clientId();
+  const clientSecret = cfg.clientSecret();
+  if (!clientId || !clientSecret) {
+    return { error: { status: 500, body: { error: `${provider} OAuth is not configured on the server` } } };
+  }
+  return { cfg, clientId, clientSecret };
+}
+
+/**
+ * Meta has no refresh-token grant; swap a short-lived token for a ~60-day
+ * long-lived one via `fb_exchange_token`. Best-effort (null on failure).
+ */
+async function exchangeMetaLongLived(clientId: string, clientSecret: string, shortToken: string) {
+  const url = new URL('https://graph.facebook.com/v21.0/oauth/access_token');
+  url.searchParams.set('grant_type', 'fb_exchange_token');
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('client_secret', clientSecret);
+  url.searchParams.set('fb_exchange_token', shortToken);
+  try {
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    if (!response.ok || !data?.access_token) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
   app.post('/api/oauth/token', async (req, res) => {
     const { provider, code, codeVerifier, redirectUri } = req.body || {};
-    const cfg = OAUTH_CONFIG[provider as keyof typeof OAUTH_CONFIG];
-    if (!cfg) return res.status(400).json({ error: 'Unknown provider' });
-    const clientId = cfg.clientId();
-    const clientSecret = cfg.clientSecret();
-    if (!clientId || !clientSecret) {
-      return res.status(500).json({ error: `${provider} OAuth is not configured on the server` });
-    }
+    const resolved = resolveOAuth(provider);
+    if (resolved.error) return res.status(resolved.error.status).json(resolved.error.body);
+    const { cfg, clientId, clientSecret } = resolved;
 
     try {
       const params = new URLSearchParams({
@@ -53,6 +80,11 @@ async function startServer() {
       });
       const data = await response.json();
       if (!response.ok) return res.status(response.status).json(data);
+
+      if (provider === 'meta' && data?.access_token) {
+        const longLived = await exchangeMetaLongLived(clientId, clientSecret, data.access_token);
+        if (longLived) return res.json(longLived);
+      }
       res.json(data);
     } catch (error) {
       console.error('OAuth token exchange error:', error);
@@ -62,15 +94,17 @@ async function startServer() {
 
   app.post('/api/oauth/refresh', async (req, res) => {
     const { provider, refreshToken } = req.body || {};
-    const cfg = OAUTH_CONFIG[provider as keyof typeof OAUTH_CONFIG];
-    if (!cfg) return res.status(400).json({ error: 'Unknown provider' });
-    const clientId = cfg.clientId();
-    const clientSecret = cfg.clientSecret();
-    if (!clientId || !clientSecret) {
-      return res.status(500).json({ error: `${provider} OAuth is not configured on the server` });
-    }
+    const resolved = resolveOAuth(provider);
+    if (resolved.error) return res.status(resolved.error.status).json(resolved.error.body);
+    const { cfg, clientId, clientSecret } = resolved;
 
     try {
+      if (provider === 'meta') {
+        const longLived = await exchangeMetaLongLived(clientId, clientSecret, refreshToken);
+        if (!longLived) return res.status(400).json({ error: 'Token refresh failed' });
+        return res.json(longLived);
+      }
+
       const params = new URLSearchParams({
         client_id: clientId,
         client_secret: clientSecret,

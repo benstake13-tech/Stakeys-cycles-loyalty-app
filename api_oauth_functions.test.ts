@@ -5,7 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * (dev) and the Vercel functions under api/. These tests pin the production
  * functions so the deployed Growth tab behaves like the dev server.
  */
-import { resolveProvider, exchangeToken } from './api/oauth/_shared.js';
+import { resolveProvider, exchangeToken, exchangeMetaLongLived } from './api/oauth/_shared.js';
 import tokenHandler from './api/oauth/token.js';
 import refreshHandler from './api/oauth/refresh.js';
 import insightsHandler from './api/business/insights.js';
@@ -99,6 +99,26 @@ describe('api/oauth/token handler', () => {
     expect(res.body.access_token).toBe('AT');
   });
 
+  it('swaps the Meta short-lived token for a long-lived one', async () => {
+    process.env.VITE_META_APP_ID = ENV.VITE_META_APP_ID;
+    process.env.META_APP_SECRET = ENV.META_APP_SECRET;
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        calls.push(String(url));
+        if (String(url).includes('fb_exchange_token')) {
+          return { ok: true, status: 200, json: async () => ({ access_token: 'LONG_LIVED', expires_in: 5184000 }) };
+        }
+        return { ok: true, status: 200, json: async () => ({ access_token: 'SHORT', expires_in: 3600 }) };
+      })
+    );
+    const res = mockRes();
+    await tokenHandler({ method: 'POST', body: { provider: 'meta', code: 'c' } }, res);
+    expect(res.body.access_token).toBe('LONG_LIVED');
+    expect(calls.some((u) => u.includes('fb_exchange_token'))).toBe(true);
+  });
+
   it('passes a provider error through with its upstream status', async () => {
     process.env.VITE_META_APP_ID = ENV.VITE_META_APP_ID;
     process.env.META_APP_SECRET = ENV.META_APP_SECRET;
@@ -120,6 +140,21 @@ describe('api/oauth/refresh handler', () => {
     await refreshHandler({ method: 'POST', body: { provider: 'meta', refreshToken: 'rt' } }, res);
     expect(res.statusCode).toBe(200);
     expect(res.body.access_token).toBe('NEW');
+  });
+});
+
+describe('exchangeMetaLongLived', () => {
+  it('requests a long-lived token via fb_exchange_token', async () => {
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ access_token: 'LL' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    const out = await exchangeMetaLongLived('appid', 'secret', 'short');
+    expect(out.access_token).toBe('LL');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('grant_type=fb_exchange_token');
+  });
+
+  it('returns null when the swap fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: 'x' }) })));
+    expect(await exchangeMetaLongLived('a', 's', 't')).toBeNull();
   });
 });
 

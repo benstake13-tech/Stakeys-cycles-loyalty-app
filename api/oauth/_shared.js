@@ -53,3 +53,25 @@ export async function exchangeToken(tokenUrl, params) {
   const data = await response.json();
   return { status: response.status, ok: response.ok, data };
 }
+
+/**
+ * Meta returns a short-lived (~1h) user token from the code exchange and has no
+ * refresh-token grant, so the app would silently drop the connection after an
+ * hour. Swap it for a long-lived (~60 day) token via `fb_exchange_token`.
+ * Best-effort: if the swap fails we keep the original token.
+ */
+export async function exchangeMetaLongLived(clientId, clientSecret, shortToken, env = process.env) {
+  const url = new URL(env.META_TOKEN_URL || 'https://graph.facebook.com/v21.0/oauth/access_token');
+  url.searchParams.set('grant_type', 'fb_exchange_token');
+  url.searchParams.set('client_id', clientId);
+  url.searchParams.set('client_secret', clientSecret);
+  url.searchParams.set('fb_exchange_token', shortToken);
+  try {
+    const response = await fetch(url.toString());
+    const data = await response.json();
+    if (!response.ok || !data?.access_token) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
