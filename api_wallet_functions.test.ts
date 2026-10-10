@@ -15,9 +15,15 @@ import {
   APPLE_ENV_NAMES,
   GOOGLE_ENV_NAMES,
 } from './api/wallet/_shared.js';
-import configHandler from './api/wallet/config.js';
-import googleHandler from './api/wallet/google.js';
-import appleHandler from './api/wallet/apple.js';
+import walletHandler from './api/wallet/[action].js';
+// The wallet endpoints are one Vercel function dispatched by path segment; these
+// wrappers reproduce the old per-file handlers so the assertions stay unchanged.
+const configHandler = (req: any, res: any) =>
+  walletHandler({ ...req, query: { ...(req?.query || {}), action: 'config' } }, res);
+const googleHandler = (req: any, res: any) =>
+  walletHandler({ ...req, query: { ...(req?.query || {}), action: 'google' } }, res);
+const appleHandler = (req: any, res: any) =>
+  walletHandler({ ...req, query: { ...(req?.query || {}), action: 'apple' } }, res);
 
 /**
  * Wallet passes are gated on server-only signing material. These tests pin the

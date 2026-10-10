@@ -1656,7 +1656,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
           return {
             status: 'fail',
             detail: `Endpoint returned ${res.status} ${friendlyType(res)} — no JSON config.`,
-            hint: 'The production host has no /api/onesignal/config function, so server pushes never fire (the SPA rewrite returns index.html). Deploy api/onesignal/config.js and set ONESIGNAL_REST_API_KEY.',
+            hint: 'The production host has no /api/onesignal/config function, so server pushes never fire (the SPA rewrite returns index.html). Deploy the /api/onesignal function and set ONESIGNAL_REST_API_KEY.',
           };
         }
         if (data.appId && data.serverPush) {
@@ -1696,7 +1696,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
           return {
             status: 'fail',
             detail: `Endpoint returned ${res.status} ${friendlyType(res)} — no JSON.`,
-            hint: 'Deploy api/onesignal/notify.js (production) so server pushes have somewhere to go.',
+            hint: 'Deploy the /api/onesignal function (production) so server pushes have somewhere to go.',
           };
         }
         // OneSignal reports { id, recipients } or { errors:[...] }. An unknown

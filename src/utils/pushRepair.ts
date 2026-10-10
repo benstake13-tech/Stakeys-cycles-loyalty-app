@@ -442,7 +442,7 @@ export async function runPushRepair(
         label: 'Test push dispatch',
         status: 'fail',
         detail: 'Push dispatch did not return a usable response.',
-        hint: 'Deploy api/onesignal/notify.js and set ONESIGNAL_REST_API_KEY (or VITE_ONESIGNAL_REST_API_KEY) on the server.',
+        hint: 'Deploy the /api/onesignal function and set ONESIGNAL_REST_API_KEY (or VITE_ONESIGNAL_REST_API_KEY) on the server.',
         facts: dispatchFacts,
       });
     }
