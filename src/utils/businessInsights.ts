@@ -91,6 +91,71 @@ async function proxyFetch(
   return { ok: true, data, error: null };
 }
 
+/**
+ * True when Graph rejected the call because a metric name is invalid/retired.
+ * Meta retires Page metrics on a rolling schedule and answers with #100
+ * "The value must be a valid insights metric".
+ */
+function isInvalidMetricError(data: any): boolean {
+  const e = data?.error;
+  const message = String((e && typeof e === 'object' ? e.message : e) || '').toLowerCase();
+  const code = e && typeof e === 'object' ? e.code : undefined;
+  return (
+    (code === 100 || message.includes('#100')) &&
+    (message.includes('valid insights metric') ||
+      message.includes('insights metric') ||
+      message.includes('invalid metric'))
+  );
+}
+
+/**
+ * Reads Page metric series, surviving Meta's rolling metric retirements.
+ *
+ * Graph fails the WHOLE batched call with #100 when even one requested metric
+ * has been retired, which is why the Growth tab keeps breaking: every time Meta
+ * retires a Page metric the single batched request returns nothing. When — and
+ * only when — the batch fails that way, we retry each metric on its own and keep
+ * the ones this Page/version still serves, so one retired metric can no longer
+ * blank out the whole panel. Any other error (auth, rate limit) is returned
+ * untouched so the UI can show the real reason.
+ */
+async function fetchMetaMetricRows(
+  pageId: string,
+  pageToken: string | undefined,
+  period: string
+): Promise<{ rows: any[]; ok: boolean; error: string | null }> {
+  const metrics = META_DAILY_METRICS.split(',');
+
+  const batched = await proxyFetch('meta', `${pageId}/insights`, { metric: META_DAILY_METRICS, period }, pageToken);
+  if (batched.ok && !isInvalidMetricError(batched.data)) {
+    return { rows: batched.data?.data || [], ok: true, error: null };
+  }
+  if (batched.ok || !isInvalidMetricError(batched.data)) {
+    return { rows: [], ok: false, error: batched.error };
+  }
+
+  const rows: any[] = [];
+  const unavailable: string[] = [];
+  await Promise.all(
+    metrics.map(async (metric) => {
+      const one = await proxyFetch('meta', `${pageId}/insights`, { metric, period }, pageToken);
+      if (one.ok) rows.push(...(one.data?.data || []));
+      else unavailable.push(metric);
+    })
+  );
+
+  // When some metrics survive, report which ones this Page/version dropped;
+  // when none do, keep the original Graph error so the UI shows the real cause.
+  if (unavailable.length === metrics.length) {
+    return { rows: [], ok: false, error: batched.error };
+  }
+  return {
+    rows,
+    ok: true,
+    error: unavailable.length ? `${unavailable.join(', ')} no longer supported by this API version` : null,
+  };
+}
+
 export async function fetchGoogleInsights(): Promise<BusinessInsights> {
   const accounts = await proxyFetch('google', 'accounts');
   if (!accounts.ok) {
@@ -155,21 +220,11 @@ export async function fetchMetaInsights(): Promise<BusinessInsights> {
   // only if Meta omitted it so the request still surfaces a real API error.
   const pageToken: string | undefined = page.access_token;
 
-  // Only request metrics Graph v21 still serves on this Page. The previous set
-  // (page_impressions / page_engaged_users / page_fan_adds) was retired and made
-  // the whole call fail with #100 "must be a valid insights metric".
-  const insights = await proxyFetch(
-    'meta',
-    `${page.id}/insights`,
-    {
-      metric:
-        'page_media_view,page_total_media_view_unique,page_post_engagements,page_follows,page_views_total,page_video_views',
-      period: 'days_28',
-    },
-    pageToken
-  );
+  // Read the metric series tolerantly: Meta retires Page metrics on a rolling
+  // schedule and a single retired name fails the whole batched call with #100.
+  const insights = await fetchMetaMetricRows(page.id, pageToken, 'days_28');
 
-  const rows: any[] = insights.data?.data || [];
+  const rows: any[] = insights.rows;
   const byName: Record<string, number> = {};
   rows.forEach((row) => {
     // days_28 metrics return a series; take the most recent bucket. Some rows
@@ -194,9 +249,9 @@ export async function fetchMetaInsights(): Promise<BusinessInsights> {
       { label: 'Followers', value: fmt(byName.page_follows ?? page.followers_count ?? page.fan_count), hint: 'Total Page followers' },
     ],
     message: rows.length
-      ? undefined
+      ? insights.error || undefined
       : insights.ok
-        ? 'Connected, but Meta returned no insights for this Page.'
+        ? insights.error || 'Connected, but Meta returned no insights for this Page.'
         : `Connected, but Meta rejected the insights request${insights.error ? ` (${insights.error})` : ''}.`,
   };
 }
@@ -235,13 +290,8 @@ export async function fetchMetaTimeline(): Promise<MetaTimelineResult> {
 
   const pageToken: string | undefined = page.access_token;
 
-  const daily = await proxyFetch(
-    'meta',
-    `${page.id}/insights`,
-    { metric: META_DAILY_METRICS, period: 'day' },
-    pageToken
-  );
-  const timeline = daily.ok ? buildMetaTimeline(daily.data?.data || []) : [];
+  const daily = await fetchMetaMetricRows(page.id, pageToken, 'day');
+  const timeline = daily.ok ? buildMetaTimeline(daily.rows) : [];
 
   // Instagram counts come from the linked business account; ignore failures so
   // the Facebook charts still render if IG is not reachable.
