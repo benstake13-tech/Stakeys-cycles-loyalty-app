@@ -336,3 +336,12 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - **`sync-verify.sh`** = parity + history + tests + tsc + 3 builds (6 steps). **`.githooks/pre-push`** now also runs the history check; `core.hooksPath=.githooks` set in this clone. **`SYNCING.md`** rewritten as the playbook; **`SYNC-PLAN.md`** at v2. `package.json` gained `check:history` + `network:status`.
 - Validated in a throwaway 3-branch repo: clean pick, idempotent re-run skips (no dup), incoming-wins-except-`surface.ts` conflict rule, surface-only commit refuses+aborts, drift detected.
 
+
+## Session 39 (2026-10-09) — AI spec capture, Meta prod functions, financials delete/reset
+- **Root cause (Meta in prod)**: client already calls `/api/oauth/token`, `/api/oauth/refresh`, `/api/business/insights`, but those routes existed ONLY in `server.ts` (dev) — the deployed Vercel site 404s them. Fix = add Vercel fns under `api/` mirroring `api/onesignal/*` (`export default async function handler(req,res)`). Vite dev server does NOT serve `api/` — only Vercel does.
+- `businessInsights.ts` now parses the Graph `{error:{message,type,error_user_msg}}` envelope (was `data?.error || 'request_failed'`). Server secrets (`META_APP_SECRET`, `GOOGLE_CLIENT_SECRET`) are per-Vercel-project env vars, never committed; `VITE_META_APP_ID=61595029330806` is in git-ignored `.env.local`.
+- Financials: ledger rows carry `recordId`; `FinancialReportingTab` has a per-row Delete (`delete-ledger-<channel>-<recordId>`) for till/online/workshop + a header "Reset all financials & bookings" (`reset-financials-bookings` → `resetBookingsAndFinancials()` + `hardResetApp()`). Workshop delete reuses context `deleteBooking`; local hide via `removedSaleIds`/`removedBookingIds` (component can't `setSales`).
+- `sync-branch.sh` refuses a dirty tree incl. untracked → move the user's untracked `.agents_tmp/PLAN.md` aside before `npm run sync`, restore after.
+- file_editor `create` can't make a NEW directory → `mkdir -p` first.
+- Heads (pushed): staff-terminal `40a6ddc` / customer-app `bcdddd6` / main-website `2cb40ea`. Suite 114 files / 871 tests (6 theme-id failures = paused theme WIP, not regressions). Detail in `2026-10-09.md`.
+
