@@ -9,7 +9,7 @@ import {
   publishToInstagram,
   fetchPagePosts,
 } from './api/meta/_shared.js';
-import { resolveWalletConfig, buildGoogleWalletSaveUrl } from './api/wallet/_shared.js';
+import { resolveWalletConfig, buildGoogleWalletSaveUrl, buildApplePass } from './api/wallet/_shared.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -363,6 +363,33 @@ async function exchangeMetaLongLived(clientId: string, clientSecret: string, sho
     }
   });
 
+  app.get('/api/wallet/apple', async (req, res) => {
+    const cfg = resolveWalletConfig();
+    if (!cfg.apple.configured) {
+      res.status(503).json({ error: 'Apple Wallet is not configured on this deployment.' });
+      return;
+    }
+    const membership = String(req.query.membership || '').trim();
+    if (!membership) {
+      res.status(400).json({ error: 'membership is required' });
+      return;
+    }
+    try {
+      const member = {
+        membershipNumber: membership,
+        displayName: String(req.query.name || 'Stakeys Member'),
+        stamps: Number(req.query.stamps) || 0,
+        points: Number(req.query.points) || 0,
+      };
+      const pass = await buildApplePass(member);
+      res.setHeader('Content-Type', 'application/vnd.apple.pkpass');
+      res.setHeader('Content-Disposition', `attachment; filename="${membership}.pkpass"`);
+      res.send(pass);
+    } catch (err: any) {
+      console.error('Apple Wallet pass error:', err);
+      res.status(500).json({ error: err?.message || 'Could not build the Apple Wallet pass.' });
+    }
+  });
 
   app.post('/api/onesignal/notify', async (req, res) => {
     const { title, body, url, externalUserId, email, segment, tag } = req.body || {};
