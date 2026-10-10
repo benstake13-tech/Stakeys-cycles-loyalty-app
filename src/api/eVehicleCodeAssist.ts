@@ -13,6 +13,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 import { resolveGeminiModel, noThinking } from './geminiModel';
+import { classifyVisionError, VisionErrorInfo } from './visionErrors';
 import {
   EVehicleCategory,
   EVehicleErrorDefinition,
@@ -52,10 +53,19 @@ export interface ECodeAssistResult {
   guidance: string;
   /** True when no catalogue codes could be matched (nothing useful to show). */
   empty: boolean;
+  /**
+   * Set when the AI call itself failed (bad key, quota, network) and the result
+   * fell back to deterministic matching. The UI surfaces this so a real API
+   * failure is not misreported as "AI not configured".
+   */
+  error?: VisionErrorInfo;
 }
 
 /** A purely deterministic failure/suggestion entry — used when the AI is unavailable. */
-const offlineGuidance = (req: ECodeAssistRequest): ECodeAssistResult => {
+const offlineGuidance = (
+  req: ECodeAssistRequest,
+  error?: VisionErrorInfo
+): ECodeAssistResult => {
   const codes = errorCodesFor(req.category, req.brand, req.model);
   // Keyword buckets map a symptom to the code(s) in THIS model's catalogue whose
   // title or description covers it — so a Xiaomi throttle symptom still finds
@@ -94,6 +104,7 @@ const offlineGuidance = (req: ECodeAssistRequest): ECodeAssistResult => {
     matches,
     guidance: 'AI assist is not configured on this build. Review all codes shown on the display and start with the highest-severity entry.',
     empty: matches.length === 0,
+    error,
   };
 };
 
@@ -164,7 +175,9 @@ export async function assistECodeLookup(req: ECodeAssistRequest): Promise<ECodeA
     });
 
     const text = response.text;
-    if (!text) return offline;
+    if (!text) {
+      return offlineGuidance(req, classifyVisionError(new Error('The AI returned an empty response.'), { configured: true }));
+    }
 
     const parsed = JSON.parse(extractJson(text));
     const rawMatches = Array.isArray(parsed?.matches) ? parsed.matches : [];
@@ -189,8 +202,11 @@ export async function assistECodeLookup(req: ECodeAssistRequest): Promise<ECodeA
       guidance: guidance || offline.guidance,
       empty: matches.length === 0,
     };
-  } catch {
-    return offline;
+  } catch (err) {
+    // Surface the real cause (quota, bad key, network) rather than silently
+    // pretending the AI is unconfigured.
+    const info = classifyVisionError(err, { configured: true });
+    return { ...offlineGuidance(req), guidance: info.message, error: info };
   } finally {
     clearTimeout(timer);
   }

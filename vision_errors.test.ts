@@ -31,6 +31,24 @@ describe('classifyVisionError', () => {
     expect(info.retryable).toBe(true);
   });
 
+  it('maps a depleted prepayment (402 / RESOURCE_EXHAUSTED) to a non-retryable QUOTA_EXHAUSTED', () => {
+    // The exact body the Gemini SDK throws when prepayment credits run out.
+    const body = JSON.stringify({
+      error: {
+        code: 402,
+        message: 'Your prepayment credits are depleted. Please go to AI Studio to manage your project and billing.',
+        status: 'RESOURCE_EXHAUSTED',
+      },
+    });
+    const info = classifyVisionError(new Error(body));
+    expect(info.kind).toBe('QUOTA_EXHAUSTED');
+    expect(info.retryable).toBe(false);
+    expect(info.transient).toBe(false);
+    // Never leak the raw JSON, and don't mistake it for a transient rate limit.
+    expect(info.message).not.toMatch(/[{}\[\]]/);
+    expect(info.message).toMatch(/credits|billing|quota/i);
+  });
+
   it('recognises an abort/timeout as TIMEOUT', () => {
     const abort = Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
     expect(classifyVisionError(abort, { timedOut: true }).kind).toBe('TIMEOUT');
