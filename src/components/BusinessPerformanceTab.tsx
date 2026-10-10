@@ -59,15 +59,14 @@ export const BusinessPerformanceTab: React.FC = () => {
     patch(provider, { insights, loading: false });
   }, []);
 
-  // On mount, load any already-authorised providers, plus any the server can
-  // read on its own (Meta via META_SYSTEM_USER_TOKEN) with no popup.
+  // On mount, always load Meta from the server-side token (no login), and load
+  // Google only when it is already authorised in this browser.
   useEffect(() => {
     void (async () => {
       await refreshServerManaged();
-      (['google', 'meta'] as OAuthProvider[]).forEach((provider) => {
-        const token = getStoredToken(provider);
-        if ((token && !isTokenExpired(token)) || isServerManaged(provider)) void load(provider);
-      });
+      void load('meta');
+      const googleToken = getStoredToken('google');
+      if (googleToken && !isTokenExpired(googleToken)) void load('google');
     })();
   }, [load]);
 
@@ -96,10 +95,9 @@ export const BusinessPerformanceTab: React.FC = () => {
           <div>
             <h3 className="text-xl font-bold text-white">Google &amp; Meta Business Performance</h3>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              Authorise Stakey's to read your business profiles and see how customers find the shop
-              across Google Search, Maps, Facebook and Instagram. Tokens are exchanged server-side and
-              stored only in this browser session; Meta can also be read from a server-side token with
-              no login at all.
+              How customers find the shop across Google Search, Maps, Facebook and Instagram.
+              Meta results are read from a secure server-side token and appear here automatically,
+              with no Facebook login. Google uses a one-time Authorise with Google connection.
             </p>
           </div>
         </div>
@@ -113,6 +111,10 @@ export const BusinessPerformanceTab: React.FC = () => {
             const browserConnected = Boolean(token && !isTokenExpired(token));
             const serverManaged = isServerManaged(provider);
             const connected = browserConnected || serverManaged;
+            // Meta is read entirely from the server-side token — it never shows a
+            // link/authorise prompt, only results (or a note that the token is unset).
+            const isMeta = provider === 'meta';
+            const metaLive = isMeta && (state.insights?.metrics?.length ?? 0) > 0;
             const Icon = meta.icon;
 
             return (
@@ -135,6 +137,14 @@ export const BusinessPerformanceTab: React.FC = () => {
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wide">
                       <ShieldCheck className="w-3 h-3" /> {serverManaged && !browserConnected ? 'Server linked' : 'Authorised'}
                     </span>
+                  ) : isMeta && metaLive ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wide">
+                      <ShieldCheck className="w-3 h-3" /> Live
+                    </span>
+                  ) : isMeta ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-400 text-[10px] font-bold uppercase tracking-wide">
+                      <TriangleAlert className="w-3 h-3" /> Token not set
+                    </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-700 text-neutral-400 text-[10px] font-bold uppercase tracking-wide">
                       <Link2Off className="w-3 h-3" /> Not linked
@@ -142,12 +152,12 @@ export const BusinessPerformanceTab: React.FC = () => {
                   )}
                 </div>
 
-                {!configured && !serverManaged && (
+                {!isMeta && !configured && !serverManaged && (
                   <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-[11px] text-amber-300">
                     <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
                       Set <code className="font-mono">{OAUTH_PROVIDERS[provider].clientIdEnv}</code> to
-                      enable the “Authorise with {provider === 'google' ? 'Google' : 'Meta'}” button.
+                      enable the “Authorise with Google” button.
                     </span>
                   </div>
                 )}
@@ -227,21 +237,21 @@ export const BusinessPerformanceTab: React.FC = () => {
                 )}
 
                 <div className="flex items-center gap-2 mt-auto pt-1">
-                  {browserConnected ? (
-                    <button
-                      type="button"
-                      onClick={() => handleDisconnect(provider)}
-                      className="pressable px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold"
-                    >
-                      Disconnect
-                    </button>
-                  ) : serverManaged ? (
+                  {isMeta || serverManaged ? (
                     <button
                       type="button"
                       onClick={() => load(provider)}
                       className="pressable px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center gap-2"
                     >
                       <RefreshCcw className={`w-4 h-4 ${state.loading ? 'animate-spin' : ''}`} /> Refresh
+                    </button>
+                  ) : browserConnected ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDisconnect(provider)}
+                      className="pressable px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold"
+                    >
+                      Disconnect
                     </button>
                   ) : (
                     <button
@@ -252,12 +262,10 @@ export const BusinessPerformanceTab: React.FC = () => {
                     >
                       {state.authorising ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : provider === 'google' ? (
-                        <Building2 className="w-4 h-4" />
                       ) : (
-                        <Facebook className="w-4 h-4" />
+                        <Building2 className="w-4 h-4" />
                       )}
-                      Authorise with {provider === 'google' ? 'Google' : 'Meta'}
+                      Authorise with Google
                     </button>
                   )}
 
