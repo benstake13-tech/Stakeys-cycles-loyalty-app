@@ -101,4 +101,31 @@ describe('identifyBikeFromImage', () => {
     await assertion;
     expect(generateContent).toHaveBeenCalledTimes(3);
   });
+
+  it('sends every supplied photo (full + brand + model) in one request', async () => {
+    generateContent.mockResolvedValueOnce({ text: '{"make":"Trek","model":"FX 1"}' });
+    const { identifyBikeFromImage } = await import('./src/api/visionService');
+    const result = await identifyBikeFromImage([
+      { data: 'FULLDATA', mimeType: 'image/jpeg' },
+      { data: 'BRANDDATA', mimeType: 'image/png' },
+      { data: 'MODELDATA', mimeType: 'image/png' },
+    ]);
+    expect(result).toEqual({ make: 'Trek', model: 'FX 1' });
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    const parts = generateContent.mock.calls[0][0].contents[0].parts;
+    // three images + the single text prompt
+    expect(parts).toHaveLength(4);
+    expect(parts.slice(0, 3).map((p: any) => p.inlineData.data)).toEqual(['FULLDATA', 'BRANDDATA', 'MODELDATA']);
+    expect(parts[1].inlineData.mimeType).toBe('image/png');
+    expect(parts[3].text).toMatch(/valve type/i);
+  });
+
+  it('still accepts a single legacy data-URL string', async () => {
+    generateContent.mockResolvedValueOnce({ text: '{"make":"Giant"}' });
+    const { identifyBikeFromImage } = await import('./src/api/visionService');
+    await identifyBikeFromImage('data:image/png;base64,LEGACY');
+    const parts = generateContent.mock.calls[0][0].contents[0].parts;
+    expect(parts[0].inlineData.data).toBe('LEGACY');
+    expect(parts[0].inlineData.mimeType).toBe('image/jpeg');
+  });
 });

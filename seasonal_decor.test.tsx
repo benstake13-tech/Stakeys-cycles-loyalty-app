@@ -150,3 +150,28 @@ describe('SeasonalFooterDecor (Halloween)', () => {
     expect(container.querySelector('#halloween-footer-decor')).toBeNull();
   });
 });
+
+describe('every enabled theme shows the banner (no theme is silently missing)', () => {
+  // Guards the promise that "when a theme is enabled the banner shows" on every
+  // surface: the banner is theme-driven, so this must hold for ALL theme ids,
+  // not just the ones with bespoke tests above.
+  it('mounts the swinging hero banner for every concrete seasonal theme', () => {
+    for (const id of HOLIDAY_THEME_IDS) {
+      hoisted.theme = id;
+      const { container, unmount } = render(<SeasonalDecor />);
+      expect(screen.getByTestId('seasonal-hero'), `hero banner for ${id}`).toBeTruthy();
+      expect(container.querySelector('.seasonal-decor')).toBeTruthy();
+      // The sign carries that theme's own heading copy, so it is not a blank box.
+      const heading = screen.getByTestId('seasonal-hero-sign').textContent || '';
+      expect(heading.trim().length, `heading text for ${id}`).toBeGreaterThan(0);
+      unmount();
+    }
+  });
+
+  it('renders the St. Patrick banner with its own copy when enabled', () => {
+    hoisted.theme = 'stpatricks';
+    render(<SeasonalDecor />);
+    expect(screen.getByTestId('seasonal-hero')).toBeTruthy();
+    expect(screen.getByTestId('seasonal-hero-sign').textContent).toMatch(/ST\.?\s*PATRICK/i);
+  });
+});
