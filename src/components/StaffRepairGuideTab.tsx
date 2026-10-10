@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { BookOpen, ExternalLink, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
+import { ExternalLink, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 
 /**
  * The Stakeys Cycles Workshop Repair & Training Guide — a self-contained React
@@ -20,11 +20,11 @@ export const StaffRepairGuideTab: React.FC = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-[#0b0e13] p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400">
-            <BookOpen className="h-6 w-6" />
+          <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-emerald-500/40 bg-black shadow-[0_0_18px_rgba(5,193,71,0.25)]">
+            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Stakey's Cycles &amp; Scooter" className="h-full w-full object-contain" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Workshop Repair Guide</h2>
+            <h2 className="font-display text-lg font-bold text-white">Workshop Repair Guide</h2>
             <p className="text-xs text-neutral-400">
               11 modules · 29 lessons · step-by-step procedures adapted from Sheldon Brown
             </p>
@@ -54,7 +54,7 @@ export const StaffRepairGuideTab: React.FC = () => {
             type="button"
             onClick={() => setFull((f) => !f)}
             data-testid="guide-fullscreen"
-            className="pressable inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25 hover:text-white"
+            className="pressable inline-flex items-center gap-2 rounded-xl border border-[#05C147]/50 bg-[#05C147]/15 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-[#05C147]/25 hover:text-white"
           >
             {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             <span>{full ? 'Exit full screen' : 'Full screen'}</span>
@@ -65,8 +65,8 @@ export const StaffRepairGuideTab: React.FC = () => {
       <div
         className={
           full
-            ? 'fixed inset-0 z-50 bg-[#070b14]'
-            : 'overflow-hidden rounded-2xl border border-neutral-800 bg-[#070b14]'
+            ? 'fixed inset-0 z-50 bg-[#090b0e]'
+            : 'overflow-hidden rounded-2xl border border-neutral-800 bg-[#090b0e]'
         }
       >
         <iframe
