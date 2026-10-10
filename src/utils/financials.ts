@@ -19,6 +19,8 @@ export type WorkshopPaymentStatus = 'unpaid' | 'paid_card' | 'paid_cash' | 'paid
 
 export interface FinancialLedgerRow {
   id: string;
+  /** Source record id (sale / booking / order), used to delete the row's record. */
+  recordId?: string;
   date: string; // YYYY-MM-DD
   channel: FinancialChannel;
   customer: string;
@@ -213,6 +215,7 @@ export function buildFinancialLedger({
       const split = splitVat(s.grandTotal, s.vatAmount !== undefined && s.grandTotal ? s.vatAmount / s.grandTotal : 0, s.vatAmount);
       rows.push({
         id: s.saleNumber || s.id,
+        recordId: s.id,
         date: toIso(s.createdAt).slice(0, 10),
         channel: 'till',
         customer: s.customerName,
@@ -234,6 +237,7 @@ export function buildFinancialLedger({
       const split = splitVat(invoice.grandTotal, invoice.vatAmount !== undefined && invoice.grandTotal ? invoice.vatAmount / invoice.grandTotal : 0, invoice.vatAmount);
       rows.push({
         id: invoice.invoiceNumber || b.id,
+        recordId: b.id,
         date: (b.preferredDate || toIso(invoice.completedAt)).slice(0, 10),
         channel: 'workshop',
         customer: b.customerName,
@@ -252,6 +256,7 @@ export function buildFinancialLedger({
       const split = splitVat(o.total, 0);
       rows.push({
         id: `WEB-${o.id.slice(0, 6).toUpperCase()}`,
+        recordId: o.id,
         date: o.created_at.slice(0, 10),
         channel: 'online',
         customer: o.customer_name,
