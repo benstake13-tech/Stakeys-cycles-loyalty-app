@@ -1,12 +1,17 @@
 import React from 'react';
-import { render, fireEvent, screen } from '@testing-library/react';
+import { render, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
   shop: { promotions: [] as any[], addPromotion: vi.fn(async (p: any) => ({ ...p, id: 'new' })) } as any,
+  advisePromotion: vi.fn(),
 }));
 
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
+vi.mock('./src/api/promotionAdvisorService', () => ({
+  isPromotionAdvisorConfigured: () => true,
+  advisePromotion: hoisted.advisePromotion,
+}));
 
 import { PromotionsPlanner } from './src/components/PromotionsPlanner';
 import { ShopPromotion } from './src/types/bikeShop';
@@ -28,6 +33,7 @@ const promo = (over: Partial<ShopPromotion>): ShopPromotion => ({
 
 beforeEach(() => {
   hoisted.shop = { promotions: [], addPromotion: vi.fn(async (p: any) => ({ ...p, id: 'new' })) };
+  hoisted.advisePromotion.mockReset();
 });
 
 describe('PromotionsPlanner', () => {
@@ -64,5 +70,45 @@ describe('PromotionsPlanner', () => {
     const start = (screen.getByTestId('planner-start') as HTMLInputElement).value;
     const end = (screen.getByTestId('planner-end') as HTMLInputElement).value;
     expect(start).not.toBe(end);
+  });
+
+  it('shows AI suggestions and loads one into the draft', async () => {
+    hoisted.advisePromotion.mockResolvedValue({
+      headline: 'Lead with drivetrain work',
+      source: 'ai',
+      actions: [
+        {
+          title: 'Drivetrain Week',
+          rationale: 'Summer demand.',
+          discountPercentage: 15,
+          categories: ['cycle'],
+          startDate: '2026-06-20',
+          endDate: '2026-06-26',
+          confidence: 0.8,
+        },
+      ],
+    });
+    render(<PromotionsPlanner />);
+    fireEvent.click(screen.getByTestId('promo-advisor-run'));
+    await waitFor(() => expect(screen.getByTestId('promo-advisor-result')).toBeTruthy());
+    expect(screen.getByTestId('promo-advisor-source').textContent).toBe('AI');
+    expect(hoisted.advisePromotion).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId('promo-advisor-apply-0'));
+    expect((screen.getByTestId('planner-start') as HTMLInputElement).value).toBe('2026-06-20');
+    expect((screen.getByTestId('planner-end') as HTMLInputElement).value).toBe('2026-06-26');
+  });
+
+  it('surfaces the offline badge when the advisor falls back', async () => {
+    hoisted.advisePromotion.mockResolvedValue({
+      headline: 'Start small',
+      source: 'offline',
+      actions: [
+        { title: 'Weekend offer', rationale: 'r', discountPercentage: 10, categories: ['cycle'], startDate: '2026-06-20', endDate: '2026-06-26', confidence: 0.5 },
+      ],
+    });
+    render(<PromotionsPlanner />);
+    fireEvent.click(screen.getByTestId('promo-advisor-run'));
+    await waitFor(() => expect(screen.getByTestId('promo-advisor-source').textContent).toBe('Offline'));
   });
 });
