@@ -9,6 +9,7 @@ import {
   publishToInstagram,
   fetchPagePosts,
 } from './api/meta/_shared.js';
+import { resolveWalletConfig, buildGoogleWalletSaveUrl } from './api/wallet/_shared.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -334,6 +335,34 @@ async function exchangeMetaLongLived(clientId: string, clientSecret: string, sho
       restKeyEnvNames: REST_KEY_ENV_NAMES,
     });
   });
+
+  /* ------------------------------------------------------------------ *
+   * Wallet passes (dev mirror of the Vercel functions). Reports whether
+   * Apple/Google Wallet are configured; the Google endpoint returns a signed
+   * "Save to Google Wallet" URL. Signing secrets stay server-side.
+   * ------------------------------------------------------------------ */
+  app.get('/api/wallet/config', (_req, res) => {
+    const cfg = resolveWalletConfig();
+    res.json({
+      apple: { configured: cfg.apple.configured, passTypeId: cfg.apple.passTypeId },
+      google: { configured: cfg.google.configured, issuerId: cfg.google.issuerId },
+    });
+  });
+
+  app.post('/api/wallet/google', (req, res) => {
+    const cfg = resolveWalletConfig();
+    if (!cfg.google.configured) {
+      res.status(503).json({ error: 'Google Wallet is not configured on this deployment.' });
+      return;
+    }
+    try {
+      const member = (req.body && req.body.member) || {};
+      res.json({ url: buildGoogleWalletSaveUrl(member) });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || 'Could not build the Google Wallet pass.' });
+    }
+  });
+
 
   app.post('/api/onesignal/notify', async (req, res) => {
     const { title, body, url, externalUserId, email, segment, tag } = req.body || {};

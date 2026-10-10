@@ -75,6 +75,13 @@ import confetti from 'canvas-confetti';
 
 interface BookingPortalProps {
   initialBikeId?: string;
+  /**
+   * Issue ids to pre-select in the problem checklist (e.g. seeded by the guided
+   * Symptom Checker). When omitted the form keeps its default first item.
+   */
+  initialIssueIds?: string[];
+  /** Free-text problem notes to pre-fill (from the Symptom Checker). */
+  initialOtherNotes?: string;
   onGoToMyBikes?: () => void;
   /**
    * Called after a booking is submitted. The website surface uses this to send
@@ -105,7 +112,7 @@ function sosUsePhrase(t: BookingPhrases, value: string, fallback: string): strin
   return map[value] || fallback;
 }
 
-export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onGoToMyBikes, onBookingComplete }) => {
+export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, initialIssueIds, initialOtherNotes, onGoToMyBikes, onBookingComplete }) => {
   const { currentUser, createBooking, redeemServiceVoucher, ownerConfig, discountCodes } = useShop();
   const todayIso = new Date().toISOString().split('T')[0];
 
@@ -145,10 +152,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   };
 
   // Structured Problem Checklist State (Choose all that apply)
-  const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([
-    'brakes-squeaky',
-  ]);
-  const [problemNotes, setProblemNotes] = useState<string>('');
+  const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>(
+    initialIssueIds && initialIssueIds.length > 0 ? initialIssueIds : ['brakes-squeaky']
+  );
+  const [problemNotes, setProblemNotes] = useState<string>(initialOtherNotes || '');
   const [problemSelectionMode, setProblemSelectionMode] = useState<'checklist' | 'packages'>('checklist');
 
   // Selected Friendly Problem / Service
