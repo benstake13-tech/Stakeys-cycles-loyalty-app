@@ -6,10 +6,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
  * functions so the deployed Growth tab behaves like the dev server.
  */
 import { resolveProvider, exchangeToken, exchangeMetaLongLived } from './api/oauth/_shared.js';
-import tokenHandler from './api/oauth/token.js';
-import refreshHandler from './api/oauth/refresh.js';
-import insightsHandler from './api/business/insights.js';
-import statusHandler from './api/business/status.js';
+import oauthHandler from './api/oauth/[action].js';
+import businessHandler from './api/business/[action].js';
+const tokenHandler = (req: any, res: any) =>
+  oauthHandler({ ...req, query: { ...(req?.query || {}), action: 'token' } }, res);
+const refreshHandler = (req: any, res: any) =>
+  oauthHandler({ ...req, query: { ...(req?.query || {}), action: 'refresh' } }, res);
+const insightsHandler = (req: any, res: any) =>
+  businessHandler({ ...req, query: { ...(req?.query || {}), action: 'insights' } }, res);
+const statusHandler = (req: any, res: any) =>
+  businessHandler({ ...req, query: { ...(req?.query || {}), action: 'status' } }, res);
 
 function mockRes() {
   const res: any = {

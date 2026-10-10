@@ -5,8 +5,11 @@ import {
   resolveDriveLink,
   listDriveFolder,
 } from './api/drive/_shared.js';
-import listHandler from './api/drive/list.js';
-import resolveHandler from './api/drive/resolve.js';
+import driveHandler from './api/drive/[action].js';
+const listHandler = (req: any, res: any) =>
+  driveHandler({ ...req, query: { ...(req?.query || {}), action: 'list' } }, res);
+const resolveHandler = (req: any, res: any) =>
+  driveHandler({ ...req, query: { ...(req?.query || {}), action: 'resolve' } }, res);
 
 /**
  * The Drive API keys must never leave the server, and the list/resolve helpers

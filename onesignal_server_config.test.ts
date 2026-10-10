@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveAppId, resolveRestKey, resolveOrigin, buildTagFilter, DEFAULT_APP_ID } from './api/onesignal/_shared.js';
-import notifyHandler from './api/onesignal/notify.js';
+import onesignalHandler from './api/onesignal/[action].js';
+const notifyHandler = (req: any, res: any) =>
+  onesignalHandler({ ...req, query: { ...(req?.query || {}), action: 'notify' } }, res);
 
 describe('OneSignal server config resolution', () => {
   it('finds the REST key under any accepted env name', () => {
