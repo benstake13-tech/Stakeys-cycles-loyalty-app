@@ -9,6 +9,9 @@ import {
   CalendarDays,
   Clock,
   Tag,
+  Bot,
+  Loader2,
+  Lightbulb,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { ShopPromotion, VehicleCategory } from '../types/bikeShop';
@@ -22,6 +25,9 @@ import {
   addDays,
   PlannerInput,
 } from '../utils/promotionPlanner';
+import { buildPromotionBrief } from '../utils/promotionAdvisor';
+import { advisePromotion, isPromotionAdvisorConfigured } from '../api/promotionAdvisorService';
+import type { AdvisorResult } from '../utils/promotionAdvisor';
 
 const CATEGORIES: { id: VehicleCategory; label: string }[] = [
   { id: 'cycle', label: 'Cycle' },
@@ -54,14 +60,39 @@ const emptyDraft = (): PlannerInput => ({
  * to the existing addPromotion flow.
  */
 export const PromotionsPlanner: React.FC = () => {
-  const { promotions, addPromotion } = useShop();
+  const { promotions, addPromotion, discountCodes } = useShop();
   const [draft, setDraft] = useState<PlannerInput>(emptyDraft);
   const [showTimeline, setShowTimeline] = useState(true);
   const [created, setCreated] = useState<string | null>(null);
+  const [advice, setAdvice] = useState<AdvisorResult | null>(null);
+  const [advising, setAdvising] = useState(false);
 
   const plan = useMemo(() => planPromotion(draft, promotions), [draft, promotions]);
   const timeline = useMemo(() => buildTimeline(promotions, draft, { spanDays: 120 }), [promotions, draft]);
   const windows = useMemo(() => suggestWindows(promotions, { count: 3 }), [promotions]);
+
+  const runAdvisor = async () => {
+    setAdvising(true);
+    try {
+      const brief = buildPromotionBrief(promotions, discountCodes || []);
+      setAdvice(await advisePromotion(brief));
+    } finally {
+      setAdvising(false);
+    }
+  };
+
+  /** Load a suggested action into the draft so it can be reviewed and created. */
+  const applyAdvice = (a: AdvisorResult['actions'][number]) => {
+    setDraft((d) => ({
+      ...d,
+      title: d.title.trim() ? d.title : a.title,
+      discountPercentage: a.discountPercentage ?? 0,
+      discountAmount: a.discountAmount ?? 0,
+      eligibleCategories: a.categories.length ? a.categories : d.eligibleCategories,
+      startDate: a.startDate || d.startDate,
+      endDate: a.endDate || d.endDate,
+    }));
+  };
 
   const toggleCategory = (id: VehicleCategory) => {
     setDraft((d) => ({
@@ -129,6 +160,76 @@ export const PromotionsPlanner: React.FC = () => {
           <span>{created}</span>
         </div>
       )}
+
+      {/* AI advisor */}
+      <div data-testid="promo-advisor" className="rounded-2xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h4 className="text-xs font-bold text-sky-200 flex items-center gap-1.5">
+              <Bot className="w-4 h-4" /> AI promotion advisor
+            </h4>
+            <p className="text-[11px] text-neutral-400 mt-0.5">
+              Grounded in your live campaigns and coupon history. Uses the low-quota AI model and caches its answer.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={runAdvisor}
+            disabled={advising}
+            data-testid="promo-advisor-run"
+            className="px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-neutral-950 text-xs font-bold flex items-center gap-1.5"
+          >
+            {advising ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Lightbulb className="w-3.5 h-3.5" />}
+            <span>{advising ? 'Thinking…' : 'Suggest promotions'}</span>
+          </button>
+        </div>
+
+        {advice && (
+          <div className="space-y-3" data-testid="promo-advisor-result">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-neutral-200">{advice.headline}</span>
+              <span
+                data-testid="promo-advisor-source"
+                className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${
+                  advice.source === 'ai'
+                    ? 'border-sky-500/40 bg-sky-500/15 text-sky-200'
+                    : 'border-neutral-700 bg-neutral-900 text-neutral-400'
+                }`}
+              >
+                {advice.source === 'ai' ? 'AI' : 'Offline'}
+              </span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {advice.actions.map((a, i) => (
+                <div key={i} className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs font-semibold text-white">{a.title}</span>
+                    <span className="shrink-0 text-[10px] text-neutral-500">{Math.round(a.confidence * 100)}%</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">{a.rationale}</p>
+                  <div className="flex flex-wrap gap-1.5 text-[10px] text-neutral-400">
+                    {a.discountPercentage ? <span className="rounded bg-neutral-900 px-1.5 py-0.5">{a.discountPercentage}% off</span> : null}
+                    {a.discountAmount ? <span className="rounded bg-neutral-900 px-1.5 py-0.5">£{a.discountAmount}</span> : null}
+                    {a.categories.map((c) => (
+                      <span key={c} className="rounded bg-neutral-900 px-1.5 py-0.5">{c}</span>
+                    ))}
+                    {a.audience === 'member' ? <span className="rounded bg-neutral-900 px-1.5 py-0.5">members</span> : null}
+                    <span className="rounded bg-neutral-900 px-1.5 py-0.5">{a.startDate} → {a.endDate}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => applyAdvice(a)}
+                    data-testid={`promo-advisor-apply-${i}`}
+                    className="w-full px-2.5 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-neutral-100 text-[11px] font-semibold"
+                  >
+                    Load into draft
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Draft form */}
       <div className="grid gap-3 sm:grid-cols-2">
