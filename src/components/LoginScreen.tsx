@@ -81,20 +81,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
     setError(null);
 
     const cleanId = signInIdentifier.trim();
-    const cleanPass = signInPassword.trim();
-
-    if (!cleanId) {
+    // Do NOT trim the password before sending it to Supabase: registration
+    // stores it verbatim, so trimming here would permanently lock out any
+    // account whose password begins or ends with a space.
+    if (signInIdentifier.trim() === '') {
       setError('Please enter your email, username, or member ID.');
       return;
     }
-    if (!cleanPass) {
+    if (signInPassword.trim() === '') {
       setError('Password is required. Accounts cannot be logged into without the correct password.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await loginWithCredentials(cleanId, cleanPass);
+      const res = await loginWithCredentials(cleanId, signInPassword);
       if (!res.success) {
         setError(res.message || 'Login failed. Please check your credentials.');
       }
