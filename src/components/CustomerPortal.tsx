@@ -165,7 +165,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     { id: 'symptom', label: 'Symptom Checker', icon: Stethoscope, tone: 'sky', hint: 'Describe the fault — we pre-fill your booking' },
     { id: 'care', label: 'Care Schedule', icon: CalendarClock, tone: 'emerald', hint: 'When each bike is next due a service' },
     { id: 'guides', label: 'How-To Guides', icon: BookOpen, tone: 'emerald', hint: 'Short care and maintenance guides' },
-    { id: 'tradein', label: 'Trade-In', icon: RefreshCw, tone: 'amber', hint: 'Value your old bike against a new one' },
+    { id: 'tradein', label: 'Sell Your Bike', icon: RefreshCw, tone: 'amber', hint: '7 photos → AI offer for your old bike' },
     { id: 'wishlist', label: 'Watchlist', icon: Heart, tone: 'rose', hint: 'Items you want back in stock' },
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
     { id: 'refer', label: 'Refer a Friend', icon: Gift, tone: 'amber', hint: 'Share your code and earn rewards' },

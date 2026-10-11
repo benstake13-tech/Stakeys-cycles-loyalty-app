@@ -12,6 +12,7 @@ export type WebsitePageId =
   | 'priceList'
   | 'shop'
   | 'offers'
+  | 'sell'
   | 'join';
 
 export type WebFaqSection = 'repairs' | 'parts' | 'general';

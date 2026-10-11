@@ -1,45 +1,141 @@
-import React, { useState } from 'react';
-import { RefreshCw, Camera, CheckCircle2, Send } from 'lucide-react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  Bike,
+  Camera,
+  Check,
+  CheckCircle2,
+  CircleAlert,
+  Loader2,
+  Send,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { submitTradeInRequest } from '../context/TradeInStore';
-import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
+import { submitTradeInRequest, SellAnglePhoto } from '../context/TradeInStore';
+import { getOfferPrices } from '../context/OfferPriceBook';
+import { diagnoseFault, isBikeVisionConfigured } from '../api/visionService';
+import { compressImageFile } from '../utils/imageCompress';
+import { valueBike } from '../utils/bikeValuation';
 import toast from 'react-hot-toast';
 
-const CONDITIONS: { id: 'excellent' | 'good' | 'fair' | 'poor'; label: string }[] = [
-  { id: 'excellent', label: 'Excellent' },
-  { id: 'good', label: 'Good' },
-  { id: 'fair', label: 'Fair' },
-  { id: 'poor', label: 'Poor / spares' },
+/**
+ * The seven guided angles. Together they let the AI read the make, model,
+ * drivetrain, frame serial and battery, so it can identify the bike and price it
+ * without a workshop visit.
+ */
+export const SELL_ANGLES: { id: string; label: string; hint: string }[] = [
+  { id: 'drive-side', label: 'Drive side', hint: 'Right side — gears & chain facing the camera' },
+  { id: 'non-drive-side', label: 'Non-drive side', hint: 'Left side of the whole bike' },
+  { id: 'front', label: 'Front-on', hint: 'Straight on at the front wheel' },
+  { id: 'rear', label: 'Rear-on', hint: 'Straight on at the back wheel' },
+  { id: 'cockpit', label: 'Cockpit & badge', hint: 'Bars, stem and the brand head badge' },
+  { id: 'drivetrain', label: 'Drivetrain', hint: 'Close-up of chain, cassette & derailleur' },
+  { id: 'serial', label: 'Serial & battery', hint: 'Frame number under the bottom bracket (and battery on an e-bike)' },
 ];
 
+interface Props {
+  /** Tighter spacing for the embedded website page. */
+  compact?: boolean;
+}
+
 /**
- * Trade-in / part-exchange request form: the rider describes their old bike and
- * the workshop is notified with a lead it can value and respond to.
+ * "Sell Your Bike": the customer photographs their bike from seven guided
+ * angles, the AI identifies it, and an instant indicative offer is produced
+ * from the workshop's price book. The lead lands in the staff inbox with every
+ * photo and the AI read attached.
  */
-export const TradeInRequestForm: React.FC = () => {
+export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
   const { currentUser } = useShop();
-  const [brand, setBrand] = useState('');
-  const [model, setModel] = useState('');
-  const [year, setYear] = useState('');
-  const [category, setCategory] = useState<string>(BIKE_CATEGORY_OPTIONS[0]?.id || 'cycle');
-  const [condition, setCondition] = useState<'excellent' | 'good' | 'fair' | 'poor'>('good');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const targetAngle = useRef<string>(SELL_ANGLES[0].id);
+
+  const [photos, setPhotos] = useState<Record<string, SellAnglePhoto | undefined>>({});
   const [notes, setNotes] = useState('');
-  const [interestedIn, setInterestedIn] = useState('');
-  const [photoUrl, setPhotoUrl] = useState<string | undefined>(undefined);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [error, setError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
-  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhotoUrl(typeof reader.result === 'string' ? reader.result : undefined);
-    reader.readAsDataURL(file);
+  const [brand, setBrand] = useState('');
+  const [model, setModel] = useState('');
+  const [declaredCondition, setDeclaredCondition] = useState<'excellent' | 'good' | 'fair' | 'poor' | ''>('');
+
+  const configured = isBikeVisionConfigured();
+  const capturedCount = SELL_ANGLES.filter((a) => photos[a.id]).length;
+
+  const orderedPhotos = useMemo(
+    () => SELL_ANGLES.map((a) => photos[a.id]).filter(Boolean) as SellAnglePhoto[],
+    [photos]
+  );
+
+  const openPicker = (angle: string) => {
+    targetAngle.current = angle;
+    fileRef.current?.click();
   };
+
+  const onFile = async (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file.');
+      return;
+    }
+    const angle = SELL_ANGLES.find((a) => a.id === targetAngle.current) || SELL_ANGLES[0];
+    const compressed = await compressImageFile(file);
+    setPhotos((prev) => ({ ...prev, [angle.id]: { angle: angle.id, label: angle.label, dataUrl: compressed.dataUrl } }));
+    setResult(null);
+    setError('');
+  };
+
+  const clearPhoto = (angle: string) => {
+    setPhotos((prev) => {
+      const next = { ...prev };
+      delete next[angle];
+      return next;
+    });
+    setResult(null);
+  };
+
+  const runAnalysis = useCallback(async () => {
+    const images: { data: string; mimeType: string }[] = orderedPhotos.map((p) => ({ data: p.dataUrl.split(',').pop() || '', mimeType: 'image/jpeg' }));
+    if (!images.length) return;
+    setAnalyzing(true);
+    setError('');
+    try {
+      const analysis = await diagnoseFault({ images: images as never[], userNotes: notes });
+      setResult(analysis);
+      setBrand(analysis.make && analysis.make !== 'Unknown / To Be Inspected' ? analysis.make : '');
+      setModel(analysis.model && analysis.model !== 'Unknown / To Be Inspected' ? analysis.model : '');
+    } catch (err: any) {
+      setError(err?.message || 'Could not identify the bike. Please try again.');
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [orderedPhotos, notes]);
+
+  const valuation = useMemo(() => {
+    if (!result && !brand && !model) return null;
+    return valueBike(
+      {
+        make: brand || result?.make,
+        model: model || result?.model,
+        type: result?.type,
+        year: result?.year,
+        overallCondition: result?.overallCondition,
+        declaredCondition: declaredCondition || undefined,
+        confidence: result?.confidence,
+        coverage: result?.coverage,
+        faults: result?.faults,
+        obviousProblems: result?.obviousProblems,
+        electricKit: result?.electricKit,
+      },
+      getOfferPrices()
+    );
+  }, [result, brand, model, declaredCondition]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!brand.trim() || !model.trim()) {
-      toast.error('Please add at least the brand and model.');
+      toast.error('We need the brand and model before we can make an offer.');
       return;
     }
     submitTradeInRequest({
@@ -49,39 +145,47 @@ export const TradeInRequestForm: React.FC = () => {
       customerPhone: currentUser?.phoneNumber,
       brand: brand.trim(),
       model: model.trim(),
-      year: year.trim() || undefined,
-      category,
-      condition,
+      year: result?.year || undefined,
+      category: result?.type || 'cycle',
+      condition: declaredCondition || valuation?.condition || 'good',
       notes: notes.trim() || undefined,
-      photoUrl,
-      interestedIn: interestedIn.trim() || undefined,
+      photoUrl: orderedPhotos[0]?.dataUrl,
+      photos: orderedPhotos,
+      aiIdentification: result || undefined,
+      offerEstimate: valuation?.offer ?? undefined,
+      offerMin: valuation?.minOffer ?? undefined,
+      offerMax: valuation?.maxOffer ?? undefined,
+      offerConfidence: valuation?.confidence,
+      offerRationale: valuation?.rationale,
     });
     setSubmitted(true);
-    toast.success('Trade-in request sent — the workshop will be in touch.');
+    toast.success('Bike submitted — we’ll be in touch with your offer.');
   };
 
   if (submitted) {
     return (
       <div className="rounded-2xl border border-emerald-500/40 bg-[#0d1015] p-10 text-center space-y-3" data-testid="tradein-success">
         <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-        <div className="font-display text-lg font-bold text-white">Trade-in request received</div>
+        <div className="font-display text-lg font-bold text-white">Your bike has been submitted</div>
+        {valuation?.offer != null && <div className="text-3xl font-black text-emerald-400">£{valuation.offer}</div>}
         <p className="text-xs text-neutral-400 max-w-sm mx-auto">
-          The workshop will review your bike, value it and get back to you with an offer.
+          {valuation?.offer != null
+            ? 'That’s our indicative offer based on your photos. The workshop will confirm the final figure when they check the bike over.'
+            : 'The workshop will review your photos, identify the bike and get back to you with an offer.'}
         </p>
         <button
           type="button"
           onClick={() => {
             setSubmitted(false);
+            setPhotos({});
+            setResult(null);
+            setNotes('');
             setBrand('');
             setModel('');
-            setYear('');
-            setNotes('');
-            setInterestedIn('');
-            setPhotoUrl(undefined);
           }}
           className="mt-1 px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-medium cursor-pointer"
         >
-          Value another bike
+          Sell another bike
         </button>
       </div>
     );
@@ -91,113 +195,204 @@ export const TradeInRequestForm: React.FC = () => {
     <div className="space-y-6" data-testid="tradein-form">
       <div>
         <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
-          <RefreshCw className="w-5 h-5 text-amber-400" /> Trade-In / Part-Exchange
+          <Bike className="w-5 h-5 text-emerald-400" /> Sell Your Bike
         </h2>
         <p className="text-xs text-neutral-400 mt-1">
-          Tell us about your old bike and we'll value it against a new one or a workshop credit.
+          Take seven photos from the angles below and our AI will identify your bike and make you an offer.
         </p>
       </div>
 
+      {!configured && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/40 px-3 py-2.5 text-xs text-amber-200">
+          <CircleAlert className="h-4 w-4 shrink-0" />
+          <span>AI photo identification isn’t configured on this build. Add a VITE_GEMINI_API_KEY to enable instant offers.</span>
+        </div>
+      )}
+
+      {error && (
+        <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-700 bg-rose-950/60 px-3 py-2.5 text-xs text-rose-200">
+          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span className="flex-1">{error}</span>
+          <button type="button" onClick={() => setError('')} aria-label="Dismiss" className="shrink-0 hover:bg-white/10 rounded p-0.5">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Seven guided angle slots */}
+      <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Photos</span>
+          <span className="text-xs font-mono text-emerald-400">{capturedCount} / {SELL_ANGLES.length}</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {SELL_ANGLES.map((angle, index) => {
+            const shot = photos[angle.id];
+            return (
+              <div key={angle.id} className="space-y-1.5">
+                <div
+                  className={`relative aspect-square overflow-hidden rounded-xl border-2 border-dashed ${shot ? 'border-neutral-700' : 'border-neutral-700/80 bg-neutral-950/60'}`}
+                  data-testid={`sell-angle-${angle.id}`}
+                >
+                  {shot ? (
+                    <>
+                      <img src={shot.dataUrl} alt={angle.label} className="h-full w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => clearPhoto(angle.id)}
+                        aria-label={`Remove ${angle.label}`}
+                        className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1 text-white hover:bg-black"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-emerald-500 p-0.5 text-neutral-950">
+                        <Check className="h-3 w-3" />
+                      </span>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openPicker(angle.id)}
+                      className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1.5 p-2 text-center"
+                    >
+                      <Camera className="h-6 w-6 text-emerald-400" />
+                      <span className="text-[10px] font-bold text-white leading-tight">{index + 1}. {angle.label}</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] leading-snug text-neutral-500">{angle.hint}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          data-testid="sell-photo-input"
+          onChange={(e) => {
+            void onFile(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={runAnalysis}
+          disabled={!capturedCount || analyzing}
+          className="pressable w-full py-3 rounded-xl bg-[#05C147] hover:bg-emerald-400 disabled:opacity-40 text-neutral-950 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
+        >
+          {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {analyzing ? 'Identifying your bike…' : `Identify my bike (${capturedCount}/${SELL_ANGLES.length} photos)`}
+        </button>
+        {capturedCount > 0 && capturedCount < SELL_ANGLES.length && (
+          <p className="text-[11px] text-neutral-500 text-center">
+            Tip: all seven angles give the most accurate read, but you can identify with fewer.
+          </p>
+        )}
+      </div>
+
+      {/* AI result + instant offer */}
+      {result && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-950/20 to-transparent p-5 space-y-4 animate-fade-in">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Identified bike</div>
+              <div className="text-lg font-black text-white">{result.make} {result.model}</div>
+              {result.summary && <p className="text-[11px] text-neutral-400 mt-0.5">{result.summary}</p>}
+            </div>
+            <div className="text-right shrink-0">
+              <div className="font-mono text-sm font-bold text-emerald-400">{Math.round((result.confidence || 0) * 100)}%</div>
+              <div className="text-[10px] text-neutral-500">confidence</div>
+            </div>
+          </div>
+
+          {valuation?.offer != null ? (
+            <div className="rounded-xl border border-emerald-500/30 bg-[#0b0e13] p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Indicative offer</div>
+              <div className="text-3xl font-black text-emerald-400">£{valuation.offer}</div>
+              {valuation.minOffer != null && valuation.maxOffer != null && (
+                <div className="text-xs text-neutral-400">Range £{valuation.minOffer}–£{valuation.maxOffer}</div>
+              )}
+              {valuation.needsStaffReview && (
+                <div className="mt-2 text-[11px] text-amber-300 flex items-center gap-1.5">
+                  <CircleAlert className="w-3.5 h-3.5" /> Subject to a quick workshop check.
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-neutral-800 bg-[#0b0e13] p-4 text-xs text-neutral-400">
+              We couldn’t match this bike to the price book automatically — the workshop will price it by hand.
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="space-y-1.5">
+              <span className="text-xs font-semibold text-neutral-400">Confirm brand</span>
+              <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Giant"
+                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-xs font-semibold text-neutral-400">Confirm model</span>
+              <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. Escape 3"
+                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+            </label>
+          </div>
+
+          {valuation?.rationale?.length ? (
+            <ul className="text-[11px] text-neutral-400 space-y-0.5 list-disc pl-4">
+              {valuation.rationale.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          ) : null}
+        </div>
+      )}
+
+      {/* Details + submit — always visible so the customer can type them directly. */}
       <form onSubmit={submit} className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="space-y-1.5">
             <span className="text-xs font-semibold text-neutral-400">Brand *</span>
-            <input
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              placeholder="e.g. Giant"
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none"
-            />
+            <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Giant"
+              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
           </label>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold text-neutral-400">Model *</span>
-            <input
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="e.g. Escape 3"
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-neutral-400">Year (optional)</span>
-            <input
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-              placeholder="e.g. 2019"
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none"
-            />
-          </label>
-          <label className="space-y-1.5">
-            <span className="text-xs font-semibold text-neutral-400">Type</span>
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none"
-            >
-              {BIKE_CATEGORY_OPTIONS.map((c) => (
-                <option key={c.id} value={c.id}>{c.title}</option>
-              ))}
-            </select>
+            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. Escape 3"
+              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
           </label>
         </div>
 
         <div className="space-y-1.5">
           <span className="text-xs font-semibold text-neutral-400">Condition</span>
           <div className="flex flex-wrap gap-2">
-            {CONDITIONS.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setCondition(c.id)}
-                className={`px-3.5 py-2 rounded-lg border text-xs font-semibold cursor-pointer ${
-                  condition === c.id ? 'border-emerald-500/60 bg-emerald-950/30 text-emerald-300' : 'border-neutral-800 bg-[#090b0e] text-neutral-300 hover:border-neutral-700'
-                }`}
-              >
-                {c.label}
+            {(['excellent', 'good', 'fair', 'poor'] as const).map((c) => (
+              <button key={c} type="button" onClick={() => setDeclaredCondition(c)}
+                className={`px-3.5 py-2 rounded-lg border text-xs font-semibold capitalize cursor-pointer ${declaredCondition === c ? 'border-emerald-500/60 bg-emerald-950/30 text-emerald-300' : 'border-neutral-800 bg-[#090b0e] text-neutral-300 hover:border-neutral-700'}`}>
+                {c}
               </button>
             ))}
           </div>
         </div>
 
         <label className="space-y-1.5 block">
-          <span className="text-xs font-semibold text-neutral-400">Anything we should know?</span>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
+          <span className="text-xs font-semibold text-neutral-400">Anything we should know? (optional)</span>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
             placeholder="Mileage, service history, faults, upgrades…"
-            className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none resize-none"
-          />
+            className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none resize-none" />
         </label>
-
-        <label className="space-y-1.5 block">
-          <span className="text-xs font-semibold text-neutral-400">Interested in (optional)</span>
-          <input
-            value={interestedIn}
-            onChange={(e) => setInterestedIn(e.target.value)}
-            placeholder="e.g. a hybrid commuter under £800"
-            className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none"
-          />
-        </label>
-
-        <div className="flex items-center gap-3">
-          <label className="px-4 py-2.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-medium flex items-center gap-2 cursor-pointer">
-            <Camera className="w-4 h-4" />
-            {photoUrl ? 'Photo added' : 'Add a photo'}
-            <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
-          </label>
-          {photoUrl && <img src={photoUrl} alt="Trade-in bike" className="w-12 h-12 rounded-lg object-cover border border-neutral-800" />}
-        </div>
-
-        <button
-          type="submit"
-          className="pressable w-full py-3 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Send className="w-4 h-4" /> Send trade-in request
+        <button type="submit"
+          className="pressable w-full py-3 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer">
+          <Send className="w-4 h-4" /> Submit my bike for an offer
         </button>
       </form>
     </div>
   );
 };
 
-export default TradeInRequestForm;
+/** Backwards-compatible alias for the former trade-in component name. */
+export const TradeInRequestForm = SellYourBikeForm;
+
+export default SellYourBikeForm;
