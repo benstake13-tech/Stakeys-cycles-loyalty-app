@@ -174,7 +174,7 @@ export const BikeScraperTab: React.FC<BikeScraperTabProps> = ({ initialCustomer 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Header Banner */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
+      <div className="surface-panel p-6 sm:p-7 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 mb-1">
@@ -233,7 +233,7 @@ export const BikeScraperTab: React.FC<BikeScraperTabProps> = ({ initialCustomer 
       </div>
 
       {/* Scraper Query Form & Presets */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+      <div className="surface-panel p-6 shadow-xl space-y-4">
         <form onSubmit={handleRunScraper} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
           <div>
             <label className="block text-xs font-semibold text-neutral-400 mb-1">Brand</label>
@@ -362,7 +362,7 @@ export const BikeScraperTab: React.FC<BikeScraperTabProps> = ({ initialCustomer 
 
       {/* Scraper Results & Spec Comparison Table */}
       {scrapeResult && (
-        <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-6 animate-fade-in">
+        <div className="surface-panel p-6 shadow-xl space-y-6 animate-fade-in">
           {/* Result Summary Bar */}
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-neutral-800">
             <div>

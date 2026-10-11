@@ -404,7 +404,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
       </div>
 
       {/* 3. DIRECT FRONT-DESK / TILL ACTIONS BAR */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-4">
+      <div className="surface-panel p-5 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -622,7 +622,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
           )}
 
           {bikes.length === 0 ? (
-            <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-10 text-center space-y-3">
+            <div className="surface-panel !rounded-3xl p-10 text-center space-y-3">
               <Bike className="w-10 h-10 text-neutral-600 mx-auto" />
               <div className="text-sm font-bold text-white">No Bikes Registered Yet</div>
               <p className="text-xs text-neutral-400 max-w-sm mx-auto">
@@ -641,7 +641,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
               {bikes.map((b) => (
                 <div
                   key={b.id}
-                  className="bg-[#0e1217] border border-neutral-800 hover:border-neutral-700 rounded-2xl p-5 space-y-3 transition-all shadow-md"
+                  className="surface-panel surface-panel-hover p-5 space-y-3 transition-all shadow-md"
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -711,11 +711,11 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
           </div>
 
           {customerBookings.length === 0 ? (
-            <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-10 text-center text-neutral-400 text-xs">
+            <div className="surface-panel !rounded-3xl p-10 text-center text-neutral-400 text-xs">
               No service bookings on record for this customer.
             </div>
           ) : (
-            <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl divide-y divide-neutral-800/80 overflow-hidden shadow-xl">
+            <div className="surface-panel divide-y divide-neutral-800/80 overflow-hidden shadow-xl">
               {customerBookings.map((b) => (
                 <div
                   key={b.id}
@@ -787,7 +787,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
       {/* TAB C: LOYALTY PASS & AUDIT LOGS */}
       {activeAccountTab === 'stamps' && (
         <div className="space-y-4">
-          <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl">
+          <div className="surface-panel !rounded-3xl p-6 sm:p-8 space-y-5 shadow-xl">
             <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
               <div>
                 <h4 className="text-base font-bold text-white">Digital Pass Stamp Tracker</h4>
@@ -820,7 +820,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
           </div>
 
           {/* Audit Logs */}
-          <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-5 shadow-xl space-y-3">
+          <div className="surface-panel p-5 shadow-xl space-y-3">
             <h4 className="text-sm font-bold text-white flex items-center gap-2">
               <Clock className="w-4 h-4 text-emerald-400" />
               <span>Timestamped Visit &amp; Stamp Audit Log</span>
@@ -853,7 +853,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
       {activeAccountTab === 'rewards' && (
         <div className="space-y-4">
           {/* Service vouchers */}
-          <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <div className="surface-panel !rounded-3xl p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
               <h4 className="text-base font-bold text-white flex items-center gap-2">
                 <Gift className="w-4 h-4 text-amber-400" />
@@ -897,7 +897,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
           </div>
 
           {/* Prize draws won */}
-          <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+          <div className="surface-panel !rounded-3xl p-6 shadow-xl space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
               <h4 className="text-base font-bold text-white flex items-center gap-2">
                 <Trophy className="w-4 h-4 text-emerald-400" />
@@ -934,7 +934,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
 
       {/* TAB D: MECHANIC NOTES & SPECS */}
       {activeAccountTab === 'notes' && (
-        <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-4">
+        <div className="surface-panel p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
             <div>
               <h4 className="text-base font-bold text-white flex items-center gap-2">
@@ -972,7 +972,7 @@ export const CustomerAccountDossier: React.FC<CustomerAccountDossierProps> = ({
       {/* ADD BIKE MODAL FOR STAFF */}
       {isAddBikeOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl relative">
+          <div className="surface-panel !rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-4 shadow-2xl relative">
             <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
               <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
                 <Bike className="w-4 h-4 text-emerald-400" />

@@ -28,6 +28,7 @@ import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
 import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner';
 import { StakeysLogo } from './components/StakeysLogo';
+import { PremiumBackdrop } from './components/PremiumBackdrop';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
@@ -393,13 +394,15 @@ function AppContent() {
       {/* Page content sits above the seasonal canvas (z-0) so the characters
           ride across the background of every screen, behind the UI. */}
       <div className="relative z-10 min-h-screen flex flex-col">
+      {/* Ambient premium backdrop for every surface (website, customer, staff). */}
+      <PremiumBackdrop />
       {/* Broadcast Winner Announcement to Everybody */}
       <WinnerAnnouncementBanner />
 
       {/* Top Navigation Bar */}
       <header
-        className={`sticky top-0 z-40 border-b backdrop-blur-xl ${
-          isDark ? 'bg-[#090b0e]/85 border-neutral-800/80 text-white' : 'bg-white/85 border-neutral-200 text-neutral-900'
+        className={`glass sticky top-0 z-40 !rounded-none border-0 border-b ${
+          isDark ? 'border-white/10 text-white' : 'border-neutral-200/80 text-neutral-900'
         }`}
       >
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">

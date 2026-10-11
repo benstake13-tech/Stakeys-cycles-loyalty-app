@@ -30,7 +30,7 @@ const FinalOfferInput: React.FC<{ id: string; value?: number }> = ({ id, value }
         onChange={(e) => setDraft(e.target.value)}
         onBlur={save}
         placeholder="e.g. 180"
-        className="w-28 rounded-lg border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm px-3 py-1.5 focus:border-emerald-500/50 outline-none"
+        className="w-28 surface-panel text-neutral-200 text-sm px-3 py-1.5 focus:border-emerald-500/50 outline-none"
       />
       <button
         type="button"
@@ -66,7 +66,7 @@ export const StaffTradeInsTab: React.FC = () => {
       </div>
 
       {requests.length === 0 ? (
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-3">
+        <div className="surface-panel p-10 text-center space-y-3">
           <Inbox className="w-8 h-8 text-neutral-500 mx-auto" />
           <div className="font-display text-base font-bold text-white">No sell-your-bike leads yet</div>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
@@ -78,7 +78,7 @@ export const StaffTradeInsTab: React.FC = () => {
           {requests.map((r) => {
             const meta = STATUS_META[r.status];
             return (
-              <li key={r.id} className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 space-y-4">
+              <li key={r.id} className="surface-panel p-5 space-y-4">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-4">
                     {r.photoUrl ? (

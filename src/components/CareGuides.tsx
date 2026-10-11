@@ -26,7 +26,7 @@ export const CareGuides: React.FC<CareGuidesProps> = ({ onGoToBooking }) => {
           <ChevronLeft className="w-3.5 h-3.5" /> All guides
         </button>
 
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-6 sm:p-8 space-y-4">
+        <div className="surface-panel p-6 sm:p-8 space-y-4">
           <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-neutral-500">
             <Clock className="w-3.5 h-3.5" /> {guide.minutes} min
             {guide.tags.map((t) => (
@@ -90,7 +90,7 @@ export const CareGuides: React.FC<CareGuidesProps> = ({ onGoToBooking }) => {
             type="button"
             data-testid={`guide-card-${g.id}`}
             onClick={() => setOpenId(g.id)}
-            className="text-left rounded-2xl border border-neutral-800 bg-[#0d1015] hover:border-emerald-500/40 p-5 cursor-pointer transition-colors"
+            className="text-left surface-panel hover:border-emerald-500/40 p-5 cursor-pointer transition-colors"
           >
             <div className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-neutral-500 mb-2">
               <Clock className="w-3 h-3" /> {g.minutes} min

@@ -1,4 +1,5 @@
 import React from 'react';
+import { PremiumBackdrop } from '../PremiumBackdrop';
 
 /**
  * Ambient "OS" backdrop for the staff surface: a faint engineering grid plus
@@ -7,11 +8,7 @@ import React from 'react';
  * compositor and never repaints the panels above it.
  */
 export const AmbientBackdrop: React.FC = () => (
-  <div className="os-backdrop" aria-hidden="true">
-    <span className="os-bloom emerald" />
-    <span className="os-bloom sky" />
-    <span className="os-bloom amber" />
-  </div>
+  <PremiumBackdrop />
 );
 
 export default AmbientBackdrop;

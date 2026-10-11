@@ -8,7 +8,7 @@ import {
   promotionOverview,
 } from '../utils/engagementTracker';
 
-const cardCls = 'bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl';
+const cardCls = 'surface-panel !rounded-3xl p-5 shadow-xl';
 
 const Stat: React.FC<{ icon: React.ReactNode; label: string; value: string | number; sub?: string; tone?: string }> = ({
   icon,

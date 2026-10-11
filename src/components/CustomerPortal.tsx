@@ -250,16 +250,18 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       <MembershipPassCard user={currentUser} />
 
       {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
-      <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
+      <div className="surface-panel relative overflow-hidden !rounded-3xl">
+        <span className="hero-sheen" aria-hidden="true" />
         {/* Background Workshop Image Asset */}
         <div className="absolute inset-0 z-0">
           <img
             src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
             alt="Stakey's cycle and scooter workshop"
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center opacity-30 filter saturate-75"
+            className="w-full h-full object-cover object-center opacity-40 filter saturate-75"
           />
-          <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#090b0e] via-[#090b0e]/85 to-[#090b0e]/40" />
+          <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#05070a] via-[#05070a]/88 to-[#05070a]/30" />
+          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
         </div>
 
         {/* Content Box */}
@@ -267,7 +269,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           <div className="flex flex-row items-center gap-6 max-w-xl">
             {/* Avatar & Edit Overlay */}
             <div className="relative group shrink-0">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-neutral-800 shadow-xl">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-emerald-400/40 shadow-[0_0_30px_-6px_rgba(5,193,71,0.6)] ring-1 ring-white/10">
                 <FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={96} className="w-full h-full object-cover" />
               </div>
               <button
@@ -292,7 +294,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               </div>
 
               <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
-                Welcome back, {currentUser.displayName}
+                Welcome back, <span className="text-gradient">{currentUser.displayName}</span>
               </h1>
               <p className="text-sm text-neutral-300 mt-2 leading-relaxed">
                 Your registered bikes, scheduled workshop repairs, and digital loyalty pass in one place.
@@ -301,23 +303,23 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           </div>
 
           {/* Clean Tabular Figures Metrics Panel */}
-          <div className="flex items-center gap-4 bg-[#090b0e]/80 backdrop-blur-md px-5 py-3.5 rounded-xl border border-neutral-800 shrink-0">
+          <div className="glass flex items-center gap-4 px-5 py-3.5 !rounded-2xl shrink-0">
             <div className="text-left">
-              <div className="font-mono text-2xl font-bold text-white tabular-nums">
+              <div className="font-display figure text-2xl font-bold text-white">
                 {customerBikes.length}
               </div>
               <div className="text-[11px] text-neutral-400 font-medium">Garage Bikes</div>
             </div>
-            <div className="h-8 w-px bg-neutral-800" />
+            <div className="h-8 w-px bg-white/10" />
             <div className="text-left">
-              <div className="font-mono text-2xl font-bold text-[#05C147] tabular-nums">
+              <div className="font-display figure text-2xl font-bold text-[#05C147]">
                 {currentUser.stamps || 0}<span className="text-xs text-neutral-500 font-normal">/10</span>
               </div>
               <div className="text-[11px] text-neutral-400 font-medium">Visit Stamps</div>
             </div>
-            <div className="h-8 w-px bg-neutral-800" />
+            <div className="h-8 w-px bg-white/10" />
             <div className="text-left">
-              <div className="font-mono text-2xl font-bold text-white tabular-nums">
+              <div className="font-display figure text-2xl font-bold text-white">
                 {customerBookings.length}
               </div>
               <div className="text-[11px] text-neutral-400 font-medium">Bookings</div>
@@ -431,7 +433,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
           {/* List of Bikes */}
           {customerBikes.length === 0 ? (
-            <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-4">
+            <div className="surface-panel p-10 text-center space-y-4">
               <div className="w-12 h-12 rounded-xl bg-neutral-900 border border-neutral-800 text-neutral-500 flex items-center justify-center mx-auto">
                 <Bike className="w-6 h-6" />
               </div>
@@ -640,7 +642,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           </div>
 
           {customerBookings.length === 0 ? (
-            <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-3">
+            <div className="surface-panel p-10 text-center space-y-3">
               <Wrench className="w-8 h-8 text-neutral-500 mx-auto" />
               <div className="font-display text-base font-bold text-white">No active workshop bookings</div>
               <p className="text-xs text-neutral-400 max-w-sm mx-auto">
@@ -655,7 +657,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               </button>
             </div>
           ) : (
-            <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] divide-y divide-neutral-800/80 overflow-hidden">
+            <div className="surface-panel divide-y divide-neutral-800/80 overflow-hidden">
               {customerBookings.map((b) => (
                 <div
                   key={b.id}
@@ -775,7 +777,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             <div className="lg:col-span-5 space-y-4">
 
-              <div className="rounded-xl border border-neutral-800 bg-[#0d1015] p-4 text-center text-xs text-neutral-400">
+              <div className="surface-panel p-4 text-center text-xs text-neutral-400">
                 Present this digital pass at the till when visiting Stakey's Cycles to earn your daily visit stamp.
               </div>
             </div>
@@ -905,7 +907,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       {/* OEM Specs & Upgrades Modal for Customer */}
       {viewingBikeSpecs && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
-          <div className="w-full max-w-2xl bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 sm:p-7 text-white shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-2xl surface-panel !rounded-3xl p-6 sm:p-7 text-white shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-neutral-800">
               <div>
                 <div className="flex items-center gap-2">

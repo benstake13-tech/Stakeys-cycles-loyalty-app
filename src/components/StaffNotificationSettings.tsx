@@ -29,7 +29,7 @@ export const StaffNotificationSettings: React.FC = () => {
   const { notificationPreferences, setNotificationChannel, setNotificationEventEnabled } = useShop();
 
   return (
-    <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl space-y-5">
+    <div className="surface-panel p-6 shadow-xl space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-neutral-800">
         <div>
           <div className="flex items-center gap-2 text-white font-bold text-base">

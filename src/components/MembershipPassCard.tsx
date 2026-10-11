@@ -45,9 +45,16 @@ export const MembershipPassCard: React.FC<MembershipPassCardProps> = ({ user }) 
   return (
     <section
       aria-label="Digital Membership Pass"
-      className="w-full rounded-2xl border border-neutral-800 bg-white text-neutral-950 p-5 sm:p-6 shadow-2xl"
+      className="relative w-full overflow-hidden rounded-2xl border border-neutral-800 bg-white text-neutral-950 p-5 sm:p-6 shadow-[0_30px_70px_-30px_rgba(0,0,0,0.9)]"
     >
-      <div className="flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
+      {/* Brand accent rail + a soft holographic sheen so the pass reads as a
+          premium physical card rather than a plain white panel. */}
+      <span className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-sky-400" aria-hidden="true" />
+      <span
+        className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rotate-12 rounded-full bg-gradient-to-br from-emerald-200/40 to-sky-200/30 blur-2xl"
+        aria-hidden="true"
+      />
+      <div className="relative flex flex-col sm:flex-row items-center gap-5 sm:gap-6">
         <div className="shrink-0 rounded-xl bg-white p-2 ring-1 ring-neutral-200">
           <QRCodeSVG
             value={payload}

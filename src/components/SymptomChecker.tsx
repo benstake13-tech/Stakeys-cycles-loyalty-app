@@ -48,7 +48,7 @@ export const SymptomChecker: React.FC<SymptomCheckerProps> = ({ bikes = [], onCo
 
   return (
     <div className="space-y-6" data-testid="symptom-checker">
-      <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-6 sm:p-8 shadow-2xl">
+      <div className="surface-panel p-6 sm:p-8 shadow-2xl">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400 flex items-center justify-center shrink-0">
             <Stethoscope className="w-6 h-6" />
@@ -84,7 +84,7 @@ export const SymptomChecker: React.FC<SymptomCheckerProps> = ({ bikes = [], onCo
                   setBikeId(b.id);
                   setStep('area');
                 }}
-                className="text-left rounded-xl border border-neutral-800 bg-[#0d1015] hover:border-emerald-500/40 p-4 cursor-pointer"
+                className="text-left surface-panel hover:border-emerald-500/40 p-4 cursor-pointer"
               >
                 <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">{b.categoryLabel || b.category}</div>
                 <div className="font-semibold text-white">{b.brand} {b.model}</div>
@@ -119,7 +119,7 @@ export const SymptomChecker: React.FC<SymptomCheckerProps> = ({ bikes = [], onCo
                   setSelected([]);
                   setStep('symptom');
                 }}
-                className="text-left rounded-xl border border-neutral-800 bg-[#0d1015] hover:border-emerald-500/40 p-4 cursor-pointer"
+                className="text-left surface-panel hover:border-emerald-500/40 p-4 cursor-pointer"
               >
                 <div className="font-semibold text-white text-sm">{a.title}</div>
                 <div className="text-xs text-neutral-400 mt-1">{a.description}</div>
@@ -165,7 +165,7 @@ export const SymptomChecker: React.FC<SymptomCheckerProps> = ({ bikes = [], onCo
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder="e.g. started after a wet ride, worse when braking hard…"
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none resize-none"
+              className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none resize-none"
             />
           </div>
 
@@ -193,7 +193,7 @@ export const SymptomChecker: React.FC<SymptomCheckerProps> = ({ bikes = [], onCo
       {step === 'review' && (
         <div className="space-y-4">
           <p className="text-sm text-neutral-300">Here's what we'll put on your booking:</p>
-          <div className="rounded-xl border border-neutral-800 bg-[#0d1015] p-4 space-y-2">
+          <div className="surface-panel p-4 space-y-2">
             {selectedItems.length === 0 ? (
               <div className="text-xs text-neutral-500">No specific symptoms selected.</div>
             ) : (

@@ -477,11 +477,13 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
   );
 
   const heroCard = (
-    <div className={`relative overflow-hidden rounded-[2rem] border shadow-2xl ${isDark ? 'border-neutral-800 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black' : 'border-neutral-200 bg-gradient-to-br from-white via-emerald-50/40 to-white'}`}>
+    <div className={`relative overflow-hidden rounded-[2rem] shadow-2xl ${isDark ? 'border border-white/10 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black' : 'border border-neutral-200 bg-gradient-to-br from-white via-emerald-50/40 to-white'}`}>
+      <span className="hero-sheen" aria-hidden="true" />
       <div className="pointer-events-none absolute inset-0" aria-hidden="true">
         <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-emerald-500/25 blur-3xl" />
         <div className="absolute -bottom-24 -left-20 w-64 h-64 rounded-full bg-sky-500/15 blur-3xl" />
         <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:28px_28px]" />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
       </div>
       <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-6 sm:p-10">
         <div className="space-y-5">
@@ -527,14 +529,14 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
             <button
               type="button"
               onClick={onBookService}
-              className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer hover:scale-[1.02]"
+              className="btn btn-primary !px-5 !py-2.5 !text-xs !uppercase !tracking-wider"
             >
               <CalendarCheck className="w-4 h-4" />
               {isEmbedded ? 'Book a repair' : content.calloutCta}
             </button>
             <a
               href={call}
-              className={`pressable inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-300 text-neutral-800 hover:border-emerald-500/50'}`}
+              className={`btn btn-ghost !px-5 !py-2.5 !text-xs ${isDark ? '' : '!border-neutral-300 !text-neutral-800'}`}
             >
               <Phone className="w-4 h-4" />
               Call Us Out
@@ -546,6 +548,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
           data-testid="hero-quality-claim"
           className={`relative rounded-[1.75rem] border p-6 sm:p-8 shadow-xl ${isDark ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}
         >
+          <span className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" aria-hidden="true" />
           <Sparkles className="w-7 h-7 text-emerald-500" />
           <p className={`mt-3 text-lg sm:text-xl font-display font-black leading-snug ${isDark ? 'text-white' : 'text-neutral-900'}`}>
             {content.brandStory.qualityClaim}
@@ -587,19 +590,19 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
   ] as const;
 
   const valueBand = (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div className="stagger grid grid-cols-1 sm:grid-cols-3 gap-4">
       {valueProps.map(({ icon: Icon, title, body, tone }) => (
         <div
           key={title}
-          className={`group rounded-2xl border p-5 shadow-sm transition-transform hover:-translate-y-0.5 ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-white/80'}`}
+          className="surface-panel surface-panel-hover group p-5"
         >
           <span
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl ${
+            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${
               tone === 'emerald'
-                ? 'bg-emerald-500/15 text-emerald-500'
+                ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/20'
                 : tone === 'amber'
-                ? 'bg-amber-500/15 text-amber-500'
-                : 'bg-sky-500/15 text-sky-500'
+                ? 'bg-amber-500/15 text-amber-500 border-amber-500/20'
+                : 'bg-sky-500/15 text-sky-500 border-sky-500/20'
             }`}
           >
             <Icon className="w-5 h-5" />
@@ -612,8 +615,8 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
   );
 
   const brandStoryBlock = (
-    <div data-testid="home-brand-story" className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-white/80'}`}>
-      <span className={`text-[10px] font-black uppercase tracking-[0.18em] ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
+    <div data-testid="home-brand-story" className="surface-panel p-6 sm:p-8">
+      <span className={`eyebrow ${isDark ? '' : '!text-emerald-700'}`}>
         {content.brandStory.eyebrow}
       </span>
       <h3 className={`mt-1 font-display text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
