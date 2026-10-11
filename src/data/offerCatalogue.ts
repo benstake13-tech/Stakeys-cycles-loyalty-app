@@ -1,5 +1,6 @@
 import type { VehicleCategory } from '../types/bikeShop';
-import type { OfferPriceEntry } from '../context/OfferPriceBook';
+import type { OfferPriceEntry, ConditionPricePoint } from '../context/OfferPriceBook';
+import { CONDITION_ORDER } from '../context/OfferPriceBook';
 import {
   BIKE_BRAND_PROFILES,
   BRAND_MODELS_MAP,
@@ -33,6 +34,8 @@ export interface CatalogueModel {
   category: VehicleCategory;
   /** The matching price-book row, when one exists. */
   entry?: OfferPriceEntry;
+  /** A compact "£10–£40" summary when the row has explicit condition prices. */
+  conditionRange?: string | null;
 }
 
 export interface CatalogueBrand {
@@ -89,6 +92,15 @@ export function findEntry(
   return book.find((e) => normKey(e.brand) === b && normKey(e.model) === m);
 }
 
+/** A compact "£10–£40" summary of a row's explicit condition prices, or null. */
+export function entryConditionRange(entry?: OfferPriceEntry): string | null {
+  const points = CONDITION_ORDER.map((c) => entry?.conditionPrices?.[c]).filter(Boolean) as ConditionPricePoint[];
+  if (!points.length) return null;
+  const lo = Math.min(...points.map((p) => p.price));
+  const hi = Math.max(...points.map((p) => p.maxPrice ?? p.price));
+  return lo === hi ? `£${lo}` : `£${lo}–£${hi}`;
+}
+
 /**
  * The full brand catalogue, each brand expanded to its real (non-escape-hatch)
  * models with pricing state attached. Brands with no real models are dropped.
@@ -105,11 +117,13 @@ function toCatalogueBrand(profile: BikeBrandProfile, book: OfferPriceEntry[]): C
     .filter((raw) => !isEscapeHatchModel(raw))
     .map((raw) => {
       const name = cleanModelName(raw);
+      const entry = findEntry(book, profile.name, name);
       return {
         raw,
         name,
         category: inferModelCategory(profile.name, raw),
-        entry: findEntry(book, profile.name, name),
+        entry,
+        conditionRange: entryConditionRange(entry),
       };
     });
   return {

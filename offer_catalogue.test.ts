@@ -7,6 +7,7 @@ import {
   cleanModelName,
   inferModelCategory,
   normKey,
+  entryConditionRange,
 } from './src/data/offerCatalogue';
 import type { OfferPriceEntry } from './src/context/OfferPriceBook';
 
@@ -16,6 +17,7 @@ const entry = (over: Partial<OfferPriceEntry>): OfferPriceEntry => ({
   model: over.model ?? '',
   category: over.category,
   basePrice: over.basePrice ?? 100,
+  conditionPrices: over.conditionPrices,
   updatedAt: over.updatedAt ?? new Date().toISOString(),
 });
 
@@ -80,5 +82,30 @@ describe('offerCatalogue helpers', () => {
     expect(inferModelCategory('Trek', 'Rail (Electric Mountain)')).toBe('ebike');
     expect(inferModelCategory('Trek', 'Precaliber (Kids)')).toBe('cargo');
     expect(inferModelCategory('Xiaomi', 'Mi M365 (Original)')).toBe('electric_scooter');
+  });
+
+  it('summarises explicit condition prices as a range', () => {
+    const priced = entry({
+      brand: 'Carrera',
+      model: 'Vengeance',
+      basePrice: 35,
+      conditionPrices: { poor: { price: 10 }, fair: { price: 20 }, good: { price: 30, maxPrice: 40 } },
+    });
+    expect(entryConditionRange(priced)).toBe('£10–£40');
+    expect(entryConditionRange(entry({ basePrice: 100 }))).toBeNull();
+  });
+
+  it('shows the condition range on a priced catalogue model', () => {
+    const book = [
+      entry({
+        brand: 'Carrera',
+        model: 'Vengeance',
+        basePrice: 35,
+        conditionPrices: { poor: { price: 10 }, fair: { price: 20 }, good: { price: 30, maxPrice: 40 } },
+      }),
+    ];
+    const carrera = buildCatalogue(book).find((b) => b.name === 'Carrera')!;
+    const vengeance = carrera.models.find((m) => m.name === 'Vengeance')!;
+    expect(vengeance.conditionRange).toBe('£10–£40');
   });
 });

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { BadgePoundSterling, Plus, RotateCcw, Save, Trash2, Pencil, X, Tag } from 'lucide-react';
-import { useOfferPrices, upsertOfferPrice, deleteOfferPrice, resetOfferPrices, useOfferConditionBands, setOfferConditionBands, resetOfferConditionBands, OfferPriceEntry } from '../context/OfferPriceBook';
+import { useOfferPrices, upsertOfferPrice, deleteOfferPrice, resetOfferPrices, useOfferConditionBands, setOfferConditionBands, resetOfferConditionBands, OfferPriceEntry, CONDITION_ORDER, type CustomerCondition, type ConditionPricePoint } from '../context/OfferPriceBook';
 import type { VehicleCategory } from '../types/bikeShop';
 import type { OfferConditionBands } from '../utils/bikeValuation';
 import { OfferCatalogue, CataloguePick } from './OfferCatalogue';
@@ -14,7 +14,6 @@ const CATEGORY_LABEL: Record<VehicleCategory, string> = {
   cargo: 'Kids / Cargo',
 };
 
-const CONDITION_ORDER: ('excellent' | 'good' | 'fair' | 'poor')[] = ['excellent', 'good', 'fair', 'poor'];
 const CONDITION_HELP: Record<string, string> = {
   excellent: 'Immaculate, as-new',
   good: 'Light use, fully working',
@@ -22,10 +21,50 @@ const CONDITION_HELP: Record<string, string> = {
   poor: 'Heavy wear / needs work',
 };
 
+type ConditionDraft = Record<CustomerCondition, { price: string; maxPrice: string }>;
+
+const emptyConditions = (): ConditionDraft =>
+  Object.fromEntries(CONDITION_ORDER.map((c) => [c, { price: '', maxPrice: '' }])) as ConditionDraft;
+
+/** Build the editable condition table from a saved row (or blank for a new one). */
+const conditionsFrom = (entry?: OfferPriceEntry): ConditionDraft => {
+  const base = emptyConditions();
+  for (const c of CONDITION_ORDER) {
+    const point = entry?.conditionPrices?.[c];
+    if (point) {
+      base[c] = { price: String(point.price), maxPrice: point.maxPrice != null ? String(point.maxPrice) : '' };
+    }
+  }
+  return base;
+};
+
+/** Turn the editable table back into the stored map (drops empty grades). */
+const conditionsToPoints = (draft: ConditionDraft): Partial<Record<CustomerCondition, ConditionPricePoint>> | undefined => {
+  const out: Partial<Record<CustomerCondition, ConditionPricePoint>> = {};
+  for (const c of CONDITION_ORDER) {
+    const price = Number(draft[c].price);
+    if (!draft[c].price.trim() || !Number.isFinite(price) || price < 0) continue;
+    const max = Number(draft[c].maxPrice);
+    out[c] = { price, maxPrice: Number.isFinite(max) && max >= price ? max : undefined };
+  }
+  return Object.keys(out).length ? out : undefined;
+};
+
+/** A compact "£10–£40" summary of a row's explicit condition prices. */
+const conditionRange = (entry: OfferPriceEntry): string | null => {
+  const points = CONDITION_ORDER.map((c) => entry.conditionPrices?.[c]).filter(Boolean) as ConditionPricePoint[];
+  if (!points.length) return null;
+  const lows = points.map((p) => p.price);
+  const highs = points.map((p) => p.maxPrice ?? p.price);
+  const lo = Math.min(...lows);
+  const hi = Math.max(...highs);
+  return lo === hi ? `£${lo}` : `£${lo}–£${hi}`;
+};
+
 /**
- * Staff editor for the per-condition multipliers — what we pay for a bike at
- * each grade, as a percentage of the good-condition base price. Shown as % so
- * it reads naturally ("we pay 115% for excellent, 55% for poor").
+ * Staff editor for the default per-condition multipliers — used only when a
+ * model has no explicit per-condition price of its own. Shown as % so it reads
+ * naturally ("we pay 115% for excellent, 55% for poor").
  */
 const ConditionBandsEditor: React.FC<{ bands: OfferConditionBands }> = ({ bands }) => {
   const [draft, setDraft] = useState<Record<string, string>>(() =>
@@ -44,9 +83,9 @@ const ConditionBandsEditor: React.FC<{ bands: OfferConditionBands }> = ({ bands 
     <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 space-y-4" data-testid="condition-bands">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="font-display text-sm font-bold text-white">Price by condition</h3>
+          <h3 className="font-display text-sm font-bold text-white">Default price by condition</h3>
           <p className="text-xs text-neutral-400 mt-1">
-            What we pay at each grade, as a % of the good-condition price. The AI grades the bike and applies the matching band.
+            Fallback used when a model has no explicit condition prices of its own. A bike’s own “Offer by condition” table always wins.
           </p>
         </div>
         <button type="button" onClick={() => { const b = resetOfferConditionBands(); setDraft(Object.fromEntries(CONDITION_ORDER.map((c) => [c, String(Math.round(b[c] * 100))]))); toast.success('Condition prices reset.'); }}
@@ -89,9 +128,10 @@ interface Draft {
   minPrice: string;
   maxPrice: string;
   notes: string;
+  conditions: ConditionDraft;
 }
 
-const emptyDraft: Draft = { brand: '', model: '', category: 'cycle', basePrice: '', minPrice: '', maxPrice: '', notes: '' };
+const emptyDraft: Draft = { brand: '', model: '', category: 'cycle', basePrice: '', minPrice: '', maxPrice: '', notes: '', conditions: emptyConditions() };
 
 /**
  * Staff "Offer Prices" manager for the Sell Your Bike flow. Staff record what
@@ -109,7 +149,7 @@ export const StaffOfferPricesTab: React.FC = () => {
     [entries]
   );
 
-  const startAdd = () => setDraft({ ...emptyDraft });
+  const startAdd = () => setDraft({ ...emptyDraft, conditions: emptyConditions() });
   const startEdit = (e: OfferPriceEntry) =>
     setDraft({
       id: e.id,
@@ -120,6 +160,7 @@ export const StaffOfferPricesTab: React.FC = () => {
       minPrice: e.minPrice != null ? String(e.minPrice) : '',
       maxPrice: e.maxPrice != null ? String(e.maxPrice) : '',
       notes: e.notes ?? '',
+      conditions: conditionsFrom(e),
     });
 
   /** Prefill the editor from a catalogue pick — edit the price if it exists. */
@@ -134,6 +175,7 @@ export const StaffOfferPricesTab: React.FC = () => {
       minPrice: existing?.minPrice != null ? String(existing.minPrice) : '',
       maxPrice: existing?.maxPrice != null ? String(existing.maxPrice) : '',
       notes: existing?.notes ?? '',
+      conditions: conditionsFrom(existing),
     });
   };
 
@@ -156,11 +198,16 @@ export const StaffOfferPricesTab: React.FC = () => {
       basePrice,
       minPrice: draft.minPrice ? Number(draft.minPrice) : undefined,
       maxPrice: draft.maxPrice ? Number(draft.maxPrice) : undefined,
+      conditionPrices: conditionsToPoints(draft.conditions),
       notes: draft.notes.trim() || undefined,
     });
     toast.success(draft.id ? 'Price updated.' : 'Price added.');
     setDraft(null);
   };
+
+  /** Update one cell of the condition table. */
+  const setCondition = (c: CustomerCondition, key: 'price' | 'maxPrice', value: string) =>
+    setDraft((d) => (d ? { ...d, conditions: { ...d.conditions, [c]: { ...d.conditions[c], [key]: value } } } : d));
 
   return (
     <div className="space-y-6" data-testid="staff-offer-prices">
@@ -217,7 +264,7 @@ export const StaffOfferPricesTab: React.FC = () => {
               </select>
             </label>
             <label className="space-y-1.5">
-              <span className="text-xs font-semibold text-neutral-400">Offer price £ (good condition)</span>
+              <span className="text-xs font-semibold text-neutral-400">Base offer £ (good condition)</span>
               <input value={draft.basePrice} onChange={(e) => setDraft({ ...draft, basePrice: e.target.value })} inputMode="numeric" placeholder="180"
                 className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
@@ -232,6 +279,51 @@ export const StaffOfferPricesTab: React.FC = () => {
                 className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
           </div>
+
+          <div className="rounded-xl border border-neutral-800 bg-[#090b0e] p-3 space-y-2" data-testid="offer-price-conditions">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-neutral-300">Offer by condition</span>
+              <button type="button"
+                onClick={() => setDraft({ ...draft, conditions: { ...emptyConditions(), good: { price: draft.basePrice, maxPrice: '' } } })}
+                className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 cursor-pointer">
+                Set good = base
+              </button>
+            </div>
+            <p className="text-[10px] text-neutral-500">
+              Exact £ we pay at each grade. Leave a grade blank to auto-derive it from the base price × the condition bands.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {CONDITION_ORDER.map((c) => (
+                <div key={c} className="flex items-center gap-2">
+                  <span className="w-16 shrink-0 text-xs capitalize text-neutral-300">{c}</span>
+                  <span className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">£</span>
+                    <input
+                      value={draft.conditions[c].price}
+                      onChange={(e) => setCondition(c, 'price', e.target.value)}
+                      inputMode="numeric"
+                      aria-label={`${c} price`}
+                      placeholder="auto"
+                      className="w-full rounded-lg border border-neutral-800 bg-[#0d1015] text-neutral-200 text-sm py-2 pl-6 pr-2 focus:border-emerald-500/50 outline-none"
+                    />
+                  </span>
+                  <span className="text-neutral-500 text-xs shrink-0">to</span>
+                  <span className="relative flex-1">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">£</span>
+                    <input
+                      value={draft.conditions[c].maxPrice}
+                      onChange={(e) => setCondition(c, 'maxPrice', e.target.value)}
+                      inputMode="numeric"
+                      aria-label={`${c} max price`}
+                      placeholder="max"
+                      className="w-full rounded-lg border border-neutral-800 bg-[#0d1015] text-neutral-200 text-sm py-2 pl-6 pr-2 focus:border-emerald-500/50 outline-none"
+                    />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <label className="space-y-1.5 block">
             <span className="text-xs font-semibold text-neutral-400">Notes (optional)</span>
             <input value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="e.g. excludes e-bikes over 5 years"
@@ -266,9 +358,11 @@ export const StaffOfferPricesTab: React.FC = () => {
               <div className="flex items-center gap-3 shrink-0">
                 <div className="text-right">
                   <div className="font-mono font-bold text-emerald-400">£{e.basePrice}</div>
-                  {(e.minPrice != null || e.maxPrice != null) && (
+                  {conditionRange(e) ? (
+                    <div className="text-[10px] text-neutral-500">{conditionRange(e)}</div>
+                  ) : (e.minPrice != null || e.maxPrice != null) ? (
                     <div className="text-[10px] text-neutral-500">£{e.minPrice ?? '–'}–£{e.maxPrice ?? '–'}</div>
-                  )}
+                  ) : null}
                 </div>
                 <button type="button" onClick={() => startEdit(e)} aria-label="Edit price"
                   className="rounded-lg border border-neutral-800 bg-neutral-900 p-2 text-neutral-400 hover:text-white cursor-pointer">

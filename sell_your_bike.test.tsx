@@ -41,6 +41,7 @@ import {
   resetOfferConditionBands,
 } from './src/context/OfferPriceBook';
 import { getTradeInRequests, deleteTradeInRequest, submitTradeInRequest } from './src/context/TradeInStore';
+import { valueBike } from './src/utils/bikeValuation';
 
 const selectPhoto = (input: HTMLElement) => {
   const file = new File(['fake-bytes'], 'bike.jpg', { type: 'image/jpeg' });
@@ -289,3 +290,35 @@ describe('StaffTradeInsTab — sell-your-bike lead detail', () => {
     expect(block.textContent).toMatch(/Dent in down tube/);
   });
 });
+
+describe('StaffOfferPricesTab — per-condition prices', () => {
+  it('edits and saves an explicit price per condition grade', () => {
+    render(<StaffOfferPricesTab />);
+    // Open the Carrera Vengeance worked example seeded in the price book.
+    fireEvent.click(screen.getByTestId('catalogue-brand-carrera'));
+    fireEvent.click(screen.getByTestId('catalogue-model-carrera-vengeance'));
+    expect(screen.getByTestId('offer-price-conditions')).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText('good price'), { target: { value: '45' } });
+    fireEvent.change(screen.getByLabelText('good max price'), { target: { value: '50' } });
+    fireEvent.click(screen.getByText(/Save changes/i));
+
+    const saved = getOfferPrices().find((p) => p.brand === 'Carrera' && p.model === 'Vengeance')!;
+    expect(saved.conditionPrices?.good?.price).toBe(45);
+    expect(saved.conditionPrices?.good?.maxPrice).toBe(50);
+    expect(saved.conditionPrices?.poor?.price).toBe(10);
+  });
+
+  it('drives the offer engine with the saved per-condition prices', () => {
+    upsertOfferPrice({
+      brand: 'Raleigh',
+      model: 'Pioneer',
+      category: 'cycle',
+      basePrice: 30,
+      conditionPrices: { poor: { price: 10 }, fair: { price: 20 }, good: { price: 30, maxPrice: 40 } },
+    });
+    const v = valueBike({ make: 'Raleigh', model: 'Pioneer', type: 'cycle', declaredCondition: 'fair' }, getOfferPrices());
+    expect(v.offer).toBe(20);
+  });
+});
+
