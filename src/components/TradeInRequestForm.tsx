@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bike,
   Camera,
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { submitTradeInRequest, SellAnglePhoto } from '../context/TradeInStore';
-import { getOfferPrices, getOfferConditionBands } from '../context/OfferPriceBook';
+import { getOfferPrices, getOfferConditionBands, syncOfferPricesFromSupabase, syncOfferBandsFromSupabase } from '../context/OfferPriceBook';
 import { diagnoseFault, isBikeVisionConfigured } from '../api/visionService';
 import { compressImageFile } from '../utils/imageCompress';
 import { valueBike } from '../utils/bikeValuation';
@@ -45,6 +45,14 @@ interface Props {
  * photo and the AI read attached.
  */
 export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
+  // Pull the workshop's latest price book + condition bands when the customer
+  // opens the form, so a price staff just set in the terminal is used here even
+  // if this device already cached an older copy.
+  useEffect(() => {
+    void syncOfferPricesFromSupabase(true);
+    void syncOfferBandsFromSupabase(true);
+  }, []);
+
   const { currentUser } = useShop();
   const fileRef = useRef<HTMLInputElement>(null);
   const targetAngle = useRef<string>(SELL_ANGLES[0].id);
