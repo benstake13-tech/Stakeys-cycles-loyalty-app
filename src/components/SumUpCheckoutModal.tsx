@@ -8,6 +8,8 @@ import {
   sendToSumupReader,
   getSumupReaderStatus,
   terminateSumupReaderCheckout,
+  buildSumupPaymentSwitchUrl,
+  isMobileDevice,
   type SumupConfig,
   type SumupReader,
 } from '../utils/sumupPayments';
@@ -20,7 +22,7 @@ interface SumUpCheckoutModalProps {
   onClose: () => void;
 }
 
-type Phase = 'loading' | 'unconfigured' | 'ready' | 'pending' | 'reader' | 'paid' | 'failed';
+type Phase = 'loading' | 'unconfigured' | 'ready' | 'pending' | 'tapToPay' | 'reader' | 'paid' | 'failed';
 
 const POLL_MS = 2500;
 
@@ -48,6 +50,7 @@ export const SumUpCheckoutModal: React.FC<SumUpCheckoutModalProps> = ({
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const cancelled = useRef(false);
+  const mobile = isMobileDevice();
 
   const panel = isDark
     ? 'bg-neutral-950 border-neutral-800 text-neutral-100'
@@ -60,7 +63,7 @@ export const SumUpCheckoutModal: React.FC<SumUpCheckoutModalProps> = ({
       const cfg = await getSumupConfig();
       if (cancelled.current) return;
       setConfig(cfg);
-      setPhase(cfg.configured ? 'ready' : 'unconfigured');
+      setPhase(cfg.configured || cfg.tapToPay ? 'ready' : 'unconfigured');
     })();
     return () => {
       cancelled.current = true;
@@ -88,6 +91,34 @@ export const SumUpCheckoutModal: React.FC<SumUpCheckoutModalProps> = ({
     } catch (err: any) {
       setMessage(err?.message || 'Could not start the SumUp checkout.');
       setPhase('failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /**
+   * Tap to Pay (softPOS): hand off to the SumUp app with a Payment Switch URL.
+   * The transaction completes on the merchant's phone and the SumUp app shows
+   * its own result screen. We deliberately pass no callback URL: an http
+   * callback would make SumUp open a fresh browser tab (losing this basket's
+   * view), so instead the staff return to this tab and confirm the result.
+   */
+  const startTapToPay = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const url = await buildSumupPaymentSwitchUrl({
+        amount,
+        title: description,
+      });
+      if (!url) {
+        setMessage('Tap to Pay is not configured.');
+        return;
+      }
+      if (typeof window !== 'undefined') window.location.href = url;
+      setPhase('tapToPay');
+    } catch (err: any) {
+      setMessage(err?.message || 'Could not start the SumUp tap-to-pay handoff.');
     } finally {
       setBusy(false);
     }
@@ -192,20 +223,41 @@ export const SumUpCheckoutModal: React.FC<SumUpCheckoutModalProps> = ({
         {phase === 'unconfigured' && (
           <div className="rounded-xl border border-amber-800 bg-amber-950/40 px-3 py-3 text-xs text-amber-300 space-y-1">
             <div className="font-bold">SumUp is not configured on this deployment.</div>
-            <div>Set <span className="font-mono">SUMUP_API_KEY</span> and <span className="font-mono">SUMUP_MERCHANT_CODE</span> in Vercel, then redeploy.</div>
+            <div>For Tap to Pay set <span className="font-mono">SUMUP_AFFILIATE_KEY</span>. For online checkout set <span className="font-mono">SUMUP_API_KEY</span> and <span className="font-mono">SUMUP_MERCHANT_CODE</span>. Add them in Vercel, then redeploy.</div>
           </div>
         )}
 
         {phase === 'ready' && (
           <div className="space-y-3">
-            <button
-              type="button"
-              onClick={startCheckout}
-              disabled={busy}
-              className="pressable flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-black text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
-            >
-              <Smartphone className="w-4 h-4" /> Take payment online
-            </button>
+            {config?.tapToPay && (
+              <button
+                type="button"
+                onClick={startTapToPay}
+                disabled={busy}
+                className="pressable flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-black text-neutral-950 hover:bg-emerald-400 disabled:opacity-50"
+              >
+                <Smartphone className="w-4 h-4" /> Tap to Pay on this phone
+              </button>
+            )}
+            {config?.tapToPay && mobile && (
+              <p className={`text-center text-[10px] ${muted}`}>
+                Opens the SumUp app — customer taps their card or phone, you confirm the result here.
+              </p>
+            )}
+            {config?.configured && (
+              <button
+                type="button"
+                onClick={startCheckout}
+                disabled={busy}
+                className={`pressable flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-black disabled:opacity-50 ${
+                  config?.tapToPay
+                    ? 'border border-neutral-700 text-neutral-200 hover:bg-neutral-800'
+                    : 'bg-emerald-500 text-neutral-950 hover:bg-emerald-400'
+                }`}
+              >
+                <ExternalLink className="w-4 h-4" /> Take payment online
+              </button>
+            )}
             <button
               type="button"
               onClick={loadReaders}
@@ -215,9 +267,37 @@ export const SumUpCheckoutModal: React.FC<SumUpCheckoutModalProps> = ({
             >
               <CreditCard className="w-4 h-4" /> Send to card reader
             </button>
-            <p className={`text-center text-[10px] ${muted}`}>
-              Online checkout opens a secure SumUp page the customer completes on their phone.
+            {config?.configured && (
+              <p className={`text-center text-[10px] ${muted}`}>
+                Online checkout opens a secure SumUp page the customer completes on their own phone.
+              </p>
+            )}
+          </div>
+        )}
+
+        {phase === 'tapToPay' && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm text-emerald-300">
+              <Smartphone className="w-4 h-4" /> Finish the payment in the SumUp app
+            </div>
+            <p className={`text-[11px] ${muted}`}>
+              The customer taps or inserts their card on this phone. Once SumUp shows the payment is
+              approved, mark the sale paid below.
             </p>
+            <button
+              type="button"
+              onClick={() => onPaid({ reference: '', checkoutId: '' })}
+              className="pressable flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-3 text-sm font-black text-neutral-950 hover:bg-emerald-400"
+            >
+              <CheckCircle2 className="w-4 h-4" /> Payment approved — mark paid
+            </button>
+            <button
+              type="button"
+              onClick={() => setPhase('failed')}
+              className="w-full rounded-xl border border-neutral-700 py-2 text-[11px] font-semibold text-neutral-400 hover:bg-neutral-800"
+            >
+              Payment failed or cancelled
+            </button>
           </div>
         )}
 

@@ -14,8 +14,11 @@ const {
   createReaderCheckout,
   terminateReaderCheckout,
   sumupRequest,
+  buildPaymentSwitchUrl,
+  parsePaymentSwitchCallback,
   SUMUP_KEY_ENV_NAMES,
   SUMUP_MERCHANT_ENV_NAMES,
+  SUMUP_AFFILIATE_ENV_NAMES,
 } = sumupShared as any;
 
 // The SumUp family is one Vercel function dispatched by path segment; these
@@ -203,7 +206,7 @@ describe('sumup handler', () => {
     const res = mockRes();
     await call('config', { method: 'GET' }, res);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ configured: true, currency: 'GBP', hasReader: true });
+    expect(res.body).toEqual({ configured: true, tapToPay: false, currency: 'GBP', hasReader: true });
   });
 
   it('503s with a hint when SumUp is not configured', async () => {
@@ -258,5 +261,92 @@ describe('sumup handler', () => {
     const res = mockRes();
     await call('nope', { method: 'GET' }, res);
     expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('Tap to Pay (Payment Switch)', () => {
+  afterEach(() => {
+    delete process.env.SUMUP_AFFILIATE_KEY;
+    delete process.env.SUMUP_API_KEY;
+    delete process.env.SUMUP_MERCHANT_CODE;
+  });
+
+  it('is reported independently of the online-checkout config', () => {
+    // Affiliate key alone => tapToPay on, configured (online) off.
+    const cfg = resolveSumupConfig({ SUMUP_AFFILIATE_KEY: 'aff_123' });
+    expect(cfg.tapToPay).toBe(true);
+    expect(cfg.configured).toBe(false);
+  });
+
+  it('builds a sumupmerchant:// URL with amount, currency and callback', () => {
+    const url = buildPaymentSwitchUrl({
+      affiliateKey: 'aff_123',
+      amount: 12.5,
+      currency: 'GBP',
+      title: 'Gear service',
+      foreignTxId: 'till-1',
+      callbackSuccess: 'https://till.example',
+    });
+    expect(url.startsWith('sumupmerchant://pay/1.0?')).toBe(true);
+    const q = new URLSearchParams(url.split('?')[1]);
+    expect(q.get('amount')).toBe('12.50');
+    expect(q.get('currency')).toBe('GBP');
+    expect(q.get('affiliate-key')).toBe('aff_123');
+    expect(q.get('title')).toBe('Gear service');
+    expect(q.get('foreign-tx-id')).toBe('till-1');
+    expect(q.get('callbacksuccess')).toBe('https://till.example');
+    expect(q.get('skip-screen-success')).toBe('true');
+  });
+
+  it('parses a success callback', () => {
+    const r = parsePaymentSwitchCallback({
+      'smp-status': 'success',
+      'smp-tx-code': 'TX-1',
+      'foreign-tx-id': 'till-1',
+    });
+    expect(r.ok).toBe(true);
+    expect(r.txCode).toBe('TX-1');
+    expect(r.foreignTxId).toBe('till-1');
+  });
+
+  it('treats failed and invalidstate callbacks as not ok', () => {
+    expect(parsePaymentSwitchCallback({ 'smp-status': 'failed' }).ok).toBe(false);
+    expect(parsePaymentSwitchCallback({ 'smp-status': 'invalidstate' }).status).toBe('invalidstate');
+    expect(parsePaymentSwitchCallback({}).ok).toBe(false);
+  });
+
+  it('payment-switch-url returns a URL when the affiliate key is set', async () => {
+    process.env.SUMUP_AFFILIATE_KEY = 'aff_123';
+    const res = mockRes();
+    await call(
+      'payment-switch-url',
+      { method: 'POST', body: { amount: 9.99, title: 'Inner tube', reference: 'till-9' } },
+      res
+    );
+    expect(res.statusCode).toBe(200);
+    const q = new URLSearchParams(String(res.body.url).split('?')[1]);
+    expect(q.get('amount')).toBe('9.99');
+    expect(q.get('affiliate-key')).toBe('aff_123');
+    expect(q.get('foreign-tx-id')).toBe('till-9');
+  });
+
+  it('payment-switch-url 503s when no affiliate key is set', async () => {
+    const res = mockRes();
+    await call('payment-switch-url', { method: 'POST', body: { amount: 5 } }, res);
+    expect(res.statusCode).toBe(503);
+    expect(res.body.hint).toContain('SUMUP_AFFILIATE_KEY');
+  });
+
+  it('payment-switch-url rejects a non-positive amount', async () => {
+    process.env.SUMUP_AFFILIATE_KEY = 'aff_123';
+    const res = mockRes();
+    await call('payment-switch-url', { method: 'POST', body: { amount: 0 } }, res);
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('rejects GET on payment-switch-url with 405', async () => {
+    const res = mockRes();
+    await call('payment-switch-url', { method: 'GET' }, res);
+    expect(res.statusCode).toBe(405);
   });
 });
