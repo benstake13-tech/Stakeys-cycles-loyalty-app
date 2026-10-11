@@ -92,6 +92,10 @@ import { TileButton } from './tiles/TileButton';
 import { TileGrid } from './tiles/TileGrid';
 import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
+import { AmbientBackdrop } from './staff/AmbientBackdrop';
+import { CommandBar } from './staff/CommandBar';
+import { MetricRail } from './staff/MetricRail';
+import type { MetricItem } from './staff/MetricRail';
 
 interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
@@ -277,6 +281,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const ride = useRideTransition();
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  // Live filter applied by the command bar search to the tool launcher.
+  const [toolFilter, setToolFilter] = useState('');
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -504,38 +510,106 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'repair_guide'
     | 'settings';
 
-  // Tile launcher metadata. The old segmented strips became Windows-8-style
-  // grouped tile grids (see TileGroup); picking a tile opens that view.
+  // Tile launcher metadata. The old segmented strips became grouped tile
+  // grids (see TileGroup); picking a tile opens that view. `keywords` feeds the
+  // command bar's quick-find filter.
   type StaffTile = {
     id: StaffTabId;
     label: string;
     icon: LucideIcon;
     tone: TabTone;
     hint: string;
+    keywords: string;
     badge?: number | string;
   };
 
   const operationTiles: StaffTile[] = [
-    { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts' },
-    { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings' },
-    { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members' },
-    { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel' },
-    { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management' },
-    { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
-    { id: 'ev_codes', label: 'Error Codes', icon: Zap, tone: 'amber', hint: 'E-Scooter / E-Bike fault code lookup' },
-    { id: 'repair_guide', label: 'Repair Guide', icon: BookOpen, tone: 'emerald', hint: 'Workshop repair & training guide (Sheldon Brown)' },
+    { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts', keywords: 'till counter sale checkout payment card sumup cash pos' },
+    { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings', keywords: 'bookings jobs workshop repair service bench intake' },
+    { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members', keywords: 'members customers riders loyalty stamps accounts' },
+    { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel', keywords: 'prize draw wheel raffle winner spin hub' },
+    { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management', keywords: 'team staff roster employees management' },
+    { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast', keywords: 'weather forecast rain riding conditions' },
+    { id: 'ev_codes', label: 'Error Codes', icon: Zap, tone: 'amber', hint: 'E-Scooter / E-Bike fault code lookup', keywords: 'error codes fault ev escooter ebike diagnostic lookup' },
+    { id: 'repair_guide', label: 'Repair Guide', icon: BookOpen, tone: 'emerald', hint: 'Workshop repair & training guide (Sheldon Brown)', keywords: 'repair guide sheldon brown training workshop manual how to' },
   ];
 
   const adminTiles: StaffTile[] = [
-    { id: 'website_cms', label: 'Website', icon: Globe, tone: 'sky', hint: 'Edit the marketing site content' },
-    { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager' },
-    { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes' },
-    { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme' },
-    { id: 'tradeins', label: 'Trade-Ins', icon: RefreshCw, tone: 'amber', hint: 'Part-exchange leads to value' },
-    { id: 'reviews', label: 'Reviews', icon: MessageSquare, tone: 'amber', badge: reviews.length, hint: 'Customer reviews & feedback' },
-    { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history' },
-    { id: 'backend', label: 'Backend', icon: Server, tone: 'sky', hint: 'Supabase connection, schema & repair' },
-    { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications, tools & station overview' },
+    { id: 'website_cms', label: 'Website', icon: Globe, tone: 'sky', hint: 'Edit the marketing site content', keywords: 'website cms content marketing site pages' },
+    { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager', keywords: 'promotions offers deals campaigns manager' },
+    { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes', keywords: 'discount codes vouchers coupons till' },
+    { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme', keywords: 'referrals refer a friend invite programme' },
+    { id: 'tradeins', label: 'Trade-Ins', icon: RefreshCw, tone: 'amber', hint: 'Part-exchange leads to value', keywords: 'trade ins part exchange valuation leads' },
+    { id: 'reviews', label: 'Reviews', icon: MessageSquare, tone: 'amber', badge: reviews.length, hint: 'Customer reviews & feedback', keywords: 'reviews feedback ratings customers' },
+    { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history', keywords: 'logs audit history stamps rewards trail' },
+    { id: 'backend', label: 'Backend', icon: Server, tone: 'sky', hint: 'Supabase connection, schema & repair', keywords: 'backend supabase database schema connection repair' },
+    { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications, tools & station overview', keywords: 'settings notifications tools preferences station' },
+  ];
+
+  /** Case-insensitive quick-find over a tile's label, hint and keywords. */
+  const matchesFilter = (t: StaffTile) => {
+    const q = toolFilter.trim().toLowerCase();
+    if (!q) return true;
+    return `${t.label} ${t.hint} ${t.keywords}`.toLowerCase().includes(q);
+  };
+  const visibleOperationTiles = operationTiles.filter(matchesFilter);
+  const visibleAdminTiles = adminTiles.filter(matchesFilter);
+  const filterActive = toolFilter.trim().length > 0;
+  const activeTile = [...operationTiles, ...adminTiles].find((t) => t.id === staffTab);
+
+  /** Headline KPIs shown on the metric rail; each opens its tool. */
+  const metricItems: MetricItem[] = [
+    {
+      id: 'jobs',
+      label: 'Workshop Jobs',
+      value: activeBookingsCount,
+      unit: 'active on the bench',
+      icon: Wrench,
+      tone: 'emerald',
+      alert: freshBookings.length > 0 ? freshBookings.length : undefined,
+      onSelect: () => openStaffTab('bookings'),
+      testId: 'staff-metric-jobs',
+    },
+    {
+      id: 'riders',
+      label: 'Total Riders',
+      value: customerList.length,
+      unit: 'loyalty members',
+      icon: Users,
+      tone: 'sky',
+      onSelect: () => openStaffTab('customers'),
+      testId: 'staff-metric-riders',
+    },
+    {
+      id: 'rewards',
+      label: 'Rewards Ready',
+      value: rewardReadyCount,
+      unit: 'full stamp cards',
+      icon: Award,
+      tone: 'amber',
+      onSelect: () => openStaffTab('customers'),
+      testId: 'staff-metric-rewards',
+    },
+    {
+      id: 'promos',
+      label: 'Live Promotions',
+      value: promotions.filter((p) => p.status === 'active').length,
+      unit: 'running now',
+      icon: Tag,
+      tone: 'emerald',
+      onSelect: () => openStaffTab('promotions'),
+      testId: 'staff-metric-promos',
+    },
+    {
+      id: 'draw',
+      label: 'Draw Pool',
+      value: eligibleTicketHolders.length,
+      unit: 'ticket entries',
+      icon: Trophy,
+      tone: 'amber',
+      onSelect: () => openStaffTab('draws'),
+      testId: 'staff-metric-draw',
+    },
   ];
 
   /** Open a tool from the launcher: switch the view and collapse to "Back to tools". */
@@ -581,10 +655,33 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   );
 
   return (
-    <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="relative font-['Plus_Jakarta_Sans',sans-serif]">
+      <AmbientBackdrop />
+      <div className="relative z-10 space-y-5">
+      {/* 0. COMMAND BAR — identity, live status, quick actions, tool search */}
+      <CommandBar
+        operatorName={currentUser.displayName}
+        membershipNumber={currentUser.membershipNumber}
+        freshCount={freshBookings.length}
+        activeJobs={activeBookingsCount}
+        pushEnabled={pushState === 'granted'}
+        pushState={pushState}
+        onEnablePush={async () => {
+          setPushState('working');
+          const perm = await requestPushNotificationPermission();
+          setPushState(perm === 'granted' ? 'granted' : 'blocked');
+        }}
+        onScan={() => setIsScannerOpen(true)}
+        onQuickFind={(q) => {
+          setToolFilter(q);
+          setShowTools(true);
+        }}
+      />
+
       {/* 1. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
       {freshBookings.length > 0 && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
+          <span className="hero-sheen" aria-hidden="true" />
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-amber-400 text-neutral-950 flex items-center justify-center font-black shadow-lg shadow-amber-400/50 shrink-0 animate-bounce">
@@ -622,12 +719,17 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         </div>
       )}
 
+      {/* 2. METRIC RAIL — headline KPIs, each a shortcut into its tool */}
+      {showTools && <MetricRail items={metricItems} />}
+
       {/* 3. WORKSTATION LAUNCHER: grouped tiles, one per tool, keyboard-navigable */}
       <RideTransition state={ride.state}>
       {showTools ? (
       <div className="space-y-4" data-testid="staff-tool-launcher">
         <TileGroup
           label="Operations"
+          icon={Gauge}
+          description="Front-desk and bench tools — the everyday stations."
           action={
             /* Notification bell — latest workshop activity, routed on tap */
             <NotificationBell
@@ -645,7 +747,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           }
         >
           <TileGrid>
-            {operationTiles.map((t) => (
+            {visibleOperationTiles.map((t) => (
               <TileButton
                 key={t.id}
                 icon={t.icon}
@@ -663,6 +765,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
         <TileGroup
           label="Admin &amp; Reports"
+          icon={Sliders}
+          description="Configuration, marketing and audit surfaces."
           action={
             <button
               type="button"
@@ -694,7 +798,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           }
         >
           <TileGrid cols="grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {adminTiles.map((t) => (
+            {visibleAdminTiles.map((t) => (
               <TileButton
                 key={t.id}
                 icon={t.icon}
@@ -709,17 +813,48 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             ))}
           </TileGrid>
         </TileGroup>
+
+        {filterActive && visibleOperationTiles.length + visibleAdminTiles.length === 0 && (
+          <div className="surface-panel flex flex-col items-center gap-1 p-8 text-center">
+            <Search className="h-6 w-6 text-neutral-500" />
+            <p className="text-sm font-semibold text-white">No tools match “{toolFilter}”</p>
+            <button
+              type="button"
+              onClick={() => setToolFilter('')}
+              className="mt-1 text-xs font-bold text-emerald-400 hover:text-emerald-300"
+            >
+              Clear search
+            </button>
+          </div>
+        )}
       </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => closeStaffTool()}
-          data-testid="staff-back-to-tools"
-          className="pressable inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-[#0b0e13] px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white"
-        >
-          <LayoutGrid className="w-4 h-4" />
-          <span>Back to tools</span>
-        </button>
+        <div className="surface-panel flex flex-wrap items-center gap-3 p-3">
+          <button
+            type="button"
+            onClick={() => closeStaffTool()}
+            data-testid="staff-back-to-tools"
+            className="pressable inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-neutral-200 transition-colors hover:border-emerald-500/40 hover:text-white"
+          >
+            <LayoutGrid className="w-4 h-4 text-emerald-400" />
+            <span>Back to tools</span>
+          </button>
+          {activeTile && (
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
+                <activeTile.icon className="h-4 w-4 text-emerald-400" />
+              </span>
+              <div className="min-w-0">
+                <div className="truncate font-display text-sm font-bold leading-tight text-white">
+                  {activeTile.label}
+                </div>
+                <div className="truncate text-[10px] uppercase tracking-[0.16em] text-neutral-500">
+                  {activeTile.hint}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* 4. WORKSTATION VIEWS */}
@@ -1613,6 +1748,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           });
         }}
       />
+      </div>
     </div>
+
   );
 };
