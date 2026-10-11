@@ -13,7 +13,7 @@ vi.mock('./src/lib/supabase', () => ({
   AUTH_LINK_ON_LOAD: false,
 }));
 
-import { valueBike, matchOfferEntry, resolveCondition } from './src/utils/bikeValuation';
+import { valueBike, matchOfferEntry, resolveCondition, priceForCondition } from './src/utils/bikeValuation';
 import type { OfferPriceEntry } from './src/context/OfferPriceBook';
 
 const book: OfferPriceEntry[] = [
@@ -191,3 +191,69 @@ describe('cosmetic damage', () => {
     expect(v.cosmeticAdjustment).toBe(0);
   });
 });
+
+describe('explicit per-condition prices (staff-configurable)', () => {
+  // The Carrera Vengeance example from the workshop: poor £10, fair £20, good £30–£40.
+  const vengeance: OfferPriceEntry = {
+    id: 'vengeance',
+    brand: 'Carrera',
+    model: 'Vengeance',
+    category: 'cycle',
+    basePrice: 35,
+    conditionPrices: { poor: { price: 10 }, fair: { price: 20 }, good: { price: 30, maxPrice: 40 } },
+    updatedAt: 'x',
+  };
+  const vengeanceBook = [vengeance, ...book];
+
+  it('uses the staff-set price for the resolved grade', () => {
+    const poor = valueBike({ make: 'Carrera', model: 'Vengeance', type: 'cycle', declaredCondition: 'poor' }, vengeanceBook);
+    expect(poor.offer).toBe(10);
+    expect(poor.conditionSource).toBe('explicit');
+
+    const good = valueBike({ make: 'Carrera', model: 'Vengeance', type: 'cycle', declaredCondition: 'good' }, vengeanceBook);
+    expect(good.offer).toBe(30);
+    expect(good.minOffer).toBe(30);
+    expect(good.maxOffer).toBe(40);
+  });
+
+  it('shows the explicit price at each set grade and derives the rest', () => {
+    const v = valueBike({ make: 'Carrera', model: 'Vengeance', type: 'cycle' }, vengeanceBook);
+    const byCondition = Object.fromEntries(v.conditionPrices.map((c) => [c.condition, c]));
+    expect(byCondition.poor.price).toBe(10);
+    expect(byCondition.fair.price).toBe(20);
+    expect(byCondition.good.price).toBe(30);
+    expect(byCondition.good.maxPrice).toBe(40);
+    expect(byCondition.good.explicit).toBe(true);
+    // Excellent was left blank → derived from the £35 base × the default 1.15 band, to £5.
+    expect(byCondition.excellent.explicit).toBeFalsy();
+    expect(byCondition.excellent.price).toBe(40);
+  });
+
+  it('does not deduct faults or cosmetic damage from a staff-set price', () => {
+    const plain = valueBike({ make: 'Carrera', model: 'Vengeance', type: 'cycle', declaredCondition: 'good' }, vengeanceBook);
+    const damaged = valueBike(
+      {
+        make: 'Carrera',
+        model: 'Vengeance',
+        type: 'cycle',
+        declaredCondition: 'good',
+        faults: [{ severity: 'High' }],
+        cosmeticIssues: [{ type: 'Dent in down tube', severity: 'Major' }],
+      },
+      vengeanceBook
+    );
+    expect(damaged.offer).toBe(plain.offer);
+    expect(damaged.offer).toBe(30);
+    // The findings are still reported, just not subtracted.
+    expect(damaged.adjustments.every((a) => a.amount === 0)).toBe(true);
+    expect(damaged.rationale.join(' ')).toMatch(/condition grade/i);
+  });
+
+  it('exposes priceForCondition directly', () => {
+    const bands = { excellent: 1.15, good: 1, fair: 0.8, poor: 0.55 };
+    expect(priceForCondition(vengeance, 'poor', bands).price).toBe(10);
+    expect(priceForCondition(vengeance, 'excellent', bands).explicit).toBeFalsy();
+    expect(priceForCondition(vengeance, 'excellent', bands).price).toBe(40);
+  });
+});
+

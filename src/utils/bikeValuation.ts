@@ -1,5 +1,5 @@
 import type { VehicleCategory } from '../types/bikeShop';
-import type { OfferPriceEntry } from '../context/OfferPriceBook';
+import type { OfferPriceEntry, CustomerCondition, ConditionPricePoint } from '../context/OfferPriceBook';
 
 /**
  * Deterministic "Sell Your Bike" valuation engine.
@@ -10,7 +10,8 @@ import type { OfferPriceEntry } from '../context/OfferPriceBook';
  * widget and the tests all share exactly one pricing brain.
  */
 
-export type CustomerCondition = 'excellent' | 'good' | 'fair' | 'poor';
+export type { CustomerCondition } from '../context/OfferPriceBook';
+export { CONDITION_ORDER } from '../context/OfferPriceBook';
 
 /** Per-condition price multipliers — what we pay at each grade vs. the good base. */
 export interface OfferConditionBands {
@@ -58,6 +59,10 @@ export interface ConditionPrice {
   condition: CustomerCondition;
   multiplier: number;
   price: number;
+  /** Upper bound when the grade is a staff-set band (e.g. £30–£40). */
+  maxPrice?: number;
+  /** True when this price came from a staff-set per-condition figure. */
+  explicit?: boolean;
 }
 
 export interface BikeValuation {
@@ -67,6 +72,8 @@ export interface BikeValuation {
   matchLevel: 'model' | 'brand' | 'category' | 'none';
   condition: CustomerCondition;
   conditionMultiplier: number;
+  /** 'explicit' when staff set this grade's price, else 'derived' from basePrice. */
+  conditionSource: 'explicit' | 'derived';
   /** Price at every condition grade, so staff/customers see the whole ladder. */
   conditionPrices: ConditionPrice[];
   /** Cosmetic-damage deduction (scratches/dents/rust…), 0 when none detected. */
@@ -146,6 +153,29 @@ export function resolveCondition(input: ValuationInput): CustomerCondition {
 }
 
 /**
+ * Resolve the price for one condition grade. A staff-set per-condition figure
+ * wins outright; otherwise the grade is derived from the base price and the
+ * global condition band (rounded to £5). This is the single source of truth for
+ * both the offer and the on-screen condition ladder.
+ */
+export function priceForCondition(
+  entry: OfferPriceEntry,
+  condition: CustomerCondition,
+  bands: OfferConditionBands
+): ConditionPrice {
+  const explicit: ConditionPricePoint | undefined = entry.conditionPrices?.[condition];
+  if (explicit && Number.isFinite(explicit.price)) {
+    const price = Math.max(0, Math.round(explicit.price));
+    const maxPrice =
+      Number.isFinite(Number(explicit.maxPrice)) && Number(explicit.maxPrice) >= price
+        ? Math.round(Number(explicit.maxPrice))
+        : undefined;
+    return { condition, multiplier: bands[condition], price, maxPrice, explicit: true };
+  }
+  return { condition, multiplier: bands[condition], price: round5(entry.basePrice * bands[condition]) };
+}
+
+/**
  * Pick the most specific price-book row for an identified bike. Order of
  * precedence: exact brand+model → brand-wide → category fallback.
  */
@@ -217,6 +247,7 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
       matchLevel: 'none',
       condition,
       conditionMultiplier,
+      conditionSource: 'derived',
       conditionPrices: [],
       cosmeticAdjustment: 0,
       adjustments: [],
@@ -238,11 +269,67 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
   );
 
   // Price at every condition grade, so staff and customers see the whole ladder.
-  const conditionPrices: ConditionPrice[] = (['excellent', 'good', 'fair', 'poor'] as CustomerCondition[]).map(
-    (c) => ({ condition: c, multiplier: bands[c], price: round5(entry.basePrice * bands[c]) })
+  // A staff-set per-condition figure is authoritative; otherwise it is derived.
+  const conditionPrices: ConditionPrice[] = (['excellent', 'good', 'fair', 'poor'] as CustomerCondition[]).map((c) =>
+    priceForCondition(entry, c, bands)
   );
+  const selected = conditionPrices.find((p) => p.condition === condition) ?? conditionPrices[1];
+  const conditionSource: 'explicit' | 'derived' = selected.explicit ? 'explicit' : 'derived';
 
-  let offer = entry.basePrice * conditionMultiplier;
+  const cosmetic = cosmeticDeduction(input.cosmeticIssues, selected.price);
+
+  // A staff-set condition price already reflects the bike's wear, so it stands
+  // as-is; fault and cosmetic findings are reported but not deducted from it.
+  if (conditionSource === 'explicit') {
+    rationale.push(
+      `Staff price for “${condition}” condition applied (£${selected.price}${
+        selected.maxPrice ? `–£${selected.maxPrice}` : ''
+      }).`
+    );
+    const highFaults = countSevere(input, ['high', 'critical safety risk', 'critical']);
+    const mediumFaults = countSevere(input, ['medium']);
+    if (highFaults > 0) {
+      adjustments.push({ label: `${highFaults} serious fault${highFaults === 1 ? '' : 's'} (noted)`, amount: 0 });
+      rationale.push('Serious faults noted — already accounted for in the condition grade.');
+    }
+    if (mediumFaults > 0) {
+      adjustments.push({ label: `${mediumFaults} moderate fault${mediumFaults === 1 ? '' : 's'} (noted)`, amount: 0 });
+    }
+    if (cosmetic.amount > 0) {
+      adjustments.push({ label: `Cosmetic: ${cosmetic.labels.join(', ')} (noted)`, amount: 0 });
+      rationale.push(`Cosmetic blemishes noted (${cosmetic.labels.join(', ')}) — covered by the condition grade.`);
+    }
+
+    const finalOffer = selected.price;
+    const minOffer = finalOffer;
+    const maxOffer = Math.max(selected.maxPrice ?? finalOffer, finalOffer);
+
+    const aiConfidence = typeof input.confidence === 'number' ? input.confidence : 0.5;
+    const coverage = typeof input.coverage === 'number' ? input.coverage : 0.6;
+    const confidence = Math.max(0, Math.min(1, aiConfidence * MATCH_WEIGHT[level] * (0.6 + 0.4 * coverage)));
+    const needsStaffReview = level !== 'model' || confidence < 0.5;
+    if (needsStaffReview) rationale.push('Flagged for staff review before the offer is final.');
+
+    return {
+      basePrice: entry.basePrice,
+      matchedEntry: entry,
+      matchLevel: level,
+      condition,
+      conditionMultiplier,
+      conditionSource,
+      conditionPrices,
+      cosmeticAdjustment: 0,
+      adjustments,
+      offer: finalOffer,
+      minOffer,
+      maxOffer,
+      confidence,
+      needsStaffReview,
+      rationale,
+    };
+  }
+
+  let offer = selected.price;
   rationale.push(`Condition “${condition}” applied (×${conditionMultiplier.toFixed(2)}).`);
 
   const highFaults = countSevere(input, ['high', 'critical safety risk', 'critical']);
@@ -262,7 +349,6 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
 
   // Cosmetic blemishes the AI spotted (scratches, dents, rust…) — separate from
   // mechanical faults so the customer sees exactly what cost them money.
-  const cosmetic = cosmeticDeduction(input.cosmeticIssues, offer);
   if (cosmetic.amount > 0) {
     offer -= cosmetic.amount;
     adjustments.push({ label: `Cosmetic: ${cosmetic.labels.join(', ')}`, amount: -cosmetic.amount });
@@ -298,6 +384,7 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
     matchLevel: level,
     condition,
     conditionMultiplier,
+    conditionSource,
     conditionPrices,
     cosmeticAdjustment: cosmetic.amount,
     adjustments,
