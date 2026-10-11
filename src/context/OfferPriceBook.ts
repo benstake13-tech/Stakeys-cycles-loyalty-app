@@ -9,14 +9,24 @@ import { DEFAULT_CONDITION_BANDS, type OfferConditionBands } from '../utils/bike
  * Staff record what the workshop typically pays for a brand/model. The AI
  * valuation engine reads this book to turn an identified bike into a cash offer;
  * a blank model means "brand-wide default", and a blank brand+model row acts as
- * a category fallback. Persisted per-device in localStorage and mirrored into
- * the `app_settings` JSON column `sell_offerbook_json` when it already exists
- * (anon credentials cannot run DDL, so we never create it).
+ * a category fallback.
+ *
+ * Persistence is two-way: edits are written to localStorage (instant, offline)
+ * AND mirrored into the `app_settings` JSON columns `sell_offerbook_json` /
+ * `sell_condition_bands_json` when they exist. On load we hydrate back from
+ * Supabase so a price a staff member sets in the terminal reaches every
+ * customer's "Sell Your Bike" flow. Anon credentials cannot run DDL, so the
+ * columns must be added once via `supabase/migrations/20261012_offer_price_book.sql`;
+ * until then the store stays local-only.
  */
 
 const STORAGE_KEY = 'stakeys.sell.offerbook.v1';
 const LEGACY_STORAGE_KEY = 'stakeys.tradein.offerbook.v1';
 const BANDS_STORAGE_KEY = 'stakeys.sell.conditionbands.v1';
+// Stamped only on a real staff edit (never on hydrate/seed) so the load-time
+// merge can tell an unsynced local edit from freshly-seeded defaults.
+const EDITED_AT_KEY = 'stakeys.sell.offerbook.editedAt.v1';
+const BANDS_EDITED_AT_KEY = 'stakeys.sell.conditionbands.editedAt.v1';
 
 export type CustomerCondition = 'excellent' | 'good' | 'fair' | 'poor';
 
@@ -151,6 +161,7 @@ function write(items: OfferPriceEntry[]): void {
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+      window.localStorage.setItem(EDITED_AT_KEY, String(Date.now()));
     } catch {
       // Best-effort persistence.
     }
@@ -159,7 +170,66 @@ function write(items: OfferPriceEntry[]): void {
   void persistToSupabase(items);
 }
 
+// ---------------------------------------------------------------------------
+// Hydration — pull the workshop's saved book down so staff edits reach every
+// customer. Once per session unless `force`; never clobbers a local edit that
+// is newer than the server copy.
+// ---------------------------------------------------------------------------
+let offerBookSynced = false;
+let offerBookSyncing = false;
+
+/** Read a marker without ever throwing (private mode, corrupt value, …). */
+function readStamp(key: string): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? Number(raw) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function syncOfferPricesFromSupabase(force = false): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (offerBookSyncing) return false;
+  if (offerBookSynced && !force) return false;
+  offerBookSyncing = true;
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('sell_offerbook_json')
+      .eq('id', 1)
+      .maybeSingle();
+    // Missing column / table (anon can't run DDL) — stay local-only.
+    if (error) return false;
+    offerBookSynced = true;
+    const remote = (data as { sell_offerbook_json?: unknown } | null)?.sell_offerbook_json;
+    if (!Array.isArray(remote)) return true;
+    const normalized = remote.map(normalize).filter(Boolean) as OfferPriceEntry[];
+    const remoteTime = normalized.reduce((max, e) => Math.max(max, Date.parse(e.updatedAt) || 0), 0);
+    // A real local edit made after the server copy is still unsynced — push it,
+    // don't pull over it. Seeded defaults carry no marker, so they never block.
+    if (readStamp(EDITED_AT_KEY) > remoteTime) {
+      void persistToSupabase(read());
+      return true;
+    }
+    cached = normalized;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    } catch {
+      // Best-effort persistence.
+    }
+    notify();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    offerBookSyncing = false;
+  }
+}
+
 export function getOfferPrices(): OfferPriceEntry[] {
+  if (!cached) void syncOfferPricesFromSupabase();
   return read();
 }
 
@@ -252,6 +322,7 @@ export function normalizeBands(input: Partial<OfferConditionBands>): OfferCondit
 }
 
 export function getOfferConditionBands(): OfferConditionBands {
+  if (!cachedBands) void syncOfferBandsFromSupabase();
   return readBands();
 }
 
@@ -261,16 +332,84 @@ export function setOfferConditionBands(next: Partial<OfferConditionBands>): Offe
   if (typeof window !== 'undefined') {
     try {
       window.localStorage.setItem(BANDS_STORAGE_KEY, JSON.stringify(bands));
+      window.localStorage.setItem(BANDS_EDITED_AT_KEY, String(Date.now()));
     } catch {
       // Best-effort persistence.
     }
   }
   for (const l of bandListeners) l();
+  void persistBandsToSupabase(bands);
   return bands;
 }
 
 export function resetOfferConditionBands(): OfferConditionBands {
   return setOfferConditionBands(DEFAULT_CONDITION_BANDS);
+}
+
+let bandsColumnProbe: 'unknown' | 'absent' | 'present' = 'unknown';
+async function persistBandsToSupabase(bands: OfferConditionBands): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    if (bandsColumnProbe === 'absent') return;
+    if (bandsColumnProbe === 'unknown') {
+      const probe = await supabase.from('app_settings').select('sell_condition_bands_json').eq('id', 1).maybeSingle();
+      if (probe.error) {
+        bandsColumnProbe = 'absent';
+        return;
+      }
+      bandsColumnProbe = 'present';
+    }
+    // Wrapped with a timestamp so a fresh device can tell whether its own local
+    // edit is newer than the server copy.
+    await supabase
+      .from('app_settings')
+      .update({ sell_condition_bands_json: { bands, updatedAt: new Date().toISOString() } })
+      .eq('id', 1);
+  } catch {
+    // Local-only is an acceptable degradation.
+  }
+}
+
+let bandsSynced = false;
+let bandsSyncing = false;
+
+/** Pull the workshop's saved condition bands down so the customer engine matches. */
+export async function syncOfferBandsFromSupabase(force = false): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  if (bandsSyncing) return false;
+  if (bandsSynced && !force) return false;
+  bandsSyncing = true;
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('sell_condition_bands_json')
+      .eq('id', 1)
+      .maybeSingle();
+    if (error) return false;
+    bandsSynced = true;
+    const raw = (data as { sell_condition_bands_json?: unknown } | null)?.sell_condition_bands_json;
+    if (!raw || typeof raw !== 'object') return true;
+    // Accept both the wrapped { bands, updatedAt } payload and a bare bands object.
+    const wrapped = raw as { bands?: unknown; updatedAt?: unknown };
+    const remoteBands = (wrapped.bands && typeof wrapped.bands === 'object' ? wrapped.bands : raw) as Partial<OfferConditionBands>;
+    const remoteTime = typeof wrapped.updatedAt === 'string' ? Date.parse(wrapped.updatedAt) || 0 : 0;
+    if (readStamp(BANDS_EDITED_AT_KEY) > remoteTime) {
+      void persistBandsToSupabase(readBands());
+      return true;
+    }
+    cachedBands = normalizeBands(remoteBands);
+    try {
+      window.localStorage.setItem(BANDS_STORAGE_KEY, JSON.stringify(cachedBands));
+    } catch {
+      // Best-effort persistence.
+    }
+    for (const l of bandListeners) l();
+    return true;
+  } catch {
+    return false;
+  } finally {
+    bandsSyncing = false;
+  }
 }
 
 function subscribeBands(onChange: () => void): () => void {

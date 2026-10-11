@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BadgePoundSterling, Plus, RotateCcw, Save, Trash2, Pencil, X, Tag } from 'lucide-react';
-import { useOfferPrices, upsertOfferPrice, deleteOfferPrice, resetOfferPrices, useOfferConditionBands, setOfferConditionBands, resetOfferConditionBands, OfferPriceEntry, CONDITION_ORDER, type CustomerCondition, type ConditionPricePoint } from '../context/OfferPriceBook';
+import { useOfferPrices, upsertOfferPrice, deleteOfferPrice, resetOfferPrices, useOfferConditionBands, setOfferConditionBands, resetOfferConditionBands, syncOfferPricesFromSupabase, syncOfferBandsFromSupabase, OfferPriceEntry, CONDITION_ORDER, type CustomerCondition, type ConditionPricePoint } from '../context/OfferPriceBook';
 import type { VehicleCategory } from '../types/bikeShop';
 import type { OfferConditionBands } from '../utils/bikeValuation';
 import { OfferCatalogue, CataloguePick } from './OfferCatalogue';
@@ -143,6 +143,13 @@ export const StaffOfferPricesTab: React.FC = () => {
   const entries = useOfferPrices();
   const bands = useOfferConditionBands();
   const [draft, setDraft] = useState<Draft | null>(null);
+
+  // Pull the workshop's saved book on open so a price set on another terminal
+  // shows here without a reload.
+  useEffect(() => {
+    void syncOfferPricesFromSupabase(true);
+    void syncOfferBandsFromSupabase(true);
+  }, []);
 
   const sorted = useMemo(
     () => [...entries].sort((a, b) => `${a.brand} ${a.model}`.localeCompare(`${b.brand} ${b.model}`)),
