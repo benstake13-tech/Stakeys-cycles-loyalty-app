@@ -519,3 +519,15 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - **Embedded into the staff terminal** as an iframe: built with `--base=/guide/` into `dist-guide`, then copied to `staff-src/public/guide/`. Rebuild+embed with `npm run build:guide`. Viewed via `StaffRepairGuideTab.tsx` (testids `guide-reload`/`guide-open-new`/`guide-fullscreen`, `[data-staff-view="repair_guide"]`).
 - **Fix (2026-10-11):** `StaffRepairGuideTab` header said "11 modules · 29 lessons" — stale; corrected to "16 modules · 46 lessons". No test depended on the old text.
 - To visually check the guide: `cd /workspace/project && npm run build && npm run preview` (port 12000) — it is a normal public SPA, no auth.
+
+## Session (2026-10-12) — Premium graphical overhaul, all 3 surfaces
+- Design language lives in `src/index.css` `@layer utilities` (lines ~3–438): `surface-panel`, `surface-panel-hover`, `glass`, `well`, `chip`, `hairline`, `kpi-card`, `hero-sheen`, `os-backdrop`, `stamp`, `figure`, `eyebrow`, `stagger`. **Every token now has a `.light …` variant** so light mode is real, not just a bg swap.
+- `src/components/PremiumBackdrop.tsx` (new): the single ambient backdrop (grid + emerald/sky/amber blooms). `App.tsx` mounts it ONCE inside the z-10 content div; `staff/AmbientBackdrop.tsx` now just delegates to it (kept for any legacy import).
+- Upgraded real chrome: App glass sticky header; `SegmentedTabs` frosted nav + luminous active pill; `MetricRail` theme-aware KPI cards (needs `useShop()`); CustomerPortal hero + `MembershipPassCard` (accent rail + holo sheen); WebsiteReplica hero/value band/brand story.
+- **Bulk strategy that worked**: ~35 files had hardcoded dark panels. `perl -0pi -e` replaced recurring exact strings → `surface-panel` / `surface-panel !rounded-3xl` / `surface-panel surface-panel-hover`:
+  - `rounded-(2xl|xl|lg) border border-neutral-800 bg-\[#(0d1015|090b0e|0b0e13|0b0e12|0a0d11)\]`
+  - `bg-\[#0e1217\] border border-neutral-800 rounded-2xl` (and `rounded-3xl`)
+  Left `neutral-950` alone — those are form inputs, not cards.
+- Gates: TSC clean, vite build clean, **147 files / 1250 tests pass**. Heads: staff-terminal `d6ae880` / customer-app `90ddb40` / main-website `25bca05` (cherry-pick `-x`, parity = only `src/config/surface.ts`). All pushed.
+- Previews rebuilt from committed state → all `/previews/*/` + `/guide/` = 200.
+- **Repair-guide workstream (`/workspace/project`) untouched & healthy**: 16 modules/46 lessons, `/guide/` serves 200 (title "Stakeys Cycles · Workshop Repair Guide"). `public/guide/` no longer exists in project (built output embedded elsewhere); served from the preview host.
