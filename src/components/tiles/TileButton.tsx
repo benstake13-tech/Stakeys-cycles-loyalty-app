@@ -160,13 +160,13 @@ export const TileButton: React.FC<TileButtonProps> = ({
           '--tile-glow': TONE_RGB[tone],
         } as React.CSSProperties
       }
-      className={`tile group relative flex aspect-square flex-col items-start justify-between overflow-hidden rounded-xl border p-2.5 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`tile group relative flex aspect-square flex-col items-start justify-between overflow-hidden rounded-2xl border p-3 text-left disabled:cursor-not-allowed disabled:opacity-50 ${
         active
           ? isDark
             ? 'border-emerald-500/60 bg-emerald-500/10'
             : 'border-emerald-500/60 bg-emerald-50'
           : isDark
-          ? `border-neutral-800 bg-[#0b0e13] ${TONE_RING[tone]} ${TONE_GLOW[tone]} hover:shadow-lg`
+          ? `border-white/10 bg-white/[0.02] ${TONE_RING[tone]} ${TONE_GLOW[tone]} hover:shadow-lg`
           : `border-neutral-200 bg-white ${TONE_RING[tone]} ${TONE_GLOW[tone]} hover:shadow-lg`
       } ${className}`}
     >
@@ -178,7 +178,7 @@ export const TileButton: React.FC<TileButtonProps> = ({
         }`}
       />
       {/* Soft radial bloom so the icon area glows in the tone colour. */}
-      <span aria-hidden="true" className="tile-bloom absolute -left-6 -top-8 h-20 w-20 rounded-full" />
+      <span aria-hidden="true" className="tile-bloom absolute -left-8 -top-10 h-24 w-24 rounded-full" />
       {/* Light sheen that sweeps across on hover. */}
       <span className="tile-sheen" aria-hidden="true" />
       {/* Slow rotating colour sweep — a permanently "live" brand cue. */}
@@ -186,22 +186,22 @@ export const TileButton: React.FC<TileButtonProps> = ({
       {/* Tone accent rail down the leading edge. */}
       <span
         aria-hidden="true"
-        className={`absolute inset-y-2 left-0 w-0.5 rounded-full ${TONE_ACCENT[tone]} ${
+        className={`absolute inset-y-3 left-0 w-0.5 rounded-full ${TONE_ACCENT[tone]} ${
           active ? 'opacity-100' : 'opacity-40 group-hover:opacity-100'
         } transition-opacity`}
       />
 
-      <div className="relative z-10 flex w-full items-start justify-between gap-2 pl-1">
+      <div className="relative z-10 flex w-full items-start justify-between gap-2 pl-1.5">
         <span
-          className={`tile-icon relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+          className={`tile-icon relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border shadow-inner ${
             isDark ? TONE_ICON_BG[tone] : TONE_ICON_BG_LIGHT[tone]
           }`}
         >
-          {Icon && <Icon className={`tile-glyph relative z-10 h-[18px] w-[18px] ${TONE_ICON[tone]}`} />}
+          {Icon && <Icon className={`tile-glyph relative z-10 h-5 w-5 ${TONE_ICON[tone]}`} />}
         </span>
         {showBadge && (
           <span
-            className={`rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-bold ${
+            className={`rounded-full border px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${
               isDark ? TONE_BADGE_DARK[tone] : TONE_BADGE_LIGHT[tone]
             }`}
           >
@@ -210,9 +210,9 @@ export const TileButton: React.FC<TileButtonProps> = ({
         )}
       </div>
 
-      <div className="relative z-10 w-full min-w-0 pl-1">
+      <div className="relative z-10 w-full min-w-0 pl-1.5">
         <div
-          className={`truncate text-[11px] font-bold leading-tight ${
+          className={`truncate text-[12px] font-bold leading-tight ${
             isDark ? 'text-white' : 'text-neutral-900'
           }`}
         >
@@ -235,7 +235,7 @@ export const TileButton: React.FC<TileButtonProps> = ({
         )}
         {!disabled && (
           <div
-            className={`mt-1 flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider ${
+            className={`mt-1.5 flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-[0.14em] ${
               isDark ? 'text-neutral-500' : 'text-neutral-400'
             }`}
           >

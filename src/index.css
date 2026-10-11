@@ -5,6 +5,199 @@
     font-family: 'Syne', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
 
+  /* ------------------------------------------------------------------ *
+   * Premium staff surface — "command station" visual language.
+   * A small set of composable primitives so every staff panel shares the
+   * same glass, hairline and glow treatment instead of ad-hoc colours.
+   * ------------------------------------------------------------------ */
+
+  /* Ambient OS-style backdrop: a faint engineering grid, two slow colour
+     blooms and a top vignette. Fixed, non-interactive, GPU-only (opacity +
+     transform) so it never repaints the content above it. */
+  .os-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .os-backdrop::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 35%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 35%, transparent 78%);
+  }
+  .os-bloom {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(90px);
+    opacity: 0.5;
+    animation: os-drift 22s ease-in-out infinite;
+  }
+  .os-bloom.emerald {
+    width: 46rem; height: 46rem;
+    top: -18rem; left: -12rem;
+    background: radial-gradient(circle, rgba(5, 193, 71, 0.30), transparent 68%);
+  }
+  .os-bloom.sky {
+    width: 40rem; height: 40rem;
+    top: -14rem; right: -14rem;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.22), transparent 68%);
+    animation-delay: -8s;
+  }
+  .os-bloom.amber {
+    width: 34rem; height: 34rem;
+    bottom: -18rem; left: 34%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.16), transparent 70%);
+    animation-delay: -14s;
+  }
+
+  /* Frosted panel with a 1px luminous edge — the base surface for every
+     staff card. Uses a masked gradient border so the edge catches "light"
+     at the top and fades toward the bottom. */
+  .surface-panel {
+    position: relative;
+    border-radius: 1rem;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
+      rgba(11, 14, 19, 0.72);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+      0 18px 40px -24px rgba(0, 0, 0, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .surface-panel-hover {
+    transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+  .surface-panel-hover:hover {
+    border-color: rgba(5, 193, 71, 0.38);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+      0 24px 60px -28px rgba(5, 193, 71, 0.35),
+      0 18px 40px -24px rgba(0, 0, 0, 0.9);
+    transform: translateY(-2px);
+  }
+
+  /* A hairline rule that fades at both ends — used to separate sections. */
+  .hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12) 22%, rgba(255, 255, 255, 0.12) 78%, transparent);
+  }
+
+  /* Brand gradient wordmark text. */
+  .text-gradient {
+    background: linear-gradient(100deg, #ffffff 0%, #d9ffe9 42%, #05C147 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-gradient-emerald {
+    background: linear-gradient(100deg, #6ee7b7 0%, #05C147 55%, #0ea5e9 120%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Pill chip — status readouts in the command bar. */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-radius: 9999px;
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.28rem 0.6rem;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: #d4d4d4;
+  }
+
+  /* Live indicator dot with a soft ping ring. */
+  .live-dot {
+    position: relative;
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+  .live-dot::after {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    border-radius: 9999px;
+    border: 1px solid currentColor;
+    opacity: 0.5;
+    animation: live-ping 2.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  /* Sheen that sweeps across a hero banner. */
+  .hero-sheen {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.10) 48%, transparent 64%);
+    transform: translateX(-130%);
+    animation: hero-sheen 9s ease-in-out infinite;
+  }
+
+  /* A KPI metric card: subtle lift + tone glow on hover. */
+  .kpi-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 0.85rem;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1), border-color 0.22s ease, box-shadow 0.28s ease;
+  }
+  .kpi-card:hover {
+    transform: translateY(-3px);
+  }
+  .kpi-card:active {
+    transform: translateY(-1px) scale(0.99);
+  }
+  .kpi-card:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(5, 193, 71, 0.7), 0 10px 24px -10px rgba(0, 0, 0, 0.6);
+  }
+  /* Thin tone rail that grows along the bottom edge on hover. */
+  .kpi-rail {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 2px;
+    transform: scaleX(0.28);
+    transform-origin: left;
+    opacity: 0.6;
+    transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.25s ease;
+  }
+  .kpi-card:hover .kpi-rail {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  /* Sparkline column bars (deterministic pseudo-trend, no data dependency). */
+  .spark {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 22px;
+  }
+  .spark span {
+    width: 3px;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0.35;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+  .kpi-card:hover .spark span {
+    opacity: 0.8;
+  }
+
   /* 3D Depth Navigation & Card Utilities */
   .perspective-1200 {
     perspective: 1200px;
@@ -913,6 +1106,44 @@
   .seasonal-footer-spook,
   .seasonal-footer-crawler {
     animation: none !important;
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * Premium staff surface — keyframes
+ * ------------------------------------------------------------------ */
+@keyframes os-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(3%, 4%, 0) scale(1.08); }
+}
+@keyframes live-ping {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  70%, 100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes hero-sheen {
+  0%, 55% { transform: translateX(-130%); opacity: 0; }
+  68% { opacity: 0.9; }
+  100% { transform: translateX(130%); opacity: 0; }
+}
+/* Soft entrance for staff panels (opacity + lift only). */
+@keyframes surface-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.surface-rise {
+  animation: surface-rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os-bloom,
+  .hero-sheen,
+  .live-dot::after,
+  .surface-rise {
+    animation: none !important;
+  }
+  .kpi-card:hover,
+  .surface-panel-hover:hover {
+    transform: none;
   }
 }
 
