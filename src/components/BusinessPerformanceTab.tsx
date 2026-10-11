@@ -89,7 +89,7 @@ export const BusinessPerformanceTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl">
+      <div className="surface-panel !rounded-3xl p-6 shadow-xl">
         <div className="flex items-start gap-3 pb-4 border-b border-neutral-800">
           <TrendingUp className="w-6 h-6 text-emerald-500 shrink-0" />
           <div>

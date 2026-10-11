@@ -76,7 +76,7 @@ export const EditBikeModal: React.FC<EditBikeModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 sm:p-7 text-white shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
+        className="w-full max-w-2xl surface-panel !rounded-3xl p-6 sm:p-7 text-white shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto"
         data-testid="edit-bike-modal"
       >
         <div className="flex items-start justify-between gap-4 pb-4 border-b border-neutral-800">

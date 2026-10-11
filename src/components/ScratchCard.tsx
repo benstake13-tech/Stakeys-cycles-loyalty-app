@@ -223,7 +223,7 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({ onGoToStamps, onGoToBo
 
   if (!scratchCard || !scratchCard.enabled) {
     return (
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-10 text-center space-y-3">
+      <div className="surface-panel !rounded-3xl p-10 text-center space-y-3">
         <Lock className="w-8 h-8 text-neutral-500 mx-auto" />
         <h3 className="text-white font-bold">Scratch card unavailable</h3>
         <p className="text-sm text-neutral-400">

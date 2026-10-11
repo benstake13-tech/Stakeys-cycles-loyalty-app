@@ -1,6 +1,7 @@
 import React from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowUpRight } from 'lucide-react';
+import { useShop } from '../../context/ShopContext';
 
 export type MetricTone = 'emerald' | 'amber' | 'sky' | 'rose' | 'neutral';
 
@@ -20,35 +21,45 @@ export interface MetricItem {
 
 const TONE: Record<
   MetricTone,
-  { text: string; iconBg: string; rail: string; glow: string }
+  { text: string; textLight: string; iconBg: string; iconBgLight: string; rail: string; glow: string }
 > = {
   emerald: {
     text: 'text-emerald-400',
+    textLight: 'text-emerald-600',
     iconBg: 'border-emerald-500/25 bg-emerald-500/10',
+    iconBgLight: 'border-emerald-200 bg-emerald-50',
     rail: 'bg-gradient-to-r from-emerald-500 to-emerald-300',
     glow: 'hover:shadow-[0_22px_55px_-28px_rgba(5,193,71,0.6)]',
   },
   amber: {
     text: 'text-amber-400',
+    textLight: 'text-amber-600',
     iconBg: 'border-amber-500/25 bg-amber-500/10',
+    iconBgLight: 'border-amber-200 bg-amber-50',
     rail: 'bg-gradient-to-r from-amber-500 to-amber-300',
     glow: 'hover:shadow-[0_22px_55px_-28px_rgba(245,158,11,0.6)]',
   },
   sky: {
     text: 'text-sky-400',
+    textLight: 'text-sky-600',
     iconBg: 'border-sky-500/25 bg-sky-500/10',
+    iconBgLight: 'border-sky-200 bg-sky-50',
     rail: 'bg-gradient-to-r from-sky-500 to-sky-300',
     glow: 'hover:shadow-[0_22px_55px_-28px_rgba(14,165,233,0.6)]',
   },
   rose: {
     text: 'text-rose-400',
+    textLight: 'text-rose-600',
     iconBg: 'border-rose-500/25 bg-rose-500/10',
+    iconBgLight: 'border-rose-200 bg-rose-50',
     rail: 'bg-gradient-to-r from-rose-500 to-rose-300',
     glow: 'hover:shadow-[0_22px_55px_-28px_rgba(244,63,94,0.6)]',
   },
   neutral: {
     text: 'text-neutral-300',
+    textLight: 'text-neutral-600',
     iconBg: 'border-white/10 bg-white/5',
+    iconBgLight: 'border-neutral-200 bg-neutral-100',
     rail: 'bg-gradient-to-r from-neutral-500 to-neutral-300',
     glow: 'hover:shadow-[0_22px_55px_-28px_rgba(255,255,255,0.25)]',
   },
@@ -70,6 +81,8 @@ function sparkHeights(seed: string): number[] {
 }
 
 const MetricCard: React.FC<{ item: MetricItem; index: number }> = ({ item, index }) => {
+  const { theme } = useShop();
+  const isDark = theme === 'dark';
   const t = TONE[item.tone];
   const Icon = item.icon;
   const bars = sparkHeights(item.id);
@@ -85,8 +98,8 @@ const MetricCard: React.FC<{ item: MetricItem; index: number }> = ({ item, index
     >
       <span className={`kpi-rail ${t.rail}`} aria-hidden="true" />
       <div className="flex w-full items-start justify-between gap-2">
-        <span className={`flex h-9 w-9 items-center justify-center rounded-xl border ${t.iconBg}`}>
-          <Icon className={`h-4 w-4 ${t.text}`} />
+        <span className={`flex h-9 w-9 items-center justify-center rounded-xl border ${isDark ? t.iconBg : t.iconBgLight}`}>
+          <Icon className={`h-4 w-4 ${isDark ? t.text : t.textLight}`} />
         </span>
         <div className="flex items-center gap-1.5">
           {hasAlert && (
@@ -94,20 +107,20 @@ const MetricCard: React.FC<{ item: MetricItem; index: number }> = ({ item, index
               {item.alert} new
             </span>
           )}
-          <ArrowUpRight className="h-3.5 w-3.5 text-neutral-600 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white" />
+          <ArrowUpRight className={`h-3.5 w-3.5 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 ${isDark ? 'text-neutral-600 group-hover:text-white' : 'text-neutral-400 group-hover:text-emerald-600'}`} />
         </div>
       </div>
 
       <div className="mt-3 flex w-full items-end justify-between gap-2">
         <div className="min-w-0">
-          <div className={`font-display text-2xl font-black leading-none tabular-nums ${t.text}`}>
+          <div className={`font-display figure text-2xl font-black leading-none ${isDark ? t.text : t.textLight}`}>
             {item.value}
           </div>
-          <div className="mt-1.5 truncate text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-400">
+          <div className={`mt-1.5 truncate text-[10px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
             {item.label}
           </div>
         </div>
-        <div className={`spark shrink-0 ${t.text}`} aria-hidden="true">
+        <div className={`spark shrink-0 ${isDark ? t.text : t.textLight}`} aria-hidden="true">
           {bars.map((b, i) => (
             <span key={i} style={{ height: `${b}%` }} />
           ))}
@@ -115,7 +128,7 @@ const MetricCard: React.FC<{ item: MetricItem; index: number }> = ({ item, index
       </div>
 
       {item.unit && (
-        <div className="mt-1 text-[10px] font-medium text-neutral-500">{item.unit}</div>
+        <div className={`mt-1 text-[10px] font-medium ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>{item.unit}</div>
       )}
     </button>
   );

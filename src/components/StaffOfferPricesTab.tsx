@@ -80,7 +80,7 @@ const ConditionBandsEditor: React.FC<{ bands: OfferConditionBands }> = ({ bands 
     toast.success('Condition prices updated.');
   };
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 space-y-4" data-testid="condition-bands">
+    <div className="surface-panel p-5 space-y-4" data-testid="condition-bands">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-display text-sm font-bold text-white">Default price by condition</h3>
@@ -103,7 +103,7 @@ const ConditionBandsEditor: React.FC<{ bands: OfferConditionBands }> = ({ bands 
                 inputMode="numeric"
                 onChange={(e) => setDraft({ ...draft, [c]: e.target.value })}
                 aria-label={`${c} condition percent`}
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 pr-8 focus:border-emerald-500/50 outline-none"
+                className="w-full surface-panel text-neutral-200 text-sm p-3 pr-8 focus:border-emerald-500/50 outline-none"
               />
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 text-sm">%</span>
             </div>
@@ -248,17 +248,17 @@ export const StaffOfferPricesTab: React.FC = () => {
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Brand (blank = any)</span>
               <input value={draft.brand} onChange={(e) => setDraft({ ...draft, brand: e.target.value })} placeholder="e.g. Trek"
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Model (blank = whole brand)</span>
               <input value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} placeholder="e.g. Marlin 5"
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Category</span>
               <select value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value as VehicleCategory | '' })}
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none">
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none">
                 <option value="">Any category</option>
                 {Object.entries(CATEGORY_LABEL).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
               </select>
@@ -266,21 +266,21 @@ export const StaffOfferPricesTab: React.FC = () => {
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Base offer £ (good condition)</span>
               <input value={draft.basePrice} onChange={(e) => setDraft({ ...draft, basePrice: e.target.value })} inputMode="numeric" placeholder="180"
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Min £ (optional)</span>
               <input value={draft.minPrice} onChange={(e) => setDraft({ ...draft, minPrice: e.target.value })} inputMode="numeric" placeholder="auto"
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Max £ (optional)</span>
               <input value={draft.maxPrice} onChange={(e) => setDraft({ ...draft, maxPrice: e.target.value })} inputMode="numeric" placeholder="auto"
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
           </div>
 
-          <div className="rounded-xl border border-neutral-800 bg-[#090b0e] p-3 space-y-2" data-testid="offer-price-conditions">
+          <div className="surface-panel p-3 space-y-2" data-testid="offer-price-conditions">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-neutral-300">Offer by condition</span>
               <button type="button"
@@ -304,7 +304,7 @@ export const StaffOfferPricesTab: React.FC = () => {
                       inputMode="numeric"
                       aria-label={`${c} price`}
                       placeholder="auto"
-                      className="w-full rounded-lg border border-neutral-800 bg-[#0d1015] text-neutral-200 text-sm py-2 pl-6 pr-2 focus:border-emerald-500/50 outline-none"
+                      className="w-full surface-panel text-neutral-200 text-sm py-2 pl-6 pr-2 focus:border-emerald-500/50 outline-none"
                     />
                   </span>
                   <span className="text-neutral-500 text-xs shrink-0">to</span>
@@ -316,7 +316,7 @@ export const StaffOfferPricesTab: React.FC = () => {
                       inputMode="numeric"
                       aria-label={`${c} max price`}
                       placeholder="max"
-                      className="w-full rounded-lg border border-neutral-800 bg-[#0d1015] text-neutral-200 text-sm py-2 pl-6 pr-2 focus:border-emerald-500/50 outline-none"
+                      className="w-full surface-panel text-neutral-200 text-sm py-2 pl-6 pr-2 focus:border-emerald-500/50 outline-none"
                     />
                   </span>
                 </div>
@@ -327,7 +327,7 @@ export const StaffOfferPricesTab: React.FC = () => {
           <label className="space-y-1.5 block">
             <span className="text-xs font-semibold text-neutral-400">Notes (optional)</span>
             <input value={draft.notes} onChange={(e) => setDraft({ ...draft, notes: e.target.value })} placeholder="e.g. excludes e-bikes over 5 years"
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+              className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
           </label>
           <button type="button" onClick={save}
             className="pressable w-full py-2.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer">
@@ -337,7 +337,7 @@ export const StaffOfferPricesTab: React.FC = () => {
       )}
 
       {sorted.length === 0 ? (
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-3">
+        <div className="surface-panel p-10 text-center space-y-3">
           <Tag className="w-8 h-8 text-neutral-500 mx-auto" />
           <div className="font-display text-base font-bold text-white">No prices yet</div>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">Add a brand or category price so the AI can make offers.</p>
@@ -345,7 +345,7 @@ export const StaffOfferPricesTab: React.FC = () => {
       ) : (
         <ul className="space-y-3">
           {sorted.map((e) => (
-            <li key={e.id} className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-4 flex items-center justify-between gap-3">
+            <li key={e.id} className="surface-panel p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-display font-bold text-white">
                   {e.brand || 'Any brand'} {e.model ? <span className="text-neutral-300">· {e.model}</span> : <span className="text-neutral-500 text-xs">· whole brand</span>}

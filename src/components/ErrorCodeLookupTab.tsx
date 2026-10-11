@@ -230,7 +230,7 @@ export function ErrorCodeLookupTab() {
           type="button"
           onClick={reset}
           data-testid="ev-reset"
-          className="pressable inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-[#0b0e13] px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white cursor-pointer"
+          className="pressable inline-flex items-center gap-2 surface-panel px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white cursor-pointer"
         >
           <RotateCcw className="w-4 h-4" /> Reset
         </button>

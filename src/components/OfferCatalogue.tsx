@@ -77,7 +77,7 @@ export const OfferCatalogue: React.FC<Props> = ({ book, onPick }) => {
   );
 
   return (
-    <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 space-y-4" data-testid="offer-catalogue">
+    <div className="surface-panel p-5 space-y-4" data-testid="offer-catalogue">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
@@ -99,7 +99,7 @@ export const OfferCatalogue: React.FC<Props> = ({ book, onPick }) => {
             placeholder="Search brand or model…"
             aria-label="Search brand or model"
             data-testid="offer-catalogue-search"
-            className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm pl-9 pr-3 py-2.5 focus:border-emerald-500/50 outline-none"
+            className="w-full surface-panel text-neutral-200 text-sm pl-9 pr-3 py-2.5 focus:border-emerald-500/50 outline-none"
           />
         </label>
         <div className="flex flex-wrap gap-1.5">

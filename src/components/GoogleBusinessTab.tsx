@@ -25,7 +25,7 @@ export const GoogleBusinessTab = () => {
   if (loading) return <div className="text-white p-6">Loading Business Insights...</div>;
 
   return (
-    <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-6">
+    <div className="surface-panel !rounded-3xl p-6 shadow-xl space-y-6">
       <div className="flex items-center gap-3 pb-4 border-b border-neutral-800">
         <Building2 className="w-6 h-6 text-emerald-500" />
         <h3 className="text-xl font-bold text-white">Google Business Profile</h3>

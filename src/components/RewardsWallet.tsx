@@ -108,7 +108,7 @@ export const RewardsWallet: React.FC<RewardsWalletProps> = ({
   return (
     <div className="space-y-6">
       {/* Summary */}
-      <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-6 sm:p-8 shadow-2xl">
+      <div className="surface-panel p-6 sm:p-8 shadow-2xl">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
@@ -146,7 +146,7 @@ export const RewardsWallet: React.FC<RewardsWalletProps> = ({
 
       {/* Entries */}
       {entries.length === 0 && points === 0 ? (
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-3">
+        <div className="surface-panel p-10 text-center space-y-3">
           <Wallet className="w-8 h-8 text-neutral-500 mx-auto" />
           <div className="font-display text-base font-bold text-white">Your wallet is empty — for now</div>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
@@ -175,7 +175,7 @@ export const RewardsWallet: React.FC<RewardsWalletProps> = ({
             <div
               key={e.id}
               data-testid={`wallet-entry-${e.id}`}
-              className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 flex flex-col justify-between gap-4"
+              className="surface-panel p-5 flex flex-col justify-between gap-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
@@ -232,7 +232,7 @@ export const RewardsWallet: React.FC<RewardsWalletProps> = ({
           {/* Points card (always shown; points are not "spendable" but worth surfacing) */}
           <div
             data-testid="wallet-entry-points"
-            className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 flex flex-col justify-between gap-4"
+            className="surface-panel p-5 flex flex-col justify-between gap-4"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3">
