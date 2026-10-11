@@ -26,7 +26,7 @@ export const StaffRepairGuideTab: React.FC = () => {
           <div>
             <h2 className="font-display text-lg font-bold text-white">Workshop Repair Guide</h2>
             <p className="text-xs text-neutral-400">
-              11 modules · 29 lessons · step-by-step procedures adapted from Sheldon Brown
+              16 modules · 46 lessons · e-bike &amp; e-scooter systems · step-by-step procedures adapted from Sheldon Brown
             </p>
           </div>
         </div>
