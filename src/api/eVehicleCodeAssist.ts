@@ -68,15 +68,20 @@ const offlineGuidance = (
 ): ECodeAssistResult => {
   const codes = errorCodesFor(req.category, req.brand, req.model);
   // Keyword buckets map a symptom to the code(s) in THIS model's catalogue whose
-  // title or description covers it — so a Xiaomi throttle symptom still finds
-  // E23 even though the generic catalogue lists E03.
+  // title or description covers it, so a symptom finds the right code for the
+  // selected system (e-bike, scooter, Bosch, Shimano…).
   const buckets: { terms: string[]; labels: string[] }[] = [
     { terms: ['throttle', 'twist', 'accelerat', 'accelera'], labels: ['throttle'] },
     { terms: ['brake', 'stop', 'lever', 'braking'], labels: ['brake'] },
-    { terms: ['battery', 'charg', 'low', 'flat', 'won\'t charge', 'charge'], labels: ['battery', 'bms', 'charg'] },
-    { terms: ['motor', 'hall', 'hum', 'grind', 'no power', 'cut'], labels: ['motor', 'hall'] },
-    { terms: ['display', 'screen', 'dark', 'no dash', 'dashboard'], labels: ['display'] },
-    { terms: ['overheat', 'hot', 'burn', 'over-temperature', 'overheating'], labels: ['overheat', 'over temperature'] },
+    { terms: ['battery', 'charg', 'low', 'flat', 'won\'t charge', 'charge', 'bms'], labels: ['battery', 'bms', 'charg'] },
+    { terms: ['motor', 'hall', 'hum', 'grind', 'no power', 'cut', 'phase'], labels: ['motor', 'hall', 'phase'] },
+    { terms: ['display', 'screen', 'dark', 'no dash', 'dashboard', 'button'], labels: ['display'] },
+    { terms: ['overheat', 'hot', 'burn', 'over-temperature', 'overheating', 'temperature'], labels: ['overheat', 'over temperature', 'temperature'] },
+    // E-bike specific
+    { terms: ['pedal', 'torque', 'assist', 'crank'], labels: ['torque', 'sensor'] },
+    { terms: ['speed', 'magnet'], labels: ['speed'] },
+    { terms: ['serial', 'password', 'authenticat', 'provision'], labels: ['serial', 'password', 'authenticat'] },
+    { terms: ['mosfet', 'mos'], labels: ['mosfet', 'mos'] },
   ];
   const text = (req.symptom || '').toLowerCase();
   const wantedLabels = buckets

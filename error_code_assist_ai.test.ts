@@ -45,7 +45,7 @@ describe('assistECodeLookup AI failure handling', () => {
       category: 'electric_scooter',
       brand: 'Xiaomi',
       model: 'M365',
-      symptom: 'it beeps E23 and the throttle does nothing',
+      symptom: 'the throttle does nothing and it beeps',
     });
 
     // Falls back to deterministic matches, but reports the REAL cause.
@@ -54,13 +54,13 @@ describe('assistECodeLookup AI failure handling', () => {
     expect(result.error?.retryable).toBe(false);
     expect(result.guidance).toMatch(/credits|billing|quota/i);
     expect(result.guidance).not.toMatch(/not configured/i);
-    // The deterministic fallback still finds the throttle code.
-    expect(result.matches.some((m) => m.code === 'E23')).toBe(true);
+    // The deterministic fallback still finds the throttle code (E14 on the M365).
+    expect(result.matches.some((m) => m.code === 'E14')).toBe(true);
   });
 
   it('does not set an error when the AI call succeeds', async () => {
     generateContent.mockResolvedValue({
-      text: JSON.stringify({ matches: [{ code: 'E23', title: 'Throttle', reason: 'throttle fault', confidence: 0.9 }], guidance: 'Check the throttle connector.' }),
+      text: JSON.stringify({ matches: [{ code: 'E14', title: 'Throttle', reason: 'throttle fault', confidence: 0.9 }], guidance: 'Check the throttle connector.' }),
     });
 
     const { assistECodeLookup } = await import('./src/api/eVehicleCodeAssist');
@@ -73,6 +73,6 @@ describe('assistECodeLookup AI failure handling', () => {
 
     expect(result.source).toBe('ai');
     expect(result.error).toBeUndefined();
-    expect(result.matches[0].code).toBe('E23');
+    expect(result.matches[0].code).toBe('E14');
   });
 });
