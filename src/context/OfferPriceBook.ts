@@ -18,6 +18,22 @@ const STORAGE_KEY = 'stakeys.sell.offerbook.v1';
 const LEGACY_STORAGE_KEY = 'stakeys.tradein.offerbook.v1';
 const BANDS_STORAGE_KEY = 'stakeys.sell.conditionbands.v1';
 
+export type CustomerCondition = 'excellent' | 'good' | 'fair' | 'poor';
+
+/** The four grades in the order staff see them (best first). */
+export const CONDITION_ORDER: CustomerCondition[] = ['excellent', 'good', 'fair', 'poor'];
+
+/**
+ * An explicit, staff-set offer for one condition grade. When present it is
+ * authoritative: the workshop has said exactly what it pays for this bike in
+ * this condition, so the engine uses it verbatim rather than deriving it.
+ */
+export interface ConditionPricePoint {
+  price: number;
+  /** Optional upper bound, e.g. a "£30–£40" good-condition band. */
+  maxPrice?: number;
+}
+
 export interface OfferPriceEntry {
   id: string;
   brand: string;
@@ -29,6 +45,12 @@ export interface OfferPriceEntry {
   /** Optional explicit band; the engine derives a band from basePrice when absent. */
   minPrice?: number;
   maxPrice?: number;
+  /**
+   * Per-condition offers set by staff (e.g. Carrera Vengeance: poor £10,
+   * fair £20, good £30–£40). Any grade left out falls back to
+   * basePrice × the global condition band. When a grade is set here it wins.
+   */
+  conditionPrices?: Partial<Record<CustomerCondition, ConditionPricePoint>>;
   notes?: string;
   updatedAt: string;
 }
@@ -39,6 +61,19 @@ const DEFAULT_ENTRIES: Omit<OfferPriceEntry, 'updatedAt'>[] = [
   { id: 'seed-specialized', brand: 'Specialized', model: '', category: 'cycle', basePrice: 190 },
   { id: 'seed-giant', brand: 'Giant', model: '', category: 'cycle', basePrice: 150 },
   { id: 'seed-carrera', brand: 'Carrera', model: '', category: 'cycle', basePrice: 80 },
+  {
+    id: 'seed-carrera-vengeance',
+    brand: 'Carrera',
+    model: 'Vengeance',
+    category: 'cycle',
+    basePrice: 35,
+    conditionPrices: {
+      poor: { price: 10 },
+      fair: { price: 20 },
+      good: { price: 30, maxPrice: 40 },
+    },
+    notes: 'Worked example: poor £10 · fair £20 · good £30–£40. Tune to taste.',
+  },
   { id: 'seed-boardman', brand: 'Boardman', model: '', category: 'cycle', basePrice: 120 },
   { id: 'seed-cube', brand: 'Cube', model: '', category: 'ebike', basePrice: 320 },
   { id: 'seed-xiaomi', brand: 'Xiaomi', model: '', category: 'electric_scooter', basePrice: 90 },
@@ -56,6 +91,25 @@ function notify(): void {
   for (const l of listeners) l();
 }
 
+function normalizeConditionPrices(
+  input: OfferPriceEntry['conditionPrices']
+): Partial<Record<CustomerCondition, ConditionPricePoint>> | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const out: Partial<Record<CustomerCondition, ConditionPricePoint>> = {};
+  for (const c of CONDITION_ORDER) {
+    const point = input[c];
+    if (!point) continue;
+    const price = Number(point.price);
+    if (!Number.isFinite(price) || price < 0) continue;
+    const max = Number(point.maxPrice);
+    out[c] = {
+      price: Math.round(price),
+      maxPrice: Number.isFinite(max) && max >= price ? Math.round(max) : undefined,
+    };
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function normalize(entry: OfferPriceEntry): OfferPriceEntry | null {
   if (!entry || typeof entry.id !== 'string') return null;
   const basePrice = Number(entry.basePrice);
@@ -67,6 +121,7 @@ function normalize(entry: OfferPriceEntry): OfferPriceEntry | null {
     basePrice: Math.round(basePrice),
     minPrice: Number.isFinite(Number(entry.minPrice)) ? Math.round(Number(entry.minPrice)) : undefined,
     maxPrice: Number.isFinite(Number(entry.maxPrice)) ? Math.round(Number(entry.maxPrice)) : undefined,
+    conditionPrices: normalizeConditionPrices(entry.conditionPrices),
     updatedAt: entry.updatedAt || new Date().toISOString(),
   };
 }
@@ -111,6 +166,7 @@ export function getOfferPrices(): OfferPriceEntry[] {
 export function upsertOfferPrice(entry: Omit<OfferPriceEntry, 'id' | 'updatedAt'> & { id?: string }): OfferPriceEntry {
   const next: OfferPriceEntry = {
     ...entry,
+    conditionPrices: normalizeConditionPrices(entry.conditionPrices),
     id: entry.id || `op-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     updatedAt: new Date().toISOString(),
   };

@@ -344,7 +344,7 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
                   >
                     <div className="text-[10px] capitalize text-neutral-400">{cp.condition}</div>
                     <div className={`font-mono text-sm font-bold ${valuation.condition === cp.condition ? 'text-emerald-300' : 'text-neutral-300'}`}>
-                      £{cp.price}
+                      £{cp.price}{cp.maxPrice != null && cp.maxPrice > cp.price ? `–£${cp.maxPrice}` : ''}
                     </div>
                   </div>
                 ))}

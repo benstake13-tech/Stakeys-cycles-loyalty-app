@@ -65,7 +65,9 @@ export const OfferCatalogue: React.FC<Props> = ({ book, onPick }) => {
       </span>
       {model.entry ? (
         <span className="flex items-center gap-1.5 shrink-0">
-          <span className="font-mono text-xs font-bold text-emerald-400">£{model.entry.basePrice}</span>
+          <span className="font-mono text-xs font-bold text-emerald-400">
+            {model.conditionRange ?? `£${model.entry.basePrice}`}
+          </span>
           <Pencil className="w-3 h-3 text-neutral-500" />
         </span>
       ) : (
