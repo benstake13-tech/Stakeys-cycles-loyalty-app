@@ -68,7 +68,7 @@ function sumupPaymentSwitchUrl(req, res) {
     currency: req.body?.currency || cfg.currency,
     title: req.body?.title,
     foreignTxId: req.body?.reference || buildCheckoutReference('till'),
-    appId: req.body?.appId,
+    appId: req.body?.appId || cfg.appId,
     callbackSuccess: req.body?.callbackSuccess,
     callbackFail: req.body?.callbackFail,
     receiptEmail: req.body?.receiptEmail,

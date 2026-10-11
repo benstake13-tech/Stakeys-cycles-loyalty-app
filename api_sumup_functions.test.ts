@@ -197,11 +197,15 @@ describe('sumup handler', () => {
     delete process.env.SUMUP_API_KEY;
     delete process.env.SUMUP_MERCHANT_CODE;
     delete process.env.SUMUP_READER_ID;
+    delete process.env.SUMUP_AFFILIATE_KEY;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
   it('config reports configured + currency + reader flag', async () => {
+    // A local .env may carry a real affiliate key; clear it so this assertion
+    // is about the REST-key path only.
+    delete process.env.SUMUP_AFFILIATE_KEY;
     process.env.SUMUP_READER_ID = 'rdr_1';
     const res = mockRes();
     await call('config', { method: 'GET' }, res);
@@ -348,5 +352,15 @@ describe('Tap to Pay (Payment Switch)', () => {
     const res = mockRes();
     await call('payment-switch-url', { method: 'GET' }, res);
     expect(res.statusCode).toBe(405);
+  });
+
+  it('includes app-id from SUMUP_APP_ID so SumUp can validate the key', async () => {
+    process.env.SUMUP_AFFILIATE_KEY = 'aff_123';
+    process.env.SUMUP_APP_ID = 'co.uk.stakeys.till';
+    const res = mockRes();
+    await call('payment-switch-url', { method: 'POST', body: { amount: 5 } }, res);
+    const q = new URLSearchParams(String(res.body.url).split('?')[1]);
+    expect(q.get('app-id')).toBe('co.uk.stakeys.till');
+    delete process.env.SUMUP_APP_ID;
   });
 });
