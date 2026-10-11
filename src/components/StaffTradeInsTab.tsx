@@ -146,6 +146,27 @@ export const StaffTradeInsTab: React.FC = () => {
                   </div>
                 )}
 
+                {/* Cosmetic damage the AI spotted in the photos. */}
+                {(() => {
+                  const ai = r.aiIdentification as { cosmeticIssues?: { type?: string; location?: string; severity?: string }[] } | undefined;
+                  const issues = ai?.cosmeticIssues ?? [];
+                  if (!issues.length) return null;
+                  return (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-3 space-y-1.5" data-testid={`lead-damage-${r.id}`}>
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-amber-300">Damage &amp; wear detected</div>
+                      <ul className="text-[11px] text-neutral-300 space-y-0.5 list-disc pl-4">
+                        {issues.map((c, i) => (
+                          <li key={i}>
+                            {c.type}
+                            {c.location ? ` — ${c.location}` : ''}
+                            {c.severity ? ` (${c.severity})` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
+
                 <FinalOfferInput id={r.id} value={r.finalOffer} />
 
                 <div className="flex flex-wrap items-center gap-2">

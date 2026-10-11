@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { supabase } from '../lib/supabase';
 import type { VehicleCategory } from '../types/bikeShop';
+import { DEFAULT_CONDITION_BANDS, type OfferConditionBands } from '../utils/bikeValuation';
 
 /**
  * Reactive, SSR-safe staff price book for the "Sell Your Bike" flow.
@@ -15,6 +16,7 @@ import type { VehicleCategory } from '../types/bikeShop';
 
 const STORAGE_KEY = 'stakeys.sell.offerbook.v1';
 const LEGACY_STORAGE_KEY = 'stakeys.tradein.offerbook.v1';
+const BANDS_STORAGE_KEY = 'stakeys.sell.conditionbands.v1';
 
 export interface OfferPriceEntry {
   id: string;
@@ -152,4 +154,74 @@ function subscribe(onChange: () => void): () => void {
 
 export function useOfferPrices(): OfferPriceEntry[] {
   return useSyncExternalStore(subscribe, getOfferPrices);
+}
+
+// ---------------------------------------------------------------------------
+// Condition bands — what we pay at each grade, as a multiplier on the base price.
+// ---------------------------------------------------------------------------
+
+let cachedBands: OfferConditionBands | null = null;
+const bandListeners = new Set<() => void>();
+
+function readBands(): OfferConditionBands {
+  if (cachedBands) return cachedBands;
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(BANDS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          cachedBands = normalizeBands(parsed);
+          return cachedBands;
+        }
+      }
+    } catch {
+      // Ignore malformed storage and fall back to the defaults.
+    }
+  }
+  cachedBands = { ...DEFAULT_CONDITION_BANDS };
+  return cachedBands;
+}
+
+/** Keep every multiplier a positive number, falling back per-field. */
+export function normalizeBands(input: Partial<OfferConditionBands>): OfferConditionBands {
+  const pick = (v: unknown, fallback: number) =>
+    Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fallback;
+  return {
+    excellent: pick(input.excellent, DEFAULT_CONDITION_BANDS.excellent),
+    good: pick(input.good, DEFAULT_CONDITION_BANDS.good),
+    fair: pick(input.fair, DEFAULT_CONDITION_BANDS.fair),
+    poor: pick(input.poor, DEFAULT_CONDITION_BANDS.poor),
+  };
+}
+
+export function getOfferConditionBands(): OfferConditionBands {
+  return readBands();
+}
+
+export function setOfferConditionBands(next: Partial<OfferConditionBands>): OfferConditionBands {
+  const bands = normalizeBands({ ...readBands(), ...next });
+  cachedBands = bands;
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(BANDS_STORAGE_KEY, JSON.stringify(bands));
+    } catch {
+      // Best-effort persistence.
+    }
+  }
+  for (const l of bandListeners) l();
+  return bands;
+}
+
+export function resetOfferConditionBands(): OfferConditionBands {
+  return setOfferConditionBands(DEFAULT_CONDITION_BANDS);
+}
+
+function subscribeBands(onChange: () => void): () => void {
+  bandListeners.add(onChange);
+  return () => bandListeners.delete(onChange);
+}
+
+export function useOfferConditionBands(): OfferConditionBands {
+  return useSyncExternalStore(subscribeBands, getOfferConditionBands);
 }

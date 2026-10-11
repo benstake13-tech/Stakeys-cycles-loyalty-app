@@ -115,3 +115,79 @@ describe('valueBike', () => {
     expect(electric.offer!).toBeGreaterThan(plain.offer!);
   });
 });
+
+describe('condition price bands', () => {
+  it('prices the bike at every condition grade', () => {
+    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle' }, book);
+    const byCondition = Object.fromEntries(v.conditionPrices.map((c) => [c.condition, c.price]));
+    // base £200 × default bands, rounded to £5.
+    expect(byCondition.excellent).toBe(230);
+    expect(byCondition.good).toBe(200);
+    expect(byCondition.fair).toBe(160);
+    expect(byCondition.poor).toBe(110);
+  });
+
+  it('honours staff-tuned condition bands', () => {
+    const v = valueBike(
+      {
+        make: 'Trek',
+        model: 'Marlin 5',
+        type: 'cycle',
+        conditionBands: { excellent: 1.2, good: 1, fair: 0.7, poor: 0.4 },
+      },
+      book
+    );
+    const byCondition = Object.fromEntries(v.conditionPrices.map((c) => [c.condition, c.price]));
+    expect(byCondition.fair).toBe(140); // 200 × 0.7
+    expect(byCondition.poor).toBe(80); // 200 × 0.4
+  });
+
+  it('applies the band for the resolved condition', () => {
+    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'fair' }, book);
+    expect(v.condition).toBe('fair');
+    expect(v.offer).toBe(160);
+  });
+});
+
+describe('cosmetic damage', () => {
+  it('deducts for scratches and dents the AI spotted', () => {
+    const clean = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle' }, book);
+    const damaged = valueBike(
+      {
+        make: 'Trek',
+        model: 'Marlin 5',
+        type: 'cycle',
+        cosmeticIssues: [
+          { type: 'Scratch on top tube', severity: 'Moderate' },
+          { type: 'Dent in down tube', severity: 'Major' },
+        ],
+      },
+      book
+    );
+    expect(damaged.cosmeticAdjustment).toBeGreaterThan(0);
+    expect(damaged.offer!).toBeLessThan(clean.offer!);
+    expect(damaged.needsStaffReview).toBe(true);
+    expect(damaged.rationale.join(' ')).toMatch(/cosmetic blemishes/i);
+  });
+
+  it('leaves an immaculate bike untouched', () => {
+    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', cosmeticIssues: [] }, book);
+    expect(v.cosmeticAdjustment).toBe(0);
+  });
+
+  it('caps the cosmetic deduction so a scuffed bike still has value', () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({ type: `Dent ${i}`, severity: 'Major' }));
+    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', cosmeticIssues: many }, book);
+    // Never more than 50% off the condition price.
+    expect(v.cosmeticAdjustment).toBeLessThanOrEqual(100);
+    expect(v.offer!).toBeGreaterThan(0);
+  });
+
+  it('ignores blemishes it cannot classify', () => {
+    const v = valueBike(
+      { make: 'Trek', model: 'Marlin 5', type: 'cycle', cosmeticIssues: [{ type: 'Lovely patina', severity: 'Minor' }] },
+      book
+    );
+    expect(v.cosmeticAdjustment).toBe(0);
+  });
+});
