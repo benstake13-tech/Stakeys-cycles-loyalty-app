@@ -553,7 +553,7 @@ export interface SaleDiscountState {
   voucherId?: string;
 }
 
-export type SalePaymentMethod = 'card' | 'cash' | 'online' | 'unpaid';
+export type SalePaymentMethod = 'card' | 'cash' | 'online' | 'unpaid' | 'sumup';
 
 /**
  * A counter sale moves through a quote step before it is processed, mirroring
