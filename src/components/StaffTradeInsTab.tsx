@@ -1,6 +1,6 @@
-import React from 'react';
-import { RefreshCw, Phone, Mail, Trash2, Inbox, CheckCircle2 } from 'lucide-react';
-import { useTradeInRequests, updateTradeInStatus, deleteTradeInRequest, TradeInRequest } from '../context/TradeInStore';
+import React, { useState } from 'react';
+import { RefreshCw, Phone, Mail, Trash2, Inbox, CheckCircle2, Sparkles, Camera } from 'lucide-react';
+import { useTradeInRequests, updateTradeInStatus, deleteTradeInRequest, setTradeInFinalOffer, TradeInRequest } from '../context/TradeInStore';
 
 const STATUS_META: Record<TradeInRequest['status'], { label: string; className: string }> = {
   new: { label: 'New', className: 'bg-amber-500/15 border-amber-500/40 text-amber-300' },
@@ -10,6 +10,39 @@ const STATUS_META: Record<TradeInRequest['status'], { label: string; className: 
 };
 
 const NEXT_STATUS: TradeInRequest['status'][] = ['new', 'contacted', 'valued', 'closed'];
+
+/** Staff input for the confirmed offer that will be sent to the customer. */
+const FinalOfferInput: React.FC<{ id: string; value?: number }> = ({ id, value }) => {
+  const [draft, setDraft] = useState(value != null ? String(value) : '');
+  const save = () => {
+    const n = Number(draft);
+    setTradeInFinalOffer(id, draft.trim() === '' || !Number.isFinite(n) ? undefined : Math.round(n));
+  };
+  return (
+    <div className="flex items-center gap-2" data-testid={`final-offer-${id}`}>
+      <label className="text-[11px] font-bold uppercase tracking-wide text-neutral-500 shrink-0" htmlFor={`offer-${id}`}>
+        Final offer £
+      </label>
+      <input
+        id={`offer-${id}`}
+        value={draft}
+        inputMode="numeric"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        placeholder="e.g. 180"
+        className="w-28 rounded-lg border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm px-3 py-1.5 focus:border-emerald-500/50 outline-none"
+      />
+      <button
+        type="button"
+        onClick={save}
+        className="rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/25 cursor-pointer"
+      >
+        Save
+      </button>
+      {value != null && <span className="text-[11px] text-emerald-400 font-mono">saved £{value}</span>}
+    </div>
+  );
+};
 
 /**
  * Staff inbox for trade-in / part-exchange leads submitted by customers. Lets
@@ -23,10 +56,10 @@ export const StaffTradeInsTab: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-amber-400" /> Trade-In Leads
+            <RefreshCw className="w-5 h-5 text-amber-400" /> Sell Your Bike — Leads
           </h2>
           <p className="text-xs text-neutral-400 mt-1">
-            Bikes customers want valued against a new purchase or workshop credit.
+            Bikes customers want to sell. Review the photos and AI read, then confirm an offer.
           </p>
         </div>
         <span className="text-xs font-mono text-neutral-400">{requests.length} lead{requests.length === 1 ? '' : 's'}</span>
@@ -35,7 +68,7 @@ export const StaffTradeInsTab: React.FC = () => {
       {requests.length === 0 ? (
         <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-3">
           <Inbox className="w-8 h-8 text-neutral-500 mx-auto" />
-          <div className="font-display text-base font-bold text-white">No trade-in leads yet</div>
+          <div className="font-display text-base font-bold text-white">No sell-your-bike leads yet</div>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
             Requests submitted from the customer app will appear here for the workshop to value.
           </p>
@@ -49,7 +82,7 @@ export const StaffTradeInsTab: React.FC = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-4">
                     {r.photoUrl ? (
-                      <img src={r.photoUrl} alt="Trade-in bike" className="w-16 h-16 rounded-xl object-cover border border-neutral-800 shrink-0" />
+                      <img src={r.photoUrl} alt="Sell-your-bike photo" className="w-16 h-16 rounded-xl object-cover border border-neutral-800 shrink-0" />
                     ) : (
                       <div className="w-16 h-16 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center shrink-0">
                         <RefreshCw className="w-6 h-6 text-neutral-600" />
@@ -79,10 +112,46 @@ export const StaffTradeInsTab: React.FC = () => {
                   </div>
                 )}
 
+                {/* Seven-angle photo set submitted by the customer. */}
+                {r.photos && r.photos.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-neutral-500 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5" /> {r.photos.length} photo{r.photos.length === 1 ? '' : 's'}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {r.photos.map((p) => (
+                        <a key={p.angle} href={p.dataUrl} target="_blank" rel="noreferrer" title={p.label}
+                          className="block w-16 h-16 rounded-lg overflow-hidden border border-neutral-800 hover:border-emerald-500/50">
+                          <img src={p.dataUrl} alt={p.label} className="w-full h-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI identification + offer for staff to confirm. */}
+                {r.offerEstimate != null && (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/15 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-emerald-400 flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> AI offer estimate
+                      </span>
+                      <span className="font-mono text-sm font-bold text-emerald-300">£{r.offerEstimate}</span>
+                    </div>
+                    {r.offerRationale?.length ? (
+                      <ul className="text-[11px] text-neutral-400 space-y-0.5 list-disc pl-4">
+                        {r.offerRationale.map((line, i) => <li key={i}>{line}</li>)}
+                      </ul>
+                    ) : null}
+                  </div>
+                )}
+
+                <FinalOfferInput id={r.id} value={r.finalOffer} />
+
                 <div className="flex flex-wrap items-center gap-2">
                   {r.customerEmail && (
                     <a
-                      href={`mailto:${r.customerEmail}?subject=${encodeURIComponent(`Your trade-in valuation — ${r.brand} ${r.model}`)}`}
+                      href={`mailto:${r.customerEmail}?subject=${encodeURIComponent(`Your bike offer — ${r.brand} ${r.model}`)}`}
                       className="px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white text-xs font-medium flex items-center gap-1.5"
                     >
                       <Mail className="w-3.5 h-3.5" /> Email

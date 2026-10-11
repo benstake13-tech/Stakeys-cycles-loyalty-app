@@ -44,6 +44,7 @@ import {
   Gauge,
   ShoppingCart,
   BadgePercent,
+  BadgePoundSterling,
   FlaskConical,
   Gift,
   CloudRain,
@@ -73,6 +74,7 @@ import { PerformanceTracker } from './PerformanceTracker';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { StaffReferralsTab } from './StaffReferralsTab';
 import { StaffTradeInsTab } from './StaffTradeInsTab';
+import { StaffOfferPricesTab } from './StaffOfferPricesTab';
 import { ReviewsTab } from './ReviewsTab';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { FinancialReportingTab } from './FinancialReportingTab';
@@ -116,6 +118,7 @@ type StaffTab =
   | 'google_business'
   | 'referrals'
   | 'tradeins'
+  | 'offer_prices'
   | 'reviews'
   | 'backend'
   | 'weather'
@@ -137,6 +140,7 @@ const STAFF_TABS: StaffTab[] = [
   'google_business',
   'referrals',
   'tradeins',
+  'offer_prices',
   'reviews',
   'backend',
   'weather',
@@ -503,6 +507,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'google_business'
     | 'referrals'
     | 'tradeins'
+    | 'offer_prices'
     | 'reviews'
     | 'backend'
     | 'weather'
@@ -539,7 +544,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager', keywords: 'promotions offers deals campaigns manager' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes', keywords: 'discount codes vouchers coupons till' },
     { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme', keywords: 'referrals refer a friend invite programme' },
-    { id: 'tradeins', label: 'Trade-Ins', icon: RefreshCw, tone: 'amber', hint: 'Part-exchange leads to value', keywords: 'trade ins part exchange valuation leads' },
+    { id: 'tradeins', label: 'Sell Your Bike', icon: RefreshCw, tone: 'amber', hint: 'Sell-your-bike leads to value', keywords: 'sell your bike trade ins part exchange valuation leads offers' },
+    { id: 'offer_prices', label: 'Offer Prices', icon: BadgePoundSterling, tone: 'emerald', hint: 'What we pay per brand & model', keywords: 'offer prices sell your bike valuation price book brands models pay' },
     { id: 'reviews', label: 'Reviews', icon: MessageSquare, tone: 'amber', badge: reviews.length, hint: 'Customer reviews & feedback', keywords: 'reviews feedback ratings customers' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history', keywords: 'logs audit history stamps rewards trail' },
     { id: 'backend', label: 'Backend', icon: Server, tone: 'sky', hint: 'Supabase connection, schema & repair', keywords: 'backend supabase database schema connection repair' },
@@ -880,6 +886,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {staffView('discount_codes', <DiscountCodesTab />)}
       {staffView('referrals', <StaffReferralsTab />)}
       {staffView('tradeins', <StaffTradeInsTab />)}
+      {staffView('offer_prices', <StaffOfferPricesTab />)}
       {staffView('reviews', <ReviewsTab />)}
 
       {/* VIEW 1C-C: Counter Sale / Till — scanned discounts auto-apply */}

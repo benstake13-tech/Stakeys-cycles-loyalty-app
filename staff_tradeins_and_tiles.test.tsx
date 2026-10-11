@@ -81,7 +81,7 @@ beforeEach(() => {
 describe('StaffTradeInsTab', () => {
   it('shows an empty state with no leads', () => {
     render(<StaffTradeInsTab />);
-    expect(screen.getByText(/No trade-in leads yet/i)).toBeTruthy();
+    expect(screen.getByText(/No sell-your-bike leads yet/i)).toBeTruthy();
   });
 
   it('lists a submitted lead and advances its status', () => {
