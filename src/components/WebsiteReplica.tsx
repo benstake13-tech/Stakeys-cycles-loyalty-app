@@ -39,6 +39,7 @@ import type { DiscountCode } from '../types/bikeShop';
 import { PolicyDisclaimers } from './PolicyDisclaimers';
 import { DISCOUNT_DISCLAIMERS } from '../utils/workshopPolicy';
 import { WeatherForecast } from './weather/WeatherForecast';
+import { CustomerErrorCodeHelper } from './CustomerErrorCodeHelper';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
@@ -1364,6 +1365,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
         return (
           <div className="space-y-6">
             {heroCard}
+            <CustomerErrorCodeHelper onBookService={onBookService} />
             {brandStoryBlock}
             {valueBand}
             {offersTeaser}

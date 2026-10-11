@@ -43,6 +43,19 @@ export interface EVehicleErrorDefinition {
    * so a technician can open the original rather than trusting the catalogue.
    */
   source: string;
+  // --- Customer-facing "helper" fields (merged from eVehicleCustomerInfo) ---
+  /** Plain-language "why this happens" for a rider. */
+  why?: string;
+  /** Symptoms a rider notices, used for the symptom search. */
+  symptoms?: string[];
+  /** How hard the fix is from a rider's point of view. */
+  difficulty?: 'DIY' | 'Easy' | 'Intermediate' | 'Workshop only';
+  /** Typical UK workshop cost to diagnose + fix, as [low, high] GBP. */
+  costRange?: [number, number];
+  /** Typical UK DIY parts-only cost, as [low, high] GBP. */
+  diyCost?: [number, number];
+  /** Keys into PART_CATALOG for the compatible replacement parts. */
+  partKeys?: string[];
 }
 
 export interface EVehicleModelsSet {
@@ -68,7 +81,11 @@ export type EVehicleErrorFamily =
   | 'bosch'
   | 'shimano'
   | 'bafang'
-  | 'generic_bike';
+  | 'generic_bike'
+  | 'vsett'
+  | 'kaabo'
+  | 'radpower'
+  | 'brose';
 
 /**
  * Reference library. Every code's `source` field points at one of these, so the
@@ -89,6 +106,10 @@ export const EVEHICLE_SOURCES: Record<string, string> = {
   bafang: 'https://fasterbikes.eu/en/info-help/bafang-error-codes',
   generic: 'https://promechbc.com/blogs/blog/electric-scooter-error-codes-explained',
   genericBike: 'https://www.dincalculator.com/bike/ebike-error-codes',
+  vsett: 'https://riderguide.com/guides/qs-s4-lcd-throttle',
+  kaabo: 'https://electrickicks.gorgias.help/en-US/kaabo-wolf-king-gtr-%E2%80%93-central-display-error-code-troubleshooting-6250191',
+  radpower: 'https://upway.co/blogs/news/rad-power-bikes-error-codes-list',
+  brose: 'https://upway.co/blogs/news/serial-1-electric-bike-error-codes',
 };
 
 
@@ -114,6 +135,7 @@ export const EVEHICLE_BRANDS: EVehicleBrandEntry[] = [
   { category: 'electric_scooter', brand: 'Dualtron', models: ['Ultra', 'Thunder', 'Victor', 'Eagle', 'Popular', 'Other Dualtron Model'] },
   { category: 'electric_scooter', brand: 'Kaabo', models: ['Wolf Warrior', 'Wolf King', 'Skywalker', 'Mantis', 'Other Kaabo Model'] },
   { category: 'electric_scooter', brand: 'Vsett', models: ['8', '9+', '10+', '11+', 'Other Vsett Model'] },
+  { category: 'electric_scooter', brand: 'Zero', models: ['10X', '11X', 'Other Zero Model'] },
   { category: 'electric_scooter', brand: 'NAMI', models: ['Burn-e', 'Blast', 'Seas', 'Other NAMI Model'] },
   { category: 'electric_scooter', brand: 'Razor', models: ['E100', 'E300', 'E Prime', 'Other Razor Model'] },
   { category: 'electric_scooter', brand: 'GoTrax', models: ['G2', 'G3', 'GXL', 'Xr Elite', 'Other GoTrax Model'] },
@@ -134,6 +156,8 @@ export const EVEHICLE_BRANDS: EVehicleBrandEntry[] = [
   { category: 'ebike', brand: 'Cannondale', models: ['Tesoro Neo', 'Synapse Neo', 'Trail Neo', 'Other Cannondale System'] },
   { category: 'ebike', brand: 'Bosch / Generic Motors', models: ['250 W Hub', '500 W Hub', 'Other Hub Motor'] },
   { category: 'ebike', brand: 'Swytch', models: ['Swytch Kit (Conversions)', 'Other Swytch Kit'] },
+  { category: 'ebike', brand: 'Rad Power Bikes', models: ['RadCity', 'RadCity Plus', 'RadRover', 'RadRunner', 'RadMission', 'RadWagon', 'Other Rad Model'] },
+  { category: 'ebike', brand: 'Brose', models: ['Drive T', 'Drive S', 'Drive C', 'Drive Mag', 'Other Brose System'] },
   { category: 'ebike', brand: 'Budget / Other', models: ['Generic Controller', 'Other / Not Listed'] },
 ];
 
@@ -342,6 +366,65 @@ const CODE_FAMILIES: Record<EVehicleErrorFamily, EVehicleErrorDefinition[]> = {
     { code: 'E21', title: 'Speed Sensor Failure', severity: 'Medium', system: 'motor', source: S.bafang, description: 'The speed sensor has no signal — the magnet is misaligned or the sensor cable is cut.', fix: ['Switch the display off and on.', 'Check the spoke magnet aligns with the sensor (a few mm gap).', 'Check the speed-sensor cable for damage.'], parts: [] },
     { code: 'E30', title: 'Communication Error (Display ↔ Controller)', severity: 'Medium', system: 'display', source: S.bafang, description: 'The display cannot receive data from the controller. The most common Bafang fault.', fix: ['Check every connector between the display and controller for looseness or bent pins.', 'Look for kinks or cuts in the harness.', 'Replace the display (most common culprit), then the harness, then the controller.'], parts: ['Display harness', 'Controller'] },
   ],
+
+  // -------------------------------------------------------------------------
+  // VSETT / ZERO (QS-S4 LCD) — small numeric fault codes shown above the bars.
+  // Also used by many QS-S4-equipped scooters (some Kaabo, ZERO 10X/11X).
+  // -------------------------------------------------------------------------
+  vsett: [
+    { code: 'E1', title: 'Meter / Dashboard Fault', severity: 'Low', system: 'display', source: S.vsett, description: 'The meter (dashboard) reports a problem, or a stored fault from another code.', fix: ['Power-cycle and watch for a code that returns.', 'Check the display cable and connector.', 'Replace the dashboard if it persists.'], parts: ['Display unit'] },
+    { code: 'E2', title: 'Brake Sensor (Electronic Brake) Fault', severity: 'High', system: 'brake', source: S.vsett, description: 'The electronic brake sensor is stuck or disconnected, so the motor cut-off is engaged. The brake (!) symbol also stays lit.', fix: ['Confirm the brake levers return fully.', 'Loosen the sensor with an 8mm spanner and adjust into range.', 'Replace the brake sensor if it will not adjust.'], parts: ['Brake lever switch'] },
+    { code: 'E6', title: 'Battery Undervoltage', severity: 'Medium', system: 'bms', source: S.vsett, description: 'Battery voltage is too low to drive the scooter.', fix: ['Charge the pack fully.', 'Test each cell group if it will not hold charge.', 'Replace the pack if a group is dead.'], parts: [] },
+    { code: 'E7', title: 'Motor Fault', severity: 'High', system: 'motor', source: S.vsett, description: 'A motor fault — Hall sensor or phase wiring. On dual-motor models, swap the phase/Hall plugs to isolate which motor.', fix: ['Check the motor phase and Hall connectors.', 'On dual motors, swap the connectors to identify the faulty side.', 'Replace the Hall board or motor.'], parts: ['Hall sensor board'] },
+    { code: 'E8', title: 'Throttle Fault', severity: 'High', system: 'throttle', source: S.vsett, description: 'The throttle is not reacting correctly.', fix: ['Check the throttle wiring and connection.', 'Confirm it returns to zero.', 'Replace the throttle.'], parts: ['Throttle'] },
+    { code: 'E9', title: 'Controller Fault', severity: 'High', system: 'controller', source: S.vsett, description: 'Controller fault — often a blown MOSFET after water ingress or hard use. Usually needs a full controller replacement.', fix: ['Check the controller for burnt components.', 'Check the phase wiring for a short.', 'Replace the controller (wire-for-wire).'], parts: ['Controller'] },
+    { code: 'E10', title: 'Communication Receiving Fault', severity: 'Medium', system: 'display', source: S.vsett, description: 'The display is not receiving data from the controller — a fault in the LCD, controller or the comms wire. Often appears after quick handlebar movement.', fix: ['Unplug the LCD module and check the connector pins.', 'Plug it back in and wiggle the cable to test.', 'Replace the communication harness if it persists.'], parts: ['Harness'] },
+    { code: 'E11', title: 'Communication Transmitting Fault', severity: 'Medium', system: 'display', source: S.vsett, description: 'The controller is not receiving data from the display (same harness as E10).', fix: ['Reseat the LCD connector.', 'Check the harness for damage.', 'Replace the communication harness.'], parts: ['Harness'] },
+    { code: 'E12', title: 'BMS Communication Failure', severity: 'High', system: 'bms', source: S.vsett, description: 'The controller cannot communicate with the battery BMS.', fix: ['Check whether the battery still charges.', 'Check the battery-to-controller connector.', 'Replace the BMS or pack.'], parts: ['BMS'] },
+    { code: 'E13', title: 'Headlight Error', severity: 'Low', system: 'charging', source: S.vsett, description: 'A fault with the LED headlight — a loose connection or a damaged LED.', fix: ['Check the headlight cable and connector.', 'Test the LED with a multimeter on diode mode.', 'Replace the headlight.'], parts: ['Headlight'] },
+  ],
+
+  // -------------------------------------------------------------------------
+  // KAABO (Mantis / Wolf Warrior / Wolf King, LT01 & central displays).
+  // -------------------------------------------------------------------------
+  kaabo: [
+    { code: 'E01', title: 'Motor Phase Error', severity: 'High', system: 'motor', source: S.kaabo, description: 'The scooter detects a motor phase fault.', fix: ['Check the motor phase wiring and connectors.', 'On dual motors, isolate the faulty motor.', 'Replace the phase harness or motor.'], parts: ['Motor harness'] },
+    { code: 'E02', title: 'Brake Sensor Error', severity: 'High', system: 'brake', source: S.kaabo, description: 'A brake sensor fault prevents acceleration (the motor cut-off is engaged).', fix: ['Confirm the brake levers return fully.', 'Check the brake sensor wiring.', 'Replace the lever sensor.'], parts: ['Brake lever switch'] },
+    { code: 'E04', title: 'Throttle Error', severity: 'High', system: 'throttle', source: S.kaabo, description: 'The scooter detects a throttle fault — wiring changes, connector pins or the display main cable.', fix: ['Check for modified wiring.', 'Inspect the throttle connector pins.', 'Replace the throttle if faulty.'], parts: ['Throttle'] },
+    { code: 'E05', title: 'Undervoltage Protection', severity: 'Medium', system: 'bms', source: S.kaabo, description: 'Low-voltage protection — the pack is below the cut-off (check the P1 low-voltage setting on LT01 displays).', fix: ['Charge the pack.', 'Check the P1 low-voltage setting if it triggers early.', 'Test the pack if it will not charge.'], parts: [] },
+    { code: 'E06', title: 'Controller Error', severity: 'High', system: 'controller', source: S.kaabo, description: 'The scooter detects a controller fault — loose wiring or a failing controller.', fix: ['Restart the scooter.', 'Check the controller wiring.', 'Replace the controller if the error remains.'], parts: ['Controller'] },
+    { code: 'E08', title: 'High Temperature Protection', severity: 'Medium', system: 'controller', source: S.kaabo, description: 'High-temperature protection — the controller or motor is too hot.', fix: ['Let the scooter cool.', 'Check for a binding wheel or heavy load.', 'Check the controller thermal pad.'], parts: [] },
+    { code: 'E10', title: 'Communication Failure', severity: 'Medium', system: 'motor', source: S.kaabo, description: 'Communication failure — often the controller is no longer supplying the 5 V Hall reference to the motors.', fix: ['Measure the 4–5 V reference at the motor Hall connector.', 'If it is missing, the controller has failed.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E30', title: 'Central Display Communication Error', severity: 'Medium', system: 'display', source: S.kaabo, description: 'The central display has lost communication with the controller.', fix: ['Check the display cable and junction box.', 'Reseat the main cable.', 'Replace the harness or display if it persists.'], parts: ['Display harness'] },
+  ],
+
+  // -------------------------------------------------------------------------
+  // RAD POWER BIKES (RadCity / RadRover / RadRunner) — numeric codes.
+  // -------------------------------------------------------------------------
+  radpower: [
+    { code: '6', title: 'Battery Undervoltage', severity: 'Medium', system: 'bms', source: S.radpower, description: 'Battery undervoltage — the pack is flat or aged.', fix: ['Charge the pack fully.', 'Test the pack if it will not hold charge.', 'Replace the pack if a group is weak.'], parts: [] },
+    { code: '10', title: 'Battery Overvoltage', severity: 'Medium', system: 'bms', source: S.radpower, description: 'Battery overvoltage — check the charger, or a failed BMS allowing over-charge.', fix: ['Confirm the correct charger is used.', 'Check the pack voltage.', 'Replace the charger or BMS if faulty.'], parts: ['Charger', 'BMS'] },
+    { code: '21', title: 'Abnormal Current (Controller / Wiring)', severity: 'High', system: 'controller', source: S.radpower, description: 'Abnormal current — a controller, motor or wiring fault. Often the battery tray contacts on RadCity models.', fix: ['Power-cycle first.', 'Inspect all cables and connections.', 'Check the battery tray contacts; replace the controller if it persists.'], parts: ['Controller'] },
+    { code: '22', title: 'Throttle Fault', severity: 'High', system: 'throttle', source: S.radpower, description: 'Throttle fault — a damaged throttle or loose wiring.', fix: ['Check the throttle connector and wiring.', 'Replace the throttle.'], parts: ['Throttle'] },
+    { code: '23', title: 'Motor Phase Fault', severity: 'High', system: 'motor', source: S.radpower, description: 'Motor phase fault — a controller or motor connection issue.', fix: ['Check the motor phase connectors.', 'Check the controller.', 'Replace the harness or motor if faulty.'], parts: ['Motor harness'] },
+    { code: '24', title: 'Motor Hall Sensor Fault', severity: 'High', system: 'motor', source: S.radpower, description: 'Motor Hall sensor fault — internal motor sensor failure.', fix: ['Check the motor cable and connector.', 'Test the Hall sensors.', 'Replace the Hall board or motor.'], parts: ['Hall sensor board'] },
+    { code: '25', title: 'Brake Sensor Fault', severity: 'High', system: 'brake', source: S.radpower, description: 'The brake sensor is stuck active, so the bike will not assist.', fix: ['Find the sensors under the brake levers and adjust them.', 'Check the sensor wiring.', 'Replace the brake sensor.'], parts: ['Brake sensor'] },
+    { code: '30', title: 'Communication Fault', severity: 'Medium', system: 'display', source: S.radpower, description: 'Communication fault — often loose wiring or water in a connector.', fix: ['Check all connections and wiring.', 'Inspect the connector pins for corrosion.', 'Replace the display or harness if it persists.'], parts: ['Display harness'] },
+    { code: '31', title: 'Power Button Hold Fault', severity: 'Low', system: 'display', source: S.radpower, description: 'The power button was held down too long at startup (a safety lock-out).', fix: ['Release and press the power button normally.', 'Check the button for sticking.', 'Replace the button/display if it persists.'], parts: [] },
+    { code: '34', title: 'Walk Mode Disengage Fault', severity: 'Low', system: 'display', source: S.radpower, description: 'Walk mode did not disengage — the walk button/sensor is stuck.', fix: ['Press and release walk mode again.', 'Check the display buttons.', 'Replace the display if it persists.'], parts: ['Display unit'] },
+  ],
+
+  // -------------------------------------------------------------------------
+  // BROSE (Specialized/BH/Serial-1 drive systems) — numeric & text codes.
+  // -------------------------------------------------------------------------
+  brose: [
+    { code: '1', title: 'General System Error', severity: 'Medium', system: 'controller', source: S.brose, description: 'A general system error. Usually clears after a power cycle.', fix: ['Power-cycle the system (off 10 s, on).', 'Check all connectors are seated.', 'Dealer diagnosis if it returns.'], parts: [] },
+    { code: '3', title: 'Speed Sensor Error', severity: 'Medium', system: 'motor', source: S.brose, description: 'The speed sensor is not reading correctly — magnet alignment or wiring.', fix: ['Check the spoke magnet alignment and gap.', 'Check the sensor cable.', 'Replace the sensor if faulty.'], parts: ['Speed sensor'] },
+    { code: '5', title: 'Motor Overtemperature', severity: 'Medium', system: 'motor', source: S.brose, description: 'The motor has exceeded its temperature limit.', fix: ['Let the motor cool (15–20 minutes).', 'Reduce sustained load or hills.', 'Check for a binding drive.'], parts: [] },
+    { code: '9', title: 'Internal Motor Error', severity: 'High', system: 'motor', source: S.brose, description: 'An internal motor fault — do not attempt repeated restarts.', fix: ['Stop riding.', 'Contact a Brose dealer for diagnosis.', 'Do not open the drive unit.'], parts: [] },
+    { code: '60', title: 'Communication Error', severity: 'Medium', system: 'display', source: S.brose, description: 'A communication error between the system components — check wiring and plugs.', fix: ['Check the wiring and plug connections.', 'Restart the system.', 'Dealer diagnosis if it persists.'], parts: [] },
+    { code: '81', title: 'Speed Sensor Error (Display)', severity: 'Medium', system: 'motor', source: S.brose, description: 'Display-side speed sensor error — check the sensor and spoke magnet.', fix: ['Check the speed sensor and spoke magnet.', 'Adjust and clean.', 'Replace the sensor if faulty.'], parts: ['Speed sensor'] },
+  ],
 };
 
 
@@ -391,16 +474,16 @@ export const EVEHICLE_MODEL_ERRORS: EVehicleModelErrors[] = [
   { category: 'electric_scooter', brand: 'Dualtron', model: 'Popular', family: 'dualtron' },
   { category: 'electric_scooter', brand: 'Dualtron', model: 'Other Dualtron Model', family: 'dualtron' },
   // Vsett / Kaabo / NAMI / Razor / GoTrax / iScooter / Okai / Hiboy / InMotion / generic others → generic codes.
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf Warrior', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf King', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Skywalker', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Mantis', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Other Kaabo Model', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Vsett', model: '8', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Vsett', model: '9+', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Vsett', model: '10+', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Vsett', model: '11+', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Vsett', model: 'Other Vsett Model', family: 'generic' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf Warrior', family: 'kaabo' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf King', family: 'kaabo' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Skywalker', family: 'kaabo' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Mantis', family: 'kaabo' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Other Kaabo Model', family: 'kaabo' },
+  { category: 'electric_scooter', brand: 'Vsett', model: '8', family: 'vsett' },
+  { category: 'electric_scooter', brand: 'Vsett', model: '9+', family: 'vsett' },
+  { category: 'electric_scooter', brand: 'Vsett', model: '10+', family: 'vsett' },
+  { category: 'electric_scooter', brand: 'Vsett', model: '11+', family: 'vsett' },
+  { category: 'electric_scooter', brand: 'Vsett', model: 'Other Vsett Model', family: 'vsett' },
   { category: 'electric_scooter', brand: 'NAMI', model: 'Burn-e', family: 'generic' },
   { category: 'electric_scooter', brand: 'NAMI', model: 'Blast', family: 'generic' },
   { category: 'electric_scooter', brand: 'NAMI', model: 'Seas', family: 'generic' },
@@ -430,6 +513,9 @@ export const EVEHICLE_MODEL_ERRORS: EVehicleModelErrors[] = [
   { category: 'electric_scooter', brand: 'InMotion', model: 'S2', family: 'generic' },
   { category: 'electric_scooter', brand: 'InMotion', model: 'L9', family: 'generic' },
   { category: 'electric_scooter', brand: 'InMotion', model: 'Other InMotion Model', family: 'generic' },
+  { category: 'electric_scooter', brand: 'Zero', model: '10X', family: 'vsett' },
+  { category: 'electric_scooter', brand: 'Zero', model: '11X', family: 'vsett' },
+  { category: 'electric_scooter', brand: 'Zero', model: 'Other Zero Model', family: 'vsett' },
   { category: 'electric_scooter', brand: 'Budget / Other', model: 'Generic Controller', family: 'generic' },
   { category: 'electric_scooter', brand: 'Budget / Other', model: 'Other / Not Listed', family: 'generic' },
   // --- E-Bikes -------------------------------------------------------------
@@ -482,6 +568,18 @@ export const EVEHICLE_MODEL_ERRORS: EVehicleModelErrors[] = [
   { category: 'ebike', brand: 'Bosch / Generic Motors', model: 'Other Hub Motor', family: 'generic_bike' },
   { category: 'ebike', brand: 'Swytch', model: 'Swytch Kit (Conversions)', family: 'generic_bike' },
   { category: 'ebike', brand: 'Swytch', model: 'Other Swytch Kit', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Rad Power Bikes', model: 'RadCity', family: 'radpower' },
+  { category: 'ebike', brand: 'Rad Power Bikes', model: 'RadCity Plus', family: 'radpower' },
+  { category: 'ebike', brand: 'Rad Power Bikes', model: 'RadRover', family: 'radpower' },
+  { category: 'ebike', brand: 'Rad Power Bikes', model: 'RadRunner', family: 'radpower' },
+  { category: 'ebike', brand: 'Rad Power Bikes', model: 'RadMission', family: 'radpower' },
+  { category: 'ebike', brand: 'Rad Power Bikes', model: 'RadWagon', family: 'radpower' },
+  { category: 'ebike', brand: 'Rad Power Bikes', model: 'Other Rad Model', family: 'radpower' },
+  { category: 'ebike', brand: 'Brose', model: 'Drive T', family: 'brose' },
+  { category: 'ebike', brand: 'Brose', model: 'Drive S', family: 'brose' },
+  { category: 'ebike', brand: 'Brose', model: 'Drive C', family: 'brose' },
+  { category: 'ebike', brand: 'Brose', model: 'Drive Mag', family: 'brose' },
+  { category: 'ebike', brand: 'Brose', model: 'Other Brose System', family: 'brose' },
   { category: 'ebike', brand: 'Budget / Other', model: 'Generic Controller', family: 'generic_bike' },
   { category: 'ebike', brand: 'Budget / Other', model: 'Other / Not Listed', family: 'generic_bike' },
 ];
