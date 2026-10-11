@@ -13,6 +13,16 @@ import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'stakeys.tradein.v1';
 
+/** One of the seven guided photos the customer takes of their bike. */
+export interface SellAnglePhoto {
+  /** Stable angle id, e.g. 'drive-side'. */
+  angle: string;
+  /** Human label shown to the customer, e.g. 'Drive side (right)'. */
+  label: string;
+  /** Downscaled JPEG data URL. */
+  dataUrl: string;
+}
+
 export interface TradeInRequest {
   id: string;
   /** Signed-in customer who submitted it (when known). */
@@ -30,10 +40,27 @@ export interface TradeInRequest {
   notes?: string;
   /** Optional photo as a data URL or storage URL. */
   photoUrl?: string;
+  /** The seven guided angle photos (Sell Your Bike flow). */
+  photos?: SellAnglePhoto[];
+  /** Raw AI identification returned by the vision service. */
+  aiIdentification?: unknown;
+  /** Instant AI offer estimate shown to the customer (£), pending staff review. */
+  offerEstimate?: number;
+  offerMin?: number;
+  offerMax?: number;
+  offerConfidence?: number;
+  offerRationale?: string[];
+  /** Staff-entered final offer once the lead is valued. */
+  finalOffer?: number;
   /** What the customer is interested in buying. */
   interestedIn?: string;
   status: 'new' | 'contacted' | 'valued' | 'closed';
   createdAt: string;
+}
+
+/** Update just the staff-entered final offer for a lead. */
+export function setTradeInFinalOffer(id: string, finalOffer: number | undefined): void {
+  write(read().map((r) => (r.id === id ? { ...r, finalOffer } : r)));
 }
 
 let cached: TradeInRequest[] | null = null;

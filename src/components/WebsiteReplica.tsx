@@ -40,6 +40,7 @@ import { PolicyDisclaimers } from './PolicyDisclaimers';
 import { DISCOUNT_DISCLAIMERS } from '../utils/workshopPolicy';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { CustomerErrorCodeHelper } from './CustomerErrorCodeHelper';
+import { SellYourBikeForm } from './TradeInRequestForm';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
@@ -287,6 +288,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
     { id: 'faqs', label: 'FAQs', icon: MessageCircle, tone: 'neutral' },
     { id: 'gallery', label: 'Gallery', icon: Bike, tone: 'sky' },
     { id: 'priceList', label: 'price list', icon: BadgePoundSterling, tone: 'amber' },
+    { id: 'sell', label: 'Sell Your Bike', icon: Tag, tone: 'emerald' },
     { id: 'join', label: 'Join the Team', icon: Star, tone: 'emerald' },
   ];
 
@@ -1330,6 +1332,33 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
               </div>
             </div>
 
+            {footerBar}
+          </div>
+        );
+      case 'sell':
+        return (
+          <div className="space-y-6">
+            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 text-neutral-950 shadow">
+                  <Tag className="w-6 h-6" />
+                </span>
+                <div>
+                  <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Sell Your Bike</h3>
+                  <p className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
+                    Snap seven photos, get an instant AI offer, and turn your old bike into cash or credit.
+                  </p>
+                </div>
+              </div>
+              <ul className="mt-5 grid gap-2 sm:grid-cols-3">
+                {['7 guided photo angles', 'AI identifies the bike', 'Instant indicative offer'].map((b) => (
+                  <li key={b} className={`flex items-center gap-2 text-xs font-semibold ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
+                    <span className="text-emerald-500 font-bold">✓</span> {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <SellYourBikeForm compact />
             {footerBar}
           </div>
         );
