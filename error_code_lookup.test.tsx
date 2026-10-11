@@ -32,6 +32,52 @@ describe('e-vehicle error-code catalogue', () => {
     expect(codes.every((c) => c.code && c.title && c.fix.length > 0)).toBe(true);
   });
 
+  it('every code carries a verifiable public source', () => {
+    const families = [
+      errorCodesFor('electric_scooter', 'Xiaomi', 'M365'),
+      errorCodesFor('electric_scooter', 'Segway / Ninebot', 'Max G30'),
+      errorCodesFor('electric_scooter', 'Dualtron', 'Thunder'),
+      errorCodesFor('ebike', 'Bosch', 'Performance CX'),
+      errorCodesFor('ebike', 'Shimano', 'STEPS EP8'),
+      errorCodesFor('ebike', 'Bafang', 'BBSHD'),
+      errorCodesFor('ebike', 'Swytch', 'Swytch Kit (Conversions)'),
+    ];
+    for (const list of families) {
+      expect(list.length).toBeGreaterThan(0);
+      for (const c of list) {
+        expect(c.source, `${c.code} has no source`).toMatch(/^https:\/\//);
+      }
+    }
+  });
+
+  it('uses the corrected Xiaomi/Ninebot meanings (not the old invented ones)', () => {
+    const m365 = errorCodesFor('electric_scooter', 'Xiaomi', 'M365');
+    // E14 is the throttle code on the M365 (E23 is a BMS serial fault).
+    expect(findErrorCode(m365, 'E14')?.system).toBe('throttle');
+    expect(findErrorCode(m365, 'E23')?.title).toMatch(/serial|bms/i);
+    // E35 is the serial-number code on both families.
+    expect(findErrorCode(m365, 'E35')?.title).toMatch(/serial/i);
+
+    const g30 = errorCodesFor('electric_scooter', 'Segway / Ninebot', 'Max G30');
+    // Same numbering as Xiaomi on the shared G30/Xiaomi lexicon.
+    expect(findErrorCode(g30, 'E10')?.system).toBe('display');
+    expect(findErrorCode(g30, 'E11')?.system).toBe('motor');
+    expect(findErrorCode(g30, 'E14')?.system).toBe('throttle');
+    expect(findErrorCode(g30, 'E18')?.system).toBe('motor');
+    expect(findErrorCode(g30, 'E35')?.title).toMatch(/serial/i);
+  });
+
+  it('maps e-bike brands to their real systems, not the scooter generic list', () => {
+    expect(errorFamilyFor('ebike', 'Bosch', 'Performance CX')).toBe('bosch');
+    expect(errorFamilyFor('ebike', 'Bosch Smart System', 'Performance Line CX Smart')).toBe('bosch');
+    expect(errorFamilyFor('ebike', 'Shimano', 'STEPS EP8')).toBe('shimano');
+    expect(errorFamilyFor('ebike', 'Bafang', 'BBSHD')).toBe('bafang');
+    const bosch = errorCodesFor('ebike', 'Bosch', 'Performance CX');
+    expect(findErrorCode(bosch, '423')?.title).toMatch(/battery/i);
+    const bafang = errorCodesFor('ebike', 'Bafang', 'BBSHD');
+    expect(findErrorCode(bafang, '30')?.system).toBe('display');
+  });
+
   it('Xiaomi M365 maps to its dedicated family', () => {
     expect(errorFamilyFor('electric_scooter', 'Xiaomi', 'M365')).toBe('xiaomi');
   });
@@ -66,12 +112,14 @@ describe('e-vehicle error-code catalogue', () => {
 });
 
 describe('assistECodeLookup offline fallback', () => {
-  // The service returns the offline path whenever VITE_GEMINI_API_KEY is unset
-  // (the test runner has no key), so no AI call can be attempted here.
+  // Force the offline path: clear the key so no AI call can be attempted here,
+  // regardless of what is in the developer's local .env.
   beforeEach(() => {
     vi.resetModules();
+    vi.stubEnv('VITE_GEMINI_API_KEY', '');
   });
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -81,13 +129,13 @@ describe('assistECodeLookup offline fallback', () => {
       category: 'electric_scooter',
       brand: 'Xiaomi',
       model: 'M365',
-      symptom: 'it keeps beeping E23 and the throttle does nothing',
+      symptom: 'the throttle does nothing and it beeps',
     });
     expect(result.source).toBe('offline');
     expect(result.empty).toBe(false);
     expect(result.matches.length).toBeGreaterThan(0);
-    // E23 is the Xiaomi throttle code.
-    expect(result.matches.some((m) => m.code === 'E23')).toBe(true);
+    // E14 is the Xiaomi throttle code.
+    expect(result.matches.some((m) => m.code === 'E14')).toBe(true);
   });
 
   it('returns empty matches when no symptom matches the catalogue', async () => {

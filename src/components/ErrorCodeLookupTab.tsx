@@ -20,6 +20,7 @@ import {
   Gauge,
   Loader2,
   RotateCcw,
+  ExternalLink,
 } from 'lucide-react';
 import {
   EVehicleCategory,
@@ -92,6 +93,16 @@ function ErrorRow({ def }: { def: EVehicleErrorDefinition }) {
             </span>
           ))}
         </div>
+      )}
+      {def.source && (
+        <a
+          href={def.source}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-1 text-[10px] font-semibold text-neutral-500 hover:text-emerald-400 transition-colors"
+        >
+          <ExternalLink className="w-3 h-3" /> Verify source
+        </a>
       )}
     </li>
   );
