@@ -18,6 +18,16 @@ export const SUMUP_KEY_ENV_NAMES = ['SUMUP_API_KEY', 'SUMUP_REST_API_KEY', 'SUMU
 /** Env var names the merchant code might be stored under. */
 export const SUMUP_MERCHANT_ENV_NAMES = ['SUMUP_MERCHANT_CODE', 'SUMUP_MERCHANT'];
 
+/**
+ * Env var names the Payment Switch affiliate key might be stored under. This is
+ * what Tap to Pay (softPOS) needs: the app hands off to the SumUp app with
+ * `sumupmerchant://pay/1.0?affiliate-key=…`, which needs no REST API key.
+ */
+export const SUMUP_AFFILIATE_ENV_NAMES = [
+  'SUMUP_AFFILIATE_KEY',
+  'VITE_SUMUP_AFFILIATE_KEY',
+];
+
 const trimValue = (raw) =>
   typeof raw === 'string' ? raw.trim().replace(/^["']|["']$/g, '') : '';
 
@@ -38,8 +48,65 @@ export function resolveSumupConfig(env = process.env) {
   const key = firstEnv(env, SUMUP_KEY_ENV_NAMES);
   const merchantCode = firstEnv(env, SUMUP_MERCHANT_ENV_NAMES);
   const readerId = firstEnv(env, ['SUMUP_READER_ID']);
+  const affiliateKey = firstEnv(env, SUMUP_AFFILIATE_ENV_NAMES);
   const currency = (firstEnv(env, ['SUMUP_CURRENCY']) || 'GBP').toUpperCase();
-  return { key, merchantCode, readerId, currency, configured: Boolean(key && merchantCode) };
+  return {
+    key,
+    merchantCode,
+    readerId,
+    affiliateKey,
+    currency,
+    // Online checkout needs a REST key + merchant code; Tap to Pay (Payment
+    // Switch) only needs the affiliate key, which is launched from the client.
+    configured: Boolean(key && merchantCode),
+    tapToPay: Boolean(affiliateKey),
+  };
+}
+
+/**
+ * Builds the Payment Switch URL that hands off to the SumUp app for a
+ * tap-to-pay (softPOS) transaction. Amount uses a dot decimal separator.
+ * `callbacksuccess`/`callbackfail` are where the SumUp app returns the result.
+ */
+export function buildPaymentSwitchUrl({
+  affiliateKey,
+  amount,
+  currency,
+  title,
+  foreignTxId,
+  appId,
+  callbackSuccess,
+  callbackFail,
+  receiptEmail,
+  skipSuccessScreen = true,
+}) {
+  const params = new URLSearchParams();
+  params.set('amount', toSumupAmount(amount).toFixed(2));
+  params.set('currency', currency);
+  if (affiliateKey) params.set('affiliate-key', affiliateKey);
+  if (title) params.set('title', title);
+  if (foreignTxId) params.set('foreign-tx-id', foreignTxId);
+  if (appId) params.set('app-id', appId);
+  if (receiptEmail) params.set('receipt-email', receiptEmail);
+  if (callbackSuccess) params.set('callbacksuccess', callbackSuccess);
+  if (callbackFail) params.set('callbackfail', callbackFail);
+  if (skipSuccessScreen) params.set('skip-screen-success', 'true');
+  return `sumupmerchant://pay/1.0?${params.toString()}`;
+}
+
+/**
+ * Parses the callback query the SumUp app appends when it returns control:
+ * `smp-status` (success|failed|invalidstate) plus optional tx code + our ref.
+ */
+export function parsePaymentSwitchCallback(query = {}) {
+  const status = query['smp-status'] || null;
+  return {
+    status,
+    ok: status === 'success',
+    txCode: query['smp-tx-code'] || null,
+    foreignTxId: query['foreign-tx-id'] || null,
+    message: query['smp-message'] || null,
+  };
 }
 
 /** SumUp expects the amount in major units with two decimals (15.00, not 1500). */

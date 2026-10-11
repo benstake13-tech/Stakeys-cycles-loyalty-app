@@ -25,6 +25,7 @@ import {
   getReaderStatus,
   terminateReaderCheckout,
   buildCheckoutReference,
+  buildPaymentSwitchUrl,
   toSumupAmount,
 } from './_shared.js';
 
@@ -39,9 +40,40 @@ function sumupConfig(res) {
   const cfg = resolveSumupConfig();
   return res.status(200).json({
     configured: cfg.configured,
+    tapToPay: cfg.tapToPay,
     currency: cfg.currency,
     hasReader: Boolean(cfg.readerId),
   });
+}
+
+/**
+ * Builds a Payment Switch URL for Tap to Pay (softPOS). Only the affiliate key
+ * is needed — no REST key — so this works on the free tap-to-pay tier. The URL
+ * is returned to the client, which opens it to hand off to the SumUp app.
+ */
+function sumupPaymentSwitchUrl(req, res) {
+  const cfg = resolveSumupConfig();
+  if (!cfg.tapToPay) {
+    return res.status(503).json({
+      error: 'SumUp Tap to Pay is not configured on this deployment.',
+      hint: 'Set SUMUP_AFFILIATE_KEY in the deployment environment.',
+    });
+  }
+  const amount = toSumupAmount(req.body?.amount ?? req.query?.amount);
+  if (amount === null) return res.status(400).json({ error: 'A positive amount is required.' });
+
+  const url = buildPaymentSwitchUrl({
+    affiliateKey: cfg.affiliateKey,
+    amount,
+    currency: req.body?.currency || cfg.currency,
+    title: req.body?.title,
+    foreignTxId: req.body?.reference || buildCheckoutReference('till'),
+    appId: req.body?.appId,
+    callbackSuccess: req.body?.callbackSuccess,
+    callbackFail: req.body?.callbackFail,
+    receiptEmail: req.body?.receiptEmail,
+  });
+  return res.status(200).json({ url });
 }
 
 async function sumupCheckout(req, res) {
@@ -167,7 +199,7 @@ export default async function handler(req, res) {
   const action = String(req.query.action || '');
   const method = String(req.method || 'GET').toUpperCase();
 
-  const needsPost = ['checkout', 'reader-checkout', 'terminate'];
+  const needsPost = ['checkout', 'reader-checkout', 'terminate', 'payment-switch-url'];
   if (needsPost.includes(action) && method !== 'POST') {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ error: 'Method not allowed' });
@@ -176,6 +208,8 @@ export default async function handler(req, res) {
   switch (action) {
     case 'config':
       return sumupConfig(res);
+    case 'payment-switch-url':
+      return sumupPaymentSwitchUrl(req, res);
     case 'checkout':
       return sumupCheckout(req, res);
     case 'checkout-status':

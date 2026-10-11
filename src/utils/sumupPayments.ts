@@ -13,6 +13,7 @@ export interface SumupConfig {
   configured: boolean;
   currency: string;
   hasReader: boolean;
+  tapToPay: boolean;
 }
 
 export interface SumupCheckout {
@@ -30,7 +31,7 @@ export interface SumupReader {
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
-const notConfigured: SumupConfig = { configured: false, currency: 'GBP', hasReader: false };
+const notConfigured: SumupConfig = { configured: false, currency: 'GBP', hasReader: false, tapToPay: false };
 
 async function postJson(path: string, body: unknown, fetchImpl: FetchLike): Promise<any> {
   const res = await fetchImpl(path, {
@@ -72,6 +73,7 @@ export async function getSumupConfig(fetchImpl: FetchLike = fetch): Promise<Sumu
         configured: Boolean(data.configured),
         currency: data.currency || 'GBP',
         hasReader: Boolean(data.hasReader),
+        tapToPay: Boolean(data.tapToPay),
       };
     }
     return notConfigured;
@@ -148,4 +150,79 @@ export async function pollSumupCheckout(
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   return 'PENDING';
+}
+
+// ---------------------------------------------------------------------------
+// Tap to Pay (softPOS) via the SumUp Payment Switch.
+//
+// This is the free-tier path: instead of a paired Solo reader, the merchant's
+// phone runs the SumUp app, and our till hands off with a `sumupmerchant://`
+// URL. The affiliate key never reaches the browser — the server builds the URL.
+// ---------------------------------------------------------------------------
+
+export interface PaymentSwitchRequest {
+  amount: number;
+  title?: string;
+  reference?: string;
+  currency?: string;
+  appId?: string;
+  callbackSuccess?: string;
+  callbackFail?: string;
+  receiptEmail?: string;
+}
+
+export interface PaymentSwitchResult {
+  status: string | null;
+  ok: boolean;
+  txCode: string | null;
+  foreignTxId: string | null;
+  message: string | null;
+}
+
+/** The canonical scheme the SumUp app registers for the Payment Switch. */
+export const SUMUP_PAYMENT_SWITCH_SCHEME = 'sumupmerchant://pay/1.0';
+
+/** Asks the server for a signed Payment Switch URL (keeps the affiliate key server-side). */
+export async function buildSumupPaymentSwitchUrl(
+  params: PaymentSwitchRequest,
+  fetchImpl: FetchLike = fetch
+): Promise<string> {
+  const data = await postJson('/api/sumup/payment-switch-url', params, fetchImpl);
+  return data?.url;
+}
+
+/** True when the browser is a mobile device (where the SumUp app handoff works). */
+export function isMobileDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+}
+
+/**
+ * Parses the query the SumUp app appends to the callback URL when it returns.
+ * Accepts either a raw query string or a URLSearchParams-like object.
+ */
+export function parseSumupCallback(search: string | URLSearchParams = ''): PaymentSwitchResult {
+  const params = typeof search === 'string' ? new URLSearchParams(search) : search;
+  const status = params.get('smp-status');
+  return {
+    status,
+    ok: status === 'success',
+    txCode: params.get('smp-tx-code'),
+    foreignTxId: params.get('foreign-tx-id'),
+    message: params.get('smp-message'),
+  };
+}
+
+/**
+ * Opens the SumUp app for a tap-to-pay transaction. Returns false if the URL
+ * could not be produced (SumUp unconfigured) — the caller should fall back.
+ */
+export async function launchSumupTapToPay(
+  params: PaymentSwitchRequest,
+  fetchImpl: FetchLike = fetch
+): Promise<boolean> {
+  const url = await buildSumupPaymentSwitchUrl(params, fetchImpl);
+  if (!url || typeof window === 'undefined') return false;
+  window.location.href = url;
+  return true;
 }

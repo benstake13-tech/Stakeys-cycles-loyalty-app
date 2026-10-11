@@ -7,6 +7,9 @@ import {
   sendToSumupReader,
   terminateSumupReaderCheckout,
   pollSumupCheckout,
+  buildSumupPaymentSwitchUrl,
+  parseSumupCallback,
+  SUMUP_PAYMENT_SWITCH_SCHEME,
   type FetchLike,
 } from './src/utils/sumupPayments';
 
@@ -18,14 +21,14 @@ function jsonResponse(payload: any, ok = true, status = 200): Response {
 
 describe('getSumupConfig', () => {
   it('returns the parsed config when the backend is configured', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ configured: true, currency: 'GBP', hasReader: true })) as unknown as FetchLike;
-    expect(await getSumupConfig(fetchImpl)).toEqual({ configured: true, currency: 'GBP', hasReader: true });
+    const fetchImpl = vi.fn(async () => jsonResponse({ configured: true, currency: 'GBP', hasReader: true, tapToPay: true })) as unknown as FetchLike;
+    expect(await getSumupConfig(fetchImpl)).toEqual({ configured: true, currency: 'GBP', hasReader: true, tapToPay: true });
     expect((fetchImpl as any).mock.calls[0][0]).toBe('/api/sumup/config');
   });
 
   it('degrades to not-configured on a non-JSON body (static host rewrite)', async () => {
     const fetchImpl = vi.fn(async () => ({ ok: true, status: 200, json: async () => { throw new Error('html'); } })) as unknown as FetchLike;
-    expect(await getSumupConfig(fetchImpl)).toEqual({ configured: false, currency: 'GBP', hasReader: false });
+    expect(await getSumupConfig(fetchImpl)).toEqual({ configured: false, currency: 'GBP', hasReader: false, tapToPay: false });
   });
 
   it('degrades to not-configured when the request throws', async () => {
@@ -109,5 +112,38 @@ describe('pollSumupCheckout', () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ id: 'c' })) as unknown as FetchLike;
     const final = await pollSumupCheckout('c', { fetchImpl, intervalMs: 0, maxAttempts: 2 });
     expect(final).toBe('PENDING');
+  });
+});
+
+describe('Tap to Pay helpers', () => {
+  it('exposes the canonical Payment Switch scheme', () => {
+    expect(SUMUP_PAYMENT_SWITCH_SCHEME).toBe('sumupmerchant://pay/1.0');
+  });
+
+  it('requests a Payment Switch URL from the server', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ url: 'sumupmerchant://pay/1.0?amount=5.00&currency=GBP' })
+    ) as unknown as FetchLike;
+    const url = await buildSumupPaymentSwitchUrl({ amount: 5 }, fetchImpl);
+    expect(url).toBe('sumupmerchant://pay/1.0?amount=5.00&currency=GBP');
+    const [u, init] = (fetchImpl as any).mock.calls[0];
+    expect(u).toBe('/api/sumup/payment-switch-url');
+    expect(init.method).toBe('POST');
+  });
+
+  it('parses a success callback into ok:true', () => {
+    const r = parseSumupCallback('smp-status=success&smp-tx-code=TX1&foreign-tx-id=till-1');
+    expect(r).toEqual({ status: 'success', ok: true, txCode: 'TX1', foreignTxId: 'till-1', message: null });
+  });
+
+  it('parses a failed callback into ok:false', () => {
+    const r = parseSumupCallback('smp-status=failed');
+    expect(r.ok).toBe(false);
+    expect(r.status).toBe('failed');
+  });
+
+  it('accepts a URLSearchParams object', () => {
+    const params = new URLSearchParams({ 'smp-status': 'invalidstate' });
+    expect(parseSumupCallback(params).status).toBe('invalidstate');
   });
 });
