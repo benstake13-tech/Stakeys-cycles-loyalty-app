@@ -43,6 +43,19 @@ describe('identifyBikeFromImage', () => {
     expect(cfg.abortSignal).toBeTruthy();
   });
 
+  it('asks the model for cosmetic damage and requires it in the schema', async () => {
+    generateContent.mockResolvedValueOnce({ text: '{"make":"Trek","cosmeticIssues":[]}' });
+    const { identifyBikeFromImage } = await import('./src/api/visionService');
+    await identifyBikeFromImage('data:image/png;base64,AAAA');
+    const call = generateContent.mock.calls[0][0];
+    const schema = call.config.responseSchema;
+    expect(schema.properties.cosmeticIssues).toBeTruthy();
+    expect(schema.required).toContain('cosmeticIssues');
+    const promptText = call.contents[0].parts.map((p: { text?: string }) => p.text || '').join(' ');
+    expect(promptText).toMatch(/cosmetic/i);
+    expect(promptText).toMatch(/scratch/i);
+  });
+
   it('retries a 503 then succeeds', async () => {
     generateContent
       .mockRejectedValueOnce(OVERLOAD)
@@ -190,6 +203,12 @@ describe('getFallbackDiagnostic', () => {
     expect(d.faults).toHaveLength(1);
     expect(d.faults[0].faultTitle).toBe('General Workshop Assessment Needed');
     expect(d.userNotesTranslated).toBe('No user notes provided');
+  });
+
+  it('always carries an (empty) cosmeticIssues list so pricing never sees undefined', async () => {
+    const { getFallbackDiagnostic } = await import('./src/api/visionService');
+    expect(Array.isArray(getFallbackDiagnostic('scratched frame').cosmeticIssues)).toBe(true);
+    expect(getFallbackDiagnostic('scratched frame').cosmeticIssues).toHaveLength(0);
   });
 });
 

@@ -12,6 +12,22 @@ import type { OfferPriceEntry } from '../context/OfferPriceBook';
 
 export type CustomerCondition = 'excellent' | 'good' | 'fair' | 'poor';
 
+/** Per-condition price multipliers — what we pay at each grade vs. the good base. */
+export interface OfferConditionBands {
+  excellent: number;
+  good: number;
+  fair: number;
+  poor: number;
+}
+
+/** Sensible starting bands staff can tune from the price-book editor. */
+export const DEFAULT_CONDITION_BANDS: OfferConditionBands = {
+  excellent: 1.15,
+  good: 1.0,
+  fair: 0.8,
+  poor: 0.55,
+};
+
 export interface ValuationInput {
   make?: string;
   model?: string;
@@ -25,12 +41,23 @@ export interface ValuationInput {
   coverage?: number;
   faults?: { severity?: string }[];
   obviousProblems?: { severity?: string }[];
+  /** Cosmetic blemishes (scratches, dents, scuffs, rust…) the AI spotted. */
+  cosmeticIssues?: { type?: string; severity?: string }[];
   electricKit?: { isElectric?: boolean; isAftermarketConversion?: boolean };
+  /** Staff-tuned condition multipliers; falls back to DEFAULT_CONDITION_BANDS. */
+  conditionBands?: OfferConditionBands;
 }
 
 export interface ValuationAdjustment {
   label: string;
   amount: number;
+}
+
+/** What the bike would fetch at each condition grade, before fault deductions. */
+export interface ConditionPrice {
+  condition: CustomerCondition;
+  multiplier: number;
+  price: number;
 }
 
 export interface BikeValuation {
@@ -40,6 +67,10 @@ export interface BikeValuation {
   matchLevel: 'model' | 'brand' | 'category' | 'none';
   condition: CustomerCondition;
   conditionMultiplier: number;
+  /** Price at every condition grade, so staff/customers see the whole ladder. */
+  conditionPrices: ConditionPrice[];
+  /** Cosmetic-damage deduction (scratches/dents/rust…), 0 when none detected. */
+  cosmeticAdjustment: number;
   adjustments: ValuationAdjustment[];
   /** Final recommended cash offer, or null when we cannot price it yet. */
   offer: number | null;
@@ -51,13 +82,6 @@ export interface BikeValuation {
   needsStaffReview: boolean;
   rationale: string[];
 }
-
-const CONDITION_MULTIPLIER: Record<CustomerCondition, number> = {
-  excellent: 1.15,
-  good: 1.0,
-  fair: 0.8,
-  poor: 0.55,
-};
 
 const AI_CONDITION_TO_CUSTOMER: Record<string, CustomerCondition> = {
   excellent: 'excellent',
@@ -74,6 +98,25 @@ const MATCH_WEIGHT: Record<BikeValuation['matchLevel'], number> = {
   none: 0.3,
 };
 
+/** Cosmetic blemish keywords → the fraction knocked off the condition price. */
+const COSMETIC_WEIGHTS: { match: RegExp; weight: number; label: string }[] = [
+  { match: /crack|fracture|dent|buckle|bent|snapped|broken/i, weight: 0.15, label: 'structural damage' },
+  { match: /rust|corrosion|pitting/i, weight: 0.1, label: 'rust / corrosion' },
+  { match: /scratch|scuff|scrape|mark|chip|paint/i, weight: 0.05, label: 'scratches / scuffs' },
+];
+
+/** Severity → a multiplier on the cosmetic weight. */
+const COSMETIC_SEVERITY: Record<string, number> = {
+  minor: 0.6,
+  low: 0.6,
+  moderate: 1,
+  medium: 1,
+  major: 1.5,
+  high: 1.5,
+  severe: 1.8,
+  critical: 1.8,
+};
+
 const round5 = (n: number) => Math.max(0, Math.round(n / 5) * 5);
 
 const norm = (v?: string) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -81,6 +124,19 @@ const norm = (v?: string) => String(v ?? '').toLowerCase().replace(/[^a-z0-9]/g,
 function toCategory(type?: string): VehicleCategory {
   if (type === 'ebike' || type === 'electric_scooter' || type === 'cargo') return type;
   return 'cycle';
+}
+
+/** Resolve the condition bands, falling back to (and clamping) the defaults. */
+function resolveBands(input: ValuationInput): OfferConditionBands {
+  const b = input.conditionBands;
+  const pick = (v: number | undefined, fallback: number) =>
+    Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fallback;
+  return {
+    excellent: pick(b?.excellent, DEFAULT_CONDITION_BANDS.excellent),
+    good: pick(b?.good, DEFAULT_CONDITION_BANDS.good),
+    fair: pick(b?.fair, DEFAULT_CONDITION_BANDS.fair),
+    poor: pick(b?.poor, DEFAULT_CONDITION_BANDS.poor),
+  };
 }
 
 export function resolveCondition(input: ValuationInput): CustomerCondition {
@@ -123,10 +179,34 @@ function countSevere(input: ValuationInput, severities: string[]): number {
   return fromFaults + fromProblems;
 }
 
+/**
+ * Turn the AI's cosmetic blemishes (scratches, dents, rust…) into one deduction,
+ * as a fraction of the condition price. Summed and capped so a scuffed bike is
+ * still worth something, and the individual blemishes stay visible in the UI.
+ */
+export function cosmeticDeduction(
+  issues: { type?: string; severity?: string }[] | undefined,
+  price: number
+): { amount: number; fraction: number; labels: string[] } {
+  const labels: string[] = [];
+  let fraction = 0;
+  for (const issue of issues ?? []) {
+    const text = `${issue.type ?? ''}`;
+    const hit = COSMETIC_WEIGHTS.find((w) => w.match.test(text));
+    if (!hit) continue;
+    const sev = COSMETIC_SEVERITY[String(issue.severity ?? '').toLowerCase()] ?? 1;
+    fraction += hit.weight * sev;
+    labels.push(`${issue.type}${issue.severity ? ` (${issue.severity})` : ''}`);
+  }
+  fraction = Math.min(fraction, 0.5);
+  return { amount: Math.round(price * fraction), fraction, labels };
+}
+
 export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeValuation {
   const { entry, level } = matchOfferEntry(book, input);
   const condition = resolveCondition(input);
-  const conditionMultiplier = CONDITION_MULTIPLIER[condition];
+  const bands = resolveBands(input);
+  const conditionMultiplier = bands[condition];
   const rationale: string[] = [];
   const adjustments: ValuationAdjustment[] = [];
 
@@ -137,6 +217,8 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
       matchLevel: 'none',
       condition,
       conditionMultiplier,
+      conditionPrices: [],
+      cosmeticAdjustment: 0,
       adjustments: [],
       offer: null,
       minOffer: null,
@@ -153,6 +235,11 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
       : level === 'brand'
       ? `Matched the brand-wide ${entry.brand} price.`
       : `Used the ${toCategory(input.type)} category default — no brand match.`
+  );
+
+  // Price at every condition grade, so staff and customers see the whole ladder.
+  const conditionPrices: ConditionPrice[] = (['excellent', 'good', 'fair', 'poor'] as CustomerCondition[]).map(
+    (c) => ({ condition: c, multiplier: bands[c], price: round5(entry.basePrice * bands[c]) })
   );
 
   let offer = entry.basePrice * conditionMultiplier;
@@ -173,6 +260,17 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
     adjustments.push({ label: `${mediumFaults} moderate fault${mediumFaults === 1 ? '' : 's'}`, amount: -Math.round(deduction) });
   }
 
+  // Cosmetic blemishes the AI spotted (scratches, dents, rust…) — separate from
+  // mechanical faults so the customer sees exactly what cost them money.
+  const cosmetic = cosmeticDeduction(input.cosmeticIssues, offer);
+  if (cosmetic.amount > 0) {
+    offer -= cosmetic.amount;
+    adjustments.push({ label: `Cosmetic: ${cosmetic.labels.join(', ')}`, amount: -cosmetic.amount });
+    rationale.push(
+      `Cosmetic blemishes found (${cosmetic.labels.join(', ')}) — £${cosmetic.amount} off.`
+    );
+  }
+
   if (input.electricKit?.isElectric && toCategory(input.type) === 'cycle') {
     offer += 40;
     adjustments.push({ label: 'Electric kit detected', amount: 40 });
@@ -190,7 +288,8 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
   const coverage = typeof input.coverage === 'number' ? input.coverage : 0.6;
   const confidence = Math.max(0, Math.min(1, aiConfidence * MATCH_WEIGHT[level] * (0.6 + 0.4 * coverage)));
 
-  const needsStaffReview = level !== 'model' || confidence < 0.5 || highFaults > 0;
+  const needsStaffReview =
+    level !== 'model' || confidence < 0.5 || highFaults > 0 || cosmetic.amount > 0;
   if (needsStaffReview) rationale.push('Flagged for staff review before the offer is final.');
 
   return {
@@ -199,6 +298,8 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
     matchLevel: level,
     condition,
     conditionMultiplier,
+    conditionPrices,
+    cosmeticAdjustment: cosmetic.amount,
     adjustments,
     offer: finalOffer,
     minOffer,

@@ -62,6 +62,12 @@ Other required fields:
 - Look for the frame serial number, usually stamped under the bottom bracket shell or on the rear dropout, and report it exactly if legible.
 - Look specifically for an electric conversion kit or factory e-system: motor (brand, hub/mid-drive, approx watts), battery (brand, location, volts), controller and wiring. Flag if it looks like an aftermarket conversion rather than a factory e-bike.
 - List any obvious problems, wear or damage you can see (worn tyres, rusty chain, broken parts, flat tyres, misaligned wheels, damaged frame, etc.) with a severity.
+- COSMETIC CONDITION SWEEP (pricing-critical): separately from mechanical faults, record every cosmetic
+  blemish that affects resale value in "cosmeticIssues" — scratches, scuffs, paint chips, dents,
+  cracks, rust/corrosion, fading or discolouration. For each: "type" (short label, e.g. "Scratch on
+  top tube", "Dent in down tube", "Rust on chain"), "location" (where), "severity"
+  (Minor | Moderate | Major) and "confidence". Be honest and specific — an immaculate bike should
+  return an empty list, a scuffed one should list each blemish. This drives a cosmetic price deduction.
 - Never invent details you cannot see. If something is not visible, mark it "assumed"/"partial" and add it to "notVisible".
 - Keep every text field short and factual (no sentences longer than ~20 words).
 
@@ -182,6 +188,20 @@ const BIKE_RESPONSE_SCHEMA = {
         required: ["issue", "severity"],
       },
     },
+    cosmeticIssues: {
+      type: Type.ARRAY,
+      description: "Cosmetic blemishes that affect resale value (scratches, dents, rust…), separate from mechanical faults. Empty when the bike is immaculate.",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          type: { type: Type.STRING, description: "Short blemish label, e.g. 'Scratch on top tube', 'Dent in down tube', 'Rust on chain'" },
+          location: { type: Type.STRING, description: "Where on the bike" },
+          severity: { type: Type.STRING, description: "One of: Minor, Moderate, Major" },
+          confidence: { type: Type.NUMBER, description: "0 to 1 confidence in this observation" },
+        },
+        required: ["type", "severity"],
+      },
+    },
     faults: {
       type: Type.ARRAY,
       description: "Actionable faults, from the photos and/or the customer notes",
@@ -198,7 +218,7 @@ const BIKE_RESPONSE_SCHEMA = {
       },
     },
   },
-  required: ["make", "model", "type", "confidence", "electricKit", "mainSpecs", "obviousProblems", "summary", "faults", "overallCondition", "wheelSizeAndSpecs", "hasVisualData", "inputLanguageDetected", "userNotesTranslated"],
+  required: ["make", "model", "type", "confidence", "electricKit", "mainSpecs", "obviousProblems", "cosmeticIssues", "summary", "faults", "overallCondition", "wheelSizeAndSpecs", "hasVisualData", "inputLanguageDetected", "userNotesTranslated"],
 };
 
 /**
@@ -359,6 +379,7 @@ export function getFallbackDiagnostic(userNotes = "") {
     mainSpecs: [],
     notVisible: [],
     coverage: 0,
+    cosmeticIssues: [],
     obviousProblems: hasText
       ? [{ issue: "Customer Reported Issue", severity: "medium", location: "Per customer notes" }]
       : [],

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { submitTradeInRequest, SellAnglePhoto } from '../context/TradeInStore';
-import { getOfferPrices } from '../context/OfferPriceBook';
+import { getOfferPrices, getOfferConditionBands } from '../context/OfferPriceBook';
 import { diagnoseFault, isBikeVisionConfigured } from '../api/visionService';
 import { compressImageFile } from '../utils/imageCompress';
 import { valueBike } from '../utils/bikeValuation';
@@ -126,7 +126,9 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
         coverage: result?.coverage,
         faults: result?.faults,
         obviousProblems: result?.obviousProblems,
+        cosmeticIssues: result?.cosmeticIssues,
         electricKit: result?.electricKit,
+        conditionBands: getOfferConditionBands(),
       },
       getOfferPrices()
     );
@@ -328,6 +330,47 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
               We couldn’t match this bike to the price book automatically — the workshop will price it by hand.
             </div>
           )}
+
+          {valuation?.conditionPrices?.length ? (
+            <div className="rounded-xl border border-neutral-800 bg-[#0b0e13] p-3">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Price by condition</div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                {valuation.conditionPrices.map((cp) => (
+                  <div
+                    key={cp.condition}
+                    className={`rounded-lg border p-2 ${
+                      valuation.condition === cp.condition ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-neutral-800'
+                    }`}
+                  >
+                    <div className="text-[10px] capitalize text-neutral-400">{cp.condition}</div>
+                    <div className={`font-mono text-sm font-bold ${valuation.condition === cp.condition ? 'text-emerald-300' : 'text-neutral-300'}`}>
+                      £{cp.price}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-neutral-500 mt-2">
+                Your condition: <span className="capitalize text-neutral-300">{valuation.condition}</span>
+                {declaredCondition ? ' (as you selected)' : ' (as read from your photos)'}.
+              </p>
+            </div>
+          ) : null}
+
+          {result?.cosmeticIssues?.length ? (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3" data-testid="sell-damage">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-amber-300 mb-1.5">Damage &amp; wear we spotted</div>
+              <ul className="text-[11px] text-neutral-300 space-y-0.5 list-disc pl-4">
+                {result.cosmeticIssues.map((c: any, i: number) => (
+                  <li key={i}>
+                    {c.type}
+                    {c.location ? ` — ${c.location}` : ''}
+                    {c.severity ? ` (${c.severity})` : ''}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[10px] text-neutral-500 mt-1.5">These blemishes are already reflected in the offer above.</p>
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="space-y-1.5">
