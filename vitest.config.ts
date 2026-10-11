@@ -5,5 +5,10 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     include: ['**/*.test.{ts,tsx}'],
+    // Tests must not depend on, or be perturbed by, a developer's local .env
+    // (an added Gemini key would otherwise flip AI features on mid-suite and
+    // break the offline-path assertions). Force the key empty for the runner;
+    // tests that exercise the AI path stub it themselves.
+    env: { VITE_GEMINI_API_KEY: '' },
   },
 });

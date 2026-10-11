@@ -38,6 +38,11 @@ export interface EVehicleErrorDefinition {
   parts?: string[];
   /** Which subsystem raises this code. */
   system: ErrorCodeSource['system'];
+  /**
+   * Public source this meaning was verified against. Every code must carry one
+   * so a technician can open the original rather than trusting the catalogue.
+   */
+  source: string;
 }
 
 export interface EVehicleModelsSet {
@@ -52,7 +57,40 @@ export interface EVehicleBrandEntry extends EVehicleModelsSet {
 }
 
 /** The code families (controller firmware versions) that each brand/model reports. */
-export type EVehicleErrorFamily = 'generic' | 'xiaomi' | 'ninebot' | 'pure' | 'apollo' | 'dualtron' | 'talaria';
+export type EVehicleErrorFamily =
+  | 'generic'
+  | 'xiaomi'
+  | 'ninebot'
+  | 'pure'
+  | 'apollo'
+  | 'dualtron'
+  | 'talaria'
+  | 'bosch'
+  | 'shimano'
+  | 'bafang'
+  | 'generic_bike';
+
+/**
+ * Reference library. Every code's `source` field points at one of these, so the
+ * UI can link straight to the public documentation the meaning came from.
+ * Verified 2026-10-07.
+ */
+export const EVEHICLE_SOURCES: Record<string, string> = {
+  xiaomi: 'https://electrazoomscooters.com/blogs/news/xiaomi-m365-and-m365-pro-electric-scooter-error-codes-explained',
+  xiaomiAlt: 'https://www.electricscooterslondon.com/blogs/e-bike-e-scooter-care-maintenance-and-repair-tips/xiaomi-m365-and-m365-pro-electric-scooter-error-codes',
+  ninebot: 'https://escooterhut.co.uk/blogs/ride-read/ninebot-max-g30-error-codes',
+  segwayFleet: 'https://fleets.levyelectric.com/help/troubleshooting/segway-max-error-codes',
+  dualtron: 'https://riderguide.com/guides/ey3-lcd-throttle',
+  apollo: 'https://www.troubleatlas.com/emobility/e-scooters/apollo',
+  pure: 'https://www.iscooterglobal.co.uk/blogs/news/electric-scooter-error-codes-list',
+  bosch: 'https://upway.co/blogs/news/bosch-electric-bike-error-codes-complete-list',
+  boschMagazine: 'https://www.bike-magazin.de/en/components/e-bike-motors/bosch-performance-line-cx-gen5-the-most-important-error-codes-and-their-causes',
+  shimano: 'https://www.emtbforums.com/threads/shimano-ebike-motors-error-and-warning-codes-with-solutions.39610',
+  bafang: 'https://fasterbikes.eu/en/info-help/bafang-error-codes',
+  generic: 'https://promechbc.com/blogs/blog/electric-scooter-error-codes-explained',
+  genericBike: 'https://www.dincalculator.com/bike/ebike-error-codes',
+};
+
 
 export interface EVehicleModelErrors {
   category: EVehicleCategory;
@@ -112,133 +150,200 @@ export function normalizeErrorCode(raw: string): string {
   return trimmed || digits;
 }
 
+
+const S = EVEHICLE_SOURCES;
+
 const CODE_FAMILIES: Record<EVehicleErrorFamily, EVehicleErrorDefinition[]> = {
   // -------------------------------------------------------------------------
-  // GENERIC — codes shared by the majority of cheap controllers/displays.
-  // Label them "E0X" because that is how the rider reports them.
+  // GENERIC MOTOR-CONTROLLER CODES — the E-number codes carried by the cheap,
+  // widely-cloned Chinese controllers fitted to most budget e-scooters and
+  // hub-motor e-bikes. Meanings vary by brand; this is the consensus table.
   // -------------------------------------------------------------------------
   generic: [
-    { code: 'E01', title: 'Communications / Display Link Error', severity: 'Medium', system: 'display', description: 'The display cannot talk to the controller. Caused by a loose display/controller plug, a broken cable or a faulty display or controller.', fix: ['Power down and disconnect the battery.', 'Reseat the 6-pin display cable at both ends and check for bent pins.', 'Check for water ingress / corrosion in the connector.', 'Replace the display cable, then the display, then the controller, in that order.'], parts: ['Display harness'] },
-    { code: 'E02', title: 'Brake Lever / Brake Signal Fault', severity: 'High', system: 'brake', description: 'The controller sees a permanently applied brake (or a stuck brake switch). The motor will refuse to run even with the throttle.', fix: ['Check both brake levers are fully released.', 'Unplug each brake cut-off sensor in turn to isolate a stuck switch.', 'Check the brake lever return spring and cable.', 'Replace the faulty lever switch.'], parts: ['Brake lever switch'] },
-    { code: 'E03', title: 'Throttle Fault (Stuck / Open Circuit)', severity: 'High', system: 'throttle', description: 'The throttle signal is out of range — either the throttle is stuck on, the hall sensor failed, or the 3-pin connector is loose.', fix: ['Disconnect the throttle and check the connector pins.', 'Check the throttle returns freely and the grip spring works.', 'Measure the throttle signal (0.8–3.6 V expected).', 'Replace the throttle if out of range.'], parts: ['Throttle'] },
-    { code: 'E04', title: 'Motor Hall Sensor Fault', severity: 'High', system: 'motor', description: 'One or more of the three hall sensors inside the motor are not reporting — a disconnected phase/hall wire, a broken sensor, or a failed controller.', fix: ['Check the motor phase and hall connectors for corrosion/bent pins.', 'With the motor cover open, test the hall sensors (5 V / ground / 3 signal wires).', 'Check for a burnt controller in the hall supply line.', 'Replace the hall sensor board or the complete motor harness.'], parts: ['Hall sensor board', 'Motor harness'] },
-    { code: 'E05', title: 'Motor Overheating / Thermal Cut-Out', severity: 'Medium', system: 'motor', description: 'The motor or controller exceeded its temperature limit — long hill climbs, a stalled wheel, over-inflation or a seized bearing.', fix: ['Let the scooter cool for 30–60 minutes.', 'Check the wheel spins freely (no bearing drag).', 'Check brake drag.', 'Reduce load / the rider’s weight for the model.'], parts: [] },
-    { code: 'E06', title: 'Low Battery / Low-Voltage Cut-Off', severity: 'Medium', system: 'bms', description: 'The battery reached the controller cut-off voltage. The display shows a battery/lightning symbol rather than a code on many models.', fix: ['Plug in the charger and confirm the charger LED turns red.', 'If it will not charge, test each cell group with a multimeter.', 'Check the charge port fuse and the BMS charge path.'], parts: [] },
-    { code: 'E07', title: 'Motor Blocked / Stall Error', severity: 'High', system: 'motor', description: 'The controller detects the wheel is not turning while power is applied — a jammed wheel, seized bearings, or a damaged motor.', fix: ['Check the wheel spins freely by hand.', 'Check for objects wrapped around the axle.', 'Check the brake is not dragging.', 'Inspect the motor axle and bearings.'], parts: ['Bearings'] },
-    { code: 'E08', title: 'Display / Controller EEPROM Fault', severity: 'Low', system: 'display', description: 'The controller’s configuration memory failed to read, usually after a lightning strike or a failed firmware update.', fix: ['Power-cycle the scooter for 10 minutes.', 'Check the controller battery backup.', 'Re-flash the controller firmware if supported.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'E09', title: 'Regenerative Brake / EABS Fault', severity: 'Medium', system: 'brake', description: 'The electronic (regen) brake is requesting too much current or is malfunctioning, so the controller disabled it.', fix: ['Check the motor connections are tight (regen relies on the motor).', 'Check the brake lever switch wiring.', 'Update the controller firmware if available.', 'Replace the controller if it persists.'], parts: ['Controller'] },
-    { code: 'E10', title: 'Communication Timeout (Controller → Display)', severity: 'Medium', system: 'display', description: 'The display lost the serial link to the controller mid-ride. A stiff cable at the handlebar joint is the usual cause.', fix: ['Check the folding-joint cable for crushed wires.', 'Reseat the display connector.', 'Replace the harness if there is intermittent power.'], parts: ['Harness'] },
-    { code: 'E11', title: 'Hall/Phase Wire Short', severity: 'High', system: 'motor', description: 'A short between the motor phase and hall wires, usually where the harness rubs the frame or at a connector.', fix: ['Test continuity of each phase/hall wire to ground.', 'Find the chafed spot and repair or replace the harness.', 'Check the controller MOSFETs after a short.'], parts: ['Motor harness'] },
-    { code: 'E12', title: 'Controller Over-Voltage', severity: 'High', system: 'controller', description: 'The controller measured a battery voltage above its maximum — a wrong charger, or a failed BMS allowing over-charge.', fix: ['Verify the charger voltage matches the pack (36/48/52 V).', 'Test each cell group for over-voltage.', 'Check the BMS balancing.', 'Replace the BMS if it fails to cut off.'], parts: ['BMS', 'Charger'] },
-    { code: 'E13', title: 'Undervoltage (Pack Below Safe Minimum)', severity: 'High', system: 'bms', description: 'The battery pack has dropped below the safe per-cell minimum — the BMS has locked the pack out.', fix: ['Measure pack voltage at the charge port.', 'Using a BMS tester, check each cell group.', 'If one group is dead, replace the pack (never balance-charge a damaged pack in the workshop).', 'Recycle the old pack correctly.'], parts: ['Battery pack'] },
-    { code: 'E14', title: 'Overcurrent (Controller Cut-Out)', severity: 'High', system: 'controller', description: 'The controller drew more than its current limit — a stalled motor, a wrong-wattage motor, or a shorted MOSFET.', fix: ['Check for a binding wheel or brake.', 'Check the motor phase wires for shorts.', 'Inspect the controller MOSFETs for a dead short.', 'Replace the controller if the FETs are bad.'], parts: ['Controller'] },
+    { code: 'E1', title: 'Throttle / Accelerator Fault', severity: 'High', system: 'throttle', source: S.generic, description: 'The throttle signal is missing or out of range. Often the throttle connector, a pinched wire, or a stuck grip.', fix: ['Restart with the throttle untouched — confirm it springs back freely.', 'Check the 3-pin throttle connector under the handlebar.', 'Measure the throttle signal (about 0.8–4.2 V sweeping with the grip).', 'Replace the throttle if the signal does not sweep.'], parts: ['Throttle'] },
+    { code: 'E2', title: 'Brake Lever / Brake Sensor Fault', severity: 'High', system: 'brake', source: S.generic, description: 'The brake cut-off is permanently on — a stuck lever, a failed switch, or a brake held during power-on.', fix: ['Confirm both levers return fully and the brake is not being held at startup.', 'Unplug each brake cut-off sensor in turn to isolate a stuck switch.', 'Check the lever return spring and cable.', 'Replace the faulty lever switch.'], parts: ['Brake lever switch'] },
+    { code: 'E3', title: 'Motor Phase / Motor Connection Fault', severity: 'High', system: 'motor', source: S.generic, description: 'The controller cannot drive the motor — a damaged phase wire, a loose motor connector, or a failed hall sensor.', fix: ['Check the motor cable is fully seated and undamaged.', 'Inspect the phase and hall connectors for corrosion or bent pins.', 'Test each phase for continuity and shorts to ground.', 'Replace the motor harness, then the motor if the windings are burnt.'], parts: ['Motor harness'] },
+    { code: 'E4', title: 'Battery Voltage / Undervoltage Protection', severity: 'High', system: 'bms', source: S.generic, description: 'The pack is below the controller cut-off, or the BMS has tripped on low voltage.', fix: ['Charge the pack and confirm the charger LED turns red.', 'Measure the pack voltage at the charge port.', 'Test each cell group — a single dead group must not be re-balanced.', 'Replace the pack if a group is below minimum.'], parts: ['Battery pack'] },
+    { code: 'E5', title: 'Controller Fault / Overheating', severity: 'High', system: 'controller', source: S.generic, description: 'The controller has overheated or an internal fault was detected — usually riding hard, or a failing MOSFET.', fix: ['Let the controller cool for 30–60 minutes.', 'Check the controller heatsink and thermal pad.', 'Check for a binding wheel or brake that overloads the controller.', 'Replace the controller if the fault returns.'], parts: ['Controller'] },
+    { code: 'E6', title: 'Display / Controller Communication Fault', severity: 'Medium', system: 'display', source: S.generic, description: 'The panel and controller have lost their serial link — a loose display cable, water in the display, or bent pins.', fix: ['Power-cycle the scooter.', 'Reseat the display cable and check the handlebar harness.', 'Look for corrosion or bent pins in the connector.', 'Replace the display, then the controller, in that order.'], parts: ['Display harness'] },
+    { code: 'E7', title: 'Motor Hall Sensor Fault', severity: 'High', system: 'motor', source: S.generic, description: 'A hall sensor inside the motor is not reporting — a disconnected hall wire, a broken sensor, or a failed controller.', fix: ['Check the motor hall connector for corrosion or bent pins.', 'Test the hall sensors with 5 V applied (they should toggle).', 'Replace the hall sensor board or the motor harness.', 'Replace the motor if the sensor board cannot be renewed.'], parts: ['Hall sensor board', 'Motor harness'] },
+    { code: 'E8', title: 'Throttle Signal Abnormal', severity: 'High', system: 'throttle', source: S.generic, description: 'The throttle sends an out-of-range signal at rest — a damaged hall sensor or a bad connector.', fix: ['Check the throttle connector and cable.', 'Confirm the throttle returns to zero.', 'Replace the throttle.'], parts: ['Throttle'] },
+    { code: 'E9', title: 'Brake Failure', severity: 'High', system: 'brake', source: S.generic, description: 'The controller reports a brake fault — a lever switch or the brake wiring.', fix: ['Check both brake switches and wiring.', 'Confirm the levers return and the motor cut-off operates.', 'Replace the faulty switch or harness.'], parts: ['Brake lever switch'] },
+    { code: 'E10', title: 'Communication Error (Display ↔ Controller)', severity: 'Medium', system: 'display', source: S.generic, description: 'The display cannot talk to the controller. On almost every platform this is the stem/handlebar cable.', fix: ['Check the cable between the display and controller for a loose or crushed wire.', 'Reseat the connector at both ends.', 'Replace the harness if the fault is intermittent.'], parts: ['Harness'] },
   ],
 
   // -------------------------------------------------------------------------
-  // XIAOMI (M365 / Pro / Essential families) — codes shown on the dashboard.
+  // GENERIC E-BIKE (HUB-MOTOR CONVERSION) CODES — the six-code table used by
+  // the cheap brushless controllers in most conversion kits. Worded for a
+  // bicycle, which is what the generic scooter list is wrong for.
+  // -------------------------------------------------------------------------
+  generic_bike: [
+    { code: 'E1', title: 'Throttle Fault', severity: 'High', system: 'throttle', source: S.genericBike, description: 'Throttle signal missing or out of range. Applies to the kit throttle, not the pedal sensor.', fix: ['Check the throttle connector and cable for damage.', 'Confirm the throttle returns to zero at rest.', 'Replace the throttle.'], parts: ['Throttle'] },
+    { code: 'E2', title: 'Brake Cut-Off Fault', severity: 'High', system: 'brake', source: S.genericBike, description: 'A brake sensor is stuck on, so the controller will not drive the motor.', fix: ['Check both brake sensor switches.', 'Confirm the levers return fully.', 'Replace the faulty sensor.'], parts: ['Brake sensor'] },
+    { code: 'E3', title: 'Motor Hall / Phase Fault', severity: 'High', system: 'motor', source: S.genericBike, description: 'Motor hall sensor or phase wiring fault — the motor will judder or refuse to run.', fix: ['Check the motor cable and connectors.', 'Test the hall sensors.', 'Replace the hall board or the motor.'], parts: ['Hall sensor board'] },
+    { code: 'E4', title: 'Battery Undervoltage', severity: 'High', system: 'bms', source: S.genericBike, description: 'The pack is below the controller cut-off voltage.', fix: ['Charge the pack.', 'Test the pack and BMS if it will not charge.', 'Replace the pack if a cell group is dead.'], parts: ['Battery pack'] },
+    { code: 'E5', title: 'Controller Fault / Overcurrent', severity: 'High', system: 'controller', source: S.genericBike, description: 'The controller detected an overcurrent or internal fault — a stalled motor or a shorted MOSFET.', fix: ['Check the wheel spins freely.', 'Check the phase wires for shorts.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E6', title: 'Display / Controller Communication Fault', severity: 'Medium', system: 'display', source: S.genericBike, description: 'The display has lost its serial link to the controller.', fix: ['Reseat the display cable.', 'Check the harness for damage.', 'Replace the display then the controller.'], parts: ['Display harness'] },
+  ],
+
+  // -------------------------------------------------------------------------
+  // XIAOMI (M365 / Pro / 1S / Pro 2 / Essential) — dashboard "E" codes / beeps.
   // -------------------------------------------------------------------------
   xiaomi: [
-    { code: 'E21', title: 'BMS Communication Error', severity: 'High', system: 'bms', description: 'The dashboard cannot read the battery management system over its UART line — a loose battery connector, a blown BMS fuse, or a dead BMS.', fix: ['Re-seat the battery connector (under the deck).', 'Check continuity of the BMS data line.', 'Test the pack voltage at the charge port.', 'Replace the BMS if the pack is otherwise healthy.'], parts: ['BMS'] },
-    { code: 'E22', title: 'Overcurrent', severity: 'High', system: 'controller', description: 'Controllers on the M365 family report E22 when current spikes above the limit — usually a stuck motor or a controller fault.', fix: ['Check the motor spins freely and no brake drags.', 'Drain the battery fully, then test.', 'Replace the controller if it persists.'], parts: ['Controller'] },
-    { code: 'E23', title: 'Throttle Fault', severity: 'High', system: 'throttle', description: 'The throttle hall sensor reads out of range, or the throttle wire is damaged at the stem joint.', fix: ['Check the throttle connector socket.', 'Check the stem folding joint cable.', 'Replace the throttle.'], parts: ['Throttle'] },
-    { code: 'E24', title: 'Motor Hall Sensor Fault', severity: 'High', system: 'motor', description: 'Motor hall sensor failure, virtually always on the M365 — the phase/hall wiring is chafed or a sensor died.', fix: ['Open the motor and inspect the hall board.', 'Test each hall sensor with 5 V applied.', 'Replace the hall board or the motor.'], parts: ['Hall sensor board', 'Motor'] },
-    { code: 'E25', title: 'Brake / Brake Lever Fault', severity: 'High', system: 'brake', description: 'The regenerative-brake lever switch reads permanently engaged.', fix: ['Check the left brake lever switch.', 'Check the electronic-brake wire in the handlebar.', 'Replace the lever cluster.'], parts: ['Brake lever switch'] },
-    { code: 'E26', title: 'Motor Fixing Bolt Loose / Motorphase Fault', severity: 'High', system: 'motor', description: 'Indicates the motor phase wire has a poor connection or the axle bolt worked loose.', fix: ['Torque the axle bolts to spec.', 'Check the phase connectors and motor nut.', 'Reseat the phase wires.'], parts: [] },
-    { code: 'E27', title: 'Controller Temperature Fault', severity: 'Medium', system: 'controller', description: 'The controller is overheating — riding in very hot weather or a failing MOSFET.', fix: ['Cool the scooter down.', 'Check the controller heatsink and thermal pad.', 'Replace the controller if it repeats.'], parts: ['Controller'] },
-    { code: 'E28', title: 'LED / Dashboard Communications Fault', severity: 'Low', system: 'display', description: 'The dashboard LED ring lost communications with the controller.', fix: ['Reseat the dashboard cable.', 'Check the folding joint harness.', 'Replace the dashboard or controller.'], parts: ['Dashboard'] },
-    { code: 'E29', title: 'Low Battery BMS Lockout', severity: 'Medium', system: 'bms', description: 'The BMS reports a low-voltage lockout.', fix: ['Charge for 30 minutes to exit lockout.', 'Test the pack if it will not charge.', 'Check the charge port fuse.'], parts: [] },
-    { code: 'E30', title: 'Docking / Communication General Fault', severity: 'Medium', system: 'controller', description: 'A generic controller fault on the M365 family.', fix: ['Check all controller connectors.', 'Test the controller 5 V rail.', 'Replace the controller if needed.'], parts: ['Controller'] },
-    { code: 'E31', title: 'Battery Disposal / Low Cell Warning', severity: 'High', system: 'bms', description: 'The BMS flags a severely depleted cell that must not be re-used at full capacity.', fix: ['Measure each cell group.', 'Replace the pack if one group is below minimum.', 'Never ship or store a swollen pack — recycle it.'], parts: ['Battery pack'] },
+    { code: 'E10', title: 'Dashboard / Controller Communication Error', severity: 'Medium', system: 'display', source: S.xiaomi, description: 'The dashboard (or its Bluetooth module) cannot talk to the controller. Usually the connection cable between the motherboard and the display.', fix: ['Power-cycle the scooter once.', 'Inspect the display/stem cable and connector for looseness or crushing.', 'Check for water ingress or corrosion in the connector.', 'Replace the dashboard cable, then the dashboard, then the controller.'], parts: ['Display harness'] },
+    { code: 'E11', title: 'Motor Phase A Current Fault', severity: 'High', system: 'motor', source: S.xiaomi, description: 'The controller read an abnormal current in motor phase A (blue). Most often moisture ingress into the controller or the phase connection.', fix: ['Power down and let the deck dry if water is suspected.', 'Check the blue phase wire and its connector.', 'A persistent controller current fault needs board-level testing.', 'Replace the controller if the fault repeats.'], parts: ['Controller'] },
+    { code: 'E12', title: 'Motor Phase B Current Fault', severity: 'High', system: 'motor', source: S.xiaomi, description: 'Abnormal current in motor phase B (usually the black/brown phase). Same moisture/corrosion root as E11.', fix: ['Check the phase B wire and connector for corrosion.', 'Dry the controller if water is present.', 'Replace the controller if the fault persists.'], parts: ['Controller'] },
+    { code: 'E13', title: 'Motor Phase C Current Fault', severity: 'High', system: 'motor', source: S.xiaomi, description: 'Abnormal current in motor phase C (yellow). Usually corrosion from moisture ingress.', fix: ['Check the yellow phase wire and connector.', 'Dry the controller.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E14', title: 'Throttle / Accelerator Fault', severity: 'High', system: 'throttle', source: S.xiaomi, description: 'The throttle or its cable to the controller is faulty. The accelerator contains fragile magnets that break if the scooter is dropped.', fix: ['Check the throttle, display and the cable between them.', 'Confirm the throttle returns to zero.', 'Replace the throttle if the sensor is faulty.'], parts: ['Throttle'] },
+    { code: 'E15', title: 'Brake Lever Sensor Fault', severity: 'High', system: 'brake', source: S.xiaomi, description: 'The brake lever (or its cable) is faulty. The lever contains brittle magnets that break in a fall.', fix: ['Check the brake lever, display and cable between them.', 'Confirm the lever returns fully and is not held at startup.', 'Replace the brake lever sensor if faulty.'], parts: ['Brake lever switch'] },
+    { code: 'E18', title: 'Motor Hall Sensor Fault', severity: 'High', system: 'motor', source: S.xiaomi, description: 'The controller receives an abnormal signal from the position sensors inside the motor. Do not ride if the motor judders.', fix: ['Inspect the external motor cable near the wheel for damage.', 'Check the motor connector contacts.', 'Replace the hall sensor board or the motor.'], parts: ['Hall sensor board'] },
+    { code: 'E21', title: 'BMS Communication Fault', severity: 'High', system: 'bms', source: S.xiaomi, description: 'The controller cannot read the battery management system over its data line.', fix: ['Restart once.', 'Re-seat the battery connector under the deck.', 'Check the BMS data line and pack voltage at the charge port.', 'Replace the BMS if the pack is otherwise healthy.'], parts: ['BMS'] },
+    { code: 'E22', title: 'BMS Authentication / Password Error', severity: 'High', system: 'bms', source: S.xiaomi, description: 'Bad BMS serial number or password — the battery has not authenticated with the controller (common after a battery swap).', fix: ['Confirm the battery is the correct genuine part for the model.', 'The BMS serial/password may need reprogramming.', 'Replace with a correctly provisioned pack.'], parts: ['Battery pack'] },
+    { code: 'E23', title: 'BMS Serial Number / Abnormal Battery', severity: 'High', system: 'bms', source: S.xiaomi, description: 'The BMS reports a default or abnormal serial number / internal fault.', fix: ['Restart once.', 'Check the battery connector.', 'Replace the pack if the fault persists.'], parts: ['Battery pack'] },
+    { code: 'E24', title: 'Wrong Supply Voltage / Motor Short', severity: 'High', system: 'controller', source: S.xiaomi, description: 'System voltage detection is out of range, or the motor has a short circuit.', fix: ['Check the charger is the correct voltage for the pack.', 'Inspect the motor phase wires for a short.', 'Test the pack voltage.', 'Replace the controller or motor as indicated.'], parts: ['Controller', 'Motor'] },
+    { code: 'E26', title: 'Controller Flash / Memory Fault', severity: 'Medium', system: 'controller', source: S.xiaomi, description: 'The controller failed to save data to its flash memory.', fix: ['Power-cycle for 10 minutes.', 'Re-flash the controller firmware if supported.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E27', title: 'Controller Authentication / Password Error', severity: 'Medium', system: 'controller', source: S.xiaomi, description: 'The controller has a bad password / activation or serial-number read error (seen after a controller swap).', fix: ['Confirm the controller is correct for the model.', 'Re-provision / activate the controller.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E28', title: 'MOSFET Fault (High Side)', severity: 'High', system: 'controller', source: S.xiaomi, description: 'A power MOSFET in the controller is in an invalid state — a blown output transistor.', fix: ['Inspect the controller for burnt FETs.', 'Check the phase wires for shorts that killed the FET.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E29', title: 'MOSFET Fault (Low Side) / Controller Serial', severity: 'High', system: 'controller', source: S.xiaomi, description: 'MOSFET invalid low state or controller serial-number/activation problem.', fix: ['Check the phase wiring for shorts.', 'Re-provision the controller if it is a serial issue.', 'Replace the controller if the FETs are bad.'], parts: ['Controller'] },
+    { code: 'E31', title: 'Controller Program / Firmware Error', severity: 'Medium', system: 'controller', source: S.xiaomi, description: 'Program/firmware execution error in the controller.', fix: ['Restart once.', 'Re-flash the official firmware.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E35', title: 'Scooter Serial Number Fault', severity: 'Medium', system: 'display', source: S.xiaomi, description: 'The scooter serial number is missing or incorrect — usually after a dashboard or controller replacement. It needs reprogramming.', fix: ['Record which parts were replaced.', 'Re-program the serial number with the correct model-specific tool/app.', 'Confirm the dashboard and controller serials match.', 'Replace the unit only if it cannot be reprogrammed.'], parts: [] },
+    { code: 'E39', title: 'Battery Temperature Fault', severity: 'Medium', system: 'bms', source: S.xiaomi, description: 'The battery temperature reading is abnormal, or its sensor is faulty.', fix: ['Power off and let the pack return to room temperature naturally.', 'Do not apply direct heat or charge a hot pack.', 'Replace the pack if the sensor is faulty.'], parts: ['Battery pack'] },
+    { code: 'E40', title: 'Controller Temperature Sensor Fault', severity: 'Medium', system: 'controller', source: S.xiaomi, description: 'The main controller temperature sensor is faulty or the controller is overheating.', fix: ['Let the controller cool.', 'Check the heatsink / thermal pad.', 'Replace the controller if the sensor is faulty.'], parts: ['Controller'] },
   ],
 
   // -------------------------------------------------------------------------
-  // NINEBOT / SEGWAY (ES1–ES4, E22, Max G30) — "ER" codes on the dashboard.
+  // NINEBOT / SEGWAY (ES1–ES4, E22, Max G30/G65) — dashboard numeric codes.
   // -------------------------------------------------------------------------
   ninebot: [
-    { code: 'E01', title: 'Scooter Communication Error', severity: 'Medium', system: 'controller', description: 'Internal CAN/UART failure between the dashboard and the controller.' , fix: ['Power-cycle the scooter.', 'Check the dashboard ribbon cable.', 'Update the firmware via the Ninebot app.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'ER01', title: 'Scooter Communication Error', severity: 'Medium', system: 'display', description: 'Display/controller CAN link error.', fix: ['Reseat the dashboard cable.', 'Check the handlebar harness.', 'Replace the dashboard or controller.'], parts: ['Dashboard'] },
-    { code: 'ER02', title: 'Battery Communication Error', severity: 'Medium', system: 'bms', description: 'The controller cannot talk to the battery BMS.', fix: ['Check the battery power connector and the BMS data plug.', 'Test the BMS 12 V rail.', 'Replace the BMS or the pack.'], parts: ['BMS'] },
-    { code: 'ER03', title: 'Overvoltage / Charger Fault', severity: 'High', system: 'bms', description: 'The charger voltage is too high for the pack, or the BMS failed to cut off.', fix: ['Verify the correct charger is being used.', 'Test the pack voltage at the port.', 'Replace the charger or BMS.'], parts: ['Charger', 'BMS'] },
-    { code: 'ER04', title: 'Undervoltage Lockout', severity: 'High', system: 'bms', description: 'Battery is at its low-voltage cut-off — the board disabled the motor.', fix: ['Charge the scooter.', 'If it will not charge, test the cells and the charge port fuse.'], parts: [] },
-    { code: 'ER05', title: 'Malfunction Code: Main Board / Controller', severity: 'High', system: 'controller', description: 'Main board fault — almost always a burnt MOSFET or a dead controller on the Max series.', fix: ['Check the controller for burnt FETs.', 'Check the motor phase connectors.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'ER06', title: 'Ride Data / Internal Memory Fault', severity: 'Low', system: 'controller', description: 'The controller’s ride-history memory failed — generally cosmetic.', fix: ['Factory reset via the app.', 'Replace the controller if it recurs.'], parts: [] },
-    { code: 'ER07', title: 'Motor Fault', severity: 'High', system: 'motor', description: 'Motor hall or phase fault detected by the controller.', fix: ['Check the motor connector under the deck.', 'Test the hall sensor board.', 'Replace the motor or hall board.'], parts: ['Hall sensor board', 'Motor'] },
-    { code: 'ER08', title: 'Throttle Fault', severity: 'High', system: 'throttle', description: 'Throttle signal out of range.', fix: ['Check the throttle connector.', 'Test the throttle signal.', 'Replace the throttle.'], parts: ['Throttle'] },
-    { code: 'ER09', title: 'Brake Fault', severity: 'High', system: 'brake', description: 'Brake lever signal permanently active.', fix: ['Check both brake switches.', 'Check the lever return.', 'Replace the switch.'], parts: ['Brake lever switch'] },
-    { code: 'ER10', title: 'Brake Lever Fault (Second Side)', severity: 'Medium', system: 'brake', description: 'The other brake lever also reports a fault.', fix: ['Check both levers and their cables.', 'Replace both lever switches if needed.'], parts: ['Brake lever switch'] },
-    { code: 'ER11', title: 'Permanent Brake Regen Fault', severity: 'Medium', system: 'brake', description: 'The regen brake is requesting current while the motor should be free-running.', fix: ['Check the brake switch wiring.', 'Test the motor connections.', 'Replace the controller if needed.'], parts: ['Controller'] },
-    { code: 'ER12', title: 'System Overvoltage', severity: 'High', system: 'controller', description: 'Input voltage above the controller’s limit.', fix: ['Check the charger.', 'Test the pack voltage.', 'Replace the charger or BMS.'], parts: ['Charger', 'BMS'] },
-    { code: 'ER13', title: 'Motor Undervoltage', severity: 'High', system: 'bms', description: 'Motor-side undervoltage — same root as a drained or imbalanced pack.', fix: ['Charge and balance the pack.', 'Test cell groups.', 'Replace the pack if imbalanced.'], parts: [] },
-    { code: 'ER14', title: 'Controller Current Sensor Fault', severity: 'High', system: 'controller', description: 'The current shunt on the controller reads out of range.', fix: ['Check the phase wiring for shorts.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'ER15', title: 'Controller MOSFET / Current Fault', severity: 'High', system: 'controller', description: 'MOSFET bridge fault.', fix: ['Inspect the controller for burnt FETs.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'ER16', title: 'Controller Fault (Generic)', severity: 'High', system: 'controller', description: 'Unspecified main board error.', fix: ['Re-flash the firmware.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'ER17', title: 'Drive Mode / Buttons Fault', severity: 'Low', system: 'display', description: 'Dashboard button cluster error.', fix: ['Check the dashboard button PCB.', 'Replace the dashboard.'], parts: ['Dashboard'] },
-    { code: 'ER18', title: 'Controller I2C / IC Fault', severity: 'High', system: 'controller', description: 'On-board I2C device error.', fix: ['Re-flash the controller.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'ER19', title: 'Controller Clock / Oscillator Fault', severity: 'Medium', system: 'controller', description: 'The controller’s oscillator is out of spec.', fix: ['Power-cycle for 10 minutes.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'ER20', title: 'Firmware Version Mismatch', severity: 'Medium', system: 'display', description: 'The dashboard and motor controller firmware do not match.', fix: ['Update both via the Ninebot/Segway app.', 'Flash the correct firmware region.'], parts: [] },
-    { code: 'ER21', title: 'IPX / Moisture Sensing Fault', severity: 'Low', system: 'controller', description: 'The moisture sensor flag is stuck after water exposure.', fix: ['Dry the controller and connectors.', 'Check the seals.', 'Replace the controller if the flag resets wrong.'], parts: ['Controller'] },
+    { code: 'E10', title: 'Dashboard / Controller Communication Error', severity: 'Medium', system: 'display', source: S.ninebot, description: 'The dashboard cannot communicate with the controller. Most often a loose wiring connection inside the stem.', fix: ['Power-cycle and retry.', 'Check the wiring inside the stem for a loose or damaged connection.', 'Check the dashboard connector for corrosion.', 'Replace the dashboard, then the controller, if needed.'], parts: ['Display harness'] },
+    { code: 'E11', title: 'Motor Phase A Current Sampling Abnormal', severity: 'High', system: 'motor', source: S.ninebot, description: 'Abnormal current sampling in motor phase A. Persisting 11/12/13 usually means internal controller damage.', fix: ['Inspect the phase A wiring for frays, pinches or loose connectors.', 'Check for a shorted MOSFET.', 'Replace the controller if the fault persists.'], parts: ['Controller'] },
+    { code: 'E12', title: 'Motor Phase B Current Sampling Abnormal', severity: 'High', system: 'motor', source: S.ninebot, description: 'Abnormal current sampling in motor phase B. Same root as E11.', fix: ['Inspect the phase B wiring.', 'Check the controller for damage.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E13', title: 'Motor Phase C Current Sampling Abnormal', severity: 'High', system: 'motor', source: S.ninebot, description: 'Abnormal current sampling in motor phase C. Same root as E11.', fix: ['Inspect the phase C wiring.', 'Check the controller.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E14', title: 'Throttle Hall Sensor Abnormal', severity: 'High', system: 'throttle', source: S.ninebot, description: 'The throttle is not sending a correct signal — a faulty throttle, a pinched wire or a connector issue.', fix: ['Confirm the throttle moves freely and returns to zero.', 'Inspect the throttle cable, especially in the stem.', 'Replace the throttle if the sensor is faulty.'], parts: ['Throttle'] },
+    { code: 'E15', title: 'Brake Lever Sensor Fault', severity: 'High', system: 'brake', source: S.ninebot, description: 'The brake lever Hall sensor reads abnormal or the lever was held during power-on.', fix: ['Release the brake fully and check it returns.', 'Inspect the brake handle magnets, wiring and connector.', 'Replace the lever sensor if it persists.'], parts: ['Brake lever switch'] },
+    { code: 'E16', title: 'Internal Battery MOS Replacement Error', severity: 'High', system: 'bms', source: S.segwayFleet, description: 'The internal battery reports an incorrect MOS replacement error — an internal battery electronics fault.', fix: ['Restart once.', 'Check the internal battery connector.', 'Replace the internal battery if it persists.'], parts: ['Battery pack'] },
+    { code: 'E17', title: 'External Battery MOS Replacement Error', severity: 'High', system: 'bms', source: S.segwayFleet, description: 'The external (second) battery reports an incorrect MOS replacement error.', fix: ['Check the external battery connector and harness.', 'Replace the external battery if it persists.'], parts: ['Battery pack'] },
+    { code: 'E18', title: 'Motor Hall Sensor Fault', severity: 'High', system: 'motor', source: S.segwayFleet, description: 'A motor Hall sensor problem — inspect the 5-pin Hall connector before replacing parts.', fix: ['Inspect the 5-pin Hall connector under the deck.', 'Test the Hall sensors.', 'Replace the Hall board or the motor.'], parts: ['Hall sensor board'] },
+    { code: 'E19', title: 'Battery Voltage Abnormal (Internal)', severity: 'Medium', system: 'bms', source: S.segwayFleet, description: 'The battery voltage is below the expected range.', fix: ['Charge the pack and watch the charger LED.', 'Check the battery connections.', 'Test with a known-good battery if it will not charge.'], parts: [] },
+    { code: 'E20', title: 'External Battery Voltage Abnormal', severity: 'Medium', system: 'bms', source: S.segwayFleet, description: 'The voltage of the external (second) battery is out of range.', fix: ['Charge the external battery.', 'Check its connector and harness.', 'Replace the external battery if faulty.'], parts: [] },
+    { code: 'E21', title: 'Battery Communication Error', severity: 'High', system: 'bms', source: S.ninebot, description: 'The controller cannot communicate with the battery management system.', fix: ['Re-seat the battery communication connector.', 'Check the wiring and controller connections first.', 'Test with known-good battery/controller hardware.'], parts: ['BMS'] },
+    { code: 'E22', title: 'Battery Authentication / Serial Error', severity: 'Medium', system: 'bms', source: S.segwayFleet, description: 'Battery provisioning / serial-number mismatch. Use Segway tooling before replacing hardware.', fix: ['Confirm the battery is the correct genuine part.', 'Re-provision the battery serial.', 'Replace the pack if it cannot be provisioned.'], parts: ['Battery pack'] },
+    { code: 'E23', title: 'BMS Serial Number / Communication Error', severity: 'Medium', system: 'bms', source: S.ninebot, description: 'Very similar to E21 — a default/incorrect BMS serial or a lost BMS data link.', fix: ['Re-seat the battery communication connector.', 'Check the data wiring.', 'Re-provision or replace the BMS.'], parts: ['BMS'] },
+    { code: 'E24', title: 'System Voltage Detection Error', severity: 'High', system: 'controller', source: S.segwayFleet, description: 'System voltage detection is incorrect — a provisioning, battery or firmware mismatch.', fix: ['Check the charger and pack voltage.', 'Verify the firmware version matches.', 'Use Segway tooling before replacing hardware.'], parts: ['Controller'] },
+    { code: 'E26', title: 'Flash Memory / Data Storage Error', severity: 'Medium', system: 'controller', source: S.segwayFleet, description: 'Controller flash-memory or data-storage error. Reset and firmware update come before replacement.', fix: ['Factory-reset via the app.', 'Re-flash the controller firmware.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E27', title: 'Control Board Password / Program Error', severity: 'Medium', system: 'controller', source: S.segwayFleet, description: 'Control-board password or program/order-code error.', fix: ['Re-flash the controller firmware.', 'Re-provision the board.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E28', title: 'MOSFET Transistor Invalid State', severity: 'High', system: 'controller', source: S.ninebot, description: 'A MOSFET in the controller is in an invalid state (defective transistor).', fix: ['Inspect the controller for burnt FETs.', 'Check the phase wiring for a short.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E29', title: 'MOSFET Transistor Invalid Low State', severity: 'High', system: 'controller', source: S.ninebot, description: 'A MOSFET is stuck in an invalid low state (defective transistor).', fix: ['Check the phase wiring for shorts.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E31', title: 'Program / Firmware Error', severity: 'Medium', system: 'controller', source: S.segwayFleet, description: 'Controller program or firmware error.', fix: ['Restart and check for a firmware update.', 'Re-flash the controller.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E35', title: 'Default Vehicle Serial Number Detected', severity: 'Medium', system: 'controller', source: S.segwayFleet, description: 'The vehicle serial number is missing or still the default — usually after a controller or dashboard replacement. It must be re-provisioned.', fix: ['Record which parts were replaced.', 'Update the controller/dashboard serial number with Segway tooling.', 'Confirm the serials match.'], parts: [] },
+    { code: 'E37', title: 'Charging Base / Cable Failure', severity: 'Medium', system: 'charging', source: S.segwayFleet, description: 'The charging base or cable failed — inspect the wiring before replacing expensive parts.', fix: ['Check the charger and its cable.', 'Check the charge port and connections.', 'Replace the charger if faulty.'], parts: ['Charger'] },
+    { code: 'E39', title: 'Battery Temperature Sensor Abnormal', severity: 'Medium', system: 'bms', source: S.segwayFleet, description: 'The internal battery temperature sensor is abnormal or the pack is overheating.', fix: ['Let the pack cool naturally.', 'Inspect the battery sensor wiring.', 'Replace the pack if the sensor is faulty.'], parts: ['Battery pack'] },
+    { code: 'E40', title: 'Control Board Temperature Sensor Abnormal', severity: 'Medium', system: 'controller', source: S.segwayFleet, description: 'The control board temperature sensor is abnormal or the board is overheating.', fix: ['Cool the board.', 'Check the thermal pad / heatsink.', 'Replace the controller if the sensor is faulty.'], parts: ['Controller'] },
+    { code: 'E41', title: 'Motor Temperature Abnormal', severity: 'Medium', system: 'motor', source: S.segwayFleet, description: 'The motor is overheating — from heavy usage, hills or an obstruction.', fix: ['Let the motor cool.', 'Check for an obstruction or bearing drag.', 'Reduce sustained load.'], parts: [] },
+    { code: 'E45', title: 'Retail Firmware Flashed', severity: 'Low', system: 'controller', source: S.segwayFleet, description: 'The scooter has retail firmware flashed (often on ex-rental units).', fix: ['Confirm the intended firmware region.', 'Update to the correct firmware version.'], parts: [] },
   ],
 
   // -------------------------------------------------------------------------
-  // PURE (Air / Advance) — E codes on the OLED dash.
+  // PURE ELECTRIC (Air / Air Pro / Advance) — E codes on the OLED dash.
   // -------------------------------------------------------------------------
   pure: [
-    { code: 'E01', title: 'Motor Hall Fault', severity: 'High', system: 'motor', description: 'Motor hall sensor fault.', fix: ['Check the motor connector.', 'Test the hall sensors.', 'Replace the hall board / motor.'], parts: ['Hall sensor board'] },
-    { code: 'E02', title: 'Motor Phase Fault', severity: 'High', system: 'motor', description: 'A phase wire is open or shorted.', fix: ['Check the phase connectors and axle exit.', 'Repair or replace the harness.', 'Replace the motor if the windings are burnt.'], parts: ['Motor harness'] },
-    { code: 'E03', title: 'Throttle Fault', severity: 'High', system: 'throttle', description: 'Throttle signal out of range.', fix: ['Check the throttle connector.', 'Replace the throttle.'], parts: ['Throttle'] },
-    { code: 'E04', title: 'Brake Fault', severity: 'High', system: 'brake', description: 'Brake switch permanently on.', fix: ['Check both brake levers.', 'Replace the switch.'], parts: ['Brake lever switch'] },
-    { code: 'E05', title: 'BMS Fault', severity: 'High', system: 'bms', description: 'Battery management communication fault.', fix: ['Check the BMS data cable.', 'Test the pack.', 'Replace the BMS.'], parts: ['BMS'] },
-    { code: 'E06', title: 'Controller Fault', severity: 'High', system: 'controller', description: 'Main board fault.', fix: ['Re-flash the controller.', 'Check the connectors.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'E07', title: 'Low Battery', severity: 'Medium', system: 'bms', description: 'Battery too low to ride.', fix: ['Charge the scooter.', 'Test if it will not charge.'], parts: [] },
-    { code: 'E08', title: 'Overheat', severity: 'Medium', system: 'motor', description: 'Motor or controller over-temperature.', fix: ['Let it cool.', 'Check for bearing drag.', 'Check hills/load.'], parts: [] },
-    { code: 'E09', title: 'Communication Error', severity: 'Medium', system: 'display', description: 'Display/controller link lost.', fix: ['Reseat the display cable.', 'Check the fold joint harness.'], parts: ['Harness'] },
-    { code: 'E10', title: 'Regen Brake Fault', severity: 'Medium', system: 'brake', description: 'Electronic brake fault.', fix: ['Check the motor wiring.', 'Check the lever switch.', 'Replace the controller if needed.'], parts: ['Controller'] },
+    { code: 'E01', title: 'Low Battery Voltage', severity: 'Medium', system: 'bms', source: S.pure, description: 'The pack is below the safe riding voltage.', fix: ['Charge the scooter.', 'Test the pack if it will not charge.'], parts: [] },
+    { code: 'E02', title: 'Motor Failure', severity: 'High', system: 'motor', source: S.pure, description: 'The motor or its connection has failed.', fix: ['Check the motor cable and connectors.', 'Test the phase wiring.', 'Replace the motor if the windings are burnt.'], parts: ['Motor'] },
+    { code: 'E03', title: 'Controller Issue', severity: 'High', system: 'controller', source: S.pure, description: 'Controller fault or internal error.', fix: ['Check the controller connectors.', 'Re-flash if supported.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E04', title: 'Throttle or Brake Error', severity: 'High', system: 'throttle', source: S.pure, description: 'A throttle or brake signal fault.', fix: ['Check the throttle and brake connections.', 'Confirm the lever returns and the throttle is free.', 'Replace the faulty part.'], parts: ['Throttle', 'Brake lever switch'] },
+    { code: 'E07', title: 'Overheating', severity: 'Medium', system: 'controller', source: S.pure, description: 'The motor or controller is overheating.', fix: ['Allow to cool down.', 'Reduce sustained load or hills.', 'Check for bearing drag.'], parts: [] },
   ],
 
   // -------------------------------------------------------------------------
-  // APOLLO (Phantom / Ghost / City) — "E0X" on the display.
+  // APOLLO (Phantom / Ghost / City) — E codes.
   // -------------------------------------------------------------------------
   apollo: [
-    { code: 'E01', title: 'Controller Communication Fault', severity: 'High', system: 'controller', description: 'Main board / dashboard comms error.', fix: ['Re-seat all board connectors.', 'Update via the Apollo app.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'E02', title: 'Throttle Fault', severity: 'High', system: 'throttle', description: 'Throttle out of range.', fix: ['Check the throttle connector.', 'Replace the throttle.'], parts: ['Throttle'] },
-    { code: 'E03', title: 'Brake Fault', severity: 'High', system: 'brake', description: 'Brake lever active fault.', fix: ['Check the brake switches.', 'Replace the switch.'], parts: ['Brake lever switch'] },
-    { code: 'E04', title: 'Motor Hall Fault', severity: 'High', system: 'motor', description: 'Motor hall sensor fault.', fix: ['Check the motor connector.', 'Test the hall board.', 'Replace the hall board / motor.'], parts: ['Hall sensor board'] },
-    { code: 'E05', title: 'Controller Overheat', severity: 'Medium', system: 'controller', description: 'Controller over-temperature.', fix: ['Cool the deck.', 'Check the thermal pad.', 'Check for current spikes.'], parts: ['Controller'] },
-    { code: 'E06', title: 'BMS Communication Fault', severity: 'High', system: 'bms', description: 'The BMS lost comms.', fix: ['Check the battery harness.', 'Test the BMS.', 'Replace the BMS or pack.'], parts: ['BMS'] },
-    { code: 'E07', title: 'Low Voltage', severity: 'Medium', system: 'bms', description: 'Pack under-voltage.', fix: ['Charge the pack.', 'Check the charge port fuse.'], parts: [] },
-    { code: 'E08', title: 'High Voltage', severity: 'High', system: 'bms', description: 'Pack over-voltage.', fix: ['Check the charger.', 'Replace the charger or BMS.'], parts: ['Charger', 'BMS'] },
-    { code: 'E09', title: 'Controller Overcurrent', severity: 'High', system: 'controller', description: 'Current spike.', fix: ['Check the motor phases.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'E10', title: 'Motor Phase Fault', severity: 'High', system: 'motor', description: 'Phase open/short.', fix: ['Check the phase wiring.', 'Replace the harness.'], parts: ['Motor harness'] },
+    { code: 'E1', title: 'Controller Communication Error', severity: 'High', system: 'controller', source: S.apollo, description: 'Communication fault between the controller and the rest of the system.', fix: ['Re-seat all controller connectors.', 'Check the display cable.', 'Replace the controller if it persists.'], parts: ['Controller'] },
+    { code: 'E2', title: 'Brake Sensor Error', severity: 'High', system: 'brake', source: S.apollo, description: 'The brake lever sensor is reading a fault (often held at startup).', fix: ['Confirm the brake returns fully.', 'Check the brake sensor wiring.', 'Replace the lever sensor.'], parts: ['Brake lever switch'] },
+    { code: 'E3', title: 'Motor Communication Error', severity: 'High', system: 'motor', source: S.apollo, description: 'The controller has lost communication with the motor.', fix: ['Check the motor cable and connectors.', 'Test the Hall sensors.', 'Replace the motor harness.'], parts: ['Motor harness'] },
+    { code: 'E4', title: 'Throttle Signal Error', severity: 'High', system: 'throttle', source: S.apollo, description: 'The throttle signal is out of range.', fix: ['Check the throttle connector.', 'Confirm it returns to zero.', 'Replace the throttle.'], parts: ['Throttle'] },
+    { code: 'E5', title: 'Battery Communication Error', severity: 'High', system: 'bms', source: S.apollo, description: 'Communication lost between the controller and the battery BMS.', fix: ['Check the battery connector and data line.', 'Test the BMS.', 'Replace the BMS or pack.'], parts: ['BMS'] },
   ],
 
   // -------------------------------------------------------------------------
-  // DUALTRON (Ultra / Thunder / Victor) — E-codes on the EY dash.
+  // DUALTRON / MINIMOTORS (EY3 / EY4 display) — small numeric fault codes.
   // -------------------------------------------------------------------------
   dualtron: [
-    { code: 'E01', title: 'Throttle Fault', severity: 'High', system: 'throttle', description: 'Throttle signal out of range.', fix: ['Check the throttle connector.', 'Replace the throttle.'], parts: ['Throttle'] },
-    { code: 'E02', title: 'Brake Fault', severity: 'High', system: 'brake', description: 'Brake lever switch fault.', fix: ['Check the brake switches.', 'Replace the switch.'], parts: ['Brake lever switch'] },
-    { code: 'E03', title: 'Motor Hall Fault', severity: 'High', system: 'motor', description: 'Motor hall sensor fault.', fix: ['Check the motor connectors.', 'Test the hall board.', 'Replace the hall board / motor.'], parts: ['Hall sensor board'] },
-    { code: 'E04', title: 'Motor Phase Fault', severity: 'High', system: 'motor', description: 'Phase wire open/short.', fix: ['Check the phase wiring.', 'Replace the harness.'], parts: ['Motor harness'] },
-    { code: 'E05', title: 'Controller Overheat', severity: 'Medium', system: 'controller', description: 'Controller too hot.', fix: ['Cool the deck.', 'Check the thermal interface.', 'Replace the controller if it recurs.'], parts: ['Controller'] },
-    { code: 'E06', title: 'BMS COMMS Fault', severity: 'High', system: 'bms', description: 'BMS lost comms.', fix: ['Check the battery harness.', 'Replace the BMS.'], parts: ['BMS'] },
-    { code: 'E07', title: 'Low Voltage', severity: 'Medium', system: 'bms', description: 'Pack undervoltage.', fix: ['Charge the pack.', 'Check the charge fuse.'], parts: [] },
-    { code: 'E08', title: 'Motor Blocked', severity: 'High', system: 'motor', description: 'The wheel is jammed.', fix: ['Check for brake drag / debris.', 'Check the bearings.', 'Check the motor axle.'], parts: ['Bearings'] },
-    { code: 'E09', title: 'Regen Fault', severity: 'Medium', system: 'brake', description: 'Regen braking fault.', fix: ['Check the motor wiring.', 'Check the lever switch.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E2', title: 'System Error', severity: 'High', system: 'controller', source: S.dualtron, description: 'A general system fault on the EY display.', fix: ['Power-cycle the scooter.', 'Check all main connectors.', 'Contact a service centre if it persists.'], parts: ['Controller'] },
+    { code: 'E4', title: 'Motor / Hall Sensor Error', severity: 'High', system: 'motor', source: S.dualtron, description: 'A motor or Hall-sensor fault (also shown as code 2/4 on the EY3).', fix: ['Check the motor power connection.', 'Test the Hall sensors.', 'Replace the Hall board or motor.'], parts: ['Hall sensor board'] },
+    { code: 'E5', title: 'Throttle (Accelerator) Error', severity: 'High', system: 'throttle', source: S.dualtron, description: 'The accelerator/throttle is not communicating correctly.', fix: ['Check the EY throttle is properly connected to the controller.', 'Disconnect and reconnect the plug-and-play connector.', 'Wait for communication to establish on power-up.'], parts: ['Throttle'] },
+    { code: 'E6', title: 'Controller Error', severity: 'High', system: 'controller', source: S.dualtron, description: 'A controller or controller-communication error.', fix: ['Check the throttle-to-controller connection.', 'Power-cycle and wait for the link.', 'Replace the controller if it persists.'], parts: ['Controller'] },
   ],
 
   // -------------------------------------------------------------------------
-  // TALARIA (off-road e-moto style / big controllers) — E-codes.
+  // TALARIA (e-moto) — controller E codes.
   // -------------------------------------------------------------------------
   talaria: [
-    { code: 'E01', title: 'Throttle Fault', severity: 'High', system: 'throttle', description: 'Throttle out of range.', fix: ['Check the throttle connector.', 'Replace the throttle.'], parts: ['Throttle'] },
-    { code: 'E02', title: 'Brake Fault', severity: 'High', system: 'brake', description: 'Brake switch fault.', fix: ['Check the brake switches.', 'Replace the switch.'], parts: ['Brake lever switch'] },
-    { code: 'E03', title: 'Motor Hall Fault', severity: 'High', system: 'motor', description: 'Hall sensor fault.', fix: ['Check the motor connector.', 'Test the hall board.', 'Replace the hall board / motor.'], parts: ['Hall sensor board'] },
-    { code: 'E04', title: 'Controller Overheat', severity: 'Medium', system: 'controller', description: 'Controller too hot.', fix: ['Cool the controller.', 'Check the fan/thermal pad.', 'Replace the controller if needed.'], parts: ['Controller'] },
-    { code: 'E05', title: 'Controller Overcurrent', severity: 'High', system: 'controller', description: 'Current spike.', fix: ['Check the motor phases.', 'Check for a stalled wheel.', 'Replace the controller.'], parts: ['Controller'] },
-    { code: 'E06', title: 'BMS Fault', severity: 'High', system: 'bms', description: 'BMS communication fault.', fix: ['Check the battery harness.', 'Replace the BMS.'], parts: ['BMS'] },
-    { code: 'E07', title: 'Low Voltage Lockout', severity: 'Medium', system: 'bms', description: 'Pack undervoltage.', fix: ['Charge the pack.', 'Check the charge fuse.'], parts: [] },
+    { code: 'E01', title: 'Throttle Fault', severity: 'High', system: 'throttle', source: S.generic, description: 'Throttle out of range.', fix: ['Check the throttle connector.', 'Confirm it returns to zero.', 'Replace the throttle.'], parts: ['Throttle'] },
+    { code: 'E02', title: 'Brake Fault', severity: 'High', system: 'brake', source: S.generic, description: 'Brake switch fault.', fix: ['Check the brake switches.', 'Replace the switch.'], parts: ['Brake lever switch'] },
+    { code: 'E03', title: 'Motor Hall Fault', severity: 'High', system: 'motor', source: S.generic, description: 'Hall sensor fault.', fix: ['Check the motor connector.', 'Test the hall board.', 'Replace the hall board / motor.'], parts: ['Hall sensor board'] },
+    { code: 'E04', title: 'Controller Overheat', severity: 'Medium', system: 'controller', source: S.generic, description: 'Controller too hot.', fix: ['Cool the controller.', 'Check the fan/thermal pad.', 'Replace the controller if needed.'], parts: ['Controller'] },
+    { code: 'E05', title: 'Controller Overcurrent', severity: 'High', system: 'controller', source: S.generic, description: 'Current spike.', fix: ['Check the motor phases.', 'Check for a stalled wheel.', 'Replace the controller.'], parts: ['Controller'] },
+    { code: 'E06', title: 'BMS Fault', severity: 'High', system: 'bms', source: S.generic, description: 'BMS communication fault.', fix: ['Check the battery harness.', 'Replace the BMS.'], parts: ['BMS'] },
+    { code: 'E07', title: 'Low Voltage Lockout', severity: 'Medium', system: 'bms', source: S.generic, description: 'Pack undervoltage.', fix: ['Charge the pack.', 'Check the charge fuse.'], parts: [] },
+  ],
+
+  // -------------------------------------------------------------------------
+  // BOSCH (Active/Performance/CX, Smart System) — numeric codes on Kiox/Intuvia.
+  // -------------------------------------------------------------------------
+  bosch: [
+    { code: '410', title: 'Control / Display Button Stuck', severity: 'Low', system: 'display', source: S.bosch, description: 'One or more buttons on the display or control unit are being read as pressed continuously — dirt, moisture or wear.', fix: ['Clean the buttons with a dry cloth and let the unit dry.', 'Restart the system.', 'Replace the control unit if a button is mechanically stuck.'], parts: [] },
+    { code: '414', title: 'Display / Operating Unit Connection Interrupted', severity: 'Medium', system: 'display', source: S.bosch, description: 'The connection between the operating unit and the rest of the system is interrupted.', fix: ['Check the operating-unit connectors and cable.', 'Reseat the cable and restart.', 'Have the connection checked by a dealer if it persists.'], parts: ['Display harness'] },
+    { code: '418', title: 'Operating Unit Buttons Blocked', severity: 'Low', system: 'display', source: S.bosch, description: 'One or more buttons on the operating unit are blocked.', fix: ['Check for dirt or a jammed button.', 'Clean and dry the unit.', 'Replace the unit if the button is damaged.'], parts: [] },
+    { code: '419', title: 'Configuration Error', severity: 'Medium', system: 'controller', source: S.bosch, description: 'A configuration error in the system.', fix: ['Restart the system.', 'Check for a firmware update.', 'Contact a Bosch dealer if it returns.'], parts: [] },
+    { code: '422', title: 'Drive Unit Communication Error', severity: 'Medium', system: 'motor', source: S.bosch, description: 'The drive unit cannot communicate properly with the rest of the system.', fix: ['Check the drive-unit connectors and cables.', 'Restart the system.', 'Have it diagnosed by a dealer if it persists.'], parts: [] },
+    { code: '423', title: 'Battery Communication Error', severity: 'Medium', system: 'bms', source: S.bosch, description: 'The battery is not communicating correctly — poor contact at the mount or an internal battery-electronics fault.', fix: ['Remove and re-seat the battery.', 'Clean the battery contacts and mount.', 'Have the battery checked by a dealer if it persists.'], parts: ['Battery pack'] },
+    { code: '424', title: 'Component Communication Error', severity: 'Medium', system: 'controller', source: S.boschMagazine, description: 'A communication problem between system components (battery, motor, display or control unit).', fix: ['Check the connectors and cables.', 'Restart the system.', 'Dealer diagnosis if it persists.'], parts: [] },
+    { code: '430', title: 'Display Internal Battery Empty', severity: 'Low', system: 'display', source: S.bosch, description: 'The onboard computer has an internal (coin-cell) battery that is empty.', fix: ['Charge the display / replace the internal cell.', 'Restart the system.'], parts: [] },
+    { code: '431', title: 'Software Version Error', severity: 'Low', system: 'controller', source: S.boschMagazine, description: 'A software version mismatch in the system.', fix: ['Restart the system.', 'Check for and apply a firmware update.'], parts: [] },
+    { code: '440', title: 'Internal Drive Unit Error', severity: 'High', system: 'motor', source: S.bosch, description: 'An internal electronic fault in the drive unit. Do not open the motor.', fix: ['Restart the system once.', 'Contact a Bosch-certified dealer.', 'Do not open the drive unit.'], parts: [] },
+    { code: '450', title: 'Internal Software Error', severity: 'High', system: 'controller', source: S.bosch, description: 'Internal software fault in the drive system.', fix: ['Restart the system.', 'Contact a Bosch dealer for a firmware re-flash.'], parts: [] },
+    { code: '460', title: 'USB Port Fault', severity: 'Low', system: 'display', source: S.boschMagazine, description: 'A fault with the USB port — a cable or device is causing it.', fix: ['Remove the USB cable and any connected device.', 'Restart the system.'], parts: [] },
+    { code: '490', title: 'Internal HMI Error', severity: 'Medium', system: 'display', source: S.bosch, description: 'Internal error of the HMI (display/control).', fix: ['Check the HMI connections.', 'Restart the system.', 'Dealer diagnosis if it persists.'], parts: [] },
+    { code: '500', title: 'Internal Motor Fault', severity: 'High', system: 'motor', source: S.bosch, description: 'An internal fault in the drive unit. Do not open the motor.', fix: ['Restart the system.', 'Contact a Bosch dealer if it persists.'], parts: [] },
+    { code: '502', title: 'Light System Failure', severity: 'Low', system: 'charging', source: S.bosch, description: 'A fault with the lighting — a loose or damaged light cable.', fix: ['Check the front/rear light cables and connections.', 'Only fit Bosch-compatible lights.', 'Restart the system.'], parts: [] },
+    { code: '503', title: 'Speed Sensor Error', severity: 'Medium', system: 'motor', source: S.bosch, description: 'The speed sensor is giving incorrect readings — a misaligned or displaced spoke magnet.', fix: ['Check the speed sensor and magnet position and gap.', 'Restart the system.', 'Dealer diagnosis if it persists.'], parts: [] },
+    { code: '504', title: 'Speed Signal Distortion', severity: 'Medium', system: 'motor', source: S.boschMagazine, description: 'The detected speed signal is distorted or implausible — including a tampering/tuning flag.', fix: ['Check the spoke magnet alignment.', 'Check the sensor and cabling.', 'The system may flag tampering — do not fit a tuning device.'], parts: [] },
+    { code: '510', title: 'Internal Sensor Error', severity: 'High', system: 'motor', source: S.bosch, description: 'An internal sensor error in the drive system.', fix: ['Restart the system.', 'Contact a Bosch dealer if it persists.'], parts: [] },
+    { code: '511', title: 'Internal Drive Unit Error', severity: 'High', system: 'motor', source: S.bosch, description: 'An internal error of the drive unit.', fix: ['Restart the system.', 'Contact a Bosch dealer if it persists.'], parts: [] },
+    { code: '520', title: 'Power Supply Error', severity: 'High', system: 'bms', source: S.bosch, description: 'A power-supply error — charging or battery supply path.', fix: ['Check the charger and charge port.', 'Re-seat the battery.', 'Have the battery checked by a dealer.'], parts: ['Charger', 'Battery pack'] },
+    { code: '530', title: 'Battery Authentication Error', severity: 'High', system: 'bms', source: S.bosch, description: 'The battery pack does not authenticate with the system — a genuine part or contact issue.', fix: ['Switch off, remove and reinsert the battery pack.', 'Clean the contacts.', 'Have the battery checked by a Bosch dealer.'], parts: ['Battery pack'] },
+    { code: '531', title: 'Configuration Mismatch', severity: 'Medium', system: 'controller', source: S.bosch, description: 'A configuration error — a component does not match the system configuration.', fix: ['Restart the system.', 'Check all components are compatible and correctly configured.', 'Dealer diagnosis if it persists.'], parts: [] },
+  ],
+
+  // -------------------------------------------------------------------------
+  // SHIMANO STEPS (E6100 / E7000 / E8000 / EP8) — E (error) & W (warning) codes.
+  // -------------------------------------------------------------------------
+  shimano: [
+    { code: 'E010', title: 'Drive Unit System Error', severity: 'High', system: 'motor', source: S.shimano, description: 'An abnormality was detected in the drive unit (sensor or internal error). Reset by disconnecting the battery; if it returns, the fault is in the unit electronics.', fix: ['Switch off and reset by disconnecting the battery for ~60 seconds.', 'Check the motor connections and wiring.', 'If the code returns, dealer E-TUBE diagnosis is required.'], parts: [] },
+    { code: 'E012', title: 'Torque Sensor Initialization Error', severity: 'High', system: 'motor', source: S.shimano, description: 'The torque sensor could not initialise normally — a sensor calibration issue.', fix: ['Restart the system and confirm pedals are still at startup.', 'Check the sensor wiring.', 'Recalibrate or replace the sensor if it persists.'], parts: [] },
+    { code: 'E013', title: 'Torque Sensor Error', severity: 'High', system: 'motor', source: S.shimano, description: 'The torque sensor is malfunctioning.', fix: ['Check the sensor position and wiring.', 'Recalibrate if possible.', 'Replace the sensor if faulty.'], parts: [] },
+    { code: 'E020', title: 'Battery / Drive Unit Communication Error', severity: 'Medium', system: 'bms', source: S.shimano, description: 'A communication error between the battery and the drive unit was detected.', fix: ['Inspect the battery connections and communication cable.', 'Reset the system.', 'Dealer diagnosis if it persists.'], parts: ['Battery pack'] },
+    { code: 'E021', title: 'Unsupported Battery', severity: 'Medium', system: 'bms', source: S.shimano, description: 'The connected battery conforms to system standards but is not supported by this system.', fix: ['Fit a supported Shimano battery model.', 'Confirm the part number against the system spec.'], parts: ['Battery pack'] },
+    { code: 'E022', title: 'Non-Conforming Battery', severity: 'High', system: 'bms', source: S.shimano, description: 'The connected battery does not conform to system standards.', fix: ['Fit a battery that conforms to system standards.', 'Do not ride with an incompatible pack.'], parts: ['Battery pack'] },
+    { code: 'W011', title: 'Speed Sensor Signal (Warning)', severity: 'Medium', system: 'motor', source: S.shimano, description: 'No plausible bicycle speed signal — the sensor/magnet gap is wrong or the magnet has twisted. A warning; assistance is reduced.', fix: ['Check the gap between the magnet and speed sensor.', 'Straighten the spoke magnet.', 'Check the sensor connection.'], parts: [] },
+    { code: 'W013', title: 'Sensor Initialization (Warning)', severity: 'Low', system: 'motor', source: S.shimano, description: 'Sensor initialisation could not complete normally at startup.', fix: ['Restart the system with the pedals still.', 'Ensure proper initialisation.', 'Dealer diagnosis if it persists.'], parts: [] },
+  ],
+
+  // -------------------------------------------------------------------------
+  // BAFANG (BBS01 / BBS02 / BBSHD, M-series) — numeric codes on the display.
+  // -------------------------------------------------------------------------
+  bafang: [
+    { code: 'E04', title: 'Throttle Did Not Return', severity: 'High', system: 'throttle', source: S.bafang, description: 'The throttle lever no longer returns to the zero position.', fix: ['Check the throttle is mechanically at zero.', 'Unplug the throttle and restart — if the error clears, the throttle or cable is damaged.', 'Replace the throttle.'], parts: ['Throttle'] },
+    { code: 'E07', title: 'High Voltage / Overvoltage Protection', severity: 'High', system: 'bms', source: S.bafang, description: 'The battery voltage is above the system limit — often a battery of the wrong voltage for the kit.', fix: ['Confirm the battery matches the system voltage (e.g. 48 V pack on a 48 V kit).', 'Check the charger output.', 'Do not use an over-voltage pack.'], parts: ['Battery pack', 'Charger'] },
+    { code: 'E08', title: 'Hall / Motor Sensor Error', severity: 'High', system: 'motor', source: S.bafang, description: 'A hall-sensor or motor sensor error.', fix: ['Check the motor sensor connectors.', 'Test the hall sensors.', 'Replace the sensor board or motor harness.'], parts: ['Hall sensor board'] },
+    { code: 'E10', title: 'Controller Overheat', severity: 'Medium', system: 'controller', source: S.bafang, description: 'The controller (or motor) is overheating.', fix: ['Allow the system to cool.', 'Check for a phantom error with a firmware update (BBSHD).', 'Reduce sustained load.'], parts: [] },
+    { code: 'E12', title: 'Current Sensor Abnormality', severity: 'High', system: 'controller', source: S.bafang, description: 'A current-measurement (shunt) error in the controller. Not field-replaceable.', fix: ['Try a firmware update (BBSHD) to rule out a phantom error.', 'If that fails, replace the controller.'], parts: ['Controller'] },
+    { code: 'E21', title: 'Speed Sensor Failure', severity: 'Medium', system: 'motor', source: S.bafang, description: 'The speed sensor has no signal — the magnet is misaligned or the sensor cable is cut.', fix: ['Switch the display off and on.', 'Check the spoke magnet aligns with the sensor (a few mm gap).', 'Check the speed-sensor cable for damage.'], parts: [] },
+    { code: 'E30', title: 'Communication Error (Display ↔ Controller)', severity: 'Medium', system: 'display', source: S.bafang, description: 'The display cannot receive data from the controller. The most common Bafang fault.', fix: ['Check every connector between the display and controller for looseness or bent pins.', 'Look for kinks or cuts in the harness.', 'Replace the display (most common culprit), then the harness, then the controller.'], parts: ['Display harness', 'Controller'] },
   ],
 };
+
 
 /** The error set to show when a specific model has no dedicated family entry — the workshop generic list. */
 export const GENERIC_ERROR_CODES: EVehicleErrorDefinition[] = CODE_FAMILIES.generic;
@@ -286,10 +391,10 @@ export const EVEHICLE_MODEL_ERRORS: EVehicleModelErrors[] = [
   { category: 'electric_scooter', brand: 'Dualtron', model: 'Popular', family: 'dualtron' },
   { category: 'electric_scooter', brand: 'Dualtron', model: 'Other Dualtron Model', family: 'dualtron' },
   // Vsett / Kaabo / NAMI / Razor / GoTrax / iScooter / Okai / Hiboy / InMotion / generic others → generic codes.
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf Warrior', family: 'dualtron' },
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf King', family: 'dualtron' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf Warrior', family: 'generic' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Wolf King', family: 'generic' },
   { category: 'electric_scooter', brand: 'Kaabo', model: 'Skywalker', family: 'generic' },
-  { category: 'electric_scooter', brand: 'Kaabo', model: 'Mantis', family: 'apollo' },
+  { category: 'electric_scooter', brand: 'Kaabo', model: 'Mantis', family: 'generic' },
   { category: 'electric_scooter', brand: 'Kaabo', model: 'Other Kaabo Model', family: 'generic' },
   { category: 'electric_scooter', brand: 'Vsett', model: '8', family: 'generic' },
   { category: 'electric_scooter', brand: 'Vsett', model: '9+', family: 'generic' },
@@ -330,55 +435,55 @@ export const EVEHICLE_MODEL_ERRORS: EVehicleModelErrors[] = [
   // --- E-Bikes -------------------------------------------------------------
   // Bosch Classic + Smart: many "5XXX" and error strings; we use the generic
   // codes plus the common Bosch specific ones below where sensible.
-  { category: 'ebike', brand: 'Bosch', model: 'Active Line', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch', model: 'Active Line Plus', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch', model: 'Performance Line', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch', model: 'Performance CX', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch', model: 'Cargo Line', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch', model: 'Speed (45 km/h)', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch', model: 'Other Bosch System', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch Smart System', model: 'Performance Line CX Smart', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch Smart System', model: 'Performance Line Smart', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch Smart System', model: 'Active Line Smart', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch Smart System', model: 'Other Smart System', family: 'generic' },
-  { category: 'ebike', brand: 'Shimano', model: 'STEPS E6100', family: 'generic' },
-  { category: 'ebike', brand: 'Shimano', model: 'STEPS E7000', family: 'generic' },
-  { category: 'ebike', brand: 'Shimano', model: 'STEPS E8000', family: 'generic' },
-  { category: 'ebike', brand: 'Shimano', model: 'STEPS EP8', family: 'generic' },
-  { category: 'ebike', brand: 'Shimano', model: 'Other STEPS System', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'BBS01', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'BBS02', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'BBSHD', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'M400', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'M500', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'M600', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'H600', family: 'generic' },
-  { category: 'ebike', brand: 'Bafang', model: 'Other Bafang System', family: 'generic' },
-  { category: 'ebike', brand: 'Yamaha', model: 'PW-SE', family: 'generic' },
-  { category: 'ebike', brand: 'Yamaha', model: 'PW-X', family: 'generic' },
-  { category: 'ebike', brand: 'Yamaha', model: 'PW-i', family: 'generic' },
-  { category: 'ebike', brand: 'Yamaha', model: 'PWseries TE', family: 'generic' },
-  { category: 'ebike', brand: 'Yamaha', model: 'Other Yamaha System', family: 'generic' },
-  { category: 'ebike', brand: 'Giant EnergyPak', model: 'SyncDrive Core', family: 'generic' },
-  { category: 'ebike', brand: 'Giant EnergyPak', model: 'SyncDrive Sport', family: 'generic' },
-  { category: 'ebike', brand: 'Giant EnergyPak', model: 'SyncDrive Pro', family: 'generic' },
-  { category: 'ebike', brand: 'Giant EnergyPak', model: 'Other Giant System', family: 'generic' },
-  { category: 'ebike', brand: 'Specialized', model: 'Turbo Vado', family: 'generic' },
-  { category: 'ebike', brand: 'Specialized', model: 'Turbo Como', family: 'generic' },
-  { category: 'ebike', brand: 'Specialized', model: 'Turbo Levo', family: 'generic' },
-  { category: 'ebike', brand: 'Specialized', model: 'Turbo SL', family: 'generic' },
-  { category: 'ebike', brand: 'Specialized', model: 'Other Turbo System', family: 'generic' },
-  { category: 'ebike', brand: 'Cannondale', model: 'Tesoro Neo', family: 'generic' },
-  { category: 'ebike', brand: 'Cannondale', model: 'Synapse Neo', family: 'generic' },
-  { category: 'ebike', brand: 'Cannondale', model: 'Trail Neo', family: 'generic' },
-  { category: 'ebike', brand: 'Cannondale', model: 'Other Cannondale System', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch / Generic Motors', model: '250 W Hub', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch / Generic Motors', model: '500 W Hub', family: 'generic' },
-  { category: 'ebike', brand: 'Bosch / Generic Motors', model: 'Other Hub Motor', family: 'generic' },
-  { category: 'ebike', brand: 'Swytch', model: 'Swytch Kit (Conversions)', family: 'generic' },
-  { category: 'ebike', brand: 'Swytch', model: 'Other Swytch Kit', family: 'generic' },
-  { category: 'ebike', brand: 'Budget / Other', model: 'Generic Controller', family: 'generic' },
-  { category: 'ebike', brand: 'Budget / Other', model: 'Other / Not Listed', family: 'generic' },
+  { category: 'ebike', brand: 'Bosch', model: 'Active Line', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch', model: 'Active Line Plus', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch', model: 'Performance Line', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch', model: 'Performance CX', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch', model: 'Cargo Line', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch', model: 'Speed (45 km/h)', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch', model: 'Other Bosch System', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch Smart System', model: 'Performance Line CX Smart', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch Smart System', model: 'Performance Line Smart', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch Smart System', model: 'Active Line Smart', family: 'bosch' },
+  { category: 'ebike', brand: 'Bosch Smart System', model: 'Other Smart System', family: 'bosch' },
+  { category: 'ebike', brand: 'Shimano', model: 'STEPS E6100', family: 'shimano' },
+  { category: 'ebike', brand: 'Shimano', model: 'STEPS E7000', family: 'shimano' },
+  { category: 'ebike', brand: 'Shimano', model: 'STEPS E8000', family: 'shimano' },
+  { category: 'ebike', brand: 'Shimano', model: 'STEPS EP8', family: 'shimano' },
+  { category: 'ebike', brand: 'Shimano', model: 'Other STEPS System', family: 'shimano' },
+  { category: 'ebike', brand: 'Bafang', model: 'BBS01', family: 'bafang' },
+  { category: 'ebike', brand: 'Bafang', model: 'BBS02', family: 'bafang' },
+  { category: 'ebike', brand: 'Bafang', model: 'BBSHD', family: 'bafang' },
+  { category: 'ebike', brand: 'Bafang', model: 'M400', family: 'bafang' },
+  { category: 'ebike', brand: 'Bafang', model: 'M500', family: 'bafang' },
+  { category: 'ebike', brand: 'Bafang', model: 'M600', family: 'bafang' },
+  { category: 'ebike', brand: 'Bafang', model: 'H600', family: 'bafang' },
+  { category: 'ebike', brand: 'Bafang', model: 'Other Bafang System', family: 'bafang' },
+  { category: 'ebike', brand: 'Yamaha', model: 'PW-SE', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Yamaha', model: 'PW-X', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Yamaha', model: 'PW-i', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Yamaha', model: 'PWseries TE', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Yamaha', model: 'Other Yamaha System', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Giant EnergyPak', model: 'SyncDrive Core', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Giant EnergyPak', model: 'SyncDrive Sport', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Giant EnergyPak', model: 'SyncDrive Pro', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Giant EnergyPak', model: 'Other Giant System', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Specialized', model: 'Turbo Vado', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Specialized', model: 'Turbo Como', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Specialized', model: 'Turbo Levo', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Specialized', model: 'Turbo SL', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Specialized', model: 'Other Turbo System', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Cannondale', model: 'Tesoro Neo', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Cannondale', model: 'Synapse Neo', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Cannondale', model: 'Trail Neo', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Cannondale', model: 'Other Cannondale System', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Bosch / Generic Motors', model: '250 W Hub', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Bosch / Generic Motors', model: '500 W Hub', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Bosch / Generic Motors', model: 'Other Hub Motor', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Swytch', model: 'Swytch Kit (Conversions)', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Swytch', model: 'Other Swytch Kit', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Budget / Other', model: 'Generic Controller', family: 'generic_bike' },
+  { category: 'ebike', brand: 'Budget / Other', model: 'Other / Not Listed', family: 'generic_bike' },
 ];
 
 /** Exact case-insensitive family lookup for a specific brand + model. */
