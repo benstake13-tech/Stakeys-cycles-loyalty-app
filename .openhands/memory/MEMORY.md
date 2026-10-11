@@ -433,3 +433,14 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - NEW `src/components/CustomerErrorCodeHelper.tsx` — customer kiosk (brand→model→symptom search, expandable code cards with why/what/fix/cost/parts + Book this repair). Mounted on the website HOME right below the hero (`WebsiteReplica` case 'home'). Uses only `lucide-react` + data modules; no ShopContext/AI deps, so it's safe on every surface.
 - Tests: `customer_error_helper.test.tsx` (12). Full suite now 140 files / 1135. Website build (`VITE_SURFACE=website`) OK; Vercel budget 7/12 OK.
 - Local previews: staff = port 12000 (`tsx server.ts`); website surface = port 12001 (`VITE_SURFACE=website PORT=12001 npx tsx server.ts`). `/guide/index.html` serve the embedded Sheldon guide (no auth); the staff app itself is behind Supabase login.
+
+## Session (2026-10-07) — Pushed all three branches
+- Pushed (with GITHUB_TOKEN in the remote URL — plain `git push` hangs on a username prompt in this sandbox): staff-terminal 7102460→a597b15, customer-app 5bea901→ba7e2d5, main-website 7b0d284→4b60487. All three now 0/0 vs origin. This triggers 3 Vercel deploys — watch the Hobby build rate limit; use the Vercel dashboard Redeploy if one is skipped.
+
+## Session (2026-10-11) — "main website won't update on stakeys.co.uk" diagnosis
+- **Symptom:** user pushed + manually redeployed main website twice; `www.stakeys.co.uk` unchanged.
+- **Live bundles at 02:30Z:** www.stakeys.co.uk = `index-BY8iiefg.js` feature=0; www.stakeys-cycles.co.uk = `index-BdrHnruU.js` feature=**1** (has Fault Code Explainer); www.stakeyswheels.co.uk = `index-t9Woq6Fa.js` feature=0.
+- **Root cause A (Hobby build rate limit):** commit `4b60487`/`7b0d284`/`208cf12` show `Vercel – …-{6jf5,i34d,xw26,5acr}` = `failure: Deployment rate limited — retry in 24 hours`; only project `stakeys-cycles-loyalty-app` succeeded at 4b60487. Onset ~2026-10-10T23:1xZ → resets ~23:1xZ tonight; deploys from 02:03–02:23Z were succeeding again.
+- **Root cause B (stale alias):** `www.stakeys.co.uk` index.html served with `age: ~35471s` (~9.8h) + `x-vercel-cache: HIT`, feature absent. Its bundle `index-BY8iiefg.js` matches NO current project canonical (6jf5=`DA1-IOHI`, xw26=`DjHFfyrz`, i34d=`t9Woq6Fa`). ⇒ stakeys.co.uk is attached to a project/alias not being rebuilt.
+- **Confirmed mappings:** i34d = stakeyswheels.co.uk (same bundle t9Woq6Fa); staff-terminal→project `stakeys-cycles-loyalty-app` (Production env, succeeded at 4b60487); i34d/xw26/6jf5/5acr are auto-preview projects. `stakeyscycles.com` does NOT resolve.
+- **Fix (Vercel dashboard; no VERCEL_TOKEN in sandbox):** find project serving stakeys.co.uk (Domains tab), confirm it tracks `main-website`, then Redeploy once rate limit clears. Verify by grepping served bundle for `Fault Code Explainer`.

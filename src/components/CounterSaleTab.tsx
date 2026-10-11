@@ -37,6 +37,7 @@ import { QRCodeScannerModal } from './QRCodeScannerModal';
 import { ItemScanModal } from './ItemScanModal';
 import { ItemQrModal } from './ItemQrModal';
 import { TillCalculator } from './TillCalculator';
+import { SumUpCheckoutModal } from './SumUpCheckoutModal';
 import {
   validateDiscountCode,
   computeSaleTotals,
@@ -140,6 +141,10 @@ export const CounterSaleTab: React.FC = () => {
   const [isSendingQuote, setIsSendingQuote] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showQuotePanel, setShowQuotePanel] = useState(false);
+  // When the till is set to SumUp, processing opens the card terminal modal
+  // instead of closing the sale straight away; the sale only completes once
+  // SumUp reports PAID.
+  const [sumupFor, setSumupFor] = useState<SaleTransaction | null>(null);
 
   const subtotal = useMemo(() => basketSubtotal(lines), [lines]);
 
@@ -453,9 +458,19 @@ export const CounterSaleTab: React.FC = () => {
 
   /** Step 3: process — take payment and close the sale. */
   const process = async (sale: SaleTransaction) => {
+    // SumUp takes over: open the card terminal and only finalise on PAID.
+    if (paymentMethod === 'sumup') {
+      setSumupFor(sale);
+      return;
+    }
+    await finaliseSale(sale, paymentMethod);
+  };
+
+  /** Closes a sale once payment has been taken (manually or via SumUp). */
+  const finaliseSale = async (sale: SaleTransaction, method: SalePaymentMethod) => {
     setIsProcessing(true);
     try {
-      const res = await processSale(sale.id, paymentMethod);
+      const res = await processSale(sale.id, method);
       // Decrement live storefront stock for every product line sold, so the
       // shop and the till never disagree on what is actually on the shelf.
       if (res.success) {
@@ -481,7 +496,7 @@ export const CounterSaleTab: React.FC = () => {
       setDiscountMessage({ ok: res.success, text: res.message || '' });
       if (res.success) {
         setActiveQuote(null);
-        setLastSale({ ...sale, status: 'completed', paymentMethod });
+        setLastSale({ ...sale, status: 'completed', paymentMethod: method });
       }
     } finally {
       setIsProcessing(false);
@@ -930,7 +945,7 @@ export const CounterSaleTab: React.FC = () => {
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['card', 'cash', 'online', 'unpaid'] as SalePaymentMethod[]).map((m) => (
+                    {(['card', 'cash', 'online', 'unpaid', 'sumup'] as SalePaymentMethod[]).map((m) => (
                       <button
                         key={m}
                         type="button"
@@ -941,7 +956,7 @@ export const CounterSaleTab: React.FC = () => {
                             : 'border-neutral-700 bg-black text-neutral-400'
                         }`}
                       >
-                        {m === 'unpaid' ? 'On account' : m}
+                        {m === 'unpaid' ? 'On account' : m === 'sumup' ? 'SumUp card' : m}
                       </button>
                     ))}
                   </div>
@@ -1105,6 +1120,21 @@ export const CounterSaleTab: React.FC = () => {
       {/* Print an item's QR label so it can be stuck on the bike/part */}
       {qrProduct && (
         <ItemQrModal product={qrProduct} isDark={theme === 'dark'} onClose={() => setQrProduct(null)} />
+      )}
+
+      {/* SumUp card terminal — opens when a sale is processed with the SumUp method */}
+      {sumupFor && (
+        <SumUpCheckoutModal
+          amount={sumupFor.grandTotal}
+          description={`${sumupFor.saleNumber} · ${sumupFor.customerName}`}
+          isDark={theme === 'dark'}
+          onPaid={() => {
+            const sale = sumupFor;
+            setSumupFor(null);
+            void finaliseSale(sale, 'sumup');
+          }}
+          onClose={() => setSumupFor(null)}
+        />
       )}
     </div>
   );
