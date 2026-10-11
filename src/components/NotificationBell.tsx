@@ -109,7 +109,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-[22rem] max-w-[90vw] rounded-2xl border border-neutral-800 bg-[#0b0e12] shadow-2xl overflow-hidden animate-slide-down z-50">
+        <div className="absolute right-0 mt-2 w-[22rem] max-w-[90vw] surface-panel shadow-2xl overflow-hidden animate-slide-down z-50">
           <div className="flex items-center justify-between px-3.5 py-3 border-b border-neutral-800">
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-emerald-400" />

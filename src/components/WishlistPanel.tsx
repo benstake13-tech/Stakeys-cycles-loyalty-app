@@ -41,7 +41,7 @@ export const WishlistPanel: React.FC = () => {
       )}
 
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-3">
+        <div className="surface-panel p-10 text-center space-y-3">
           <PackageSearch className="w-8 h-8 text-neutral-500 mx-auto" />
           <div className="font-display text-base font-bold text-white">Nothing on your watchlist</div>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
@@ -49,7 +49,7 @@ export const WishlistPanel: React.FC = () => {
           </p>
         </div>
       ) : (
-        <ul className="rounded-2xl border border-neutral-800 bg-[#0d1015] divide-y divide-neutral-800/80 overflow-hidden">
+        <ul className="surface-panel divide-y divide-neutral-800/80 overflow-hidden">
           {items.map((i) => {
             const stock = stockById[i.productId];
             const back = i.stockAtWatch <= 0 && (stock ?? 0) > 0;

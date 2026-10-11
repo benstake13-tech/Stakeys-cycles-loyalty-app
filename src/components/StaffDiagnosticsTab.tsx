@@ -619,7 +619,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header + master controls */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl">
+      <div className="surface-panel !rounded-3xl p-6 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center shrink-0">
@@ -684,7 +684,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       </div>
 
       {/* OneSignal push repair */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl">
+      <div className="surface-panel !rounded-3xl p-6 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-500/40 flex items-center justify-center shrink-0">
@@ -833,7 +833,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       </div>
 
       {/* Notification channel quick tests */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl">
+      <div className="surface-panel !rounded-3xl p-6 shadow-xl">
         <div className="flex items-center gap-2 text-white font-bold text-sm mb-4">
           <Bell className="w-4 h-4 text-emerald-400" />
           Notification & Alert Tests
@@ -919,7 +919,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
           <div
             key={area}
             data-testid={`area-${area}`}
-            className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl"
+            className="surface-panel !rounded-3xl p-5 shadow-xl"
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <button
@@ -1023,7 +1023,7 @@ const FixSqlModal: React.FC<{
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-2xl bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 text-white shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div className="w-full max-w-2xl surface-panel !rounded-3xl p-6 text-white shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
         <div className="flex items-start justify-between gap-4 pb-3 border-b border-neutral-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">

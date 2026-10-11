@@ -94,7 +94,6 @@ import { TileButton } from './tiles/TileButton';
 import { TileGrid } from './tiles/TileGrid';
 import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
-import { AmbientBackdrop } from './staff/AmbientBackdrop';
 import { CommandBar } from './staff/CommandBar';
 import { MetricRail } from './staff/MetricRail';
 import type { MetricItem } from './staff/MetricRail';
@@ -662,7 +661,6 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
   return (
     <div className="relative font-['Plus_Jakarta_Sans',sans-serif]">
-      <AmbientBackdrop />
       <div className="relative z-10 space-y-5">
       {/* 0. COMMAND BAR — identity, live status, quick actions, tool search */}
       <CommandBar
@@ -931,7 +929,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           tool, paged internally so nothing is duplicated on the top-level nav. */}
       {staffView('settings', (
         <div className="space-y-6">
-          <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 shadow-xl">
+          <div className="surface-panel p-6 shadow-xl">
             <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
               <span className="text-emerald-400 font-semibold tracking-wider uppercase">Staff Settings</span>
               <span aria-hidden="true" className="text-neutral-600">·</span>
@@ -962,7 +960,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
           {settingsPane('station', (
             <div className="space-y-6">
-              <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
+              <div className="surface-panel p-6 sm:p-7 shadow-xl">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                   <div>
                     <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
@@ -1171,7 +1169,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Draws List (6 cols) */}
           <div className="lg:col-span-6 space-y-6">
-            <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+            <div className="surface-panel !rounded-3xl p-6 shadow-xl space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
                 <div>
                   <div className="flex items-center gap-2 text-white font-bold text-base">
@@ -1287,7 +1285,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           {/* Wheel Configuration (6 cols) */}
           <div className="lg:col-span-6 space-y-6">
             {activeWheel && (
-              <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="surface-panel !rounded-3xl p-6 shadow-xl space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
                   <div>
                     <div className="flex items-center gap-2 text-white font-bold text-base">
@@ -1355,7 +1353,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         </div>
 
         {/* Scratch Card (managed feature, toggled here in the Prize Hub) */}
-        <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="surface-panel !rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
             <div>
               <div className="flex items-center gap-2 text-white font-bold text-base">
@@ -1428,7 +1426,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* VIEW 6: Stamp Audit History */}
       {staffView('logs', (
-        <div className="bg-[#0e1217] border border-neutral-800 rounded-3xl p-6 shadow-xl space-y-4">
+        <div className="surface-panel !rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-neutral-800">
             <div>
               <div className="flex items-center gap-2 text-white font-bold text-base">

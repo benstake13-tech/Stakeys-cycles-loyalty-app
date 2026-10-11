@@ -89,9 +89,7 @@ export function SegmentedTabs<T extends string = string>({
       ref={listRef}
       role="tablist"
       aria-label={ariaLabel}
-      className={`no-scrollbar flex items-center gap-1.5 overflow-x-auto rounded-2xl border p-1.5 shadow-sm ${
-        isDark ? 'border-neutral-800/90 bg-[#0b0e13]' : 'border-neutral-200 bg-white'
-      } ${className}`}
+      className={`no-scrollbar glass flex items-center gap-1.5 overflow-x-auto !rounded-2xl p-1.5 ${className}`}
     >
       {tabs.map((tab, index) => {
         const Icon = tab.icon;
@@ -112,11 +110,11 @@ export function SegmentedTabs<T extends string = string>({
             } ${
               isActive
                 ? isDark
-                  ? 'border border-emerald-500/40 bg-emerald-500/15 text-white shadow-[0_0_0_1px_rgba(5,193,71,0.15)]'
-                  : 'border border-emerald-500/50 bg-emerald-50 text-emerald-900 shadow-sm'
+                  ? 'border border-emerald-400/50 bg-gradient-to-b from-emerald-400/25 to-emerald-500/10 text-white shadow-[0_1px_0_0_rgba(255,255,255,0.18)_inset,0_10px_26px_-14px_rgba(5,193,71,0.75)]'
+                  : 'border border-emerald-500/50 bg-gradient-to-b from-emerald-50 to-white text-emerald-900 shadow-[0_1px_0_0_rgba(255,255,255,0.9)_inset,0_10px_22px_-14px_rgba(5,193,71,0.6)]'
                 : isDark
-                ? 'border border-transparent text-neutral-400 hover:bg-neutral-900/80 hover:text-white'
-                : 'border border-transparent text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900'
+                ? 'border border-transparent text-neutral-400 hover:bg-white/[0.05] hover:text-white'
+                : 'border border-transparent text-neutral-600 hover:bg-neutral-900/[0.04] hover:text-neutral-900'
             }`}
           >
             {Icon && <Icon className={`${iconSize} ${isActive ? TONE_ICON[tone] : isDark ? 'text-neutral-500' : 'text-neutral-400'}`} />}

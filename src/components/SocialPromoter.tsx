@@ -21,7 +21,7 @@ import {
 } from '../utils/metaPublishing';
 import { promotionOfferText } from '../utils/performanceInsights';
 
-const cardCls = 'bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl';
+const cardCls = 'surface-panel !rounded-3xl p-5 shadow-xl';
 
 interface TargetState {
   publishing: boolean;

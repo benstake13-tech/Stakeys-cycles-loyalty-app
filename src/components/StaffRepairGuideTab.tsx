@@ -18,7 +18,7 @@ export const StaffRepairGuideTab: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-[#0b0e13] p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 surface-panel p-4">
         <div className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-emerald-500/40 bg-black shadow-[0_0_18px_rgba(5,193,71,0.25)]">
             <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Stakey's Cycles &amp; Scooter" className="h-full w-full object-contain" />
@@ -35,7 +35,7 @@ export const StaffRepairGuideTab: React.FC = () => {
             type="button"
             onClick={() => setNonce((n) => n + 1)}
             data-testid="guide-reload"
-            className="pressable inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-[#0b0e13] px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white"
+            className="pressable inline-flex items-center gap-2 surface-panel px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white"
           >
             <RefreshCw className="h-4 w-4" />
             <span>Reload</span>
@@ -45,7 +45,7 @@ export const StaffRepairGuideTab: React.FC = () => {
             target="_blank"
             rel="noreferrer noopener"
             data-testid="guide-open-new"
-            className="pressable inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-[#0b0e13] px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white"
+            className="pressable inline-flex items-center gap-2 surface-panel px-3 py-2 text-xs font-bold text-neutral-300 hover:border-emerald-500/40 hover:text-white"
           >
             <ExternalLink className="h-4 w-4" />
             <span>New tab</span>
@@ -66,7 +66,7 @@ export const StaffRepairGuideTab: React.FC = () => {
         className={
           full
             ? 'fixed inset-0 z-50 bg-[#090b0e]'
-            : 'overflow-hidden rounded-2xl border border-neutral-800 bg-[#090b0e]'
+            : 'overflow-hidden surface-panel'
         }
       >
         <iframe

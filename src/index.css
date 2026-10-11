@@ -3,106 +3,232 @@
 @layer utilities {
   .font-display {
     font-family: 'Syne', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: 'ss01' 1, 'ss02' 1;
   }
 
   /* ------------------------------------------------------------------ *
-   * Premium staff surface — "command station" visual language.
-   * A small set of composable primitives so every staff panel shares the
-   * same glass, hairline and glow treatment instead of ad-hoc colours.
+   * PREMIUM SURFACE SYSTEM
+   * A single, restrained visual language shared by the staff terminal,
+   * the customer app and the marketing site. Depth comes from layered
+   * light (inset highlights + long soft shadows), not from heavy colour.
    * ------------------------------------------------------------------ */
 
-  /* Ambient OS-style backdrop: a faint engineering grid, two slow colour
-     blooms and a top vignette. Fixed, non-interactive, GPU-only (opacity +
-     transform) so it never repaints the content above it. */
+  /* Cinematic ambient backdrop: a fine engineering grid, three slow
+     colour blooms and a top/bottom vignette. Fixed, non-interactive and
+     GPU-only (opacity + transform) so it never repaints content above. */
   .os-backdrop {
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
+    background:
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(5, 193, 71, 0.10), transparent 60%),
+      linear-gradient(180deg, #05070a 0%, #04060a 60%, #030508 100%);
   }
   .os-backdrop::before {
     content: '';
     position: absolute;
     inset: -2px;
     background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.028) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
-    background-size: 46px 46px;
-    mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 35%, transparent 78%);
-    -webkit-mask-image: radial-gradient(ellipse 120% 80% at 50% 0%, #000 35%, transparent 78%);
+      linear-gradient(to right, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+    background-size: 54px 54px;
+    mask-image: radial-gradient(ellipse 130% 90% at 50% -5%, #000 30%, transparent 76%);
+    -webkit-mask-image: radial-gradient(ellipse 130% 90% at 50% -5%, #000 30%, transparent 76%);
+  }
+  /* A faint film grain so large flat areas never band on big displays. */
+  .os-backdrop::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
   .os-bloom {
     position: absolute;
     border-radius: 9999px;
-    filter: blur(90px);
-    opacity: 0.5;
-    animation: os-drift 22s ease-in-out infinite;
+    filter: blur(110px);
+    opacity: 0.55;
+    animation: os-drift 26s ease-in-out infinite;
   }
   .os-bloom.emerald {
-    width: 46rem; height: 46rem;
-    top: -18rem; left: -12rem;
-    background: radial-gradient(circle, rgba(5, 193, 71, 0.30), transparent 68%);
+    width: 52rem; height: 52rem;
+    top: -22rem; left: -14rem;
+    background: radial-gradient(circle, rgba(5, 193, 71, 0.34), transparent 66%);
   }
   .os-bloom.sky {
-    width: 40rem; height: 40rem;
-    top: -14rem; right: -14rem;
-    background: radial-gradient(circle, rgba(14, 165, 233, 0.22), transparent 68%);
-    animation-delay: -8s;
+    width: 44rem; height: 44rem;
+    top: -16rem; right: -16rem;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.24), transparent 66%);
+    animation-delay: -9s;
   }
   .os-bloom.amber {
-    width: 34rem; height: 34rem;
-    bottom: -18rem; left: 34%;
-    background: radial-gradient(circle, rgba(245, 158, 11, 0.16), transparent 70%);
-    animation-delay: -14s;
+    width: 38rem; height: 38rem;
+    bottom: -20rem; left: 32%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.15), transparent 70%);
+    animation-delay: -16s;
   }
+  /* Light theme: swap the near-black canvas for a bright, airy one. */
+  .os-backdrop.light {
+    background:
+      radial-gradient(ellipse 90% 60% at 50% -10%, rgba(5, 193, 71, 0.10), transparent 60%),
+      linear-gradient(180deg, #f6f8fb 0%, #eef2f7 60%, #e9eef5 100%);
+  }
+  .os-backdrop.light::before {
+    background-image:
+      linear-gradient(to right, rgba(15, 23, 42, 0.045) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  }
+  .os-backdrop.light::after {
+    opacity: 0.02;
+  }
+  .os-backdrop.light .os-bloom.emerald { background: radial-gradient(circle, rgba(5, 193, 71, 0.20), transparent 66%); }
+  .os-backdrop.light .os-bloom.sky { background: radial-gradient(circle, rgba(14, 165, 233, 0.16), transparent 66%); }
+  .os-backdrop.light .os-bloom.amber { background: radial-gradient(circle, rgba(245, 158, 11, 0.12), transparent 70%); }
 
-  /* Frosted panel with a 1px luminous edge — the base surface for every
-     staff card. Uses a masked gradient border so the edge catches "light"
-     at the top and fades toward the bottom. */
+
+  /* Frosted panel with a luminous top edge — the base card for every
+     surface. Layered shadows read as depth rather than a flat drop. */
   .surface-panel {
     position: relative;
-    border-radius: 1rem;
+    border-radius: 1.25rem;
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)),
-      rgba(11, 14, 19, 0.72);
-    backdrop-filter: blur(14px) saturate(140%);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012) 42%, rgba(255, 255, 255, 0.006)),
+      rgba(10, 13, 18, 0.74);
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
     box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-      0 18px 40px -24px rgba(0, 0, 0, 0.9);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+      0 1px 0 0 rgba(255, 255, 255, 0.09) inset,
+      0 -1px 0 0 rgba(0, 0, 0, 0.35) inset,
+      0 1px 2px 0 rgba(0, 0, 0, 0.5),
+      0 26px 60px -32px rgba(0, 0, 0, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.075);
+  }
+  /* A soft specular highlight along the very top edge. */
+  .surface-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    opacity: 0.6;
+    pointer-events: none;
   }
   .surface-panel-hover {
-    transition: border-color 0.25s ease, box-shadow 0.3s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1);
+    transition: border-color 0.28s ease, box-shadow 0.34s ease, transform 0.3s cubic-bezier(0.2, 0.8, 0.3, 1);
   }
   .surface-panel-hover:hover {
-    border-color: rgba(5, 193, 71, 0.38);
+    border-color: rgba(5, 193, 71, 0.42);
     box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
-      0 24px 60px -28px rgba(5, 193, 71, 0.35),
-      0 18px 40px -24px rgba(0, 0, 0, 0.9);
+      0 1px 0 0 rgba(255, 255, 255, 0.12) inset,
+      0 30px 70px -34px rgba(5, 193, 71, 0.4),
+      0 22px 44px -26px rgba(0, 0, 0, 0.95);
     transform: translateY(-2px);
+  }
+  /* Light theme re-skin — the same geometry in bright, airy glass. */
+  .light .surface-panel {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.7)),
+      rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
+      0 1px 2px 0 rgba(15, 23, 42, 0.06),
+      0 24px 50px -34px rgba(15, 23, 42, 0.35);
+  }
+  .light .surface-panel::before {
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.9), transparent);
+  }
+  .light .surface-panel-hover:hover {
+    border-color: rgba(5, 193, 71, 0.45);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.95) inset,
+      0 28px 60px -34px rgba(5, 193, 71, 0.4),
+      0 18px 34px -24px rgba(15, 23, 42, 0.28);
+  }
+  .light .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.72));
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
+      0 16px 40px -28px rgba(15, 23, 42, 0.3);
+  }
+  .light .well {
+    background: rgba(15, 23, 42, 0.035);
+    border: 1px solid rgba(15, 23, 42, 0.07);
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset;
+  }
+  .light .chip {
+    border-color: rgba(15, 23, 42, 0.1);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.7));
+    color: #334155;
+  }
+  .light .hairline {
+    background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.14) 22%, rgba(15, 23, 42, 0.14) 78%, transparent);
+  }
+
+  /* Lighter, denser glass for toolbars and floating chrome. */
+  .glass {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+    backdrop-filter: blur(22px) saturate(160%);
+    -webkit-backdrop-filter: blur(22px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.1) inset,
+      0 18px 44px -26px rgba(0, 0, 0, 0.9);
+  }
+
+  /* An inset "well" for grouped content inside a panel. */
+  .well {
+    border-radius: 1rem;
+    background: rgba(3, 5, 8, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.03) inset, 0 12px 30px -22px rgba(0, 0, 0, 0.9) inset;
   }
 
   /* A hairline rule that fades at both ends — used to separate sections. */
   .hairline {
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12) 22%, rgba(255, 255, 255, 0.12) 78%, transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.14) 22%, rgba(255, 255, 255, 0.14) 78%, transparent);
+  }
+  .hairline-v {
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.14) 22%, rgba(255, 255, 255, 0.14) 78%, transparent);
   }
 
   /* Brand gradient wordmark text. */
   .text-gradient {
-    background: linear-gradient(100deg, #ffffff 0%, #d9ffe9 42%, #05C147 100%);
+    background: linear-gradient(100deg, #ffffff 0%, #e8fff2 40%, #05C147 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .text-gradient-emerald {
-    background: linear-gradient(100deg, #6ee7b7 0%, #05C147 55%, #0ea5e9 120%);
+    background: linear-gradient(100deg, #a7f3d0 0%, #05C147 52%, #22d3ee 118%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+  }
+
+  /* Editorial section eyebrow — the small uppercase kicker above headings. */
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(110, 231, 183, 0.85);
+  }
+
+  /* Tabular figures so live counters never jitter as they change. */
+  .figure {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
   }
 
   /* Pill chip — status readouts in the command bar. */
@@ -111,13 +237,14 @@
     align-items: center;
     gap: 0.4rem;
     border-radius: 9999px;
-    border: 1px solid rgba(255, 255, 255, 0.09);
-    background: rgba(255, 255, 255, 0.035);
-    padding: 0.28rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
+    padding: 0.3rem 0.65rem;
     font-size: 11px;
     font-weight: 600;
     letter-spacing: 0.01em;
-    color: #d4d4d4;
+    color: #d6dae0;
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.06) inset;
   }
 
   /* Live indicator dot with a soft ping ring. */
@@ -128,6 +255,7 @@
     height: 0.5rem;
     border-radius: 9999px;
     background: currentColor;
+    box-shadow: 0 0 10px 1px currentColor;
   }
   .live-dot::after {
     content: '';
@@ -144,20 +272,70 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background: linear-gradient(115deg, transparent 32%, rgba(255, 255, 255, 0.10) 48%, transparent 64%);
+    background: linear-gradient(115deg, transparent 34%, rgba(255, 255, 255, 0.12) 48%, transparent 62%);
     transform: translateX(-130%);
     animation: hero-sheen 9s ease-in-out infinite;
   }
+
+  /* Buttons — a small, consistent set so actions read the same everywhere. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    border-radius: 0.85rem;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    transition: transform 0.16s ease, box-shadow 0.22s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.975); }
+  .btn-primary {
+    background: linear-gradient(180deg, #0ad255, #05a53e);
+    color: #04120a;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.4) inset,
+      0 10px 26px -12px rgba(5, 193, 71, 0.7);
+  }
+  .btn-primary:hover {
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.5) inset,
+      0 14px 34px -12px rgba(5, 193, 71, 0.85);
+  }
+  .btn-ghost {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .btn-ghost:hover {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04));
+    border-color: rgba(255, 255, 255, 0.18);
+    color: #fff;
+  }
+  .btn-danger {
+    background: linear-gradient(180deg, rgba(244, 63, 94, 0.16), rgba(244, 63, 94, 0.06));
+    color: #fda4af;
+    border: 1px solid rgba(244, 63, 94, 0.35);
+  }
+  .btn-danger:hover { color: #fff; border-color: rgba(244, 63, 94, 0.6); }
 
   /* A KPI metric card: subtle lift + tone glow on hover. */
   .kpi-card {
     position: relative;
     overflow: hidden;
-    border-radius: 0.85rem;
-    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1), border-color 0.22s ease, box-shadow 0.28s ease;
+    border-radius: 1rem;
+    transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.3, 1), border-color 0.24s ease, box-shadow 0.3s ease;
   }
   .kpi-card:hover {
     transform: translateY(-3px);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.1) inset,
+      0 28px 60px -30px rgba(5, 193, 71, 0.35),
+      0 20px 40px -24px rgba(0, 0, 0, 0.9);
   }
   .kpi-card:active {
     transform: translateY(-1px) scale(0.99);
@@ -195,7 +373,7 @@
     transition: opacity 0.25s ease, transform 0.25s ease;
   }
   .kpi-card:hover .spark span {
-    opacity: 0.8;
+    opacity: 0.85;
   }
 
   /* 3D Depth Navigation & Card Utilities */
@@ -225,19 +403,19 @@
   }
 
   .shadow-3d-depth {
-    box-shadow: 
-      0 10px 30px -10px rgba(0, 0, 0, 0.5),
-      0 20px 25px -5px rgba(0, 0, 0, 0.3),
+    box-shadow:
+      0 10px 30px -10px rgba(0, 0, 0, 0.55),
+      0 20px 25px -5px rgba(0, 0, 0, 0.35),
       0 1px 3px 0 rgba(0, 0, 0, 0.4),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.09);
   }
 
   .shadow-3d-depth-hover {
-    box-shadow: 
-      0 20px 40px -15px rgba(5, 193, 71, 0.3),
-      0 12px 20px -8px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(5, 193, 71, 0.4),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+    box-shadow:
+      0 20px 40px -15px rgba(5, 193, 71, 0.32),
+      0 12px 20px -8px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(5, 193, 71, 0.42),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.16);
   }
 
   .shadow-3d-light {
@@ -256,11 +434,11 @@
 
   /* ---- Motion primitives ---- */
   .animate-fade-in {
-    animation: fade-in 0.35s ease-out both;
+    animation: fade-in 0.4s ease-out both;
   }
 
   .animate-rise {
-    animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+    animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
   }
 
   .animate-slide-down {
@@ -268,12 +446,12 @@
   }
 
   .animate-pop {
-    animation: pop 0.25s ease-out both;
+    animation: pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
   }
 
   /* Staggered list entrances */
   .stagger > * {
-    animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+    animation: rise 0.55s cubic-bezier(0.2, 0.8, 0.3, 1) both;
   }
   .stagger > *:nth-child(1) { animation-delay: 0.02s; }
   .stagger > *:nth-child(2) { animation-delay: 0.06s; }
@@ -281,6 +459,8 @@
   .stagger > *:nth-child(4) { animation-delay: 0.14s; }
   .stagger > *:nth-child(5) { animation-delay: 0.18s; }
   .stagger > *:nth-child(6) { animation-delay: 0.22s; }
+  .stagger > *:nth-child(7) { animation-delay: 0.26s; }
+  .stagger > *:nth-child(8) { animation-delay: 0.3s; }
 
   /* Hide scrollbars on horizontal tab strips while keeping scroll */
   .no-scrollbar {
@@ -304,22 +484,22 @@
   /* Each tile rises in on mount (delay set per-tile for a stagger), lifts on
      hover, springs its icon and slides a light sheen across the surface. */
   .tile {
-    animation: tile-in 0.4s cubic-bezier(0.2, 0.8, 0.3, 1) both;
-    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.25s ease,
-      border-color 0.2s ease, background-color 0.2s ease;
+    animation: tile-in 0.44s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+    transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.28s ease,
+      border-color 0.22s ease, background-color 0.22s ease;
   }
   .tile:hover:not(:disabled) {
-    transform: translateY(-3px);
+    transform: translateY(-4px);
   }
   .tile:active:not(:disabled) {
     transform: translateY(-1px) scale(0.98);
   }
   .tile:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.65), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.7), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
   }
   .tile .tile-icon {
-    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1), background-color 0.2s ease;
+    transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1), background-color 0.22s ease;
   }
   .tile:hover:not(:disabled) .tile-icon {
     transform: scale(1.12) rotate(-6deg);
@@ -336,7 +516,7 @@
   /* Radial bloom in the tone colour, so the icon corner glows. */
   .tile .tile-bloom {
     pointer-events: none;
-    background: radial-gradient(circle, rgba(var(--tile-glow, 16, 185, 129), 0.5) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(var(--tile-glow, 16, 185, 129), 0.55) 0%, transparent 70%);
   }
   /* The animated "logo": the icon chip gets a steady halo. A solid halo
      (box-shadow) is one of the most repaint-expensive CSS properties, so the
@@ -362,7 +542,7 @@
     background: conic-gradient(
       from 0deg,
       transparent 0deg,
-      rgba(var(--tile-glow, 16, 185, 129), 0.16) 70deg,
+      rgba(var(--tile-glow, 16, 185, 129), 0.18) 70deg,
       transparent 140deg
     );
     animation: tile-spin-in 0.9s ease-out both;
@@ -378,7 +558,7 @@
     background: linear-gradient(
       115deg,
       transparent 30%,
-      rgba(255, 255, 255, 0.14) 48%,
+      rgba(255, 255, 255, 0.16) 48%,
       transparent 62%
     );
     transform: translateX(-120%);
@@ -424,10 +604,10 @@
     will-change: transform, opacity;
   }
   .ride-entering {
-    animation: ride-in 0.42s cubic-bezier(0.22, 0.9, 0.28, 1) both;
+    animation: ride-in 0.46s cubic-bezier(0.22, 0.9, 0.28, 1) both;
   }
   .ride-exiting {
-    animation: ride-back 0.42s cubic-bezier(0.4, 0, 0.6, 1) both;
+    animation: ride-back 0.46s cubic-bezier(0.4, 0, 0.6, 1) both;
   }
   @media (prefers-reduced-motion: reduce) {
     .ride-entering,
@@ -436,6 +616,7 @@
     }
   }
 }
+
 
 @keyframes tile-in {
   from { opacity: 0; transform: translateY(14px) scale(0.96); }

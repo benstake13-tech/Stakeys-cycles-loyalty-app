@@ -56,7 +56,7 @@ export const CareSchedulePanel: React.FC<CareSchedulePanelProps> = ({ bikes, onB
       </div>
 
       {bikes.length === 0 ? (
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-10 text-center space-y-3">
+        <div className="surface-panel p-10 text-center space-y-3">
           <BikeIcon className="w-8 h-8 text-neutral-500 mx-auto" />
           <div className="font-display text-base font-bold text-white">No bikes to schedule yet</div>
           <p className="text-xs text-neutral-400 max-w-sm mx-auto">
@@ -70,7 +70,7 @@ export const CareSchedulePanel: React.FC<CareSchedulePanelProps> = ({ bikes, onB
             const overall = overallCareStatus(entries);
             const meta = STATUS_META[overall];
             return (
-              <div key={bike.id} className="rounded-2xl border border-neutral-800 bg-[#0d1015] overflow-hidden">
+              <div key={bike.id} className="surface-panel overflow-hidden">
                 <div className="p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-neutral-800">
                   <div>
                     <div className="text-[10px] font-mono uppercase tracking-wider text-neutral-500">

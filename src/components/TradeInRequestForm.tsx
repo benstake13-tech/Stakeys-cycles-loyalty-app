@@ -222,7 +222,7 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
       )}
 
       {/* Seven guided angle slots */}
-      <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-5 space-y-4">
+      <div className="surface-panel p-5 space-y-4">
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Photos</span>
           <span className="text-xs font-mono text-emerald-400">{capturedCount} / {SELL_ANGLES.length}</span>
@@ -326,13 +326,13 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
               )}
             </div>
           ) : (
-            <div className="rounded-xl border border-neutral-800 bg-[#0b0e13] p-4 text-xs text-neutral-400">
+            <div className="surface-panel p-4 text-xs text-neutral-400">
               We couldn’t match this bike to the price book automatically — the workshop will price it by hand.
             </div>
           )}
 
           {valuation?.conditionPrices?.length ? (
-            <div className="rounded-xl border border-neutral-800 bg-[#0b0e13] p-3">
+            <div className="surface-panel p-3">
               <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 mb-2">Price by condition</div>
               <div className="grid grid-cols-4 gap-2 text-center">
                 {valuation.conditionPrices.map((cp) => (
@@ -376,12 +376,12 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Confirm brand</span>
               <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Giant"
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Confirm model</span>
               <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. Escape 3"
-                className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+                className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
           </div>
 
@@ -394,17 +394,17 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
       )}
 
       {/* Details + submit — always visible so the customer can type them directly. */}
-      <form onSubmit={submit} className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-6 space-y-4">
+      <form onSubmit={submit} className="surface-panel p-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="space-y-1.5">
             <span className="text-xs font-semibold text-neutral-400">Brand *</span>
             <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Giant"
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+              className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
           </label>
           <label className="space-y-1.5">
             <span className="text-xs font-semibold text-neutral-400">Model *</span>
             <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g. Escape 3"
-              className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
+              className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
           </label>
         </div>
 
@@ -424,7 +424,7 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
           <span className="text-xs font-semibold text-neutral-400">Anything we should know? (optional)</span>
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
             placeholder="Mileage, service history, faults, upgrades…"
-            className="w-full rounded-xl border border-neutral-800 bg-[#090b0e] text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none resize-none" />
+            className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none resize-none" />
         </label>
         <button type="submit"
           className="pressable w-full py-3 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer">

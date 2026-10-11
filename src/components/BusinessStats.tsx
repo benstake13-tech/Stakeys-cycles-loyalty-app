@@ -35,7 +35,7 @@ import {
   summarizeShop,
 } from '../utils/performanceInsights';
 
-const cardCls = 'bg-[#0e1217] border border-neutral-800 rounded-3xl p-5 shadow-xl';
+const cardCls = 'surface-panel !rounded-3xl p-5 shadow-xl';
 
 const fmt = (n: number | undefined | null): string => {
   if (n == null || Number.isNaN(n)) return '—';

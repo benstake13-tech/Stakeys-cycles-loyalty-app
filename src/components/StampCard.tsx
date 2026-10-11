@@ -259,7 +259,7 @@ export const StampCard: React.FC<StampCardProps> = ({
 
       {/* MY ACTIVE VOUCHERS LIST */}
       {vouchers.length > 0 && (
-        <div className="rounded-2xl border border-neutral-800 bg-[#0d1015] p-6 space-y-4">
+        <div className="surface-panel p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-display text-base font-bold text-white flex items-center gap-2">
               <Award className="w-4 h-4 text-emerald-400" />
@@ -272,7 +272,7 @@ export const StampCard: React.FC<StampCardProps> = ({
             {vouchers.map((v) => (
               <div
                 key={v.id}
-                className="p-4 rounded-xl border border-neutral-800 bg-[#090b0e] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                className="p-4 surface-panel flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">

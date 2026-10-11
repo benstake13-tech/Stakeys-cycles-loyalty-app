@@ -22,7 +22,7 @@ export const StaffBackendTab: React.FC = () => {
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
+      <div className="surface-panel p-6 sm:p-7 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
@@ -67,7 +67,7 @@ export const StaffBackendTab: React.FC = () => {
       <ServiceStatusBadge variant="full" />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-5">
+        <div className="surface-panel p-5">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
             <KeyRound className="w-4 h-4 text-emerald-400" /> Credentials
           </div>
@@ -78,7 +78,7 @@ export const StaffBackendTab: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-5">
+        <div className="surface-panel p-5">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
             <HardDriveDownload className="w-4 h-4 text-amber-400" /> Schema drift
           </div>
