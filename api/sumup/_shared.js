@@ -28,6 +28,13 @@ export const SUMUP_AFFILIATE_ENV_NAMES = [
   'VITE_SUMUP_AFFILIATE_KEY',
 ];
 
+/**
+ * Env var names for the application identifier the affiliate key was created
+ * against. SumUp validates `app-id` in the Payment Switch URL against the key,
+ * so it must match whatever identifier was entered when the key was generated.
+ */
+export const SUMUP_APP_ID_ENV_NAMES = ['SUMUP_APP_ID', 'VITE_SUMUP_APP_ID'];
+
 const trimValue = (raw) =>
   typeof raw === 'string' ? raw.trim().replace(/^["']|["']$/g, '') : '';
 
@@ -49,12 +56,14 @@ export function resolveSumupConfig(env = process.env) {
   const merchantCode = firstEnv(env, SUMUP_MERCHANT_ENV_NAMES);
   const readerId = firstEnv(env, ['SUMUP_READER_ID']);
   const affiliateKey = firstEnv(env, SUMUP_AFFILIATE_ENV_NAMES);
+  const appId = firstEnv(env, SUMUP_APP_ID_ENV_NAMES);
   const currency = (firstEnv(env, ['SUMUP_CURRENCY']) || 'GBP').toUpperCase();
   return {
     key,
     merchantCode,
     readerId,
     affiliateKey,
+    appId,
     currency,
     // Online checkout needs a REST key + merchant code; Tap to Pay (Payment
     // Switch) only needs the affiliate key, which is launched from the client.
