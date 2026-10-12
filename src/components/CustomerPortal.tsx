@@ -20,6 +20,7 @@ import {
 import { useShop } from '../context/ShopContext';
 
 import { StampCard } from './StampCard';
+import { MemberOverview } from './MemberOverview';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
 import { RepairInvoiceModal } from './RepairInvoiceModal';
@@ -30,7 +31,6 @@ import {
   BRAND_MODELS_MAP,
   BIKE_CATEGORY_OPTIONS,
 } from '../data/bikeCatalog';
-import { generateBarcodeValue } from '../api/firebaseService';
 import { scrapeBikeStockSpecs } from '../utils/bikeScraperService';
 
 interface CustomerPortalProps {
@@ -72,8 +72,6 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       b.customerEmail.toLowerCase() === currentUser.email.toLowerCase() ||
       (b.membershipNumber && b.membershipNumber === currentUser.membershipNumber)
   );
-
-  const barcodeValue = generateBarcodeValue(currentUser.membershipNumber);
 
   const handleStartBookingForBike = (bikeId: string) => {
     setSelectedBikeForBooking(bikeId);
@@ -131,30 +129,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
   return (
     <div className="space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
-      {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
-      <section aria-label="Digital Membership Pass & Barcode" className="w-full">
-        <iframe 
-          width="600" 
-          height="450" 
-          src="https://datastudio.google.com/embed/reporting/4b9da3c1-e567-4ddd-b813-99579d4bc15d/page/YnNAG" 
-          frameBorder="0" 
-          style={{ border: 0 }} 
-          allowFullScreen 
-          sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        ></iframe>
-        <iframe 
-          width="600" 
-          height="450" 
-          src="https://datastudio.google.com/embed/reporting/2155bc27-a629-41f4-82bd-dcfab6721bb3/page/p_frj0kb3y7d" 
-          frameBorder="0" 
-          style={{ border: 0 }} 
-          allowFullScreen 
-          sandbox="allow-storage-access-by-user-activation allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-        ></iframe>
-      </section>
-
       {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
-      <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
+      <div className="relative rounded-[30px] overflow-hidden border border-emerald-500/15 bg-[#0d1015] shadow-[0_30px_80px_-50px_rgba(0,0,0,.85)]">
         {/* Background Workshop Image Asset */}
         <div className="absolute inset-0 z-0">
           <img
@@ -213,6 +189,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
           </div>
         </div>
       </div>
+
+      <MemberOverview
+        user={currentUser}
+        bikesCount={customerBikes.length}
+        bookingsCount={customerBookings.length}
+        onNavigate={setActiveTab}
+      />
 
       {/* Full Stamps Alert Callout */}
       {(currentUser.stamps || 0) >= 10 && (
@@ -331,11 +314,29 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               <Plus className="w-3.5 h-3.5" />
               <span>Add Bike to Garage</span>
             </button>
-            <BikeIdentificationEngine 
+            <BikeIdentificationEngine
               onAnalysisComplete={(analysis) => {
-                console.log('Bike Identified:', analysis);
-                // Future: pre-fill bike registration modal here
-              }} 
+                const identified = analysis?.identified_bike;
+                if (!identified) return;
+                const category = identified.type;
+                if (['cycle', 'ebike', 'electric_scooter', 'cargo'].includes(category)) {
+                  setNewBikeCategory(category as VehicleCategory);
+                }
+                const brand = String(identified.make || '').trim();
+                const model = String(identified.model || '').trim();
+                if (POPULAR_BIKE_BRANDS.includes(brand)) {
+                  setNewBikeBrand(brand);
+                  if ((BRAND_MODELS_MAP[brand] || []).includes(model)) {
+                    setNewBikeModel(model);
+                    setNewBikeCustomModel('');
+                  } else {
+                    setNewBikeModel('Other Model');
+                    setNewBikeCustomModel(model === 'Unknown' ? '' : model);
+                  }
+                }
+                setNewBikeNotes(`AI photo suggestion: ${brand || 'Unconfirmed'} ${model || ''}. Confirm the details before saving.`);
+                setIsAddBikeModalOpen(true);
+              }}
             />
           </div>
 
@@ -373,7 +374,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               {customerBikes.map((bike) => (
                 <div
                   key={bike.id}
-                  className="group rounded-2xl border border-neutral-800/80 hover:border-neutral-700 bg-[#0d1015] overflow-hidden transition-all shadow-lg flex flex-col justify-between"
+                  className="group rounded-[26px] border border-white/10 hover:border-emerald-500/45 bg-[#10151b] overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_40px_-25px_rgba(5,193,71,.35)] shadow-xl flex flex-col justify-between"
                 >
                   {/* Vehicle Studio Photography Showcase */}
                   <div className="relative aspect-[16/9] w-full overflow-hidden bg-neutral-900">
@@ -381,7 +382,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                       src={getBikeImage(bike.category)}
                       alt={`${bike.brand} ${bike.model}`}
                       referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover object-center group-hover:scale-[1.02] transition-transform duration-500"
+                      className="w-full h-full object-cover object-center group-hover:scale-[1.06] transition-transform duration-700"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-[#0d1015] via-transparent to-black/20" />
 
@@ -725,7 +726,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                     onChange={(e) => setNewBikeModel(e.target.value)}
                     className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                   >
-                    {(BRAND_MODELS_MAP[newBikeBrand] || ['Standard Model', 'Other Model']).map((m) => (
+                    {Array.from(new Set([...(BRAND_MODELS_MAP[newBikeBrand] || ['Standard Model']), 'Other Model'])).map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
