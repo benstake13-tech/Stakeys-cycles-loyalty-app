@@ -55,7 +55,7 @@ export const StampCard: React.FC<StampCardProps> = ({
   return (
     <div className="space-y-6">
       {/* 10-Stamp Card Main Box */}
-      <div className="relative overflow-hidden rounded-2xl bg-[#0d1015] p-6 sm:p-8 border border-neutral-800 shadow-2xl text-white">
+      <div className="atelier-surface p-6 sm:p-9 text-white">
         {/* Subtle architectural grid pattern */}
         <div className="absolute inset-0 bg-[radial-gradient(#1f2937_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none" />
 
@@ -73,7 +73,7 @@ export const StampCard: React.FC<StampCardProps> = ({
               <span>1 Visit Per Day</span>
             </div>
 
-            <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-white">
+            <h2 className="atelier-display text-[25px] sm:text-3xl text-white">
               10-Visit Stamp Journey
             </h2>
             <p className="text-xs text-neutral-300 mt-1 max-w-md">
@@ -82,10 +82,10 @@ export const StampCard: React.FC<StampCardProps> = ({
           </div>
 
           {/* Counter Metric */}
-          <div className="flex items-center gap-3 bg-[#090b0e] px-4 py-2.5 rounded-xl border border-neutral-800 shrink-0">
+          <div className="flex items-center gap-3 bg-[#071713] px-5 py-3 rounded-2xl border border-emerald-200/20 shrink-0">
             <div className="text-right">
               <div className="text-[11px] text-neutral-400 font-medium">Stamps Earned</div>
-              <div className="font-mono text-xl font-bold text-[#05C147] tabular-nums">
+              <div className="atelier-display text-2xl text-[#a8ffd2] tabular-nums">
                 {currentStamps} <span className="text-xs font-normal text-neutral-500">/ 10</span>
               </div>
             </div>
@@ -97,7 +97,7 @@ export const StampCard: React.FC<StampCardProps> = ({
 
         {/* REWARD COLLECT CALLOUT WHEN STAMPS FULL */}
         {isFull && (
-          <div className="relative z-10 my-5 p-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-[#0d1e13] to-neutral-950 border-2 border-[#05C147] shadow-[0_0_25px_rgba(5,193,71,0.2)] animate-fade-in flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="relative z-10 my-5 p-5 sm:p-6 rounded-[24px] bg-gradient-to-r from-[#184d33] via-[#103c2b] to-[#12251f] border border-emerald-300/55 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
             <div className="space-y-1">
               <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-bold uppercase tracking-wider">
                 <Flame className="w-4 h-4 fill-emerald-400" />
@@ -115,7 +115,7 @@ export const StampCard: React.FC<StampCardProps> = ({
               type="button"
               onClick={handleCollect}
               disabled={isCollecting}
-              className="px-5 py-3 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/30 active:scale-95 transition-all cursor-pointer shrink-0 disabled:opacity-50"
+              className="atelier-primary px-5 py-3 text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shrink-0 disabled:opacity-50"
             >
               <Award className="w-4 h-4 fill-neutral-950" />
               <span>{isCollecting ? 'Claiming...' : 'Press to Collect'}</span>
@@ -133,19 +133,19 @@ export const StampCard: React.FC<StampCardProps> = ({
             return (
               <div
                 key={slotNum}
-                className={`relative rounded-xl p-3.5 flex flex-col items-center justify-center transition-all duration-300 min-h-[100px] border ${
+                className={`relative rounded-[18px] p-3.5 flex flex-col items-center justify-center transition-all duration-300 min-h-[110px] border ${
                   isStamped
                     ? isTenth
-                      ? 'bg-gradient-to-b from-emerald-500/25 to-emerald-600/10 border-emerald-400 text-emerald-300 shadow-[0_0_20px_rgba(5,193,71,0.2)]'
-                      : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-300 shadow-[0_0_12px_rgba(5,193,71,0.1)]'
+                      ? 'bg-gradient-to-br from-emerald-300/30 to-emerald-800/15 border-emerald-300/70 text-emerald-200 shadow-[0_10px_25px_-14px_rgba(79,236,155,.38)]'
+                      : 'bg-gradient-to-br from-[#244f3d] to-[#162b26] border-emerald-400/45 text-emerald-200 shadow-[inset_0_1px_0_rgba(255,255,255,.07)]'
                     : isTenth
                     ? 'bg-neutral-900/60 border-dashed border-emerald-500/40 text-emerald-400/80 hover:border-emerald-400'
-                    : 'bg-neutral-900/40 border-dashed border-neutral-800 text-neutral-500 hover:border-neutral-700'
+                    : 'bg-[#101a1a] border-emerald-100/10 text-neutral-500 hover:border-emerald-300/30'
                 }`}
               >
                 {/* Slot Index */}
                 <span className="absolute top-2 left-2.5 font-mono text-[10px] text-neutral-500">
-                  0{slotNum === 10 ? '10' : slotNum}
+                  {String(slotNum).padStart(2, '0')}
                 </span>
 
                 {/* Icon */}
