@@ -580,3 +580,15 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - Env: server needs SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY / SERVICE_ROLE_KEY) + ADMIN_EMAILS (or VITE_ADMIN_EMAILS) for the admin gate. api/ now 9 counted functions (Hobby limit 12).
 - Heads: customer-app f2d9acf / staff-terminal 74971d6 / main-website 041f211 (local, NOT pushed). Full suite 158 files / 1359 pass.
 - APK rebuild needs a fresh Android toolchain: apt openjdk-21-jdk-headless + cmdline-tools to /opt/android-sdk; run sudo chown -R $(id -u):$(id -g) /opt/android-sdk BEFORE sdkmanager or it silently installs nothing. build-apps.sh --only customer|staff; run detached (setsid nohup ... </dev/null) or the shell SIGTSTPs it. Both APKs 9.00 MB; previews rebuilt with /previews/<s>/ base + guide recopied; hub /tmp/stakeys-website refreshed (12000/12001).
+
+## Session 20 (2026-10-12e) — native sign-in still failing: it is a DEPLOY + DB problem
+- Root cause split three ways: (1) the auth fix commits are **unpushed/undeployed** — `/api/auth/health`
+  irls 404 on all live domains though other /api functions 200; (2) the Supabase project still has
+  `mailer_autoconfirm:false` + dead SMTP (signup 500, member logins `invalid_credentials`); (3) no
+  service-role/admin cred in the sandbox, and repair RPCs are correctly anon-denied (42501).
+- Ionic key insight: existing members cannot sign in until a **service-role password reset** (or mass
+  reset); `mailer_autoconfirm=true` only unblocks signup, not existing passwords. `profiles` being
+  anon-readable exposes emails/member numbers — flag to owner.
+- `fetchAuthHealth` now falls back to Supabase's public `/auth/v1/settings` (baked anon key) when
+  `/api/auth/health` is absent, so the "service misconfigured" diagnosis survives a static-only deploy.
+  Commit 58e470e on all three branches; new authHealth.test.ts; 32/32 auth tests; APK 9.85 MB rebuilt.
