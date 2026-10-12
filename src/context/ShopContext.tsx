@@ -835,56 +835,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cleanIdentifier = identifier.trim();
       let loginEmail = cleanIdentifier.toLowerCase();
 
-      // The sign-in screen accepts email, username, or membership number.
-      // Supabase password auth needs an email/phone, so resolve non-email
-      // identifiers against the customer profile before authenticating.
+      // Account lookup is private under RLS. Sign in with email first;
+      // never expose customer emails through unauthenticated profile queries.
       if (!cleanIdentifier.includes('@')) {
-        const { data: memberProfile, error: memberLookupError } = await authClient
-          .from('profiles')
-          .select('email')
-          .eq('membership_number', cleanIdentifier.toUpperCase())
-          .maybeSingle();
-
-        if (memberLookupError) {
-          console.error('Membership lookup failed:', memberLookupError);
-          return { success: false, message: 'Could not look up that membership number. Please try your email address instead.' };
-        }
-
-        if (memberProfile?.email) {
-          loginEmail = String(memberProfile.email).trim().toLowerCase();
-        } else {
-          const { data: namedProfile, error: nameLookupError } = await authClient
-            .from('profiles')
-            .select('email')
-            .ilike('display_name', cleanIdentifier)
-            .limit(2);
-
-          if (nameLookupError) {
-            console.error('Username lookup failed:', nameLookupError);
-            return { success: false, message: 'Could not look up that username. Please try your email address instead.' };
-          }
-
-          if (namedProfile?.length === 1 && namedProfile[0].email) {
-            loginEmail = String(namedProfile[0].email).trim().toLowerCase();
-          } else {
-            return {
-              success: false,
-              message: namedProfile && namedProfile.length > 1
-                ? 'That name matches more than one account. Please sign in using your email address or membership number.'
-                : 'No account was found for that email, username, or membership number.',
-            };
-          }
-        }
+        return { success: false, message: 'Please sign in using your email address.' };
       }
 
       // 1. Authenticate with Supabase Auth
       const { data, error } = await authClient.auth.signInWithPassword({
         email: loginEmail,
-        password: password.trim(),
+        password,
       });
 
       if (error || !data.user) {
-        return { success: false, message: 'Invalid email, username, membership number, or password.' };
+        return { success: false, message: 'Invalid email or password.' };
       }
 
       // 2. Fetch the profile for this authenticated account. Older registrations
