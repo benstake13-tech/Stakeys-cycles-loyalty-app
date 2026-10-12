@@ -30,3 +30,16 @@ export function apiUrl(path: string): string {
   if (/^[a-z][a-z0-9+.-]*:/i.test(path) || path.startsWith('//')) return path;
   return `${API_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
 }
+
+/**
+ * The origin to use for links that leave the app: share URLs, Supabase auth
+ * email redirects, and OAuth redirect URIs. On the web this is just the page
+ * origin. In the native build the page origin is the local WebView
+ * (`https://localhost`), which would produce dead links, so the deployed origin
+ * is used instead. `API_BASE_URL` being set is exactly the native-build signal.
+ */
+export function publicOrigin(): string {
+  if (API_BASE_URL) return API_BASE_URL;
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
+  return 'https://www.stakeys-cycles.co.uk';
+}

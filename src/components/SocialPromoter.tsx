@@ -20,6 +20,7 @@ import {
   SocialTarget,
 } from '../utils/metaPublishing';
 import { promotionOfferText } from '../utils/performanceInsights';
+import { publicOrigin } from '../utils/apiBase';
 
 const cardCls = 'surface-panel !rounded-3xl p-5 shadow-xl';
 
@@ -59,7 +60,7 @@ export const SocialPromoter: React.FC = () => {
   const [history, setHistory] = useState<PostHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const origin = publicOrigin();
 
   // Recompose the caption whenever the chosen promotion changes; staff can still
   // hand-edit it afterwards.
