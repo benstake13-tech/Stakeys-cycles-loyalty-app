@@ -1,3 +1,5 @@
+import 'dotenv/config';
+import { scanBikeWithGemini } from './src/server/geminiVision';
 import express from 'express';
 import { createServer } from 'vite';
 import { fileURLToPath } from 'url';
@@ -7,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function startServer() {
   const app = express();
-  app.use(express.json());
+  app.use(express.json({ limit: '8mb' }));
 
   const vite = await createServer({
     server: { middlewareMode: true },
@@ -16,11 +18,22 @@ async function startServer() {
 
   app.use(vite.middlewares);
 
-  // Gemini API Route
+  // Gemini API: server-side key only. Image payloads never go in a URL.
   app.post('/api/gemini/scan-bike', async (req, res) => {
-    // Implementation in next turn to save quota
-    res.status(501).json({ error: 'Not implemented' });
+    try {
+      const analysis = await scanBikeWithGemini(req.body?.image);
+      res.json(analysis);
+    } catch (error: any) {
+      console.error('[Gemini vision]', error);
+      res.status(error.status || 502).json({ error: error.status ? error.message : 'Bike analysis is currently unavailable. Please try again.' });
+    }
   });
+
+  const vite = await createServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
+  app.use(vite.middlewares);
 
   // Google Business API Proxy Route
   app.get('/api/google-business', async (req, res) => {
