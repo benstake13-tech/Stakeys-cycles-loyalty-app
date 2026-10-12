@@ -260,7 +260,7 @@ export const StaffBookingsTab: React.FC = () => {
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Top Banner: Notifications Settings & Status */}
-      <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+      <div className="atelier-surface p-6 sm:p-8">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-[#05C147] flex items-center justify-center shrink-0">
@@ -290,7 +290,7 @@ export const StaffBookingsTab: React.FC = () => {
 
             <button
               onClick={handleSendTestAlert}
-              className="px-4 py-2 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 text-xs font-black flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-emerald-500/20"
+              className="atelier-primary px-4 py-2.5 text-xs flex items-center gap-2 cursor-pointer"
             >
               <Send className="w-4 h-4" />
               <span>Send Test Email</span>
@@ -477,7 +477,7 @@ export const StaffBookingsTab: React.FC = () => {
 
       {/* Pending Repair Requests Banner */}
       {pendingCount > 0 && (
-        <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-neutral-900 border-2 border-amber-400 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-amber-200 shadow-[0_0_35px_rgba(245,158,11,0.4)] animate-fade-in">
+        <div className="rounded-[26px] bg-gradient-to-r from-[#342919] to-[#192b22] border border-amber-300/45 p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-amber-200 shadow-xl">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-amber-400 text-neutral-950 shrink-0 border border-amber-300 flex items-center justify-center font-black shadow-lg shadow-amber-400/40 animate-bounce">
               <Clock className="w-6 h-6 text-neutral-950" />
@@ -509,7 +509,7 @@ export const StaffBookingsTab: React.FC = () => {
       )}
 
       {/* Filter and Stats Bar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-neutral-900/80 p-4 rounded-2xl border border-neutral-800">
+      <div className="atelier-surface p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-neutral-400 font-semibold mr-1 flex items-center gap-1">
             <Filter className="w-3.5 h-3.5" /> Filter:
@@ -565,7 +565,7 @@ export const StaffBookingsTab: React.FC = () => {
       {/* Bookings List */}
       <div className="space-y-4">
         {filteredBookings.length === 0 ? (
-          <div className="bg-neutral-900 border border-neutral-800 rounded-3xl p-12 text-center text-neutral-500">
+          <div className="atelier-surface p-12 text-center text-neutral-500">
             <Wrench className="w-10 h-10 mx-auto mb-3 opacity-30" />
             <p className="text-sm font-semibold">No bookings found for the selected filter.</p>
             <p className="text-xs text-neutral-500 mt-1">New appointments will appear here as soon as customers book.</p>
@@ -576,11 +576,7 @@ export const StaffBookingsTab: React.FC = () => {
             return (
               <div
                 key={b.id}
-                className={`transition-all rounded-3xl p-5 sm:p-6 shadow-lg space-y-4 relative ${
-                  isFresh
-                    ? 'bg-[#12100d] border-2 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.25)] ring-1 ring-amber-400/50'
-                    : 'bg-neutral-900 hover:bg-neutral-850/80 border border-neutral-800'
-                }`}
+                className={`atelier-bike p-5 sm:p-7 space-y-4 relative ${isFresh ? 'border-amber-400/65 bg-[#262116]' : ''}`}
               >
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
