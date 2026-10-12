@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
  * row, `h.updates` records what the store wrote back.
  */
 const h = vi.hoisted(() => ({
-  row: { sell_offerbook_json: null, sell_condition_bands_json: null } as Record<string, any>,
+  row: { sell_offerbook_json: null } as Record<string, any>,
   selectError: null as null | { message: string },
   updates: [] as any[],
 }));
@@ -42,7 +42,7 @@ async function fresh() {
 
 beforeEach(() => {
   localStorage.clear();
-  h.row = { sell_offerbook_json: null, sell_condition_bands_json: null };
+  h.row = { sell_offerbook_json: null };
   h.selectError = null;
   h.updates = [];
 });
@@ -85,41 +85,5 @@ describe('OfferPriceBook — Supabase sync', () => {
 
     expect(ok).toBe(false);
     expect(store.getOfferPrices().length).toBeGreaterThan(0); // seeded defaults
-  });
-
-  it('hydrates condition bands from a wrapped payload', async () => {
-    h.row.sell_condition_bands_json = {
-      bands: { excellent: 1.5, good: 1, fair: 0.5, poor: 0.25 },
-      updatedAt: '2030-01-01T00:00:00.000Z',
-    };
-    const store = await fresh();
-
-    await store.syncOfferBandsFromSupabase(true);
-
-    const b = store.getOfferConditionBands();
-    expect(b.excellent).toBeCloseTo(1.5);
-    expect(b.poor).toBeCloseTo(0.25);
-  });
-
-  it('accepts a bare (unwrapped) bands object for back-compat', async () => {
-    h.row.sell_condition_bands_json = { excellent: 2, good: 1, fair: 0.5, poor: 0.2 };
-    const store = await fresh();
-
-    await store.syncOfferBandsFromSupabase(true);
-
-    expect(store.getOfferConditionBands().excellent).toBeCloseTo(2);
-  });
-
-  it('keeps newer local condition bands over an older server copy', async () => {
-    h.row.sell_condition_bands_json = {
-      bands: { excellent: 9, good: 9, fair: 9, poor: 9 },
-      updatedAt: '2020-01-01T00:00:00.000Z',
-    };
-    const store = await fresh();
-    store.setOfferConditionBands({ excellent: 1.2, good: 1, fair: 0.6, poor: 0.3 });
-
-    await store.syncOfferBandsFromSupabase(true);
-
-    expect(store.getOfferConditionBands().excellent).toBeCloseTo(1.2);
   });
 });

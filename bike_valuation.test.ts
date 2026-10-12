@@ -74,23 +74,36 @@ describe('resolveCondition', () => {
 });
 
 describe('valueBike', () => {
-  it('applies the condition multiplier and rounds to £5', () => {
-    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'excellent' }, book);
-    // 200 * 1.15 = 230
-    expect(v.offer).toBe(230);
+  it('offers the staff base price for good condition', () => {
+    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'good' }, book);
+    expect(v.offer).toBe(200);
     expect(v.basePrice).toBe(200);
     expect(v.matchLevel).toBe('model');
+    expect(v.conditionSource).toBe('explicit');
   });
 
-  it('deducts for serious faults', () => {
-    const clean = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle' }, book);
+  it('offers nothing when staff have not priced that condition grade', () => {
+    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'excellent' }, book);
+    expect(v.offer).toBeNull();
+    expect(v.needsStaffReview).toBe(true);
+    expect(v.rationale.join(' ')).toMatch(/no staff price/i);
+  });
+
+  it('reports faults but never deducts them from the staff price', () => {
+    const clean = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'good' }, book);
     const damaged = valueBike(
-      { make: 'Trek', model: 'Marlin 5', type: 'cycle', faults: [{ severity: 'High' }, { severity: 'Critical safety risk' }] },
+      {
+        make: 'Trek',
+        model: 'Marlin 5',
+        type: 'cycle',
+        declaredCondition: 'good',
+        faults: [{ severity: 'High' }, { severity: 'Critical safety risk' }],
+      },
       book
     );
-    expect(damaged.offer!).toBeLessThan(clean.offer!);
-    expect(damaged.adjustments.some((a) => a.amount < 0)).toBe(true);
-    expect(damaged.needsStaffReview).toBe(true);
+    expect(damaged.offer).toBe(clean.offer);
+    expect(damaged.adjustments.length).toBeGreaterThan(0);
+    expect(damaged.adjustments.every((a) => a.amount === 0)).toBe(true);
   });
 
   it('returns no offer when the bike cannot be matched', () => {
@@ -109,54 +122,36 @@ describe('valueBike', () => {
     expect(v.needsStaffReview).toBe(true);
   });
 
-  it('adds an uplift for an electric conversion of a normal bike', () => {
-    const plain = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle' }, book);
-    const electric = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', electricKit: { isElectric: true } }, book);
-    expect(electric.offer!).toBeGreaterThan(plain.offer!);
+  it('never lets the AI invent a price from the electric kit', () => {
+    const plain = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'good' }, book);
+    const electric = valueBike(
+      { make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'good', electricKit: { isElectric: true } },
+      book
+    );
+    expect(electric.offer).toBe(plain.offer);
   });
 });
 
-describe('condition price bands', () => {
-  it('prices the bike at every condition grade', () => {
+describe('condition ladder — staff prices only', () => {
+  it('prices only the grades staff have set', () => {
     const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle' }, book);
     const byCondition = Object.fromEntries(v.conditionPrices.map((c) => [c.condition, c.price]));
-    // base £200 × default bands, rounded to £5.
-    expect(byCondition.excellent).toBe(230);
+    // The base price is the good-condition figure; the other grades are unset.
     expect(byCondition.good).toBe(200);
-    expect(byCondition.fair).toBe(160);
-    expect(byCondition.poor).toBe(110);
+    expect(byCondition.excellent).toBeNull();
+    expect(byCondition.fair).toBeNull();
+    expect(byCondition.poor).toBeNull();
   });
+});
 
-  it('honours staff-tuned condition bands', () => {
+describe('cosmetic findings', () => {
+  it('reports blemishes without touching the staff price', () => {
     const v = valueBike(
       {
         make: 'Trek',
         model: 'Marlin 5',
         type: 'cycle',
-        conditionBands: { excellent: 1.2, good: 1, fair: 0.7, poor: 0.4 },
-      },
-      book
-    );
-    const byCondition = Object.fromEntries(v.conditionPrices.map((c) => [c.condition, c.price]));
-    expect(byCondition.fair).toBe(140); // 200 × 0.7
-    expect(byCondition.poor).toBe(80); // 200 × 0.4
-  });
-
-  it('applies the band for the resolved condition', () => {
-    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', declaredCondition: 'fair' }, book);
-    expect(v.condition).toBe('fair');
-    expect(v.offer).toBe(160);
-  });
-});
-
-describe('cosmetic damage', () => {
-  it('deducts for scratches and dents the AI spotted', () => {
-    const clean = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle' }, book);
-    const damaged = valueBike(
-      {
-        make: 'Trek',
-        model: 'Marlin 5',
-        type: 'cycle',
+        declaredCondition: 'good',
         cosmeticIssues: [
           { type: 'Scratch on top tube', severity: 'Moderate' },
           { type: 'Dent in down tube', severity: 'Major' },
@@ -164,31 +159,18 @@ describe('cosmetic damage', () => {
       },
       book
     );
-    expect(damaged.cosmeticAdjustment).toBeGreaterThan(0);
-    expect(damaged.offer!).toBeLessThan(clean.offer!);
-    expect(damaged.needsStaffReview).toBe(true);
-    expect(damaged.rationale.join(' ')).toMatch(/cosmetic blemishes/i);
-  });
-
-  it('leaves an immaculate bike untouched', () => {
-    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', cosmeticIssues: [] }, book);
+    expect(v.offer).toBe(200);
     expect(v.cosmeticAdjustment).toBe(0);
+    expect(v.adjustments.some((a) => /cosmetic/i.test(a.label))).toBe(true);
+    expect(v.adjustments.every((a) => a.amount === 0)).toBe(true);
   });
 
-  it('caps the cosmetic deduction so a scuffed bike still has value', () => {
-    const many = Array.from({ length: 20 }, (_, i) => ({ type: `Dent ${i}`, severity: 'Major' }));
-    const v = valueBike({ make: 'Trek', model: 'Marlin 5', type: 'cycle', cosmeticIssues: many }, book);
-    // Never more than 50% off the condition price.
-    expect(v.cosmeticAdjustment).toBeLessThanOrEqual(100);
-    expect(v.offer!).toBeGreaterThan(0);
-  });
-
-  it('ignores blemishes it cannot classify', () => {
+  it('ignores blemishes with no type', () => {
     const v = valueBike(
-      { make: 'Trek', model: 'Marlin 5', type: 'cycle', cosmeticIssues: [{ type: 'Lovely patina', severity: 'Minor' }] },
+      { make: 'Trek', model: 'Marlin 5', type: 'cycle', cosmeticIssues: [{ severity: 'Minor' }] },
       book
     );
-    expect(v.cosmeticAdjustment).toBe(0);
+    expect(v.adjustments.some((a) => /cosmetic/i.test(a.label))).toBe(false);
   });
 });
 
@@ -216,7 +198,7 @@ describe('explicit per-condition prices (staff-configurable)', () => {
     expect(good.maxOffer).toBe(40);
   });
 
-  it('shows the explicit price at each set grade and derives the rest', () => {
+  it('shows the explicit price at each set grade and leaves the rest unset', () => {
     const v = valueBike({ make: 'Carrera', model: 'Vengeance', type: 'cycle' }, vengeanceBook);
     const byCondition = Object.fromEntries(v.conditionPrices.map((c) => [c.condition, c]));
     expect(byCondition.poor.price).toBe(10);
@@ -224,9 +206,9 @@ describe('explicit per-condition prices (staff-configurable)', () => {
     expect(byCondition.good.price).toBe(30);
     expect(byCondition.good.maxPrice).toBe(40);
     expect(byCondition.good.explicit).toBe(true);
-    // Excellent was left blank → derived from the £35 base × the default 1.15 band, to £5.
+    // Excellent was left blank → no staff price, so we show no figure.
     expect(byCondition.excellent.explicit).toBeFalsy();
-    expect(byCondition.excellent.price).toBe(40);
+    expect(byCondition.excellent.price).toBeNull();
   });
 
   it('does not deduct faults or cosmetic damage from a staff-set price', () => {
@@ -244,16 +226,13 @@ describe('explicit per-condition prices (staff-configurable)', () => {
     );
     expect(damaged.offer).toBe(plain.offer);
     expect(damaged.offer).toBe(30);
-    // The findings are still reported, just not subtracted.
     expect(damaged.adjustments.every((a) => a.amount === 0)).toBe(true);
     expect(damaged.rationale.join(' ')).toMatch(/condition grade/i);
   });
 
   it('exposes priceForCondition directly', () => {
-    const bands = { excellent: 1.15, good: 1, fair: 0.8, poor: 0.55 };
-    expect(priceForCondition(vengeance, 'poor', bands).price).toBe(10);
-    expect(priceForCondition(vengeance, 'excellent', bands).explicit).toBeFalsy();
-    expect(priceForCondition(vengeance, 'excellent', bands).price).toBe(40);
+    expect(priceForCondition(vengeance, 'poor').price).toBe(10);
+    expect(priceForCondition(vengeance, 'excellent').explicit).toBeFalsy();
+    expect(priceForCondition(vengeance, 'excellent').price).toBeNull();
   });
 });
-
