@@ -48,8 +48,6 @@ export interface CatalogueBrand {
   models: CatalogueModel[];
   /** How many of this brand's models already carry a price. */
   pricedModels: number;
-  /** The brand-wide price row (blank model), when one exists. */
-  brandEntry?: OfferPriceEntry;
 }
 
 /** Models that are really "type your own" escape hatches, not real families. */
@@ -112,7 +110,6 @@ export function buildCatalogue(book: OfferPriceEntry[]): CatalogueBrand[] {
 }
 
 function toCatalogueBrand(profile: BikeBrandProfile, book: OfferPriceEntry[]): CatalogueBrand {
-  const brandEntry = findEntry(book, profile.name, '');
   const models = modelsForBrand(profile.name)
     .filter((raw) => !isEscapeHatchModel(raw))
     .map((raw) => {
@@ -134,7 +131,6 @@ function toCatalogueBrand(profile: BikeBrandProfile, book: OfferPriceEntry[]): C
     hasCuratedModels: Object.prototype.hasOwnProperty.call(BRAND_MODELS_MAP, profile.name),
     models,
     pricedModels: models.filter((m) => m.entry).length,
-    brandEntry,
   };
 }
 

@@ -6,7 +6,7 @@ import { buildCatalogue, filterCatalogue, filterByCategory, type CatalogueModel 
 
 export interface CataloguePick {
   brand: string;
-  /** Empty means "price the whole brand". */
+  /** The specific model name to price. */
   model: string;
   category?: VehicleCategory;
 }
@@ -142,30 +142,19 @@ export const OfferCatalogue: React.FC<Props> = ({ book, onPick }) => {
                       <span className="text-[10px] text-neutral-500 shrink-0">{b.country}</span>
                     </span>
                     <span className="text-[11px] shrink-0">
-                      {b.brandEntry ? (
-                        <span className="font-mono font-bold text-emerald-400">£{b.brandEntry.basePrice} brand-wide</span>
-                      ) : b.pricedModels > 0 ? (
+                      {b.pricedModels > 0 ? (
                         <span className="text-emerald-400/80">{b.pricedModels}/{b.models.length} priced</span>
                       ) : (
                         <span className="text-neutral-500">{b.models.length} models</span>
                       )}
                     </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onPick({ brand: b.name, model: '', category: b.isScooter ? 'electric_scooter' : undefined })}
-                    title={`Price the whole ${b.name} brand`}
-                    aria-label={`Price whole ${b.name} brand`}
-                    className="shrink-0 px-2.5 py-2.5 text-neutral-500 hover:text-emerald-400 cursor-pointer border-l border-neutral-800/70"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
                 </div>
                 {open && (
                   <div className="border-t border-neutral-800/70 bg-[#090b0e] p-1.5">
                     {!b.hasCuratedModels && (
                       <p className="px-3 pt-1.5 pb-1 text-[11px] text-neutral-500">
-                        No curated models — price the whole brand, or add a model below.
+                        No curated models — add a model below.
                       </p>
                     )}
                     {b.models.map((m) => (

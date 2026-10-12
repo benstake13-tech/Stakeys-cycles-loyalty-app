@@ -5,11 +5,11 @@ import type { VehicleCategory } from '../types/bikeShop';
 /**
  * Reactive, SSR-safe staff price book for the "Sell Your Bike" flow.
  *
- * Staff record what the workshop pays for a brand/model, and the AI valuation
- * engine reads this book to turn an identified bike into a cash offer. The
- * offer is always a price a member of staff saved here — a per-condition figure
- * or the model's base (good-condition) price. A blank model means "brand-wide
- * default", and a blank brand+model row acts as a category fallback.
+ * Staff record what the workshop pays for a specific model, and the AI
+ * valuation engine reads this book to turn an identified bike into a cash
+ * offer. The offer is always a price a member of staff saved here — a
+ * per-condition figure or the model's base (good-condition) price. Prices are
+ * always per model; a blank brand+model row acts as a category fallback.
  *
  * Persistence is two-way: edits are written to localStorage (instant, offline)
  * AND mirrored into the `app_settings` JSON column `sell_offerbook_json` when it
@@ -45,7 +45,7 @@ export interface ConditionPricePoint {
 export interface OfferPriceEntry {
   id: string;
   brand: string;
-  /** Empty (or '*') means the whole brand; both empty means the category fallback. */
+  /** The specific model this price is for. Both brand and model empty = category fallback. */
   model: string;
   category?: VehicleCategory;
   /** What we typically pay the customer for this bike in good condition, in £. */
@@ -65,10 +65,10 @@ export interface OfferPriceEntry {
 
 /** Sensible starting values so the engine works before staff tune the book. */
 const DEFAULT_ENTRIES: Omit<OfferPriceEntry, 'updatedAt'>[] = [
-  { id: 'seed-trek', brand: 'Trek', model: '', category: 'cycle', basePrice: 180, notes: 'Brand-wide starting point — tune per model.' },
-  { id: 'seed-specialized', brand: 'Specialized', model: '', category: 'cycle', basePrice: 190 },
-  { id: 'seed-giant', brand: 'Giant', model: '', category: 'cycle', basePrice: 150 },
-  { id: 'seed-carrera', brand: 'Carrera', model: '', category: 'cycle', basePrice: 80 },
+  { id: 'seed-trek-marlin', brand: 'Trek', model: 'Marlin', category: 'cycle', basePrice: 180, notes: 'Starting point for this model — tune to taste.' },
+  { id: 'seed-specialized-rockhopper', brand: 'Specialized', model: 'Rockhopper', category: 'cycle', basePrice: 190 },
+  { id: 'seed-giant-escape', brand: 'Giant', model: 'Escape', category: 'cycle', basePrice: 150 },
+  { id: 'seed-carrera-subway', brand: 'Carrera', model: 'Subway', category: 'cycle', basePrice: 80 },
   {
     id: 'seed-carrera-vengeance',
     brand: 'Carrera',
@@ -82,10 +82,10 @@ const DEFAULT_ENTRIES: Omit<OfferPriceEntry, 'updatedAt'>[] = [
     },
     notes: 'Worked example: poor £10 · fair £20 · good £30–£40. Tune to taste.',
   },
-  { id: 'seed-boardman', brand: 'Boardman', model: '', category: 'cycle', basePrice: 120 },
-  { id: 'seed-cube', brand: 'Cube', model: '', category: 'ebike', basePrice: 320 },
-  { id: 'seed-xiaomi', brand: 'Xiaomi', model: '', category: 'electric_scooter', basePrice: 90 },
-  { id: 'seed-segway', brand: 'Segway', model: '', category: 'electric_scooter', basePrice: 140 },
+  { id: 'seed-boardman-hyb', brand: 'Boardman', model: 'HYB 8.6 / 8.8', category: 'cycle', basePrice: 120 },
+  { id: 'seed-cube-reaction-hybrid', brand: 'Cube', model: 'Reaction Hybrid', category: 'ebike', basePrice: 320 },
+  { id: 'seed-xiaomi-m365', brand: 'Xiaomi', model: 'Mi M365', category: 'electric_scooter', basePrice: 90 },
+  { id: 'seed-segway-max', brand: 'Segway', model: 'Ninebot MAX Series', category: 'electric_scooter', basePrice: 140 },
   { id: 'seed-cat-cycle', brand: '', model: '', category: 'cycle', basePrice: 90 },
   { id: 'seed-cat-ebike', brand: '', model: '', category: 'ebike', basePrice: 220 },
   { id: 'seed-cat-scooter', brand: '', model: '', category: 'electric_scooter', basePrice: 70 },

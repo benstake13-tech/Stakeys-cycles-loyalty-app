@@ -57,7 +57,7 @@ export interface BikeValuation {
   /** The book price before condition adjustments, or null when unmatched. */
   basePrice: number | null;
   matchedEntry: OfferPriceEntry | null;
-  matchLevel: 'model' | 'brand' | 'category' | 'none';
+  matchLevel: 'model' | 'category' | 'none';
   condition: CustomerCondition;
   /** 'explicit' when staff set this grade's price, else 'derived' (no staff price). */
   conditionSource: 'explicit' | 'derived';
@@ -87,7 +87,6 @@ const AI_CONDITION_TO_CUSTOMER: Record<string, CustomerCondition> = {
 
 const MATCH_WEIGHT: Record<BikeValuation['matchLevel'], number> = {
   model: 1,
-  brand: 0.85,
   category: 0.6,
   none: 0.3,
 };
@@ -129,8 +128,9 @@ export function priceForCondition(entry: OfferPriceEntry, condition: CustomerCon
 }
 
 /**
- * Pick the most specific price-book row for an identified bike. Order of
- * precedence: exact brand+model → brand-wide → category fallback.
+ * Pick the price-book row for an identified bike. Every price is set against a
+ * specific brand+model: an exact model match wins, otherwise the category
+ * default applies. There is no per-brand price tier.
  */
 export function matchOfferEntry(
   book: OfferPriceEntry[],
@@ -144,9 +144,6 @@ export function matchOfferEntry(
 
   const byModel = usable.find((e) => norm(e.brand) === brand && model && norm(e.model) === model);
   if (byModel) return { entry: byModel, level: 'model' };
-
-  const byBrand = usable.find((e) => brand && norm(e.brand) === brand && !norm(e.model));
-  if (byBrand) return { entry: byBrand, level: 'brand' };
 
   const byCategory = usable.find((e) => !norm(e.brand) && !norm(e.model) && (!e.category || e.category === category));
   if (byCategory) return { entry: byCategory, level: 'category' };
@@ -206,9 +203,7 @@ export function valueBike(input: ValuationInput, book: OfferPriceEntry[]): BikeV
   rationale.push(
     level === 'model'
       ? `Matched ${entry.brand} ${entry.model} in the price book.`
-      : level === 'brand'
-      ? `Matched the brand-wide ${entry.brand} price.`
-      : `Used the ${toCategory(input.type)} category default — no brand match.`
+      : `Used the ${toCategory(input.type)} category default — no model match.`
   );
 
   // Price at every condition grade from the staff book, so staff and customers
