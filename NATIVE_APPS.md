@@ -76,13 +76,63 @@ npm run android:open     # open the project in Android Studio
 Output: `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 The debug APK is signed with the debug keystore and is installable via
-`adb install`. For distribution, create a release keystore and configure a
-`signingConfig` in `android/app/build.gradle` before running `android:bundle`.
+`adb install`. Release builds are signed with the project's own release key —
+see “Release signing” below — before running `android:bundle`.
 
 Permissions are declared in `android/app/src/main/AndroidManifest.xml`:
 `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` (API 31+, `neverForLocation`), the legacy
 `BLUETOOTH`/`BLUETOOTH_ADMIN`/`ACCESS_FINE_LOCATION` pair (API Ōēż 30), `CAMERA`
 for QR scanning, and `POST_NOTIFICATIONS` for OneSignal push.
+
+## Release signing
+
+A release build must be signed with a private key whose certificate is stable
+for the life of the app: Android (and Play) identify an app by its signing key,
+so every future update has to be signed with the *same* key as the first
+release. The key and its passwords are therefore **never committed** —
+`android/.gitignore` excludes `*.jks`, `*.keystore` and `keystore.properties`.
+
+Generate the key once, on a machine you control, and back it up (losing it
+means you can never update the app again):
+
+```bash
+bash scripts/gen-keystore.sh          # writes android/stakeys-release.jks + android/keystore.properties
+```
+
+The script fills in `android/keystore.properties`:
+
+```properties
+storeFile=stakeys-release.jks
+storePassword=…
+keyAlias=stakeys
+keyPassword=…
+```
+
+`android/app/build.gradle` loads that file (when present) into a `signingConfig`
+and applies it to the `release` build type. When the file is absent — CI, a
+fresh clone, another developer — the release build simply stays **unsigned** and
+the repository still builds, so no secret ever has to live in git.
+
+Build a signed APK / App Bundle:
+
+```bash
+bash scripts/build-apps.sh --only customer --release   # -> preview/apps/stakeys-customer.apk (signed)
+cd android && ./gradlew bundleCustomerRelease          # -> app-customer-release.aab (Play upload)
+```
+
+Verify the result:
+
+```bash
+apksigner verify --print-certs preview/apps/stakeys-customer.apk
+```
+
+Keep the keystore **and** its password in a secure backup (e.g. a password
+manager). If you ever need to change the store password, edit
+`keystore.properties`; the alias and key password stay the same.
+
+> Play App Signing: if you enrol in Play App Signing, upload the `.aab` signed
+> with this key as the *upload* key; Google re-signs the distributed app with a
+> separate app-signing key. The upload key above still has to be stable.
 
 ## Two apps: staff + customer
 
