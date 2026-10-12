@@ -576,8 +576,12 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           className="flex items-center gap-3 text-left cursor-pointer"
           aria-label="Stakey's Cycles home"
         >
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#16c96f] to-[#0b8f4f] text-[#04120b] shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)]">
-            <Bike className="w-5 h-5" />
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)]">
+            <img
+              src={`${import.meta.env.BASE_URL}logo.svg`}
+              alt="Stakey's Cycles &amp; Scooter"
+              className="h-full w-full object-contain"
+            />
           </span>
           <span className="leading-tight">
             <span className="font-editorial block text-lg font-semibold tracking-tight text-[var(--site-ink)]">
@@ -1064,8 +1068,12 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
       <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
         <div className="md:col-span-5">
           <div className="flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#16c96f] to-[#0b8f4f] text-[#04120b]">
-              <Bike className="w-5 h-5" />
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black">
+              <img
+                src={`${import.meta.env.BASE_URL}logo.svg`}
+                alt="Stakey's Cycles &amp; Scooter"
+                className="h-full w-full object-contain"
+              />
             </span>
             <span className="font-editorial text-lg font-semibold text-[var(--site-ink)]">
               Stakey's <span className="text-[var(--site-green)]">Cycles</span>
