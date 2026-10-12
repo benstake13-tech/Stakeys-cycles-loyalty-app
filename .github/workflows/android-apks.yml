@@ -10,6 +10,7 @@ on:
       - 'api/**'
       - 'vite.config.ts'
       - 'capacitor.config.ts'
+      - 'ANDROID_APKS.md'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/android-apks.yml'
