@@ -113,6 +113,17 @@ export interface ParsedNotification extends Partial<ScooterTelemetry> {
   rawHexRx: string;
 }
 
+/** Which processor on the scooter a firmware version belongs to. */
+export type FirmwareTarget = 'esc' | 'bms' | 'ble';
+
+/** A single firmware-version reading returned by a controller. */
+export interface VersionReading {
+  target: FirmwareTarget;
+  /** Dotted version string, e.g. "1.5.1". */
+  version: string;
+  rawHex: string;
+}
+
 export interface ScooterDriver {
   family: ScooterFamily;
   label: string;
@@ -126,6 +137,16 @@ export interface ScooterDriver {
   encodeStatus(telemetry: ScooterTelemetry): Uint8Array;
   buildLockCommand?(locked: boolean): Uint8Array;
   buildHeadlightCommand?(on: boolean): Uint8Array;
+  /**
+   * Build the frame that asks the controller for a processor's firmware
+   * version. Returns `null` for targets this protocol cannot read (the caller
+   * then reports "not readable", never a guessed version).
+   */
+  buildVersionQuery?(target: FirmwareTarget): Uint8Array | null;
+  /** Decode a version reply, or `null` if the frame is not a version reply. */
+  parseVersionResponse?(view: DataView): VersionReading | null;
+  /** Encode a version reply. Used by the simulator and round-trip tests. */
+  encodeVersionResponse?(target: FirmwareTarget, version: string): Uint8Array;
 }
 
 const NORDIC_UART = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
@@ -138,6 +159,41 @@ const XIAOMI_HEADER = [0x55, 0xaa];
 /** Status notification command byte for the 0x20 read-status response. */
 const XIAOMI_CMD_STATUS = 0x20;
 const XIAOMI_ADDR_ESC = 0x20;
+
+/**
+ * Version-read command bytes (address 0x20). The reply carries the same command
+ * byte with bit 7 set, e.g. a 0x1A query is answered by a 0x9A reply.
+ */
+const XIAOMI_VERSION_CMD: Record<FirmwareTarget, number> = { esc: 0x1a, bms: 0x1b, ble: 0x1c };
+/** The address byte that identifies each target inside a version frame. */
+const XIAOMI_VERSION_TARGET_BYTE: Record<FirmwareTarget, number> = { esc: 0x20, bms: 0x22, ble: 0x24 };
+const XIAOMI_VERSION_CMD_REPLY = new Set(Object.values(XIAOMI_VERSION_CMD).map((c) => c | 0x80));
+const XIAOMI_TARGET_BY_REPLY_CMD: Record<number, FirmwareTarget> = {
+  0x9a: 'esc',
+  0x9b: 'bms',
+  0x9c: 'ble',
+};
+
+/** Encode a 4-byte payload: target, major, minor, patch. */
+function encodeVersionPayload(target: FirmwareTarget, version: string): number[] {
+  const [maj = 0, min = 0, patch = 0] = version
+    .split('.')
+    .map((n) => Math.max(0, Math.min(255, parseInt(n, 10) || 0)));
+  return [XIAOMI_VERSION_TARGET_BYTE[target], maj, min, patch];
+}
+
+/** Decode a version payload: binary [maj,min,patch] or ASCII ("1.5.1"). */
+function decodeVersionPayload(payload: Uint8Array): string | null {
+  if (payload.length < 3) return null;
+  // A printable leading digit means the controller sent an ASCII version.
+  if (payload[0] >= 0x30 && payload[0] <= 0x39) {
+    return Array.from(payload.slice(0, 4))
+      .filter((b) => b !== 0)
+      .map((b) => String.fromCharCode(b))
+      .join('');
+  }
+  return `${payload[0]}.${payload[1]}.${payload[2]}`;
+}
 
 export const XiaomiNinebotDriver: ScooterDriver = {
   family: 'Xiaomi/Ninebot',
@@ -211,6 +267,32 @@ export const XiaomiNinebotDriver: ScooterDriver = {
     const body = [0x05, XIAOMI_ADDR_ESC, 0x71, on ? 0x01 : 0x00];
     return new Uint8Array([...XIAOMI_HEADER, ...body, ...xiaomiChecksum(body)]);
   },
+
+  buildVersionQuery(target: FirmwareTarget): Uint8Array {
+    // Payload is a single target byte; the body length field is payload + 2.
+    const body = [0x03, XIAOMI_ADDR_ESC, XIAOMI_VERSION_CMD[target], XIAOMI_VERSION_TARGET_BYTE[target]];
+    return new Uint8Array([...XIAOMI_HEADER, ...body, ...xiaomiChecksum(body)]);
+  },
+
+  parseVersionResponse(view: DataView): VersionReading | null {
+    const bytes = dataViewToBytes(view);
+    if (bytes.length < 9 || bytes[0] !== XIAOMI_HEADER[0] || bytes[1] !== XIAOMI_HEADER[1]) return null;
+    const cmd = bytes[4];
+    if (!XIAOMI_VERSION_CMD_REPLY.has(cmd)) return null;
+    const target = XIAOMI_TARGET_BY_REPLY_CMD[cmd];
+    // byte[5] is the target address; the version bytes follow it.
+    const payload = bytes.slice(6, bytes.length - 2);
+    const version = decodeVersionPayload(payload);
+    if (!target || !version) return null;
+    return { target, version, rawHex: bytesToHex(bytes) };
+  },
+
+  encodeVersionResponse(target: FirmwareTarget, version: string): Uint8Array {
+    const payload = encodeVersionPayload(target, version);
+    const cmd = XIAOMI_VERSION_CMD[target] | 0x80;
+    const body = [payload.length + 2, XIAOMI_ADDR_ESC, cmd, ...payload];
+    return new Uint8Array([...XIAOMI_HEADER, ...body, ...xiaomiChecksum(body)]);
+  },
 };
 
 /** 16-bit one's-complement checksum (`0xFFFF - sum`), little-endian. */
@@ -276,6 +358,24 @@ export const MiniRobotDriver: ScooterDriver = {
 
   buildLockCommand(locked: boolean): Uint8Array {
     return new Uint8Array([0xa5, 0x02, 0x02, locked ? 0x01 : 0x00, 0x5a]);
+  },
+
+  buildVersionQuery(target: FirmwareTarget): Uint8Array | null {
+    // MiniRobot exposes ESC/BMS versions only; BLE reports "not readable".
+    if (target === 'ble') return null;
+    return new Uint8Array([0xa5, 0x02, 0x10, target === 'esc' ? 0x01 : 0x02, 0x5a]);
+  },
+
+  parseVersionResponse(view: DataView): VersionReading | null {
+    const bytes = dataViewToBytes(view);
+    if (bytes.length < 6 || bytes[0] !== 0xa5 || bytes[2] !== 0x10) return null;
+    const target: FirmwareTarget = bytes[3] === 0x02 ? 'bms' : 'esc';
+    return { target, version: `${bytes[4]}.${bytes[5]}.0`, rawHex: bytesToHex(bytes) };
+  },
+
+  encodeVersionResponse(target: FirmwareTarget, version: string): Uint8Array {
+    const [maj = 0, min = 0] = version.split('.').map((n) => Math.max(0, Math.min(255, parseInt(n, 10) || 0)));
+    return new Uint8Array([0xa5, 0x06, 0x10, target === 'bms' ? 0x02 : 0x01, maj, min]);
   },
 };
 
@@ -376,6 +476,11 @@ export class ScooterBleSession {
   private server: BleServerLike | null = null;
   private writeChar: BleCharacteristicLike | null = null;
   private driver: ScooterDriver = GenericUartDriver;
+  private versionWaiters: Array<{
+    target: FirmwareTarget;
+    resolve: (r: VersionReading | null) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }> = [];
 
   constructor(host: BluetoothHost, callbacks: ScooterSessionCallbacks) {
     this.host = host;
@@ -416,11 +521,57 @@ export class ScooterBleSession {
 
     await notifyChar.startNotifications();
     notifyChar.addEventListener('characteristicvaluechanged', (event) => {
+      const reading = this.driver.parseVersionResponse?.(event.target.value) ?? null;
+      if (reading) this.resolveVersion(reading);
       const parsed = this.driver.parseNotification(event.target.value);
       this.callbacks.onTelemetry(parsed);
     });
 
     return driver.family;
+  }
+
+  private resolveVersion(reading: VersionReading): void {
+    const idx = this.versionWaiters.findIndex((w) => w.target === reading.target);
+    if (idx === -1) return;
+    const [waiter] = this.versionWaiters.splice(idx, 1);
+    clearTimeout(waiter.timer);
+    waiter.resolve(reading);
+  }
+
+  /**
+   * Ask the controller for a processor's firmware version. Resolves with the
+   * reading, or `null` when this protocol has no version command, or the
+   * controller does not answer before `timeoutMs`. Never guesses.
+   */
+  async readVersion(target: FirmwareTarget, timeoutMs = 1500): Promise<VersionReading | null> {
+    if (!this.writeChar || !this.driver.buildVersionQuery) return null;
+    const query = this.driver.buildVersionQuery(target);
+    if (!query) return null;
+    return new Promise<VersionReading | null>((resolve) => {
+      const timer = setTimeout(() => {
+        this.versionWaiters = this.versionWaiters.filter((w) => w.timer !== timer);
+        resolve(null);
+      }, timeoutMs);
+      // Register the waiter *before* writing: a fast controller can answer in
+      // the same tick as the write, and the reply must find the waiter there.
+      this.versionWaiters.push({ target, resolve, timer });
+      void this.writeChar!.writeValue(query).catch(() => {
+        clearTimeout(timer);
+        this.versionWaiters = this.versionWaiters.filter((w) => w.timer !== timer);
+        resolve(null);
+      });
+    });
+  }
+
+  /** Read every processor version this protocol supports, in order. */
+  async readAllVersions(timeoutMs = 1500): Promise<VersionReading[]> {
+    const targets: FirmwareTarget[] = ['esc', 'bms', 'ble'];
+    const out: VersionReading[] = [];
+    for (const target of targets) {
+      const reading = await this.readVersion(target, timeoutMs);
+      if (reading) out.push(reading);
+    }
+    return out;
   }
 
   disconnect(): void {
