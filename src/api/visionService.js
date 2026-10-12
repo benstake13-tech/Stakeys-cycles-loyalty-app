@@ -8,7 +8,7 @@ export async function analyzeBikeImage(imageDataUrl) {
 
   // Native APKs serve local bundled assets, not a backend API. Configure an
   // HTTPS host through the public VITE_APP_API_ORIGIN build variable.
-  const apiOrigin = String(import.meta.env.VITE_APP_API_ORIGIN || '').trim().replace(/\\/+$/, '');
+  const apiOrigin = String(import.meta.env.VITE_APP_API_ORIGIN || '').trim().replace(/[/]+$/, '');
   if (import.meta.env.VITE_APP_EDITION && !apiOrigin) {
     throw new Error('The bike scanner needs the shop AI server address configured in the Android build.');
   }
