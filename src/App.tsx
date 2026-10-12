@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { ShopProvider, useShop } from './context/ShopContext';
 import { LoginScreen } from './components/LoginScreen';
+import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { CustomerPortal } from './components/CustomerPortal';
 import { WebsiteReplica } from './components/WebsiteReplica';
 import { ShopAssistant } from './components/ShopAssistant';
@@ -61,6 +62,12 @@ function AppContent() {
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   // Logged-out visitors land on the public marketing website, not the login form.
   const [publicView, setPublicView] = useState<'website' | 'login'>('website');
+
+  // The password-reset email link lands on `/reset-password`. Show the set-new-
+  // password screen there regardless of auth state (the recovery session is
+  // what authorises the update).
+  const isResetRoute =
+    typeof window !== 'undefined' && /^\/reset-password\/?$/.test(window.location.pathname);
   const [activeTab, setActiveTab] = useState<NavTabId>('customer');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -299,6 +306,7 @@ function AppContent() {
   }
 
   if (!isFullSurface && !currentUser) {
+    if (isResetRoute) return <ResetPasswordScreen />;
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
         <ThemeStage theme={seasonalTheme} />
@@ -315,6 +323,7 @@ function AppContent() {
 
   // 1. FIRST SCREEN: If user is not authenticated, show LoginScreen or Guest Booking
   if (!currentUser) {
+    if (isResetRoute) return <ResetPasswordScreen />;
     if (showGuestBooking) {
       return (
         <div className={`min-h-screen ${isDark ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>

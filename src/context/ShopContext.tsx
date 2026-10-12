@@ -97,6 +97,8 @@ import {
 } from '../utils/loyaltyCard';
 import { getSupabaseClient, getStoredSupabaseUrl, saveSupabaseConfig } from '../supabase';
 import { supabase, AUTH_LINK_ON_LOAD } from '../lib/supabase';
+import { describeAuthFailure } from '../utils/authErrors';
+import { fetchAuthHealth } from '../utils/authHealth';
 import { hydrateRosterGarages as hydrateRosterGaragesUtil } from '../utils/garageHydration';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -226,6 +228,7 @@ interface ShopContextType {
   registerCustomerAccount: (email: string, password: string, name: string, phoneNumber?: string, referralCode?: string) => Promise<{ success: boolean; message?: string }>;
   resendConfirmationEmail: (email: string) => Promise<{ success: boolean; message?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>;
+  completePasswordReset: (newPassword: string) => Promise<{ success: boolean; message?: string }>;
   logoutUser: () => void;
   // Staff login accounts (admin-only; backed by SECURITY DEFINER RPCs)
   staffAccounts: StaffAccount[];
@@ -1916,6 +1919,55 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Cold-start session restore. Supabase persists the session (persistSession),
+  // but the app only hydrated `currentUser` when a confirmation link was in the
+  // URL, so a returning customer with a still-valid session was dropped back to
+  // the login screen — on native especially, where the app is killed and
+  // relaunched. Rebuild the profile from any existing session. A manual sign-in
+  // sets currentUser first, so we never clobber an explicit login.
+  useEffect(() => {
+    if (isFullSurface) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const sessionUser = data.session?.user;
+        if (!sessionUser || cancelled) return;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', sessionUser.id)
+          .maybeSingle();
+        const authEmail = sessionUser.email || '';
+        const meta = (sessionUser.user_metadata || {}) as Record<string, string | undefined>;
+        const restored: UserProfile = {
+          uid: sessionUser.id,
+          email: profile?.email || authEmail,
+          displayName: profile?.display_name || meta.full_name || authEmail.split('@')[0] || 'Stakey Rider',
+          phoneNumber: profile?.phone || meta.phone || undefined,
+          role: profile?.role || 'customer',
+          membershipNumber:
+            profile?.membership_number || `STK-${sessionUser.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
+          stamps: profile?.stamps || 0,
+          tickets: profile?.completed_cards || 0,
+          points: profile?.merit_points || 0,
+          bikes: [],
+          createdAt: profile?.created_at ? new Date(profile.created_at) : new Date(),
+          lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
+        };
+        if (cancelled) return;
+        setCurrentUser((prev) => prev ?? restored);
+        setUsers((prev) => (prev.some((u) => u.uid === restored.uid) ? prev : [restored, ...prev]));
+        void syncUserFromDatabase(restored).catch(() => {});
+      } catch {
+        // Best-effort: a failed restore just leaves the login screen up.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Owner Notification Configuration (Recipient workshop@stakeyscycles.com + SMS)
   const [ownerConfig, setOwnerConfig] = useState<OwnerNotificationConfig>({
     ownerEmail: '',
@@ -2209,16 +2261,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error || !data.user) {
-        // Distinguish "you haven't confirmed yet" from a genuine wrong password,
-        // otherwise a brand-new customer just sees the generic message.
-        const msg = (error?.message || '').toLowerCase();
-        if (msg.includes('not confirmed') || (error as any)?.code === 'email_not_confirmed') {
-          return {
-            success: false,
-            message: 'Your email is not confirmed yet. Click the link in your confirmation email, then sign in. (You can resend it from the Sign Up tab.)',
-          };
+        // Surface the real cause (wrong password vs. unconfirmed email vs. a
+        // server-side outage). Collapsing everything to "invalid email or
+        // password" previously hid a dead SMTP/500 outage as a user mistake.
+        let message = describeAuthFailure(error);
+        // If the password simply didn't match, double-check the backend before
+        // blaming the customer: a misconfigured project (email confirmation on
+        // with no mailer) makes *every* login fail and looks identical.
+        const isWrongPassword = /invalid email or password/i.test(message);
+        if (isWrongPassword) {
+          const health = await fetchAuthHealth();
+          if (health?.needsAttention) {
+            message =
+              'Sign-in is temporarily unavailable while we repair the account service. Please try again later, or contact the workshop and we will help you straight away.';
+          }
         }
-        return { success: false, message: 'Invalid email or password.' };
+        return { success: false, message };
       }
 
       // 2. Fetch profile from database using the authenticated user ID.
@@ -2365,7 +2423,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
       if (error) {
-        return { success: false, message: error.message };
+        return { success: false, message: describeAuthFailure(error) };
       }
 
       // When email confirmation is enabled Supabase deliberately does not reveal
@@ -2427,6 +2485,32 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true, message: 'Password reset link sent to your email.' };
     } catch (err: any) {
       console.error('Password reset error:', err);
+      return { success: false, message: 'An unexpected error occurred.' };
+    }
+  };
+
+  // Second half of the reset flow: the customer opened the emailed link (which
+  // signs them in with a recovery session via detectSessionInUrl), and now sets
+  // a new password. Requires that recovery session to be present.
+  const completePasswordReset = async (newPassword: string) => {
+    try {
+      if (!newPassword || newPassword.length < 6) {
+        return { success: false, message: 'Choose a password of at least 6 characters.' };
+      }
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        return {
+          success: false,
+          message: 'This reset link has expired or was already used. Request a new one from the sign-in screen.',
+        };
+      }
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        return { success: false, message: describeAuthFailure(error) };
+      }
+      return { success: true, message: 'Password updated. You can sign in with your new password now.' };
+    } catch (err: any) {
+      console.error('Password update error:', err);
       return { success: false, message: 'An unexpected error occurred.' };
     }
   };
@@ -4655,6 +4739,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerCustomerAccount,
         resendConfirmationEmail,
         resetPassword,
+        completePasswordReset,
         logoutUser,
         staffAccounts,
         refreshStaffAccounts,

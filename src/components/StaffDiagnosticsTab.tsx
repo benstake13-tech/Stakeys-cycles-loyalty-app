@@ -21,6 +21,8 @@ import {
   Wrench,
   ExternalLink,
   Award,
+  ShieldCheck,
+  UserCog,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { apiUrl } from '../utils/apiBase';
@@ -40,6 +42,7 @@ import {
   adminPushTarget,
 } from '../utils/pushNotifications';
 import { runPushRepair, PushRepairStep, PushRepairStatus, PUSH_STEP_FIX_ACTION } from '../utils/pushRepair';
+import { fetchAuthHealth, provisionMemberLogin, AuthHealth } from '../utils/authHealth';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
 import { RepairTarget, resolveRepairTarget } from '../utils/repairTargets';
@@ -104,7 +107,7 @@ const STATUS_META: Record<
   },
 };
 
-type Toast = { kind: 'ok' | 'err'; text: string } | null;
+type Toast = { kind: 'ok' | 'err' | 'warn'; text: string } | null;
 
 const PUSH_STEP_META: Record<
   PushRepairStatus,
@@ -171,6 +174,12 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [pushSteps, setPushSteps] = useState<PushRepairStep[]>([]);
   const [pushBusy, setPushBusy] = useState<'check' | 'repair' | 'device' | string | null>(null);
   const [appIdDraft, setAppIdDraft] = useState<string>(() => getConfiguredAppId());
+  // Member sign-in repair (the "customers can't sign in" class of outage).
+  const [authHealth, setAuthHealth] = useState<AuthHealth | null>(null);
+  const [authBusy, setAuthBusy] = useState<string | null>(null);
+  const [repairEmail, setRepairEmail] = useState('');
+  const [repairPassword, setRepairPassword] = useState('');
+  const [repairUserId, setRepairUserId] = useState('');
 
   const summary = useMemo(() => summarize(results), [results]);
 
@@ -431,6 +440,55 @@ export const StaffDiagnosticsTab: React.FC = () => {
       return;
     }
     flash({ kind: 'ok', text: 'App ID saved. Reload the page to re-initialise OneSignal with it.' });
+  };
+
+  /**
+   * Read the Supabase Auth backend health. This is the "is the account service
+   * actually up?" probe that distinguishes a real outage (email confirmation on
+   * with no mailer) from a customer typing the wrong password.
+   */
+  const handleAuthCheck = async () => {
+    setAuthBusy('check');
+    try {
+      const health = await fetchAuthHealth();
+      setAuthHealth(health);
+      if (!health) {
+        flash({ kind: 'err', text: 'Could not reach the auth health endpoint on this deployment.' });
+      } else if (health.needsAttention) {
+        flash({ kind: 'warn', text: 'Auth backend needs attention — see the flags below.' });
+      } else {
+        flash({ kind: 'ok', text: 'Auth backend looks healthy.' });
+      }
+    } finally {
+      setAuthBusy(null);
+    }
+  };
+
+  /** Admin-gated repair: create/confirm a member login via the server. */
+  const handleProvisionMember = async () => {
+    const email = repairEmail.trim();
+    if (!email.includes('@')) {
+      flash({ kind: 'err', text: 'Enter the member’s email address first.' });
+      return;
+    }
+    if (repairPassword.length < 6) {
+      flash({ kind: 'err', text: 'Set a password of at least 6 characters for the member.' });
+      return;
+    }
+    setAuthBusy('provision');
+    try {
+      const res = await provisionMemberLogin(email, repairPassword, {
+        userId: repairUserId.trim() || undefined,
+        metadata: { full_name: currentUser?.displayName, repaired_via: 'staff-diagnostics' },
+      });
+      flash({ kind: res.success ? 'ok' : 'err', text: res.message || 'Repair finished.' });
+      if (res.success) {
+        setRepairPassword('');
+        setRepairUserId('');
+      }
+    } finally {
+      setAuthBusy(null);
+    }
   };
 
   /**
@@ -833,6 +891,102 @@ export const StaffDiagnosticsTab: React.FC = () => {
         )}
       </div>
 
+      {/* Member sign-in repair */}
+      <div className="surface-panel !rounded-3xl p-6 shadow-xl" data-testid="auth-repair-panel">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-white font-bold text-sm">Member Sign-In Repair</div>
+              <p className="text-xs text-neutral-400 mt-1 max-w-xl">
+                Customers report &ldquo;I can&rsquo;t sign in to the app&rdquo;. This checks the Supabase Auth
+                backend (is sign-up actually able to send confirmation emails?) and lets an administrator
+                create or confirm a member login without touching the SQL Editor.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleAuthCheck}
+            disabled={authBusy !== null}
+            className="shrink-0 px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:opacity-60 text-neutral-200 text-sm font-bold flex items-center gap-2 border border-neutral-700 cursor-pointer"
+          >
+            {authBusy === 'check' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <span>Check Sign-In Service</span>
+          </button>
+        </div>
+
+        {authHealth && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <AuthFlag label="Auth reachable" ok={authHealth.reachable} />
+            <AuthFlag label="Sign-ups enabled" ok={authHealth.signupsEnabled} />
+            <AuthFlag label="Email confirmation off" ok={authHealth.mailerAutoconfirm} />
+            <AuthFlag label="Service role on server" ok={authHealth.hasServiceRole} />
+            <AuthFlag label="Admin repair enabled" ok={authHealth.adminConfigured} />
+            <AuthFlag label="Overall" ok={!authHealth.needsAttention} />
+          </div>
+        )}
+        {authHealth?.needsAttention && (
+          <p className="text-[11px] text-amber-300/90 mt-2 flex items-start gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>
+              With email confirmation ON and no working mailer, every new sign-up fails and no member can
+              confirm. Set <code className="font-mono">mailer_autoconfirm=true</code> (or configure SMTP) in
+              Supabase Auth settings, then repair the affected logins below.
+            </span>
+          </p>
+        )}
+
+        <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
+          <div className="flex items-center gap-2 text-neutral-200 text-xs font-bold uppercase tracking-wider mb-3">
+            <UserCog className="w-4 h-4 text-emerald-400" />
+            Create / confirm a member login
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input
+              type="email"
+              value={repairEmail}
+              onChange={(e) => setRepairEmail(e.target.value)}
+              placeholder="member@email.com"
+              spellCheck={false}
+              className="px-3 py-2 rounded-xl bg-[#0b0e12] border border-neutral-700 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500"
+            />
+            <input
+              type="password"
+              value={repairPassword}
+              onChange={(e) => setRepairPassword(e.target.value)}
+              placeholder="New password (min 6)"
+              className="px-3 py-2 rounded-xl bg-[#0b0e12] border border-neutral-700 text-sm text-neutral-100 focus:outline-none focus:border-emerald-500"
+            />
+            <input
+              type="text"
+              value={repairUserId}
+              onChange={(e) => setRepairUserId(e.target.value)}
+              placeholder="Profile UUID (optional)"
+              spellCheck={false}
+              className="px-3 py-2 rounded-xl bg-[#0b0e12] border border-neutral-700 text-sm font-mono text-neutral-100 focus:outline-none focus:border-emerald-500"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 mt-3">
+            <button
+              type="button"
+              onClick={handleProvisionMember}
+              disabled={authBusy !== null}
+              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-neutral-950 text-sm font-black flex items-center gap-2 shadow-md shadow-emerald-500/20 cursor-pointer"
+            >
+              {authBusy === 'provision' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
+              <span>Repair Member Login</span>
+            </button>
+            <span className="text-[11px] text-neutral-500">
+              Reuses the profile UUID when supplied so the login and loyalty card stay linked. Requires an
+              administrator session; the server verifies it and holds the service-role key.
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Notification channel quick tests */}
       <div className="surface-panel !rounded-3xl p-6 shadow-xl">
         <div className="flex items-center gap-2 text-white font-bold text-sm mb-4">
@@ -989,7 +1143,9 @@ export const StaffDiagnosticsTab: React.FC = () => {
           className={`fixed bottom-6 right-6 z-50 max-w-sm px-4 py-3 rounded-2xl border text-sm font-semibold shadow-2xl animate-fade-in ${
             toast.kind === 'ok'
               ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200'
-              : 'bg-red-950/90 border-red-500/50 text-red-200'
+              : toast.kind === 'warn'
+                ? 'bg-amber-950/90 border-amber-500/50 text-amber-200'
+                : 'bg-red-950/90 border-red-500/50 text-red-200'
           }`}
         >
           {toast.text}
@@ -1078,6 +1234,17 @@ const FixSqlModal: React.FC<{
     </div>
   );
 };
+
+const AuthFlag: React.FC<{ label: string; ok: boolean }> = ({ label, ok }) => (
+  <div
+    className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold ${
+      ok ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+    }`}
+  >
+    {ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+    <span>{label}</span>
+  </div>
+);
 
 const StatCard: React.FC<{ label: string; value: number; tone: 'emerald' | 'red' | 'amber' | 'neutral' }> = ({
   label,

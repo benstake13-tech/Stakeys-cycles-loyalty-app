@@ -18,6 +18,23 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Deep links for auth flows. The custom scheme opens the installed
+                 app from a confirmation / password-reset link; the App Link for
+                 /reset-password verifies once /.well-known/assetlinks.json is
+                 hosted (the custom scheme matches regardless). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="stakeys" android:host="auth" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.stakeys-cycles.co.uk" android:pathPrefix="/reset-password" />
+            </intent-filter>
         </activity>
 
         <provider
