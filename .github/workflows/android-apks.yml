@@ -7,6 +7,7 @@ on:
     # Branch builds also refresh even when only staff-terminal/customer-app changes.
     # Native Atelier visual overhaul: rebuild both feature-complete editions.
     # Scooter-only BLE diagnostics: rebuild with latest staff source.
+    # Compatible rebadged Xiaomi/Ninebot and MiniRobot BLE discovery.
     - cron: '17 * * * *'
   workflow_dispatch:
 
