@@ -49,7 +49,7 @@ import { RewardsWallet } from './RewardsWallet';
 import { CareSchedulePanel } from './CareSchedulePanel';
 import { SymptomChecker } from './SymptomChecker';
 import { CareGuides } from './CareGuides';
-import { TradeInRequestForm } from './TradeInRequestForm';
+import { TradeInRequestForm, SellBikePrefill } from './TradeInRequestForm';
 import { WishlistPanel } from './WishlistPanel';
 import { RewardNudges } from './RewardNudges';
 import { buildRewardNudges } from '../utils/rewardNudges';
@@ -93,6 +93,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   const ride = useRideTransition();
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
+  // The garage bike the customer chose to sell, pre-filled into the trade-in form.
+  const [sellBikePrefill, setSellBikePrefill] = useState<SellBikePrefill | null>(null);
   // Symptoms carried from the guided Symptom Checker into the booking form.
   const [seedIssueIds, setSeedIssueIds] = useState<string[] | undefined>(undefined);
   const [seedNotes, setSeedNotes] = useState<string | undefined>(undefined);
@@ -174,6 +176,20 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   const handleStartBookingForBike = (bikeId: string) => {
     setSelectedBikeForBooking(bikeId);
     setActiveTab('booking');
+  };
+
+  /** Jump from a garage bike straight into the sell form with its details filled in. */
+  const handleStartSellForBike = (bike: CustomerBike) => {
+    setSellBikePrefill({
+      id: bike.id,
+      brand: bike.brand,
+      model: bike.model,
+      year: bike.year,
+      category: bike.category,
+      colour: bike.colour || bike.color,
+    });
+    ride.rideIn();
+    setActiveTab('tradein');
   };
 
   /** Persist a hand-edited bike to the signed-in customer's own garage. */
@@ -379,6 +395,11 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                     setSeedNotes(undefined);
                     setSelectedBikeForBooking(undefined);
                   }
+                  // Opening Sell Your Bike from the launcher starts blank; a garage
+                  // bike's "Sell this bike" button seeds it instead.
+                  if (t.id === 'tradein') {
+                    setSellBikePrefill(null);
+                  }
                   setActiveTab(t.id);
                 }}
                 testId={`customer-tile-${t.id}`}
@@ -571,11 +592,11 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                     </div>
 
                     {/* Actions */}
-                    <div className="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between gap-3">
+                    <div className="mt-4 pt-3 border-t border-neutral-800 flex flex-wrap items-center gap-3">
                       <button
                         type="button"
                         onClick={() => handleStartBookingForBike(bike.id)}
-                        className="flex-1 py-2 px-4 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                        className="flex-1 min-w-[9rem] py-2 px-4 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
                       >
                         <Wrench className="w-3.5 h-3.5" />
                         <span>Book Workshop Service</span>
@@ -583,24 +604,37 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
                       <button
                         type="button"
-                        onClick={() => removeCustomerBike(bike.id)}
-                        title="Remove bike from profile"
-                        className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-rose-400 border border-neutral-800 transition-colors cursor-pointer"
-                        aria-label="Remove bike"
+                        onClick={() => handleStartSellForBike(bike)}
+                        title="Sell this bike to us"
+                        data-testid={`sell-bike-${bike.id}`}
+                        className="flex-1 min-w-[8rem] py-2 px-3 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 text-xs font-semibold flex items-center justify-center gap-2 transition-colors cursor-pointer"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Sell this bike</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setEditingBike(bike)}
-                        title="Edit bike details"
-                        className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-emerald-300 border border-neutral-800 transition-colors cursor-pointer"
-                        aria-label="Edit bike details"
-                        data-testid={`edit-bike-${bike.id}`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => removeCustomerBike(bike.id)}
+                          title="Remove bike from profile"
+                          className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-rose-400 border border-neutral-800 transition-colors cursor-pointer"
+                          aria-label="Remove bike"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setEditingBike(bike)}
+                          title="Edit bike details"
+                          className="p-2 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-emerald-300 border border-neutral-800 transition-colors cursor-pointer"
+                          aria-label="Edit bike details"
+                          data-testid={`edit-bike-${bike.id}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -852,7 +886,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       {activeTab === 'guides' && <CareGuides />}
 
       {/* TAB: TRADE-IN / PART-EXCHANGE */}
-      {activeTab === 'tradein' && <TradeInRequestForm />}
+      {activeTab === 'tradein' && <TradeInRequestForm prefill={sellBikePrefill} />}
 
       {/* TAB: WISHLIST / NOTIFY ME */}
       {activeTab === 'wishlist' && <WishlistPanel />}
