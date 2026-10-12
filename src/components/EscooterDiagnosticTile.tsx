@@ -13,6 +13,13 @@ import {
   Radio,
   Loader2,
   ShieldAlert,
+  Download,
+  HardDriveDownload,
+  Activity,
+  ClipboardList,
+  CheckCircle2,
+  XCircle,
+  CircleAlert,
 } from 'lucide-react';
 import {
   createEmptyTelemetry,
@@ -23,8 +30,23 @@ import {
   type ScooterDriver,
   type ScooterFamily,
   type ScooterTelemetry,
+  type VersionReading,
 } from '../utils/scooterProtocols';
 import { createNativeBluetoothHost } from '../utils/bleHost';
+import {
+  compareFirmware,
+  findFirmwareEntry,
+  captureAndSaveBackup,
+  canFlash,
+  downloadFirmware,
+  defaultFirmwareDeps,
+  summarizeComparisons,
+  type FirmwareComparison,
+  type FirmwareDeps,
+  type FirmwareFile,
+} from '../utils/scooterFirmware';
+import { evaluateBrick } from '../utils/scooterBrickDetector';
+import { runDiagnosticSweep, type ScooterDiagnosticReport } from '../utils/scooterDiagnostics';
 
 interface EscooterDiagnosticTileProps {
   /**
@@ -35,6 +57,8 @@ interface EscooterDiagnosticTileProps {
   bluetoothHost?: BluetoothHost;
   /** Open in simulator mode — useful for training and demos. */
   startInDemo?: boolean;
+  /** Firmware-service dependencies (hashing, fetch, file save). Injected in tests. */
+  firmwareDeps?: FirmwareDeps;
 }
 
 /** Read the browser's Bluetooth host, if it exposes one. */
@@ -65,6 +89,7 @@ const tone: Record<ScooterTelemetry['protocolFamily'], string> = {
 export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
   bluetoothHost,
   startInDemo = false,
+  firmwareDeps,
 }) => {
   const host = useMemo(() => bluetoothHost ?? getNavigatorBluetooth(), [bluetoothHost]);
   const [telemetry, setTelemetry] = useState<ScooterTelemetry>(createEmptyTelemetry);
@@ -72,6 +97,17 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
   const [isDemoMode, setIsDemoMode] = useState(startInDemo);
   const [status, setStatus] = useState<string>('');
   const [family, setFamily] = useState<ScooterFamily | 'Disconnected'>('Disconnected');
+
+  // Firmware / backup / brick / diagnostics state.
+  const deps = useMemo(() => firmwareDeps ?? defaultFirmwareDeps(), [firmwareDeps]);
+  const [model, setModel] = useState('');
+  const [versions, setVersions] = useState<VersionReading[]>([]);
+  const [backupTaken, setBackupTaken] = useState(false);
+  const [riskAccepted, setRiskAccepted] = useState(false);
+  const [manualUrl, setManualUrl] = useState('');
+  const [busy, setBusy] = useState<string>('');
+  const [firmwareMsg, setFirmwareMsg] = useState<string>('');
+  const [report, setReport] = useState<ScooterDiagnosticReport | null>(null);
 
   const sessionRef = useRef<ScooterBleSession | null>(null);
   const demoRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -163,6 +199,11 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
     teardown();
     setTelemetry(createEmptyTelemetry());
     setFamily('Disconnected');
+    setVersions([]);
+    setBackupTaken(false);
+    setRiskAccepted(false);
+    setReport(null);
+    setFirmwareMsg('');
     setStatus('Disconnected.');
   }, [teardown]);
 
@@ -189,6 +230,179 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
   }, [telemetry.headlightOn, isDemoMode]);
 
   const driver: ScooterDriver = detectDriver(telemetry.deviceName, []);
+
+  const catalogueEntry = useMemo(() => findFirmwareEntry(model), [model]);
+  const comparisons: FirmwareComparison[] = useMemo(
+    () =>
+      compareFirmware(catalogueEntry, {
+        esc: versions.find((v) => v.target === 'esc')?.version ?? null,
+        bms: versions.find((v) => v.target === 'bms')?.version ?? null,
+        ble: versions.find((v) => v.target === 'ble')?.version ?? null,
+      }),
+    [catalogueEntry, versions]
+  );
+  const gate = canFlash({ connected: telemetry.connected, backupTaken, riskAccepted });
+  const brick = useMemo(
+    () =>
+      evaluateBrick({
+        advertised: telemetry.connected,
+        gattConnected: telemetry.connected,
+        statusReadable: telemetry.voltage > 0,
+        versionsRead: versions.length,
+        errorCode: telemetry.errorCode,
+        escVersion: versions.find((v) => v.target === 'esc')?.version ?? null,
+      }),
+    [telemetry, versions]
+  );
+
+  const readVersions = useCallback(async () => {
+    setFirmwareMsg('');
+    if (isDemoMode) {
+      setVersions([
+        { target: 'esc', version: '1.3.9', rawHex: '55 aa 08 20 9a 20 01 03 09' },
+        { target: 'bms', version: '1.2.7', rawHex: '55 aa 08 20 9b 22 01 02 07' },
+      ]);
+      setFirmwareMsg('Simulator: read ESC 1.3.9 and BMS 1.2.7.');
+      return;
+    }
+    const session = sessionRef.current;
+    if (!session) {
+      setFirmwareMsg('Connect to a scooter first.');
+      return;
+    }
+    setBusy('versions');
+    const found = await session.readAllVersions();
+    setVersions(found);
+    setFirmwareMsg(found.length ? `Read ${found.length} version(s).` : 'No version responses — the controller did not answer.');
+    setBusy('');
+  }, [isDemoMode]);
+
+  const takeBackup = useCallback(async () => {
+    setFirmwareMsg('');
+    setBusy('backup');
+    try {
+      const res = await captureAndSaveBackup(deps, {
+        deviceName: telemetry.deviceName || driver.label,
+        protocolFamily: family,
+        model: model || driver.label,
+        versions,
+        telemetry: {
+          batteryPercent: telemetry.batteryPercent,
+          voltage: telemetry.voltage,
+          controllerTempC: telemetry.controllerTempC,
+          errorCode: telemetry.errorCode,
+          isLocked: telemetry.isLocked,
+          headlightOn: telemetry.headlightOn,
+        },
+        catalogueId: catalogueEntry?.id ?? null,
+      });
+      setBackupTaken(true);
+      setFirmwareMsg(`Backup saved: ${res.filename} (sha256 ${res.sha256.slice(0, 12)}…).`);
+    } catch (err) {
+      setFirmwareMsg(err instanceof Error ? `Backup failed: ${err.message}` : 'Backup failed.');
+    } finally {
+      setBusy('');
+    }
+  }, [deps, telemetry, family, model, versions, catalogueEntry, driver.label]);
+
+  const flashTargets = useMemo(() => {
+    const stock = catalogueEntry?.stock ?? {};
+    return (['esc', 'bms', 'ble'] as const)
+      .map((target) => ({ target, file: stock[target] }))
+      .filter((t) => t.file?.downloadUrl) as Array<{ target: 'esc' | 'bms' | 'ble'; file: { version: string; downloadUrl: string; sha256?: string } }>;
+  }, [catalogueEntry]);
+
+  const runDownload = useCallback(
+    async (target: 'esc' | 'bms' | 'ble', file: FirmwareFile) => {
+      setFirmwareMsg('');
+      if (!riskAccepted) {
+        setFirmwareMsg('Tick the flashing warning before downloading a firmware file.');
+        return;
+      }
+      setBusy(`download:${target}`);
+      const res = await downloadFirmware(deps, file, { connected: telemetry.connected || isDemoMode, backupTaken, riskAccepted }, telemetry.deviceName || driver.label);
+      setFirmwareMsg(
+        res.ok
+          ? `Saved ${res.filename} (${res.bytes} bytes, sha256 ${res.sha256.slice(0, 12)}…${res.checksumVerified === true ? ', checksum verified' : ''}).`
+          : `Download blocked/failed: ${res.error}`
+      );
+      setBusy('');
+    },
+    [deps, riskAccepted, backupTaken, telemetry.connected, telemetry.deviceName, isDemoMode, driver.label]
+  );
+
+  const downloadManual = useCallback(async () => {
+    const url = manualUrl.trim();
+    if (!url) {
+      setFirmwareMsg('Paste a firmware URL first.');
+      return;
+    }
+    await runDownload('esc', { target: 'esc', version: 'manual', url });
+  }, [manualUrl, runDownload]);
+
+  const runSweep = useCallback(async () => {
+    setReport(null);
+    setBusy('sweep');
+    if (isDemoMode) {
+      setReport(
+        runDiagnosticSweep
+          ? await runDiagnosticSweep(
+              {
+                session: {
+                  connected: true,
+                  activeDriver: { family: 'Xiaomi/Ninebot', label: driver.label },
+                  readAllVersions: async () => [
+                    { target: 'esc', version: '1.5.1', rawHex: '' },
+                    { target: 'bms', version: '1.4.1', rawHex: '' },
+                  ],
+                },
+                getDeviceName: () => telemetry.deviceName,
+                getModel: () => model || 'M365 Pro 2',
+                getTelemetry: () => telemetry,
+                advertised: true,
+              },
+              (s) => setFirmwareMsg(s)
+            )
+          : null
+      );
+      setBusy('');
+      return;
+    }
+    const session = sessionRef.current;
+    if (!session) {
+      setFirmwareMsg('Connect to a scooter first.');
+      setBusy('');
+      return;
+    }
+    try {
+      const result = await runDiagnosticSweep(
+        {
+          session,
+          getDeviceName: () => telemetry.deviceName || driver.label,
+          getModel: () => model || driver.label,
+          getTelemetry: () => telemetry,
+          advertised: true,
+        },
+        (s) => setFirmwareMsg(s)
+      );
+      setReport(result);
+      setVersions(result.versions);
+      setFirmwareMsg(`Sweep complete — ${result.verdict} (${result.score}/100).`);
+    } catch (err) {
+      setFirmwareMsg(err instanceof Error ? `Sweep failed: ${err.message}` : 'Sweep failed.');
+    } finally {
+      setBusy('');
+    }
+  }, [isDemoMode, driver.label, telemetry, model]);
+
+  const verdictTone: Record<string, string> = {
+    healthy: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
+    attention: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    faulty: 'border-rose-500/40 bg-rose-500/10 text-rose-300',
+    suspicious: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+    'soft-bricked': 'border-rose-500/40 bg-rose-500/10 text-rose-300',
+    unresponsive: 'border-neutral-600 bg-neutral-800/40 text-neutral-300',
+  };
 
   return (
     <div className="space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
@@ -274,6 +488,206 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
           </div>
         </div>
       )}
+
+      {/* Brick signature */}
+      <div className={`rounded-3xl border p-5 flex items-start gap-3 ${verdictTone[brick.verdict]}`} data-testid="escooter-brick">
+        <Activity className="w-5 h-5 shrink-0 mt-0.5" />
+        <div>
+          <div className="font-black text-sm uppercase tracking-wide">
+            Brick check · {brick.verdict}
+          </div>
+          <p className="text-xs mt-1 leading-relaxed opacity-90">{brick.recommendation}</p>
+          <ul className="mt-2 space-y-1">
+            {brick.evidence.map((e) => (
+              <li key={e.label} className="text-[11px] flex items-start gap-2 opacity-90">
+                {e.ok ? <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
+                <span><strong>{e.label}:</strong> {e.detail}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      {/* Firmware / backup / flashing */}
+      <div className="bg-[#0d1015] border border-neutral-800 rounded-3xl p-6 shadow-2xl space-y-4" data-testid="escooter-firmware">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 flex items-center justify-center shrink-0">
+            <HardDriveDownload className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="font-display text-lg font-black text-white tracking-tight">Firmware, backup &amp; flashing</h4>
+            <p className="text-[11px] text-neutral-400 leading-relaxed">
+              Read the firmware versions, compare them to stock, back up what is on the machine, then download the
+              stock file to this device to flash with the vendor tool. The bench never writes flash itself.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="text-[11px] text-neutral-400 font-mono uppercase">
+            Model (for stock lookup)
+            <input
+              type="text"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="e.g. M365 Pro 2"
+              data-testid="escooter-model"
+              className="mt-1 w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-sm text-white font-sans normal-case"
+            />
+          </label>
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={readVersions}
+              disabled={busy === 'versions'}
+              data-testid="escooter-read-versions"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-neutral-950 font-black text-xs uppercase tracking-wide cursor-pointer"
+            >
+              {busy === 'versions' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Cpu className="w-4 h-4" />}
+              Read versions
+            </button>
+          </div>
+        </div>
+
+        {/* Version comparison */}
+        <div className="rounded-2xl border border-neutral-800 divide-y divide-neutral-800">
+          {comparisons.map((c) => (
+            <div key={c.target} className="flex items-center justify-between px-4 py-2 text-xs" data-testid={`escooter-fw-${c.target}`}>
+              <span className="font-mono uppercase text-neutral-400">{c.target}</span>
+              <span className="font-mono text-neutral-200">{c.current ?? '—'}</span>
+              <span className="font-mono text-neutral-500">→ {c.expected ?? 'n/a'}</span>
+              <span className={`font-bold ${c.status === 'outdated' ? 'text-amber-300' : c.status === 'up-to-date' ? 'text-emerald-300' : c.status === 'newer' ? 'text-sky-300' : 'text-neutral-500'}`}>
+                {c.status}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[11px] text-neutral-500 font-mono">{summarizeComparisons(comparisons)}</p>
+        {catalogueEntry && (
+          <p className="text-[10px] text-neutral-600">
+            Stock reference:{' '}
+            <a href={catalogueEntry.source} target="_blank" rel="noreferrer" className="underline hover:text-neutral-400">
+              {catalogueEntry.source}
+            </a>
+            {catalogueEntry.note ? ` — ${catalogueEntry.note}` : ''}
+          </p>
+        )}
+
+        {/* Backup — always required */}
+        <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/20 p-4 space-y-2">
+          <div className="text-xs font-black uppercase tracking-wide text-emerald-300">Step 1 — back up first (always)</div>
+          <p className="text-[11px] text-emerald-200/80 leading-relaxed">
+            A backup of the current versions and telemetry is saved to this device before any flashing is offered.
+          </p>
+          <button
+            type="button"
+            onClick={takeBackup}
+            disabled={busy === 'backup'}
+            data-testid="escooter-backup"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-neutral-950 font-black text-xs uppercase tracking-wide cursor-pointer"
+          >
+            {busy === 'backup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <HardDriveDownload className="w-4 h-4" />}
+            {backupTaken ? 'Backup saved — take again' : 'Take backup'}
+          </button>
+        </div>
+
+        {/* Flashing warning + downloads */}
+        <div className="rounded-2xl border border-amber-600/40 bg-amber-950/20 p-4 space-y-3">
+          <div className="text-xs font-black uppercase tracking-wide text-amber-300">Step 2 — download stock firmware for the vendor tool</div>
+          <label className="flex items-start gap-2 text-[11px] text-amber-100/90 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={riskAccepted}
+              onChange={(e) => setRiskAccepted(e.target.checked)}
+              data-testid="escooter-risk"
+              className="accent-amber-500 mt-0.5"
+            />
+            I understand flashing the wrong image, or interrupting a flash, can brick the controller. I will flash with
+            the vendor tool and keep the backup.
+          </label>
+
+          {!gate.allowed && (
+            <ul className="text-[11px] text-amber-200/80 list-disc pl-5 space-y-0.5" data-testid="escooter-gate">
+              {gate.blockers.map((b) => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          )}
+
+          {flashTargets.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {flashTargets.map(({ target, file }) => (
+                <button
+                  key={target}
+                  type="button"
+                  onClick={() => runDownload(target, { target, version: file.version, url: file.downloadUrl, sha256: file.sha256 })}
+                  disabled={busy === `download:${target}`}
+                  data-testid={`escooter-download-${target}`}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-neutral-950 font-black text-[11px] uppercase tracking-wide cursor-pointer"
+                >
+                  {busy === `download:${target}` ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  Download stock {target.toUpperCase()} {file.version}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="text"
+              value={manualUrl}
+              onChange={(e) => setManualUrl(e.target.value)}
+              placeholder="…or paste a firmware file URL"
+              data-testid="escooter-manual-url"
+              className="flex-1 min-w-[200px] bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-xs text-white font-mono"
+            />
+            <button
+              type="button"
+              onClick={downloadManual}
+              disabled={busy === 'download:esc'}
+              data-testid="escooter-download-manual"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 disabled:opacity-50 text-neutral-200 font-bold text-[11px] uppercase cursor-pointer"
+            >
+              {busy === 'download:esc' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Download
+            </button>
+          </div>
+        </div>
+
+        {/* Full diagnostic sweep */}
+        <div className="rounded-2xl border border-neutral-800 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-xs font-black uppercase tracking-wide text-neutral-300">Full diagnostic sweep</div>
+            <button
+              type="button"
+              onClick={runSweep}
+              disabled={busy === 'sweep'}
+              data-testid="escooter-sweep"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-fuchsia-500 hover:bg-fuchsia-400 disabled:opacity-50 text-neutral-950 font-black text-xs uppercase tracking-wide cursor-pointer"
+            >
+              {busy === 'sweep' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardList className="w-4 h-4" />}
+              Run full diagnostic
+            </button>
+          </div>
+          {report && (
+            <div data-testid="escooter-report" className="space-y-2">
+              <div className={`inline-flex px-3 py-1 rounded-full text-[11px] font-black uppercase border ${verdictTone[report.verdict]}`}>
+                {report.verdict} · {report.score}/100
+              </div>
+              <ul className="space-y-1">
+                {report.checks.map((c) => (
+                  <li key={c.id} className="text-[11px] flex items-start gap-2 text-neutral-300" data-testid={`escooter-check-${c.id}`}>
+                    {c.status === 'pass' ? <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 text-emerald-400 shrink-0" /> : c.status === 'fail' ? <XCircle className="w-3.5 h-3.5 mt-0.5 text-rose-400 shrink-0" /> : c.status === 'warn' ? <CircleAlert className="w-3.5 h-3.5 mt-0.5 text-amber-400 shrink-0" /> : <CircleAlert className="w-3.5 h-3.5 mt-0.5 text-neutral-500 shrink-0" />}
+                    <span><strong>{c.label}:</strong> {c.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {firmwareMsg && <p className="text-[11px] text-neutral-400 font-mono" data-testid="escooter-firmware-msg">{firmwareMsg}</p>}
+      </div>
 
       {/* Telemetry gauges */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
