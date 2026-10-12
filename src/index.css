@@ -442,3 +442,91 @@
 
 /* Avoid browser chrome or Android gesture areas obscuring action controls. */
 .atelier-safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+
+
+/* The same premium top navigation and mobile dock on the website and Android. */
+@layer components {
+  .atelier-topbar {
+    background: rgba(10, 18, 18, .88);
+    border-bottom: 1px solid rgba(163, 237, 192, .13);
+    backdrop-filter: blur(28px) saturate(130%);
+    box-shadow: 0 12px 42px -37px rgba(0,0,0,.85);
+  }
+
+  .atelier-topnav {
+    background: rgba(255,255,255,.025);
+    border: 1px solid rgba(184, 232, 204, .09);
+    border-radius: 18px;
+    padding: 5px;
+    gap: 2px;
+  }
+
+  .atelier-topnav > button {
+    min-height: 39px;
+    border-radius: 12px;
+    transition: background .2s ease, color .2s ease, border-color .2s ease;
+  }
+
+  .atelier-topnav > button:hover { background: rgba(82, 221, 147, .08); }
+
+  .atelier-topnav > button[aria-current="page"] {
+    background: rgba(84, 205, 145, .13);
+    border-color: rgba(107, 247, 170, .25);
+    color: #d8ffeb;
+  }
+
+  .atelier-dock {
+    background: rgba(13, 25, 23, .97);
+    border-top: 1px solid rgba(177, 243, 204, .18);
+    box-shadow: 0 -14px 55px -37px rgba(0, 0, 0, .95);
+    backdrop-filter: blur(28px) saturate(150%);
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-top: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .atelier-dock::-webkit-scrollbar { display: none; }
+
+  .atelier-dock > button {
+    min-height: 49px;
+    flex: 1 0 auto;
+    border-radius: 13px;
+    transition: background .2s, color .2s;
+  }
+
+  .atelier-dock > button[aria-current="page"] {
+    background: rgba(65, 199, 132, .16);
+    color: #b5ffd5;
+    box-shadow: inset 0 0 0 1px rgba(123, 246, 182, .20);
+  }
+
+  .atelier-login {
+    position: relative;
+    overflow: hidden;
+    border-radius: 32px;
+    border: 1px solid rgba(180, 238, 207, .19);
+    background: linear-gradient(160deg, rgba(28, 43, 37, .94), rgba(10, 18, 20, .97) 75%);
+    box-shadow: 0 35px 110px -44px rgba(0,0,0,.95), inset 0 1px 0 rgba(255,255,255,.075);
+    backdrop-filter: blur(24px);
+  }
+
+  .atelier-login::before {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    width: 280px;
+    height: 280px;
+    right: -150px;
+    top: -185px;
+    border-radius: 50%;
+    background: rgba(67, 216, 146, .15);
+    filter: blur(50px);
+  }
+
+  .atelier-login > * { position: relative; z-index: 1; }
+}
+
+@media (max-width: 767px) {
+  .atelier-dock { -webkit-overflow-scrolling: touch; }
+}
