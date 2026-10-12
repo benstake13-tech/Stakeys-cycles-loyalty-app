@@ -414,6 +414,11 @@ export function detectDriver(deviceName: string, serviceUuids: string[] = []): S
   );
 }
 
+/** Conservative BLE admission check. UART alone is not proof of a scooter. */
+export function isRecognisedScooter(name: string): boolean {
+  return /(?:xiaomi|ninebot|segway|m365|mi[ -]?scooter|^nb[-_ ]|minirobot|aovo|kugoo|kukirin|iscooter|isinwheel|pure[ -]?air|e[ -]?scooter|scooter|hiboy|gotrax|joyor|vsett|inokim|dualtron|kaabo|niu[ -]?kqi|^kqi[0-9])/i.test(name.trim());
+}
+
 export function errorTextFor(family: ScooterFamily, code: number): string {
   if (family === 'MiniRobot') return MINIROBOT_ERRORS[code] || `MiniRobot controller fault bit: ${code}`;
   if (family === 'Xiaomi/Ninebot') return XIAOMI_NINEBOT_ERRORS[code] || `Unknown hardware fault (code ${code})`;
@@ -497,9 +502,10 @@ export class ScooterBleSession {
 
   async connect(): Promise<ScooterTelemetry['protocolFamily']> {
     const device = await this.host.requestDevice({
-      acceptAllDevices: true,
+      filters: [{ namePrefix: 'Ninebot' }, { namePrefix: 'Xiaomi' }, { namePrefix: 'M365' }, { namePrefix: 'AOVO' }, { namePrefix: 'Scooter' }, { namePrefix: 'Segway' }, { namePrefix: 'Kugoo' }, { namePrefix: 'iScooter' }, { namePrefix: 'NIU' }, { namePrefix: 'Mi' }, { namePrefix: 'NB-' }, { namePrefix: 'MiniRobot' }],
       optionalServices: [XiaomiNinebotDriver.serviceUuid, MiniRobotDriver.serviceUuid],
     });
+    if (!isRecognisedScooter(device.name || '')) throw new Error('This Bluetooth device is not recognised as an e-scooter. Select a supported scooter broadcasting its model name.');
     if (!device.gatt) throw new Error('Device does not expose a GATT server');
 
     device.addEventListener('gattserverdisconnected', () => {
@@ -508,18 +514,32 @@ export class ScooterBleSession {
       this.callbacks.onDisconnect();
     });
 
-    const server = await device.gatt.connect();
-    this.server = server;
-
-    const name = device.name || 'Unknown scooter';
+    const name = device.name || '';
     const driver = detectDriver(name, []);
+    if (driver.family === 'Generic UART') throw new Error('Scooter recognised, but its BLE protocol is not yet supported. Connection requires a verified controller protocol.');
     this.driver = driver;
+    let server: BleServerLike;
+    try {
+      server = await device.gatt.connect();
+      this.server = server;
+      const service = await server.getPrimaryService(driver.serviceUuid);
+      const notifyChar = await service.getCharacteristic(driver.notifyUuid);
+      this.writeChar = driver.writeUuid === driver.notifyUuid ? notifyChar : await service.getCharacteristic(driver.writeUuid);
+      await notifyChar.startNotifications();
+      notifyChar.addEventListener('characteristicvaluechanged', (event) => {
+        const reading = this.driver.parseVersionResponse?.(event.target.value) ?? null;
+        if (reading) this.resolveVersion(reading);
+        this.callbacks.onTelemetry(this.driver.parseNotification(event.target.value));
+      });
+    } catch (error) {
+      this.disconnect();
+      throw error;
+    }
 
-    const service = await server.getPrimaryService(driver.serviceUuid);
-    const notifyChar = await service.getCharacteristic(driver.notifyUuid);
-    this.writeChar = driver.writeUuid === driver.notifyUuid ? notifyChar : await service.getCharacteristic(driver.writeUuid);
+    return driver.family;
+  }
 
-    await notifyChar.startNotifications();
+  private resolveVersion
     notifyChar.addEventListener('characteristicvaluechanged', (event) => {
       const reading = this.driver.parseVersionResponse?.(event.target.value) ?? null;
       if (reading) this.resolveVersion(reading);
