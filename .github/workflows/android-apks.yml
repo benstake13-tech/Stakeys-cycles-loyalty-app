@@ -5,6 +5,7 @@ on:
     branches: [main]
   schedule:
     # Branch builds also refresh even when only staff-terminal/customer-app changes.
+    # Native Atelier visual overhaul: rebuild both feature-complete editions.
     - cron: '17 * * * *'
   workflow_dispatch:
 
