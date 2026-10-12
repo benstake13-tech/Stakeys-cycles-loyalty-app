@@ -34,7 +34,7 @@ export const StaffRepairGuideTab: React.FC = () => {
           <div>
             <h2 className="font-display text-lg font-bold text-white">Workshop Repair Guide</h2>
             <p className="text-xs text-neutral-400">
-              21 modules · 59 lessons · derailleur hanger identifier · step-by-step procedures adapted from Sheldon Brown
+              30 modules · 85 lessons · derailleur hanger identifier · step-by-step procedures adapted from Sheldon Brown
             </p>
           </div>
         </div>
