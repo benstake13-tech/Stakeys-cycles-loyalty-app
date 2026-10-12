@@ -12,12 +12,14 @@ import {
   Database,
   Link2,
   Unlink,
+  Wand2,
 } from 'lucide-react';
 import {
   fetchBridgeDiagnostics,
   bridgeRepairInstalled,
   BridgeDiagnostics,
 } from '../utils/appBridge';
+import { repairAppBridge } from '../utils/authHealth';
 import { getStoredSupabaseUrl } from '../supabase';
 // Bundled at build time so staff always copy the exact script this build ships.
 import bridgeSql from '../../supabase/migrations/20261006_repair_app_bridge.sql?raw';
@@ -35,6 +37,7 @@ export const BridgeRepairModal: React.FC<{ onClose: () => void }> = ({ onClose }
   const [diag, setDiag] = useState<BridgeDiagnostics | null>(null);
   const [installed, setInstalled] = useState<boolean | null>(null);
   const [checking, setChecking] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showSql, setShowSql] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
@@ -75,6 +78,27 @@ export const BridgeRepairModal: React.FC<{ onClose: () => void }> = ({ onClose }
     } catch {
       flash({ kind: 'err', text: 'Clipboard blocked — open the SQL preview and copy manually.' });
       setShowSql(true);
+    }
+  };
+
+  /**
+   * The one-click fix: run the whole repair server-side (confirm stuck logins +
+   * backfill missing ones). Falls back to the copy-the-SQL path when the server
+   * has no service-role key, so the button always does something useful.
+   */
+  const handleRepairNow = async () => {
+    setRepairing(true);
+    try {
+      const res = await repairAppBridge();
+      if (!res.success) {
+        flash({ kind: 'err', text: res.message });
+        return;
+      }
+      await check();
+      const pwd = res.defaultPassword ? ` New members sign in with "${res.defaultPassword}" and should reset it.` : '';
+      flash({ kind: 'ok', text: `${res.message}${pwd}` });
+    } finally {
+      setRepairing(false);
     }
   };
 
@@ -195,24 +219,39 @@ export const BridgeRepairModal: React.FC<{ onClose: () => void }> = ({ onClose }
         </div>
 
         {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-2.5">
+        <div className="space-y-2.5">
           <button
             type="button"
-            onClick={handleCopy}
-            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-cyan-400 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-md shadow-sky-500/20 cursor-pointer"
+            onClick={handleRepairNow}
+            disabled={repairing}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-400 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-md shadow-emerald-500/25 cursor-pointer disabled:opacity-60"
           >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? 'Copied!' : installed ? 'Re-copy Repair SQL' : 'Copy Repair SQL'}</span>
+            {repairing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4" />}
+            <span>{repairing ? 'Repairing…' : 'Repair Bridge Now'}</span>
           </button>
-          <a
-            href={sqlEditorUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-bold cursor-pointer"
-          >
-            <ExternalLink className="w-4 h-4 text-sky-400" />
-            <span>Open Supabase SQL Editor</span>
-          </a>
+          <p className="text-[10px] text-neutral-500 text-center -mt-1">
+            Runs the whole repair instantly — no SQL Editor needed. Requires an administrator session.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-bold cursor-pointer"
+            >
+              {copied ? <Check className="w-4 h-4 text-sky-400" /> : <Copy className="w-4 h-4 text-sky-400" />}
+              <span>{copied ? 'Copied!' : installed ? 'Re-copy Repair SQL' : 'Copy Repair SQL'}</span>
+            </button>
+            <a
+              href={sqlEditorUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 text-xs font-bold cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4 text-sky-400" />
+              <span>Open Supabase SQL Editor</span>
+            </a>
+          </div>
         </div>
 
         <button

@@ -1,15 +1,20 @@
 import React from 'react';
-import { render, waitFor, screen } from '@testing-library/react';
+import { render, waitFor, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
   fetchBridgeDiagnostics: vi.fn(),
   bridgeRepairInstalled: vi.fn(),
+  repairAppBridge: vi.fn(),
 }));
 
 vi.mock('./src/utils/appBridge', () => ({
   fetchBridgeDiagnostics: hoisted.fetchBridgeDiagnostics,
   bridgeRepairInstalled: hoisted.bridgeRepairInstalled,
+}));
+
+vi.mock('./src/utils/authHealth', () => ({
+  repairAppBridge: hoisted.repairAppBridge,
 }));
 
 vi.mock('./src/supabase', () => ({
@@ -74,5 +79,56 @@ describe('BridgeRepairModal', () => {
       expect(screen.getByRole('button', { name: /Copy Repair SQL/i })).toBeTruthy();
     });
     expect(screen.getByText(/repair functions are not on this project yet/i)).toBeTruthy();
+  });
+
+  it('repairs the bridge in one click and reports what it fixed', async () => {
+    hoisted.fetchBridgeDiagnostics.mockResolvedValue({
+      reachable: true,
+      authLogins: 4,
+      unconfirmedLogins: 4,
+      loyaltyProfiles: 9,
+      profilesWithoutLogin: 5,
+      loginsWithoutProfile: 0,
+    });
+    hoisted.bridgeRepairInstalled.mockResolvedValue(true);
+    hoisted.repairAppBridge.mockResolvedValue({
+      success: true,
+      message: 'Bridge repaired — confirmed 4 logins and created 5. Every member can now sign in.',
+      confirmed: 4,
+      created: 5,
+      failed: 0,
+      defaultPassword: 'Stakeys123!',
+    });
+
+    render(<BridgeRepairModal onClose={() => {}} />);
+    const btn = await screen.findByRole('button', { name: /Repair Bridge Now/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => {
+      expect(hoisted.repairAppBridge).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByText(/confirmed 4 logins and created 5/i)).toBeTruthy();
+    expect(screen.getAllByText(/Stakeys123!/i).length).toBeGreaterThan(0);
+  });
+
+  it('surfaces the server message when a one-click repair is refused', async () => {
+    hoisted.fetchBridgeDiagnostics.mockResolvedValue({
+      reachable: true,
+      authLogins: 4,
+      unconfirmedLogins: 4,
+      loyaltyProfiles: 9,
+      profilesWithoutLogin: 5,
+      loginsWithoutProfile: 0,
+    });
+    hoisted.bridgeRepairInstalled.mockResolvedValue(true);
+    hoisted.repairAppBridge.mockResolvedValue({
+      success: false,
+      message: 'Sign in as an administrator to repair the bridge.',
+    });
+
+    render(<BridgeRepairModal onClose={() => {}} />);
+    fireEvent.click(await screen.findByRole('button', { name: /Repair Bridge Now/i }));
+
+    expect(await screen.findByText(/Sign in as an administrator/i)).toBeTruthy();
   });
 });
