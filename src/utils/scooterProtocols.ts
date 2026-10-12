@@ -204,7 +204,7 @@ export const XiaomiNinebotDriver: ScooterDriver = {
 
   matches(name, serviceUuids) {
     const n = name.toLowerCase();
-    if (/nb-|xiaomi|ninebot|m365|mi scooter|segway/.test(n)) return true;
+    if (/nb-|xiaomi|ninebot|m365|mi scooter|segway|mi[-_ ]?pro|mi[-_ ]?essential|mi[-_ ]?3|mi[-_ ]?4/.test(n)) return true;
     return serviceUuids.includes(NORDIC_UART);
   },
 
@@ -315,7 +315,7 @@ export const MiniRobotDriver: ScooterDriver = {
   notifyUuid: '0000ffe1-0000-1000-8000-00805f9b34fb',
 
   matches(name) {
-    return /aovo|minirobot|hb-|smart scooter/.test(name.toLowerCase());
+    return /aovo|minirobot|hb-|smart scooter|evercross[-_ ]?h[0-9]|isinwheel[-_ ]?s[0-9]/.test(name.toLowerCase());
   },
 
   parseNotification(view: DataView): ParsedNotification {
@@ -515,17 +515,37 @@ export class ScooterBleSession {
     });
 
     const name = device.name || '';
-    const driver = detectDriver(name, []);
-    if (driver.family === 'Generic UART') throw new Error('Scooter recognised, but its BLE protocol is not yet supported. Connection requires a verified controller protocol.');
-    this.driver = driver;
+    const namedDriver = detectDriver(name, []);
+    // Many rebadged scooters advertise a different brand but share one of the
+    // two supported GATT layouts. Probe service availability rather than
+    // guessing the controller protocol from branding alone.
+    const candidates = namedDriver.family === 'Generic UART'
+      ? [XiaomiNinebotDriver, MiniRobotDriver]
+      : [namedDriver];
+    let driver: ScooterDriver = namedDriver;
     let server: BleServerLike;
     try {
       server = await device.gatt.connect();
       this.server = server;
-      const service = await server.getPrimaryService(driver.serviceUuid);
-      const notifyChar = await service.getCharacteristic(driver.notifyUuid);
-      this.writeChar = driver.writeUuid === driver.notifyUuid ? notifyChar : await service.getCharacteristic(driver.writeUuid);
-      await notifyChar.startNotifications();
+      let notifyChar: BleCharacteristicLike | null = null;
+      let lastError: unknown;
+      for (const candidate of candidates) {
+        try {
+          const service = await server.getPrimaryService(candidate.serviceUuid);
+          const notify = await service.getCharacteristic(candidate.notifyUuid);
+          const write = candidate.writeUuid === candidate.notifyUuid ? notify : await service.getCharacteristic(candidate.writeUuid);
+          await notify.startNotifications();
+          driver = candidate;
+          this.driver = candidate;
+          this.writeChar = write;
+          notifyChar = notify;
+          break;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (!notifyChar) throw new Error('No compatible Xiaomi/Ninebot or MiniRobot BLE service was found on this scooter. ' + (lastError instanceof Error ? lastError.message : ''));
+
       notifyChar.addEventListener('characteristicvaluechanged', (event) => {
         const reading = this.driver.parseVersionResponse?.(event.target.value) ?? null;
         if (reading) this.resolveVersion(reading);
