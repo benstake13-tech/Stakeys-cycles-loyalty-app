@@ -107,8 +107,8 @@ jobs:
       - name: Typecheck source branch
         run: npm run lint
 
-      - name: Test source branch
-        run: npm test
+      - name: Test source branch with normal website-relative API URLs
+        run: env VITE_API_BASE_URL= npm test
 
       - name: Build correct website surface for ${{ matrix.edition }}
         run: npm run build
