@@ -7,6 +7,7 @@
  *
  *   GET  /api/auth/health            → public, read-only backend snapshot
  *   POST /api/auth/provision-member  → admin-gated member login repair
+ *   POST /api/auth/repair-bridge     → admin-gated one-click bridge repair
  *
  * The service-role key is server-only and never returned to the client.
  */
@@ -19,6 +20,7 @@ import {
   fetchAuthSettings,
   authoriseAdmin,
   provisionMemberLogin,
+  repairAppBridge,
 } from './_shared.js';
 
 async function authHealth(_req, res) {
@@ -92,11 +94,53 @@ async function authProvisionMember(req, res) {
   });
 }
 
+/**
+ * One-click bridge repair. Verifies the caller is an administrator (the server
+ * reads the identity from their bearer token, never from the body), then uses
+ * the service-role key to confirm every stuck login and backfill a login for
+ * every member profile that has none — no Supabase SQL Editor trip required.
+ */
+async function authRepairBridge(req, res) {
+  const url = resolveSupabaseUrl();
+  const anonKey = resolveAnonKey();
+  const { key: serviceKey } = resolveServiceKey();
+
+  const authHeader = String(req.headers?.authorization || '');
+  const accessToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+
+  const auth = await authoriseAdmin({
+    url,
+    anonKey,
+    accessToken,
+    adminEmails: resolveAdminEmails(),
+  });
+  if (!auth.ok) {
+    return res.status(auth.status).json({ success: false, error: auth.error });
+  }
+
+  if (!serviceKey) {
+    return res.status(503).json({
+      success: false,
+      error: 'Bridge repair is not configured on the server.',
+      hint: 'Set SUPABASE_SERVICE_ROLE_KEY in the deployment environment (server-only).',
+    });
+  }
+
+  try {
+    const report = await repairAppBridge({ url, serviceKey });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({ success: true, repairedBy: auth.email, ...report });
+  } catch (err) {
+    return res.status(502).json({ success: false, error: err?.message || 'Bridge repair failed.' });
+  }
+}
+
 export default async function authHandler(req, res) {
   const action = req.query?.action;
   try {
     if (action === 'health') return await authHealth(req, res);
     if (action === 'provision-member') return await authProvisionMember(req, res);
+    if (action === 'repair-bridge') return await authRepairBridge(req, res);
     return res.status(404).json({ error: `Unknown auth action: ${action}` });
   } catch (err) {
     return res.status(500).json({ error: err?.message || 'Unexpected auth server error.' });

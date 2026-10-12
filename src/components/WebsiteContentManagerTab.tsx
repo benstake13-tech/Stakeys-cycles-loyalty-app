@@ -674,7 +674,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
       {editorTab === 'website' && (
         <div data-testid="cms-section-picker" className="sticky top-2 z-20">
           <TileGroup label="Website sections">
-            <TileGrid cols="grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            <TileGrid>
               <TileButton
                 icon={LayoutGrid}
                 label="All sections"

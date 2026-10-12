@@ -14,6 +14,29 @@ export interface AuthHealth {
   hasServiceRole: boolean;
   adminConfigured: boolean;
   needsAttention: boolean;
+  /** Server reports it holds a service-role key AND an admin allowlist. */
+  oneClickRepairAvailable?: boolean;
+}
+
+/** The two counts the one-click repair reconciles, before and after. */
+export interface BridgeCounts {
+  authLogins: number;
+  unconfirmedLogins: number;
+  loyaltyProfiles: number;
+  profilesWithoutLogin: number;
+  loginsWithoutProfile: number;
+}
+
+export interface BridgeRepairResult {
+  success: boolean;
+  message: string;
+  confirmed?: number;
+  created?: number;
+  failed?: number;
+  before?: BridgeCounts;
+  after?: BridgeCounts;
+  /** Only present when logins were created — the shared starter password. */
+  defaultPassword?: string | null;
 }
 
 /** Shape of GoTrue's public `/auth/v1/settings` response (the fields we use). */
@@ -50,6 +73,7 @@ async function fetchSettingsDirectly(): Promise<AuthHealth | null> {
       hasServiceRole: false,
       adminConfigured: false,
       needsAttention: disableSignup || (emailEnabled && !mailerAutoconfirm),
+      oneClickRepairAvailable: false,
     };
   } catch {
     return null;
@@ -110,5 +134,46 @@ export async function provisionMemberLogin(
     return { success: true, message: `Login repaired for ${body.email}.` };
   } catch (err: any) {
     return { success: false, message: err?.message || 'Could not reach the repair service.' };
+  }
+}
+
+/**
+ * One-click bridge repair. Runs the whole fix server-side — confirms every stuck
+ * login and backfills a login for every member profile that has none — so the
+ * operator does not have to copy SQL into the Supabase editor. Admin-gated: the
+ * server verifies the caller's bearer token against its ADMIN_EMAILS allowlist.
+ */
+export async function repairAppBridge(): Promise<BridgeRepairResult> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) {
+    return { success: false, message: 'Sign in as an administrator to repair the bridge.' };
+  }
+  try {
+    const res = await fetch(apiUrl('/api/auth/repair-bridge'), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body?.success) {
+      return { success: false, message: body?.error || `Bridge repair failed (${res.status}).` };
+    }
+    const fixed = (body.confirmed || 0) + (body.created || 0);
+    const message =
+      fixed > 0
+        ? `Bridge repaired — confirmed ${body.confirmed || 0} login${body.confirmed === 1 ? '' : 's'} and created ${body.created || 0}. Every member can now sign in.`
+        : 'Bridge already linked — every member has a confirmed login.';
+    return {
+      success: true,
+      message,
+      confirmed: body.confirmed,
+      created: body.created,
+      failed: body.failed,
+      before: body.before,
+      after: body.after,
+      defaultPassword: body.defaultPassword ?? null,
+    };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Could not reach the bridge repair service.' };
   }
 }

@@ -53,6 +53,8 @@ import {
   Zap,
   BookOpen,
   Radio,
+  Cable,
+  Wand2,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -68,6 +70,8 @@ import { PromotionsManagerTab } from './PromotionsManagerTab';
 import { DiscountCodesTab } from './DiscountCodesTab';
 import { CounterSaleTab } from './CounterSaleTab';
 import { StaffBackendTab } from './StaffBackendTab';
+import { BridgeStatusTile } from './BridgeStatusTile';
+import { BridgeRepairModal } from './BridgeRepairModal';
 import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
 import { AssistantManagerTab } from './AssistantManagerTab';
@@ -291,6 +295,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const ride = useRideTransition();
 
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isBridgeRepairOpen, setIsBridgeRepairOpen] = useState(false);
   // Live filter applied by the command bar search to the tool launcher.
   const [toolFilter, setToolFilter] = useState('');
 
@@ -673,6 +678,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   return (
     <div className="relative font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="relative z-10 space-y-5">
+      {/* BRIDGE STATUS — the top-of-home control that keeps every customer able
+          to sign in; repairs the profile<->login bridge in one click. */}
+      <BridgeStatusTile onOpenDetails={() => setIsBridgeRepairOpen(true)} />
+
       {/* 0. COMMAND BAR — identity, live status, quick actions, tool search */}
       <CommandBar
         operatorName={currentUser.displayName}
@@ -812,7 +821,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             </button>
           }
         >
-          <TileGrid cols="grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <TileGrid>
             {visibleAdminTiles.map((t) => (
               <TileButton
                 key={t.id}
@@ -1770,6 +1779,11 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           });
         }}
       />
+
+      {/* Repair App Bridge — the full diagnostics / SQL hand-off modal. */}
+      {isBridgeRepairOpen && (
+        <BridgeRepairModal onClose={() => setIsBridgeRepairOpen(false)} />
+      )}
       </div>
     </div>
 
