@@ -45,6 +45,9 @@ import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
 import { PrizeWheelModal } from './PrizeWheelModal';
 import { WheelEditorModal } from './WheelEditorModal';
 import { StaffBookingsTab } from './StaffBookingsTab';
+import { QRCodeScannerModal } from './QRCodeScannerModal';
+import { BikeScraperTab } from './BikeScraperTab';
+import { DerailleurHangerIdentifier } from './DerailleurHangerIdentifier';
 import { CustomerDatabaseTab } from './CustomerDatabaseTab';
 import { StaffManagementTab } from './StaffManagementTab';
 import { PromotionsManagerTab } from './PromotionsManagerTab';
@@ -87,12 +90,17 @@ export const StaffPortal: React.FC = () => {
     | 'staff_roster'
     | 'promotions'
     | 'customers'
+    | 'scanner'
+    | 'bike_specs'
+    | 'hanger'
     | 'draws'
     | 'logs'
     | 'financials'
     | 'google_business'
   >('dashboard');
 
+  const [showScannerCamera, setShowScannerCamera] = useState(false);
+  const [isStamping, setIsStamping] = useState(false);
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
     return users?.find((u) => u.membershipNumber === 'STK-839201') || null;
@@ -167,16 +175,17 @@ export const StaffPortal: React.FC = () => {
     setActionFeedback(null);
   };
 
-  // Add Stamp Action
+  // Add Stamp Action: prevent double taps while Supabase processes a visit.
   const handleAddStamp = async () => {
-    if (!selectedCustomer) return;
-    const res = await addStamp(selectedCustomer.uid, currentUser.uid, bypassRateLimit);
-    setActionFeedback({ success: res.success, message: res.message });
-
-    // Refresh selected customer state
-    const refreshed = users.find((u) => u.uid === selectedCustomer.uid);
-    if (refreshed) {
-      setSelectedCustomer(refreshed);
+    if (!selectedCustomer || isStamping) return;
+    setIsStamping(true);
+    try {
+      const res = await addStamp(selectedCustomer.uid, currentUser.uid, bypassRateLimit);
+      setActionFeedback({ success: res.success, message: res.message });
+      const refreshed = users.find((u) => u.uid === selectedCustomer.uid);
+      if (refreshed) setSelectedCustomer(refreshed);
+    } finally {
+      setIsStamping(false);
     }
   };
 
@@ -557,6 +566,24 @@ export const StaffPortal: React.FC = () => {
 
         <button
           type="button"
+          onClick={() => setStaffTab('bike_specs')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${staffTab === 'bike_specs' ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'}`}
+        >
+          <Bike className="w-4 h-4 text-emerald-400" />
+          <span>Bike OEM Specs &amp; Upgrades</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setStaffTab('hanger')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${staffTab === 'hanger' ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'}`}
+        >
+          <Wrench className="w-4 h-4 text-emerald-400" />
+          <span>Hanger Identifier</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setStaffTab('logs')}
           className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
             staffTab === 'logs'
@@ -624,11 +651,9 @@ export const StaffPortal: React.FC = () => {
       {/* VIEW 1C: Promotions Manager (Full CRUD) */}
       {staffTab === 'promotions' && <PromotionsManagerTab />}
 
-      {/* VIEW 1D: Derailleur Hanger Identifier Module */}
-      {/* Removed */}
-
-      {/* VIEW 2: Bike OEM Stock Parts Scraper & Upgrade Inspector */}
-      {/* Removed */}
+      {/* Staff tool screens shared with the web terminal. */}
+      {staffTab === 'hanger' && <DerailleurHangerIdentifier />}
+      {staffTab === 'bike_specs' && <BikeScraperTab initialCustomer={selectedCustomer} />}
 
       {/* VIEW 3: Financial Reporting Tab */}
       {staffTab === 'financials' && <FinancialReportingTab />}
@@ -646,6 +671,69 @@ export const StaffPortal: React.FC = () => {
         />
       )}
 
+
+      {/* Staff barcode / member lookup; scanning requires HTTPS WebView camera permission. */}
+      {staffTab === 'scanner' && (
+        <section aria-label="Customer stamp and barcode terminal" className="rounded-3xl bg-[#0e1217] border border-neutral-800 p-5 sm:p-7 text-white space-y-5 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h3 className="font-display text-xl font-extrabold">Barcode &amp; Loyalty Station</h3>
+              <p className="text-xs text-neutral-400 mt-1">Scan a member pass or look up a customer before recording a visit.</p>
+            </div>
+            <button type="button" onClick={() => setShowScannerCamera(true)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-4 py-3 font-bold text-xs text-neutral-950">
+              <Scan className="w-4 h-4" /> Open Camera Scanner
+            </button>
+          </div>
+          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2">
+            <label htmlFor="staff-member-lookup" className="sr-only">Customer name, email or member number</label>
+            <input id="staff-member-lookup" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Member number, name or email"
+              className="flex-1 min-w-0 bg-neutral-950 rounded-xl border border-neutral-700 px-4 py-3 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500" />
+            <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 hover:bg-emerald-500/25 px-5 py-3 text-xs font-bold text-emerald-300">
+              <Search className="w-4 h-4" /> Find Customer
+            </button>
+          </form>
+          {selectedCustomer ? (
+            <div className="rounded-2xl border border-emerald-500/25 bg-neutral-950/80 p-5 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider font-bold text-emerald-400">Selected member</p>
+                  <div className="text-lg font-black mt-1">{selectedCustomer.displayName}</div>
+                  <p className="text-xs text-neutral-400 font-mono mt-1">{selectedCustomer.membershipNumber}</p>
+                </div>
+                <div className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 p-3 text-right">
+                  <div className="text-2xl font-black text-emerald-300">{selectedCustomer.stamps || 0}<span className="text-xs text-neutral-400"> / 10</span></div>
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-400">Visit stamps</div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button type="button" disabled={!rateLimitStatus.allowed || isStamping}
+                  onClick={handleAddStamp} className="rounded-xl bg-emerald-500 px-5 py-3 text-xs font-bold text-neutral-950 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed">
+                  {isStamping ? 'Saving Stamp…' : rateLimitStatus.allowed ? 'Award Visit Stamp' : 'Visit Already Stamped'}
+                </button>
+                <button type="button" onClick={() => setStaffTab('customers')} className="rounded-xl border border-neutral-700 px-4 py-3 text-xs font-bold text-neutral-300 hover:text-white hover:border-emerald-500/40">Open Customer Records</button>
+                <button type="button" onClick={() => setStaffTab('bike_specs')} className="rounded-xl border border-neutral-700 px-4 py-3 text-xs font-bold text-neutral-300 hover:text-white hover:border-emerald-500/40">Inspect Bike Specs</button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-neutral-400 rounded-2xl border border-neutral-800 px-4 py-5">Scan or search to load a loyalty member.</p>
+          )}
+          {actionFeedback && (
+            <p role="status" className={`rounded-xl border p-3 text-xs ${actionFeedback.success ? 'bg-emerald-950/50 border-emerald-500/30 text-emerald-300' : 'bg-rose-950/40 border-rose-500/30 text-rose-300'}`}>
+              {actionFeedback.message}
+            </p>
+          )}
+        </section>
+      )}
+
+      <QRCodeScannerModal
+        isOpen={showScannerCamera}
+        onClose={() => setShowScannerCamera(false)}
+        onCustomerScanned={(customer) => {
+          handleSelectCustomer(customer);
+          setShowScannerCamera(false);
+          setStaffTab('scanner');
+        }}
+      />
 
       {/* VIEW 5: Prize Draws & Wheel Hub */}
       {staffTab === 'draws' && (
