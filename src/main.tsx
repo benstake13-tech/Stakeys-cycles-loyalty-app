@@ -4,6 +4,7 @@ import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import { handleOAuthCallbackPage } from './utils/oauthService';
 import './index.css';
+import './siteDesign.css';
 
 // If we're inside the OAuth popup landing on /oauth/callback, relay the code
 // back to the opener and stop before mounting the full app.
