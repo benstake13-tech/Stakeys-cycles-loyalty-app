@@ -69,9 +69,9 @@ const emptyDraft: Draft = { brand: '', model: '', category: 'cycle', basePrice: 
 
 /**
  * Staff "Offer Prices" manager for the Sell Your Bike flow. Staff record what
- * the workshop pays for a brand/model; the AI valuation engine reads this book
- * to turn an identified bike into a cash offer. A blank model prices the whole
- * brand; a blank brand+model row is the category fallback.
+ * the workshop pays for a specific model; the AI valuation engine reads this
+ * book to turn an identified bike into a cash offer. Prices are always per
+ * model — a blank brand+model row is the category fallback.
  */
 export const StaffOfferPricesTab: React.FC = () => {
   const entries = useOfferPrices();
@@ -136,6 +136,14 @@ export const StaffOfferPricesTab: React.FC = () => {
       toast.error('Add a brand, or pick a category for a fallback price.');
       return;
     }
+    if (draft.brand.trim() && !draft.model.trim()) {
+      toast.error('Add a model — prices are set per model, not per brand.');
+      return;
+    }
+    if (!draft.brand.trim() && draft.model.trim()) {
+      toast.error('Add a brand for this model.');
+      return;
+    }
     upsertOfferPrice({
       id: draft.id,
       brand: draft.brand.trim(),
@@ -163,7 +171,7 @@ export const StaffOfferPricesTab: React.FC = () => {
             <BadgePoundSterling className="w-5 h-5 text-emerald-400" /> Sell Your Bike — Offer Prices
           </h2>
           <p className="text-xs text-neutral-400 mt-1">
-            What we pay for each brand/model. The AI offer engine reads this book. Blank model = whole brand; blank brand+model = category fallback.
+            What we pay for each model. The AI offer engine reads this book. Prices are per model; a blank brand+model row is the category fallback.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -195,7 +203,7 @@ export const StaffOfferPricesTab: React.FC = () => {
                 className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
             <label className="space-y-1.5">
-              <span className="text-xs font-semibold text-neutral-400">Model (blank = whole brand)</span>
+              <span className="text-xs font-semibold text-neutral-400">Model</span>
               <input value={draft.model} onChange={(e) => setDraft({ ...draft, model: e.target.value })} placeholder="e.g. Marlin 5"
                 className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
@@ -292,7 +300,14 @@ export const StaffOfferPricesTab: React.FC = () => {
             <li key={e.id} className="surface-panel p-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-display font-bold text-white">
-                  {e.brand || 'Any brand'} {e.model ? <span className="text-neutral-300">· {e.model}</span> : <span className="text-neutral-500 text-xs">· whole brand</span>}
+                  {e.brand || 'Any brand'}{' '}
+                  {e.model ? (
+                    <span className="text-neutral-300">· {e.model}</span>
+                  ) : e.brand ? (
+                    <span className="text-amber-400/80 text-xs">· no model — set a model price</span>
+                  ) : (
+                    <span className="text-neutral-500 text-xs">· category fallback</span>
+                  )}
                 </div>
                 <div className="text-[11px] text-neutral-500 mt-0.5">
                   {e.category ? CATEGORY_LABEL[e.category] : 'Any category'}
