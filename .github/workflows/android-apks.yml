@@ -18,6 +18,11 @@ on:
 permissions:
   contents: read
 
+# A newer source commit must never be overtaken by an older APK release.
+concurrency:
+  group: stakeys-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android:
     name: ${{ matrix.edition }} APK
@@ -70,13 +75,45 @@ jobs:
       - name: Install Capacitor Android build toolchain
         run: npm install --no-save --no-package-lock --legacy-peer-deps @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 react-is@19
 
+      - name: Stamp APK with its exact source commit
+        run: echo "VITE_SOURCE_SHA=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
+
       - name: Build ${{ matrix.edition }} web assets
         run: bun run build
+
+      - name: Verify complete staff and customer feature bundles
+        run: node scripts/verify-mobile-feature-parity.mjs
 
       - name: Generate standalone Android project
         run: |
           npx cap add android
           npx cap sync android
+
+      - name: Enable camera scanner and stamp Android version
+        run: |
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          content = manifest.read_text()
+          if 'android.permission.CAMERA' not in content:
+              assert '<application' in content, 'Android manifest missing application'
+              content = content.replace('<application',
+                  '<uses-permission android:name="android.permission.CAMERA" />\\n'
+                  '    <uses-feature android:name="android.hardware.camera" android:required="false" />\\n'
+                  '    <application', 1)
+              manifest.write_text(content)
+
+          gradle = Path("android/app/build.gradle")
+          content = gradle.read_text()
+          version = int(os.environ['GITHUB_RUN_NUMBER'])
+          content, code_count = re.subn(r'\\bversionCode\\s+\\d+', 'versionCode ' + str(version), content, count=1)
+          content, name_count = re.subn(r'\\bversionName\\s+"[^"]+"', 'versionName "1.0.' + str(version) + '"', content, count=1)
+          assert code_count == 1 and name_count == 1, 'Could not stamp generated Android version'
+          gradle.write_text(content)
+          print(f'Android versionCode={version}, versionName=1.0.{version}')
+          PY
 
       - name: Compile installable debug APK
         working-directory: android
@@ -84,13 +121,31 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --no-daemon assembleDebug
 
-      - name: Stage APK and checksum
+      - name: Stage, identify and checksum APK
         run: |
           mkdir -p android-output
-          cp android/app/build/outputs/apk/debug/app-debug.apk "android-output/Stakeys-Cycles-${BUILD_EDITION}.apk"
+          APK="android-output/Stakeys-Cycles-${BUILD_EDITION}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK"
+          EXPECTED_PACKAGE="uk.co.stakeyscycles.${BUILD_EDITION}"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | head -n 1 | tee /tmp/stakeys-badging
+          grep -F "name='${EXPECTED_PACKAGE}'" /tmp/stakeys-badging
+          {
+            echo "edition=${BUILD_EDITION}"
+            echo "package_id=${EXPECTED_PACKAGE}"
+            echo "source_commit=${GITHUB_SHA}"
+            echo "source_short=${VITE_SOURCE_SHA}"
+            echo "android_build=${GITHUB_RUN_NUMBER}"
+            echo "build_run=${GITHUB_RUN_ID}"
+            if [ -n "${VITE_APP_API_ORIGIN}" ]; then
+              echo "gemini_backend_configured=yes"
+            else
+              echo "gemini_backend_configured=no"
+            fi
+          } > android-output/BUILD_INFO.txt
           cd android-output
           sha256sum *.apk > SHA256SUMS.txt
           ls -lh *.apk
+          cat BUILD_INFO.txt
           cat SHA256SUMS.txt
 
       - name: Upload ${{ matrix.edition }} APK
@@ -132,5 +187,5 @@ jobs:
             apks/Stakeys-Cycles-staff-APK/Stakeys-Cycles-staff.apk \
             --repo "${{ github.repository }}" \
             --title "Stakey's Cycles Android APKs — build ${{ github.run_number }}" \
-            --notes "Two independently installable Android test builds from commit ${{ github.sha }}. Customer and staff editions have distinct package IDs. These are debug-signed APKs for sideload testing, not Play Store releases. Backend Gemini endpoints require APP_API_ORIGIN and GEMINI_API_KEY on the deployed HTTPS server." \
+            --notes "Two independently installable Android test builds from commit ${{ github.sha }}. Customer and staff editions have distinct package IDs. Feature-parity checks verified all staff and customer routes, including barcode scanner, OEM bike specs, hanger identifier and configuration. Each APK contains its own source commit label. Debug-signed sideload builds; Gemini requires APP_API_ORIGIN plus a deployed server-side GEMINI_API_KEY." \
             --prerelease
