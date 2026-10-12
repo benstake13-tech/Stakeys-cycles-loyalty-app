@@ -1,32 +1,30 @@
 import { useSyncExternalStore } from 'react';
 import { supabase } from '../lib/supabase';
 import type { VehicleCategory } from '../types/bikeShop';
-import { DEFAULT_CONDITION_BANDS, type OfferConditionBands } from '../utils/bikeValuation';
 
 /**
  * Reactive, SSR-safe staff price book for the "Sell Your Bike" flow.
  *
- * Staff record what the workshop typically pays for a brand/model. The AI
- * valuation engine reads this book to turn an identified bike into a cash offer;
- * a blank model means "brand-wide default", and a blank brand+model row acts as
- * a category fallback.
+ * Staff record what the workshop pays for a brand/model, and the AI valuation
+ * engine reads this book to turn an identified bike into a cash offer. The
+ * offer is always a price a member of staff saved here — a per-condition figure
+ * or the model's base (good-condition) price. A blank model means "brand-wide
+ * default", and a blank brand+model row acts as a category fallback.
  *
  * Persistence is two-way: edits are written to localStorage (instant, offline)
- * AND mirrored into the `app_settings` JSON columns `sell_offerbook_json` /
- * `sell_condition_bands_json` when they exist. On load we hydrate back from
- * Supabase so a price a staff member sets in the terminal reaches every
- * customer's "Sell Your Bike" flow. Anon credentials cannot run DDL, so the
- * columns must be added once via `supabase/migrations/20261012_offer_price_book.sql`;
- * until then the store stays local-only.
+ * AND mirrored into the `app_settings` JSON column `sell_offerbook_json` when it
+ * exists. On load we hydrate back from Supabase so a price a staff member sets
+ * in the terminal reaches every customer's "Sell Your Bike" flow. Anon
+ * credentials cannot run DDL, so the column must be added once via
+ * `supabase/migrations/20261012_offer_price_book.sql`; until then the store
+ * stays local-only.
  */
 
 const STORAGE_KEY = 'stakeys.sell.offerbook.v1';
 const LEGACY_STORAGE_KEY = 'stakeys.tradein.offerbook.v1';
-const BANDS_STORAGE_KEY = 'stakeys.sell.conditionbands.v1';
 // Stamped only on a real staff edit (never on hydrate/seed) so the load-time
 // merge can tell an unsynced local edit from freshly-seeded defaults.
 const EDITED_AT_KEY = 'stakeys.sell.offerbook.editedAt.v1';
-const BANDS_EDITED_AT_KEY = 'stakeys.sell.conditionbands.editedAt.v1';
 
 export type CustomerCondition = 'excellent' | 'good' | 'fair' | 'poor';
 
@@ -122,8 +120,18 @@ function normalizeConditionPrices(
 
 function normalize(entry: OfferPriceEntry): OfferPriceEntry | null {
   if (!entry || typeof entry.id !== 'string') return null;
-  const basePrice = Number(entry.basePrice);
-  if (!Number.isFinite(basePrice) || basePrice < 0) return null;
+  const conditionPrices = normalizeConditionPrices(entry.conditionPrices);
+  const goodPrice = Number(conditionPrices?.good?.price);
+  const rawBase = Number(entry.basePrice);
+  // A row staff priced only per-condition still needs a base for the matcher to
+  // see it — the good-condition figure stands in for it.
+  const basePrice =
+    Number.isFinite(rawBase) && rawBase >= 0
+      ? rawBase
+      : Number.isFinite(goodPrice) && goodPrice >= 0
+      ? goodPrice
+      : NaN;
+  if (!Number.isFinite(basePrice)) return null;
   return {
     ...entry,
     brand: String(entry.brand || '').trim(),
@@ -131,7 +139,7 @@ function normalize(entry: OfferPriceEntry): OfferPriceEntry | null {
     basePrice: Math.round(basePrice),
     minPrice: Number.isFinite(Number(entry.minPrice)) ? Math.round(Number(entry.minPrice)) : undefined,
     maxPrice: Number.isFinite(Number(entry.maxPrice)) ? Math.round(Number(entry.maxPrice)) : undefined,
-    conditionPrices: normalizeConditionPrices(entry.conditionPrices),
+    conditionPrices,
     updatedAt: entry.updatedAt || new Date().toISOString(),
   };
 }
@@ -234,12 +242,15 @@ export function getOfferPrices(): OfferPriceEntry[] {
 }
 
 export function upsertOfferPrice(entry: Omit<OfferPriceEntry, 'id' | 'updatedAt'> & { id?: string }): OfferPriceEntry {
-  const next: OfferPriceEntry = {
+  const draft: OfferPriceEntry = {
     ...entry,
     conditionPrices: normalizeConditionPrices(entry.conditionPrices),
     id: entry.id || `op-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
     updatedAt: new Date().toISOString(),
   };
+  // Run the same normalisation the loader uses so an in-memory row matches what a
+  // reload would produce (e.g. a base price derived from the good-condition row).
+  const next = normalize(draft) ?? draft;
   const existing = read();
   const idx = existing.findIndex((e) => e.id === next.id);
   write(idx >= 0 ? existing.map((e) => (e.id === next.id ? next : e)) : [next, ...existing]);
@@ -280,143 +291,4 @@ function subscribe(onChange: () => void): () => void {
 
 export function useOfferPrices(): OfferPriceEntry[] {
   return useSyncExternalStore(subscribe, getOfferPrices);
-}
-
-// ---------------------------------------------------------------------------
-// Condition bands — what we pay at each grade, as a multiplier on the base price.
-// ---------------------------------------------------------------------------
-
-let cachedBands: OfferConditionBands | null = null;
-const bandListeners = new Set<() => void>();
-
-function readBands(): OfferConditionBands {
-  if (cachedBands) return cachedBands;
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = window.localStorage.getItem(BANDS_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') {
-          cachedBands = normalizeBands(parsed);
-          return cachedBands;
-        }
-      }
-    } catch {
-      // Ignore malformed storage and fall back to the defaults.
-    }
-  }
-  cachedBands = { ...DEFAULT_CONDITION_BANDS };
-  return cachedBands;
-}
-
-/** Keep every multiplier a positive number, falling back per-field. */
-export function normalizeBands(input: Partial<OfferConditionBands>): OfferConditionBands {
-  const pick = (v: unknown, fallback: number) =>
-    Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fallback;
-  return {
-    excellent: pick(input.excellent, DEFAULT_CONDITION_BANDS.excellent),
-    good: pick(input.good, DEFAULT_CONDITION_BANDS.good),
-    fair: pick(input.fair, DEFAULT_CONDITION_BANDS.fair),
-    poor: pick(input.poor, DEFAULT_CONDITION_BANDS.poor),
-  };
-}
-
-export function getOfferConditionBands(): OfferConditionBands {
-  if (!cachedBands) void syncOfferBandsFromSupabase();
-  return readBands();
-}
-
-export function setOfferConditionBands(next: Partial<OfferConditionBands>): OfferConditionBands {
-  const bands = normalizeBands({ ...readBands(), ...next });
-  cachedBands = bands;
-  if (typeof window !== 'undefined') {
-    try {
-      window.localStorage.setItem(BANDS_STORAGE_KEY, JSON.stringify(bands));
-      window.localStorage.setItem(BANDS_EDITED_AT_KEY, String(Date.now()));
-    } catch {
-      // Best-effort persistence.
-    }
-  }
-  for (const l of bandListeners) l();
-  void persistBandsToSupabase(bands);
-  return bands;
-}
-
-export function resetOfferConditionBands(): OfferConditionBands {
-  return setOfferConditionBands(DEFAULT_CONDITION_BANDS);
-}
-
-let bandsColumnProbe: 'unknown' | 'absent' | 'present' = 'unknown';
-async function persistBandsToSupabase(bands: OfferConditionBands): Promise<void> {
-  if (typeof window === 'undefined') return;
-  try {
-    if (bandsColumnProbe === 'absent') return;
-    if (bandsColumnProbe === 'unknown') {
-      const probe = await supabase.from('app_settings').select('sell_condition_bands_json').eq('id', 1).maybeSingle();
-      if (probe.error) {
-        bandsColumnProbe = 'absent';
-        return;
-      }
-      bandsColumnProbe = 'present';
-    }
-    // Wrapped with a timestamp so a fresh device can tell whether its own local
-    // edit is newer than the server copy.
-    await supabase
-      .from('app_settings')
-      .update({ sell_condition_bands_json: { bands, updatedAt: new Date().toISOString() } })
-      .eq('id', 1);
-  } catch {
-    // Local-only is an acceptable degradation.
-  }
-}
-
-let bandsSynced = false;
-let bandsSyncing = false;
-
-/** Pull the workshop's saved condition bands down so the customer engine matches. */
-export async function syncOfferBandsFromSupabase(force = false): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
-  if (bandsSyncing) return false;
-  if (bandsSynced && !force) return false;
-  bandsSyncing = true;
-  try {
-    const { data, error } = await supabase
-      .from('app_settings')
-      .select('sell_condition_bands_json')
-      .eq('id', 1)
-      .maybeSingle();
-    if (error) return false;
-    bandsSynced = true;
-    const raw = (data as { sell_condition_bands_json?: unknown } | null)?.sell_condition_bands_json;
-    if (!raw || typeof raw !== 'object') return true;
-    // Accept both the wrapped { bands, updatedAt } payload and a bare bands object.
-    const wrapped = raw as { bands?: unknown; updatedAt?: unknown };
-    const remoteBands = (wrapped.bands && typeof wrapped.bands === 'object' ? wrapped.bands : raw) as Partial<OfferConditionBands>;
-    const remoteTime = typeof wrapped.updatedAt === 'string' ? Date.parse(wrapped.updatedAt) || 0 : 0;
-    if (readStamp(BANDS_EDITED_AT_KEY) > remoteTime) {
-      void persistBandsToSupabase(readBands());
-      return true;
-    }
-    cachedBands = normalizeBands(remoteBands);
-    try {
-      window.localStorage.setItem(BANDS_STORAGE_KEY, JSON.stringify(cachedBands));
-    } catch {
-      // Best-effort persistence.
-    }
-    for (const l of bandListeners) l();
-    return true;
-  } catch {
-    return false;
-  } finally {
-    bandsSyncing = false;
-  }
-}
-
-function subscribeBands(onChange: () => void): () => void {
-  bandListeners.add(onChange);
-  return () => bandListeners.delete(onChange);
-}
-
-export function useOfferConditionBands(): OfferConditionBands {
-  return useSyncExternalStore(subscribeBands, getOfferConditionBands);
 }
