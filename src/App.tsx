@@ -29,6 +29,8 @@ import { Navigation3DDeck, NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { Toaster } from 'react-hot-toast';
+import { APP_EDITION } from './appEdition';
+import { MobileEditionShell } from './components/MobileEditionShell';
 
 function AppContent() {
   const { currentUser, logoutUser, theme, bookings } = useShop();
@@ -56,7 +58,7 @@ function AppContent() {
 
   // 1. FIRST SCREEN: If user is not authenticated, show LoginScreen or Guest Booking
   if (!currentUser) {
-    if (showGuestBooking) {
+    if (APP_EDITION !== 'staff' && showGuestBooking) {
       return (
         <div className={`min-h-screen ${isDark ? 'bg-neutral-950 text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
           <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
@@ -93,7 +95,21 @@ function AppContent() {
         </div>
       );
     }
-    return <LoginScreen onGoToBooking={() => setShowGuestBooking(true)} />;
+    return <LoginScreen onGoToBooking={APP_EDITION === 'staff' ? undefined : () => setShowGuestBooking(true)} />;
+  }
+
+  // The two Android APKs have independent navigation and role-appropriate screens.
+  // The regular website retains its existing all-in-one interface.
+  if (APP_EDITION !== 'web') {
+    return (
+      <MobileEditionShell
+        currentUser={currentUser}
+        logoutUser={logoutUser}
+        theme={theme}
+        activeTab={activeTab === 'booking' || activeTab === 'promotions' ? activeTab : 'customer'}
+        setActiveTab={setActiveTab}
+      />
+    );
   }
 
   return (
