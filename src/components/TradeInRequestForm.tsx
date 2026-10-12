@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { submitTradeInRequest, SellAnglePhoto } from '../context/TradeInStore';
-import { getOfferPrices, getOfferConditionBands, syncOfferPricesFromSupabase, syncOfferBandsFromSupabase } from '../context/OfferPriceBook';
+import { getOfferPrices, syncOfferPricesFromSupabase } from '../context/OfferPriceBook';
 import { diagnoseFault, isBikeVisionConfigured } from '../api/visionService';
 import { compressImageFile } from '../utils/imageCompress';
 import { valueBike } from '../utils/bikeValuation';
@@ -38,6 +38,93 @@ interface Props {
   compact?: boolean;
 }
 
+type SpecRow = { label: string; value: string };
+type SpecSection = { title: string; rows: SpecRow[] };
+
+const SPEC_CATEGORY_ORDER = [
+  'Drivetrain',
+  'Brakes',
+  'Suspension / Fork',
+  'Wheels & Tires',
+  'Cockpit & Controls',
+  'Electrical / Battery',
+];
+
+const clean = (v: unknown): string => String(v ?? '').trim();
+const isUnknown = (s: string) => !s || /^unknown\s*\/?\s*to be inspected$/i.test(s);
+
+/**
+ * Turn the AI's identification into readable spec sections. This is the point of
+ * the seven photos — the customer sees every component the AI could read off
+ * their bike, grouped the way a mechanic thinks about it.
+ */
+function buildSpecSections(r: any): SpecSection[] {
+  if (!r) return [];
+  const sections: SpecSection[] = [];
+
+  const idRows: SpecRow[] = [];
+  const push = (label: string, v: unknown) => {
+    const s = clean(v);
+    if (!isUnknown(s)) idRows.push({ label, value: s });
+  };
+  push('Brand', r.make);
+  push('Model', r.model);
+  push('Type', r.categoryLabel || r.type);
+  push('Year', r.year);
+  push('Colour', r.colour);
+  push('Frame material', r.frameMaterial);
+  push('Serial number', r.serialNumber);
+  const p = r.positioning || {};
+  push('Frame size', p.frameSizeEstimate);
+  push('Wheel size', p.wheelSize || r.wheelSizeAndSpecs);
+  push('Tyre size', p.tyreSize);
+  push('Valve type', p.valveType);
+  push('Riding style', p.ridingStyle);
+  push('Rider fit', p.riderFit);
+  push('Cockpit', p.cockpitSetup);
+  push('Saddle', p.saddleSetup);
+  if (idRows.length) sections.push({ title: 'Identification', rows: idRows });
+
+  const ek = r.electricKit || {};
+  if (ek.isElectric) {
+    const eRows: SpecRow[] = [];
+    const epush = (label: string, v: unknown) => {
+      const s = clean(v);
+      if (s) eRows.push({ label, value: s });
+    };
+    epush('System', ek.systemType);
+    epush('Motor', [ek.motorBrand, ek.motorWatts].map(clean).filter(Boolean).join(' '));
+    epush('Motor position', ek.motorPosition);
+    epush('Battery', [ek.batteryBrand, ek.batteryVolts].map(clean).filter(Boolean).join(' '));
+    epush('Battery location', ek.batteryLocation);
+    epush('Controller', ek.controllerNotes);
+    if (ek.isAftermarketConversion) epush('Note', 'Aftermarket conversion');
+    if (eRows.length) sections.push({ title: 'Electric kit', rows: eRows });
+  }
+
+  const specs: any[] = Array.isArray(r.mainSpecs) ? r.mainSpecs : [];
+  const byCat = new Map<string, SpecRow[]>();
+  for (const s of specs) {
+    const cat = clean(s?.category) || 'Other';
+    const name = clean(s?.componentName) || clean(s?.componentId) || 'Component';
+    const bits = [s?.currentPart, s?.specValue, s?.brand, s?.model].map(clean).filter(Boolean);
+    const value = bits.join(' · ') || '—';
+    const cond = s?.condition ? ` (${clean(s.condition).replace(/_/g, ' ')})` : '';
+    const arr = byCat.get(cat) ?? [];
+    arr.push({ label: name, value: `${value}${cond}` });
+    byCat.set(cat, arr);
+  }
+  for (const cat of SPEC_CATEGORY_ORDER) {
+    const rows = byCat.get(cat);
+    if (rows) sections.push({ title: cat, rows });
+  }
+  for (const [cat, rows] of byCat) {
+    if (!SPEC_CATEGORY_ORDER.includes(cat)) sections.push({ title: cat, rows });
+  }
+
+  return sections;
+}
+
 /**
  * "Sell Your Bike": the customer photographs their bike from seven guided
  * angles, the AI identifies it, and an instant indicative offer is produced
@@ -45,12 +132,11 @@ interface Props {
  * photo and the AI read attached.
  */
 export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
-  // Pull the workshop's latest price book + condition bands when the customer
-  // opens the form, so a price staff just set in the terminal is used here even
-  // if this device already cached an older copy.
+  // Pull the workshop's latest price book when the customer opens the form, so a
+  // price staff just set in the terminal is used here even if this device already
+  // cached an older copy.
   useEffect(() => {
     void syncOfferPricesFromSupabase(true);
-    void syncOfferBandsFromSupabase(true);
   }, []);
 
   const { currentUser } = useShop();
@@ -136,11 +222,17 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
         obviousProblems: result?.obviousProblems,
         cosmeticIssues: result?.cosmeticIssues,
         electricKit: result?.electricKit,
-        conditionBands: getOfferConditionBands(),
       },
       getOfferPrices()
     );
   }, [result, brand, model, declaredCondition]);
+
+  // Every component the AI read off the seven photos — the point of the capture.
+  const specSections = useMemo(() => buildSpecSections(result), [result]);
+  const specCount = useMemo(
+    () => specSections.reduce((n, s) => n + s.rows.length, 0),
+    [specSections]
+  );
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -335,7 +427,9 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
             </div>
           ) : (
             <div className="surface-panel p-4 text-xs text-neutral-400">
-              We couldn’t match this bike to the price book automatically — the workshop will price it by hand.
+              {valuation?.matchLevel && valuation.matchLevel !== 'none'
+                ? 'Our workshop hasn’t published a price for this bike and condition yet — they’ll price it by hand.'
+                : 'We couldn’t match this bike to the price book automatically — the workshop will price it by hand.'}
             </div>
           )}
 
@@ -352,15 +446,47 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
                   >
                     <div className="text-[10px] capitalize text-neutral-400">{cp.condition}</div>
                     <div className={`font-mono text-sm font-bold ${valuation.condition === cp.condition ? 'text-emerald-300' : 'text-neutral-300'}`}>
-                      £{cp.price}{cp.maxPrice != null && cp.maxPrice > cp.price ? `–£${cp.maxPrice}` : ''}
+                      {cp.price != null
+                        ? `£${cp.price}${cp.maxPrice != null && cp.maxPrice > cp.price ? `–£${cp.maxPrice}` : ''}`
+                        : '—'}
                     </div>
                   </div>
                 ))}
               </div>
               <p className="text-[10px] text-neutral-500 mt-2">
                 Your condition: <span className="capitalize text-neutral-300">{valuation.condition}</span>
-                {declaredCondition ? ' (as you selected)' : ' (as read from your photos)'}.
+                {declaredCondition ? ' (as you selected)' : ' (as read from your photos)'}. Every figure is what our
+                workshop pays for that grade.
               </p>
+            </div>
+          ) : null}
+
+          {specCount > 0 ? (
+            <div className="surface-panel p-3 space-y-3" data-testid="sell-specs">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                  What we read from your photos
+                </div>
+                <div className="text-[10px] text-neutral-500">{specCount} details detected</div>
+              </div>
+              {specSections.map((section) => (
+                <div key={section.title}>
+                  <div className="text-[11px] font-semibold text-emerald-300/90 mb-1">{section.title}</div>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                    {section.rows.map((row, i) => (
+                      <div key={`${row.label}-${i}`} className="flex items-baseline justify-between gap-3 border-b border-neutral-900/80 pb-0.5">
+                        <dt className="text-[11px] text-neutral-500 shrink-0">{row.label}</dt>
+                        <dd className="text-[11px] text-neutral-200 text-right">{row.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+              ))}
+              {Array.isArray(result?.notVisible) && result.notVisible.length ? (
+                <p className="text-[10px] text-neutral-500">
+                  Couldn’t see from the photos (we’ll check at intake): {result.notVisible.join(', ')}.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -376,7 +502,9 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
                   </li>
                 ))}
               </ul>
-              <p className="text-[10px] text-neutral-500 mt-1.5">These blemishes are already reflected in the offer above.</p>
+              <p className="text-[10px] text-neutral-500 mt-1.5">
+                Noted for the workshop — our offer already reflects your bike’s condition grade.
+              </p>
             </div>
           ) : null}
 

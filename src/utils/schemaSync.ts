@@ -354,7 +354,6 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'notification_preferences', type: 'jsonb' },
       { name: 'scratch_card_config', type: 'jsonb' },
       { name: 'sell_offerbook_json', type: 'jsonb' },
-      { name: 'sell_condition_bands_json', type: 'jsonb' },
       { name: 'updated_at', type: 'timestamptz', default: NOW },
     ],
   },

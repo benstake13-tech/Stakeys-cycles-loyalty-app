@@ -36,9 +36,6 @@ import {
   upsertOfferPrice,
   deleteOfferPrice,
   resetOfferPrices,
-  getOfferConditionBands,
-  setOfferConditionBands,
-  resetOfferConditionBands,
 } from './src/context/OfferPriceBook';
 import { getTradeInRequests, deleteTradeInRequest, submitTradeInRequest } from './src/context/TradeInStore';
 import { valueBike } from './src/utils/bikeValuation';
@@ -52,7 +49,6 @@ beforeEach(() => {
   cleanup();
   localStorage.clear();
   resetOfferPrices();
-  resetOfferConditionBands();
   (diagnoseFault as unknown as ReturnType<typeof vi.fn>).mockReset();
   for (const r of getTradeInRequests()) deleteTradeInRequest(r.id);
 });
@@ -98,21 +94,32 @@ describe('SellYourBikeForm — seven angle capture', () => {
     }, { timeout: 4000 });
   });
 
-  it('shows the price ladder and the damage the AI spotted after analysis', async () => {
+  it('shows the spec list, the price ladder and the damage the AI spotted after analysis', async () => {
     (diagnoseFault as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
       make: 'Trek',
       model: 'Marlin 5',
       type: 'cycle',
+      categoryLabel: 'Mountain Bike',
+      year: '2021',
+      colour: 'Matte Black',
+      frameMaterial: 'Aluminium',
+      serialNumber: 'WTU123456',
       overallCondition: 'Good',
       confidence: 0.9,
       coverage: 0.9,
       faults: [],
       obviousProblems: [],
+      positioning: { frameSizeEstimate: 'Medium (~17in)', wheelSize: '27.5in', tyreSize: '27.5 x 2.10' },
+      electricKit: { isElectric: false },
+      mainSpecs: [
+        { systemId: 'drivetrain', componentId: 'rear-derailleur', category: 'Drivetrain', componentName: 'Rear derailleur', currentPart: 'Shimano Altus', specValue: '8-speed', visibility: 'visible' },
+        { systemId: 'brakes', componentId: 'front-brake', category: 'Brakes', componentName: 'Front brake', currentPart: 'Tektro disc', specValue: '160mm rotor', visibility: 'visible' },
+      ],
+      notVisible: ['Bottom bracket'],
       cosmeticIssues: [
         { type: 'Scratch on top tube', location: 'Top tube', severity: 'Moderate' },
         { type: 'Dent in down tube', location: 'Down tube', severity: 'Major' },
       ],
-      electricKit: { isElectric: false },
     });
     render(<SellYourBikeForm />);
     fireEvent.click(screen.getByTestId('sell-angle-drive-side').querySelector('button')!);
@@ -120,7 +127,17 @@ describe('SellYourBikeForm — seven angle capture', () => {
     await waitFor(() => expect(screen.getByAltText('Drive side')).toBeTruthy(), { timeout: 4000 });
 
     fireEvent.click(screen.getByText(/Identify my bike/i));
-    await waitFor(() => expect(screen.getByTestId('sell-damage')).toBeTruthy(), { timeout: 4000 });
+    await waitFor(() => expect(screen.getByTestId('sell-specs')).toBeTruthy(), { timeout: 4000 });
+
+    // Every detail the AI read off the photos is listed, grouped by system.
+    const specs = screen.getByTestId('sell-specs');
+    expect(specs.textContent).toMatch(/Identification/);
+    expect(specs.textContent).toMatch(/Serial number/);
+    expect(specs.textContent).toMatch(/WTU123456/);
+    expect(specs.textContent).toMatch(/Rear derailleur/);
+    expect(specs.textContent).toMatch(/Shimano Altus/);
+    expect(specs.textContent).toMatch(/Front brake/);
+    expect(specs.textContent).toMatch(/Bottom bracket/); // the "couldn't see" note
 
     // The condition ladder renders all four grades.
     expect(screen.getByText(/Price by condition/i)).toBeTruthy();
@@ -155,6 +172,19 @@ describe('OfferPriceBook store', () => {
     upsertOfferPrice({ brand: 'Test', model: 'X', category: 'cycle', basePrice: 10 });
     resetOfferPrices();
     expect(getOfferPrices().some((p) => p.brand === 'Test')).toBe(false);
+  });
+
+  it('keeps a per-condition-only row by deriving its base from the good price', () => {
+    const created = upsertOfferPrice({
+      brand: 'Voodoo',
+      model: 'Bizango',
+      category: 'cycle',
+      basePrice: undefined as unknown as number,
+      conditionPrices: { good: { price: 120 }, fair: { price: 80 } },
+    });
+    const saved = getOfferPrices().find((p) => p.id === created.id)!;
+    expect(saved.basePrice).toBe(120);
+    expect(saved.conditionPrices?.fair?.price).toBe(80);
   });
 });
 
@@ -208,28 +238,14 @@ describe('StaffOfferPricesTab', () => {
     expect(getOfferPrices().some((p) => p.brand === 'Trek' && p.model === 'Marlin' && p.basePrice === 205)).toBe(true);
   });
 
-  it('shows the condition-band editor and saves tuned percentages', () => {
+  it('edits and saves a per-model price from the catalogue', () => {
     render(<StaffOfferPricesTab />);
-    expect(screen.getByTestId('condition-bands')).toBeTruthy();
-    fireEvent.change(screen.getByLabelText('poor condition percent'), { target: { value: '40' } });
-    fireEvent.click(screen.getByText(/Save condition prices/i));
-    expect(getOfferConditionBands().poor).toBeCloseTo(0.4);
-  });
-});
-
-describe('OfferPriceBook condition bands', () => {
-  it('seeds sensible defaults', () => {
-    resetOfferConditionBands();
-    const b = getOfferConditionBands();
-    expect(b.good).toBe(1);
-    expect(b.excellent).toBeGreaterThan(b.good);
-    expect(b.poor).toBeLessThan(b.fair);
-  });
-
-  it('normalises out-of-range input back to defaults', () => {
-    setOfferConditionBands({ fair: 0 });
-    expect(getOfferConditionBands().fair).toBeGreaterThan(0);
-    resetOfferConditionBands();
+    fireEvent.click(screen.getByTestId('catalogue-brand-trek'));
+    fireEvent.click(screen.getByTestId('catalogue-model-trek-marlin'));
+    fireEvent.change(screen.getByLabelText('good price'), { target: { value: '205' } });
+    fireEvent.click(screen.getByText(/Add to price book/i));
+    const saved = getOfferPrices().find((p) => p.brand === 'Trek' && p.model === 'Marlin')!;
+    expect(saved.conditionPrices?.good?.price).toBe(205);
   });
 });
 
