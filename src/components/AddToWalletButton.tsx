@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Wallet } from 'lucide-react';
 import { UserProfile } from '../types/bikeShop';
+import { apiUrl } from '../utils/apiBase';
 
 interface AddToWalletButtonProps {
   user: UserProfile;
@@ -25,7 +26,7 @@ export const AddToWalletButton: React.FC<AddToWalletButtonProps> = ({ user }) =>
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/wallet/config')
+    fetch(apiUrl('/api/wallet/config'))
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!cancelled && data) setConfig(data);
@@ -43,7 +44,7 @@ export const AddToWalletButton: React.FC<AddToWalletButtonProps> = ({ user }) =>
   const addGoogle = async () => {
     setBusy(true);
     try {
-      const res = await fetch('/api/wallet/google', {
+      const res = await fetch(apiUrl('/api/wallet/google'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -67,7 +68,7 @@ export const AddToWalletButton: React.FC<AddToWalletButtonProps> = ({ user }) =>
     <div className="flex flex-wrap items-center gap-2" data-testid="add-to-wallet">
       {config.apple.configured && (
         <a
-          href={`/api/wallet/apple?membership=${encodeURIComponent(user.membershipNumber)}&name=${encodeURIComponent(user.displayName)}&stamps=${user.stamps || 0}&points=${user.points || 0}`}
+          href={apiUrl(`/api/wallet/apple?membership=${encodeURIComponent(user.membershipNumber)}&name=${encodeURIComponent(user.displayName)}&stamps=${user.stamps || 0}&points=${user.points || 0}`)}
           className="inline-flex items-center gap-2 rounded-lg bg-neutral-950 px-3.5 py-2 text-xs font-bold text-white hover:bg-neutral-800"
         >
           <Wallet className="w-4 h-4" /> Add to Apple Wallet

@@ -6,6 +6,8 @@
  * access/refresh tokens back here for the session.
  */
 
+import { apiUrl } from './apiBase';
+
 export type OAuthProvider = 'google' | 'meta';
 
 export interface OAuthTokens {
@@ -161,7 +163,7 @@ export async function exchangeCodeForTokens(
   codeVerifier: string,
   redirectUri: string
 ): Promise<OAuthTokens> {
-  const res = await fetch('/api/oauth/token', {
+  const res = await fetch(apiUrl('/api/oauth/token'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ provider, code, codeVerifier, redirectUri }),
@@ -193,7 +195,7 @@ export async function getValidAccessToken(provider: OAuthProvider): Promise<stri
     return null;
   }
   try {
-    const res = await fetch('/api/oauth/refresh', {
+    const res = await fetch(apiUrl('/api/oauth/refresh'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider, refreshToken: token.refreshToken }),

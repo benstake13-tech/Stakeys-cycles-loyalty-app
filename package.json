@@ -15,11 +15,11 @@
     "network:status": "bash scripts/network-status.sh",
     "sync": "bash scripts/sync-branch.sh",
     "sync:verify": "bash scripts/sync-verify.sh",
-    "android:sync": "npm run build && cap sync android",
+    "android:sync": "cross-env VITE_API_BASE_URL=https://www.stakeys-cycles.co.uk npm run build && cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
     "android:bundle": "npm run android:sync && cd android && ./gradlew bundleRelease",
     "android:open": "cap open android",
-    "ios:sync": "npm run build && cap sync ios",
+    "ios:sync": "cross-env VITE_API_BASE_URL=https://www.stakeys-cycles.co.uk npm run build && cap sync ios",
     "ios:open": "cap open ios"
   },
   "dependencies": {
@@ -56,6 +56,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^6.2.2",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
@@ -66,6 +67,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
+    "cross-env": "^10.1.0",
     "esbuild": "^0.25.0",
     "jsdom": "^30.1.1",
     "tailwindcss": "^4.3.3",

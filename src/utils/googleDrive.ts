@@ -7,6 +7,8 @@
  * endpoint, which needs no key once the folder is shared.
  */
 
+import { apiUrl } from './apiBase';
+
 export interface DriveImage {
   id: string;
   name: string;
@@ -66,7 +68,7 @@ export function normaliseDriveUrl(input: string): string {
 }
 
 export async function listDriveFolder(folderId: string): Promise<DriveListResult> {
-  const response = await fetch(`/api/drive/list?folderId=${encodeURIComponent(folderId)}`);
+  const response = await fetch(apiUrl(`/api/drive/list?folderId=${encodeURIComponent(folderId)}`));
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data?.error || 'Could not load the Drive folder');

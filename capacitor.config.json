@@ -4,11 +4,11 @@
   "webDir": "dist",
   "android": { "allowMixedContent": true },
   "server": {
-    "hostname": "www.stakeys-cycles.co.uk",
     "androidScheme": "https",
     "allowNavigation": ["www.stakeys-cycles.co.uk", "*.supabase.co", "accounts.google.com"]
   },
   "plugins": {
+    "CapacitorHttp": { "enabled": true },
     "BluetoothLe": {
       "displayStrings": {
         "scanning": "Scanning for e-scooter controllers…",

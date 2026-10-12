@@ -1,3 +1,4 @@
+import { apiUrl } from './apiBase';
 import { OAuthProvider, getValidAccessToken } from './oauthService';
 import {
   MetaPoint,
@@ -46,7 +47,7 @@ const SERVER_MANAGED: Partial<Record<OAuthProvider, boolean>> = {};
 /** Probes the server for provider credentials it holds (e.g. META_SYSTEM_USER_TOKEN). */
 export async function refreshServerManaged(): Promise<void> {
   try {
-    const res = await fetch('/api/business/status');
+    const res = await fetch(apiUrl('/api/business/status'));
     if (!res.ok) return;
     const data = await res.json();
     SERVER_MANAGED.meta = Boolean(data?.meta?.serverManaged);
@@ -82,7 +83,7 @@ async function proxyFetch(
     return { ok: false, data: null as any, error: 'not_connected' };
   }
 
-  const res = await fetch('/api/business/insights', {
+  const res = await fetch(apiUrl('/api/business/insights'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ provider, accessToken: token, path, params }),

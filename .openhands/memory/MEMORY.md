@@ -546,3 +546,9 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - **Lesson**: `upsertOfferPrice` now runs the same `normalize()` as the loader — a row priced only per-condition derives its base from the good-condition figure so the matcher still sees it.
 - **Sell Your Bike lists every AI-detected spec** (`buildSpecSections`, `data-testid="sell-specs"`): Identification block (serial/size/colour/frame material) + `mainSpecs` grouped by system + Electric-kit block + a `notVisible` "couldn't see" note.
 - Tests 148 files / 1249 green; TSC 0; build 0. Heads: staff-terminal `3d62ecb` / customer-app `6ae6c35` / main-website `62a98b4`, pushed. Previews rebuilt (all 200).
+
+## Native apps (Android + iOS) — 2026-10-07, commit `fd0f67b` on `staff-terminal`
+- Capacitor 6 wraps the staff web build as native apps. Config = **`capacitor.config.json`** (the CLI's `.ts` loader breaks on Node 24). WebView served under `www.stakeys-cycles.co.uk` so relative `/api/*` still hits Vercel.
+- `src/utils/bleHost.ts` adapts `@capacitor-community/bluetooth-le` to the existing `BluetoothHost`; the e-scooter engine/UI is shared, only transport differs. Android manifest + iOS Info.plist permission strings added. Scripts `android:sync|apk|bundle|open`, `ios:sync|open`; doc `NATIVE_APPS.md`.
+- Android debug APK **built & verified** here (JDK 21 + AGP 8.2.1 + SDK at `/opt/android-sdk`, 8.3 MB). **iOS is scaffolded but cannot be built on this Linux host** — needs macOS/Xcode/CocoaPods.
+- Never commit generated native artifacts (copied web assets, `Pods/`, `build/`) — covered by the platform `.gitignore`s; committing them breaks `check:parity`. Cherry-pick native files onto the other two branches.
