@@ -309,10 +309,10 @@ export const StaffPortal: React.FC = () => {
 
       {/* 1B. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
       {freshBookings.length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
+        <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-r from-[#382d17] via-[#302816] to-[#192b22] border border-amber-300/45 p-5 sm:p-6 shadow-[0_20px_55px_-35px_rgba(0,0,0,.85)] text-white">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-400 text-neutral-950 flex items-center justify-center font-black shadow-lg shadow-amber-400/50 shrink-0 animate-bounce">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-200 to-amber-500 text-neutral-950 flex items-center justify-center shrink-0">
                 <Bell className="w-6 h-6 text-neutral-950" />
               </div>
               <div>
@@ -348,11 +348,11 @@ export const StaffPortal: React.FC = () => {
       )}
 
       {/* 2. STATION OVERVIEW & METRICS BAR */}
-      <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top_right,rgba(5,193,71,.11),transparent_55%)] bg-[#0e1217] border border-neutral-700/70 rounded-[30px] p-6 sm:p-7 shadow-2xl">
+      <div className="atelier-hero p-6 sm:p-8">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
-              <span className="text-emerald-400 font-semibold tracking-wider uppercase">
+              <span className="atelier-eyebrow text-emerald-200">
                 Staff Command Station
               </span>
               <span aria-hidden="true" className="text-neutral-600">·</span>
@@ -360,7 +360,7 @@ export const StaffPortal: React.FC = () => {
               <span aria-hidden="true" className="text-neutral-600">·</span>
               <span className="text-neutral-500 font-mono text-[11px]">{currentUser.membershipNumber}</span>
             </div>
-            <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            <h2 className="atelier-display text-3xl sm:text-4xl text-white">
               Workshop Terminal &amp; Front Desk
             </h2>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
@@ -414,24 +414,24 @@ export const StaffPortal: React.FC = () => {
           </div>
 
           {/* Studio-style control panel replaces the old cluster of tiles */}
-          <aside aria-label="Workshop snapshot" className="w-full lg:w-[425px] shrink-0 rounded-[26px] bg-neutral-950/85 border border-white/10 p-5 shadow-[0_24px_55px_-35px_rgba(0,0,0,.9)]">
+          <aside aria-label="Workshop snapshot" className="w-full lg:w-[425px] shrink-0 rounded-[24px] bg-[#091713]/70 border border-emerald-200/15 p-5 sm:p-6 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
             <div className="flex items-center justify-between gap-3 mb-5">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.7)]" />
                 <span className="text-[10px] uppercase tracking-[0.2em] font-black text-neutral-300">Workshop pulse</span>
               </div>
-              <span className="text-[10px] font-mono text-neutral-500">LIVE OVERVIEW</span>
+              <span className="text-[10px] font-mono text-neutral-500">WORKSHOP SNAPSHOT</span>
             </div>
 
-            <div className="grid grid-cols-3 divide-x divide-white/10 pb-5 border-b border-white/10">
+            <div className="atelier-kpi-rail mb-5">
               <button type="button" onClick={() => setStaffTab('bookings')} className="text-left pr-3 group" aria-label="Open workshop bookings">
                 <span className="text-[10px] text-neutral-400 font-semibold">Workshop jobs</span>
-                <div className="font-display text-3xl font-black text-white mt-1 group-hover:text-emerald-400 transition-colors">{activeBookingsCount}</div>
+                <div className="atelier-display text-3xl sm:text-4xl text-white mt-2 group-hover:text-emerald-300 transition-colors">{activeBookingsCount}</div>
                 <span className={`text-[10px] font-bold ${freshBookings.length ? 'text-amber-400' : 'text-neutral-500'}`}>{freshBookings.length ? `${freshBookings.length} awaiting review` : 'Up to date'}</span>
               </button>
               <button type="button" onClick={() => setStaffTab('customers')} className="text-left px-3 group" aria-label="Open loyalty members">
                 <span className="text-[10px] text-neutral-400 font-semibold">Riders</span>
-                <div className="font-display text-3xl font-black text-white mt-1 group-hover:text-emerald-400 transition-colors">{customerList.length}</div>
+                <div className="atelier-display text-3xl sm:text-4xl text-white mt-2 group-hover:text-emerald-300 transition-colors">{customerList.length}</div>
                 <span className="text-[10px] text-neutral-500">Loyalty members</span>
               </button>
               <button type="button" onClick={() => setStaffTab('promotions')} className="text-left pl-3 group" aria-label="Open promotions">
@@ -454,15 +454,19 @@ export const StaffPortal: React.FC = () => {
       </div>
 
       {/* 3. WORKSTATION NAVIGATOR: Clean, High-Affordance Switcher */}
-      <div aria-label="Staff workstation tools" className="bg-[#0b0e13] border border-neutral-800/90 rounded-2xl p-2 grid grid-cols-2 sm:flex sm:flex-wrap items-stretch gap-1.5 shadow-md">
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-3 px-1">
+        <div>
+          <p className="atelier-eyebrow">THE WORKSTATION</p>
+          <h3 className="atelier-display text-white text-[23px] sm:text-[28px] mt-1">Choose your next task.</h3>
+        </div>
+        <p className="text-xs text-neutral-500 max-w-xs">All workshop modules, available on desktop and Android.</p>
+      </div>
+      <nav aria-label="Staff workstation tools" className="atelier-workstation grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2">
         <button
           type="button"
           onClick={() => setStaffTab('dashboard')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'dashboard'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'dashboard'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Layers className="w-4 h-4 text-emerald-400" />
           <span>Dashboard</span>
@@ -471,11 +475,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('bookings')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'bookings'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'bookings'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Wrench className="w-4 h-4 text-emerald-400" />
           <span>Workshop Bookings</span>
@@ -493,11 +494,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('staff_roster')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'staff_roster'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'staff_roster'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <UserPlus className="w-4 h-4 text-emerald-400" />
           <span>Staff Management</span>
@@ -509,11 +507,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('promotions')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'promotions'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'promotions'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Tag className="w-4 h-4 text-amber-400" />
           <span>Promotions Manager</span>
@@ -525,11 +520,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('customers')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'customers'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'customers'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Users className="w-4 h-4 text-emerald-400" />
           <span>Loyalty Members</span>
@@ -541,11 +533,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('draws')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'draws'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'draws'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Trophy className="w-4 h-4 text-emerald-400" />
           <span>Prize Draws &amp; Wheel Hub</span>
@@ -554,11 +543,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('scanner')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'scanner'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'scanner'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Scan className="w-4 h-4 text-emerald-400" />
           <span>Barcode Scanner</span>
@@ -567,7 +553,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('bike_specs')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${staffTab === 'bike_specs' ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'}`}
+          data-active={staffTab === 'bike_specs'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Bike className="w-4 h-4 text-emerald-400" />
           <span>Bike OEM Specs &amp; Upgrades</span>
@@ -576,7 +563,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('hanger')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${staffTab === 'hanger' ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'}`}
+          data-active={staffTab === 'hanger'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Wrench className="w-4 h-4 text-emerald-400" />
           <span>Hanger Identifier</span>
@@ -585,11 +573,8 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('logs')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'logs'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'logs'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <History className="w-4 h-4 text-emerald-400" />
           <span>Audit Logs</span>
@@ -598,26 +583,20 @@ export const StaffPortal: React.FC = () => {
         <button
           type="button"
           onClick={() => setStaffTab('financials')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'financials'
-              ? 'bg-emerald-950 text-emerald-300 shadow-md border border-emerald-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'financials'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <TrendingUp className="w-4 h-4 text-emerald-400" />
           <span>Financial Reports</span>
         </button>
 
-        <div className="hidden sm:block w-px h-6 bg-neutral-800 mx-2" />
+
 
         <button
           type="button"
           onClick={() => setStaffTab('google_business')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer ${
-            staffTab === 'google_business'
-              ? 'bg-neutral-800 text-white shadow-md border border-neutral-700/60'
-              : 'text-neutral-400 hover:text-white hover:bg-neutral-900/80'
-          }`}
+          data-active={staffTab === 'google_business'}
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"
         >
           <Building2 className="w-4 h-4 text-emerald-400" />
           <span>Business Profile</span>
@@ -630,12 +609,12 @@ export const StaffPortal: React.FC = () => {
               hardResetApp();
             }
           }}
-          className="px-3.5 py-2 rounded-xl text-xs font-semibold min-w-0 whitespace-normal sm:whitespace-nowrap text-left transition-all flex items-center gap-2 cursor-pointer text-rose-400 hover:text-white hover:bg-rose-950/60 border border-rose-900"
+          className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-rose-300 hover:text-rose-200 cursor-pointer"
         >
           <RefreshCcw className="w-4 h-4" />
           <span>Clean Slate</span>
         </button>
-      </div>
+      </nav>
 
       {/* 4. WORKSTATION VIEWS */}
 
