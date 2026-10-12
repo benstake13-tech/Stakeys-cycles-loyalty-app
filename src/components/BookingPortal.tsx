@@ -479,15 +479,15 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
       {/* Atelier Hero Banner with High-Resolution Photography */}
-      <div className="relative rounded-2xl overflow-hidden border border-neutral-800 bg-[#0d1015] shadow-2xl">
+      <div className="atelier-hero">
         <div className="absolute inset-0 z-0">
           <img
             src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
             alt="Stakey's workshop tools and repair bench"
             referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center opacity-25 filter saturate-75"
+            className="w-full h-full object-cover object-center opacity-40 filter saturate-75"
           />
-          <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#090b0e] via-[#090b0e]/85 to-[#090b0e]/40" />
+          <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#07180f] via-[#0a2016]/90 to-[#091810]/45" />
         </div>
 
         <div className="relative z-10 p-6 sm:p-8 md:p-10">
@@ -501,7 +501,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
             <span>Genuine Parts Guarantee</span>
           </div>
 
-          <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
+          <h1 className="atelier-display text-3xl sm:text-4xl md:text-[44px] text-white text-balance">
             Book Your Cycle Service
           </h1>
           <p className="text-sm text-neutral-300 mt-2 max-w-xl leading-relaxed">
@@ -512,7 +512,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
 
       {/* QUICK PRE-FILL FROM SAVED BIKES (if logged in and has bikes) */}
       {savedBikes.length > 0 && (
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-xl p-4 sm:p-5">
+        <div className="atelier-surface p-4 sm:p-6">
           <div className="flex items-center justify-between mb-3 text-xs">
             <span className="font-semibold text-white flex items-center gap-2">
               <Bike className="w-3.5 h-3.5 text-emerald-400" />
@@ -544,7 +544,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
       {/* Booking Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* STEP 1: What type of ride do you have? */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+        <div className="atelier-surface p-6 sm:p-8 space-y-5">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
               01
@@ -561,11 +561,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                  selectedCategory === cat.id
-                    ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
-                    : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700 text-neutral-400'
-                }`}
+                aria-pressed={selectedCategory === cat.id}
+                className="atelier-choice p-5 text-left cursor-pointer flex flex-col justify-between"
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
@@ -591,7 +588,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         </div>
 
         {/* STEP 2: Brand and Model Dropdowns */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+        <div className="atelier-surface p-6 sm:p-8 space-y-5">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
               02
@@ -621,7 +618,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                       setSelectedModel('Standard Model');
                     }
                   }}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+                  className="atelier-field w-full px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
                 >
                   {POPULAR_BIKE_BRANDS.map((brand) => (
                     <option key={brand} value={brand} className="bg-neutral-950 text-white">
@@ -642,7 +639,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 <select
                   value={selectedModel}
                   onChange={(e) => setSelectedModel(e.target.value)}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+                  className="atelier-field w-full px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
                 >
                   {brandModels.map((m) => (
                     <option key={m} value={m} className="bg-neutral-950 text-white">
@@ -666,7 +663,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 value={customModelText}
                 onChange={(e) => setCustomModelText(e.target.value)}
                 placeholder="e.g. Vintage Sprint, Dual Hardtail"
-                className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                className="atelier-field w-full px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
               />
             </div>
           )}
@@ -682,13 +679,13 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               value={bikeColour}
               onChange={(e) => setBikeColour(e.target.value)}
               placeholder="e.g. Matte Black, Deep Blue, Emerald Green"
-              className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              className="atelier-field w-full px-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
             />
           </div>
         </div>
 
         {/* STEP 3: Problem Identification & Services */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-6">
+        <div className="atelier-surface p-6 sm:p-8 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
@@ -751,11 +748,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   key={opt.id}
                   type="button"
                   onClick={() => setSelectedProblemId(opt.id)}
-                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                    selectedProblemId === opt.id
-                      ? 'bg-neutral-900 border-emerald-500/60 shadow-sm'
-                      : 'bg-neutral-950/70 border-neutral-800/80 hover:border-neutral-700'
-                  }`}
+                  aria-pressed={selectedProblemId === opt.id}
+                  className="atelier-choice p-5 text-left cursor-pointer flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -804,7 +798,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
         </div>
 
         {/* STEP 4: Choose Date, Time & Contact Info */}
-        <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+        <div className="atelier-surface p-6 sm:p-8 space-y-5">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-neutral-900 border border-neutral-800 text-emerald-400 font-mono font-bold text-xs flex items-center justify-center">
               04
@@ -828,7 +822,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   value={preferredDate}
                   min={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setPreferredDate(e.target.value)}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  className="atelier-field w-full pl-10 pr-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
                 />
               </div>
             </div>
@@ -841,7 +835,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                 <select
                   value={preferredTimeSlot}
                   onChange={(e) => setPreferredTimeSlot(e.target.value)}
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
+                  className="atelier-field w-full px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500 appearance-none cursor-pointer"
                 >
                   <option value="Morning (09:00 - 12:00)">Morning (09:00 - 12:00)</option>
                   <option value="Midday (12:00 - 15:00)">Midday (12:00 - 15:00)</option>
@@ -866,7 +860,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="e.g. John Smith"
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                  className="atelier-field w-full pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -883,7 +877,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   placeholder="+44 7911 123456"
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                  className="atelier-field w-full pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -900,7 +894,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
                   placeholder="john@example.com"
-                  className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                  className="atelier-field w-full pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
@@ -923,7 +917,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Rear brake feels spongy, or need back before Friday commute"
-              className="w-full bg-[#090b0e] border border-neutral-800 rounded-lg p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
+              className="atelier-field w-full p-3 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 resize-none"
             />
           </div>
         </div>
@@ -974,7 +968,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, onG
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3.5 rounded-xl bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-sm shadow-xl shadow-emerald-500/15 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            className="atelier-primary w-full py-4 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {isSubmitting ? (
               <span>Confirming Your Workshop Booking...</span>
