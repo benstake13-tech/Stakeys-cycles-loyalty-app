@@ -53,9 +53,14 @@ function nativePush(): Promise<NativePush | null> {
 async function readyNativePush(): Promise<NativePush | null> {
   const native = await nativePush();
   if (!native) return null;
-  const cfg = await getRuntimeConfig();
-  if (!cfg.appId) return null;
-  try { await native.initialize({ appId: cfg.appId }); return native; }
+  // Android and Web Push may be separate OneSignal apps. Never silently
+  // register an Android device against the website's Web Push App ID.
+  const androidAppId = String((import.meta as any).env?.VITE_ONESIGNAL_ANDROID_APP_ID || '').trim();
+  if (!androidAppId) {
+    console.warn('[OneSignal] Set VITE_ONESIGNAL_ANDROID_APP_ID for native Android push');
+    return null;
+  }
+  try { await native.initialize({ appId: androidAppId }); return native; }
   catch (err) { console.warn('[OneSignal] native initialization failed', err); return null; }
 }
 
