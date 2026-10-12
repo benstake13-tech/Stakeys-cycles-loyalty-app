@@ -1346,3 +1346,24 @@
 }
 
 
+
+/* Editorial photography showcase — website only. */
+.site-editorial-gallery { padding: .4rem 0; }
+.site-editorial-heading { display:flex; justify-content:space-between; align-items:end; gap:2rem; margin:0 0 1.5rem; }
+.site-editorial-heading h2 { margin-top:.65rem; font-size:clamp(2.15rem,5vw,4.5rem); letter-spacing:-.055em; }
+.site-editorial-heading p { color:var(--site-ink-soft); max-width:21rem; font-size:.92rem; line-height:1.8; }
+.site-editorial-grid { display:grid; grid-template-columns:1.35fr 1fr; grid-template-rows:repeat(2,minmax(245px,1fr)); gap:1rem; min-height:650px; }
+.site-editorial-photo { position:relative; display:block; width:100%; min-height:245px; overflow:hidden; isolation:isolate; border:1px solid rgba(255,255,255,.12); border-radius:1.25rem; background:#111914; text-align:left; cursor:pointer; color:#fff; box-shadow:0 18px 44px -25px rgba(0,0,0,.6); }
+.site-editorial-photo--lead { grid-row:span 2; }
+.site-editorial-photo::after { content:''; position:absolute; inset:0; z-index:-1; background:linear-gradient(180deg,rgba(0,0,0,.36),transparent 40%,rgba(0,0,0,.86)); pointer-events:none; }
+.site-editorial-photo img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:-2; transform:scale(1.005); transition:transform .85s cubic-bezier(.18,.72,.2,1),filter .5s ease; }
+.site-editorial-photo:hover img,.site-editorial-photo:focus-visible img { transform:scale(1.085); filter:saturate(1.14) contrast(1.05); }
+.site-editorial-photo:focus-visible { outline:2px solid #52d88b; outline-offset:3px; }
+.site-editorial-photo__index { position:absolute; left:1.5rem; top:1.4rem; font-size:.65rem; font-weight:800; letter-spacing:.2em; color:#e7f5e9; }
+.site-editorial-photo__caption { position:absolute; left:1.5rem; right:1.5rem; bottom:1.45rem; display:flex; flex-direction:column; gap:.55rem; }
+.site-editorial-photo__caption strong { font-family:'Syne',system-ui,sans-serif; font-size:clamp(1.4rem,2.7vw,2.7rem); font-weight:700; line-height:1.05; letter-spacing:-.055em; }
+.site-editorial-photo__caption > span { display:flex; align-items:center; gap:.65rem; font-size:.73rem; letter-spacing:.08em; font-weight:750; text-transform:uppercase; color:#c8e9d0; }
+.site-editorial-photo__caption svg { transition:transform .25s ease; }
+.site-editorial-photo:hover .site-editorial-photo__caption svg { transform:translateX(7px); }
+@media(max-width:720px) { .site-editorial-heading { display:block; } .site-editorial-heading p { margin-top:.9rem; } .site-editorial-grid { grid-template-columns:1fr; grid-template-rows:auto; min-height:0; } .site-editorial-photo,.site-editorial-photo--lead { min-height:340px; grid-row:auto; } }
+@media(prefers-reduced-motion:reduce) { .site-editorial-photo img,.site-editorial-photo__caption svg { transition:none; } }
