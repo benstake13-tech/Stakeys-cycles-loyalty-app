@@ -256,3 +256,5 @@ jobs:
 # Rebuild native OneSignal Android push bridge for both applications.
 
 # Rebuild Staff Terminal with five reorganized premium workspaces.
+
+# Rebuild native OneSignal APKs after Android App ID variables were configured.
