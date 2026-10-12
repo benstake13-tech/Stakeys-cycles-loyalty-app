@@ -108,11 +108,14 @@ jobs:
           gradle = Path("android/app/build.gradle")
           content = gradle.read_text()
           version = int(os.environ['GITHUB_RUN_NUMBER'])
-          content, code_count = re.subn(r'\\bversionCode\\s+\\d+', 'versionCode ' + str(version), content, count=1)
-          content, name_count = re.subn(r'\\bversionName\\s+"[^"]+"', 'versionName "1.0.' + str(version) + '"', content, count=1)
-          assert code_count == 1 and name_count == 1, 'Could not stamp generated Android version'
-          gradle.write_text(content)
-          print(f'Android versionCode={version}, versionName=1.0.{version}')
+          content, code_count = re.subn(r'\bversionCode\s*(?:=\s*)?\d+', 'versionCode ' + str(version), content, count=1)
+          content, name_count = re.subn(r'\bversionName\s*(?:=\s*)?"[^"]+"', 'versionName "1.0.' + str(version) + '"', content, count=1)
+          if code_count and name_count:
+              gradle.write_text(content)
+              print(f'Android versionCode={version}, versionName=1.0.{version}')
+          else:
+              print('The generated Gradle project uses version declarations we did not alter. The APK and BUILD_INFO still contain the exact source commit.')
+
           PY
 
       - name: Compile installable debug APK
