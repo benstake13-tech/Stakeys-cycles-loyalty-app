@@ -6,7 +6,13 @@ export async function analyzeBikeImage(imageDataUrl) {
     throw new Error('Choose a valid image file.');
   }
 
-  const response = await fetch('/api/gemini/scan-bike', {
+  // Native APKs serve local bundled assets, not a backend API. Configure an
+  // HTTPS host through the public VITE_APP_API_ORIGIN build variable.
+  const apiOrigin = String(import.meta.env.VITE_APP_API_ORIGIN || '').trim().replace(/\\/+$/, '');
+  if (import.meta.env.VITE_APP_EDITION && !apiOrigin) {
+    throw new Error('The bike scanner needs the shop AI server address configured in the Android build.');
+  }
+  const response = await fetch(`${apiOrigin}/api/gemini/scan-bike`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ image: imageDataUrl }),
