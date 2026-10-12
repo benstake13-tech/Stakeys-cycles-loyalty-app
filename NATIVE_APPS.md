@@ -84,6 +84,47 @@ Permissions are declared in `android/app/src/main/AndroidManifest.xml`:
 `BLUETOOTH`/`BLUETOOTH_ADMIN`/`ACCESS_FINE_LOCATION` pair (API Ōēż 30), `CAMERA`
 for QR scanning, and `POST_NOTIFICATIONS` for OneSignal push.
 
+## Two apps: staff + customer
+
+One native project ships **two installable apps** — the staff terminal and the
+customer app — so a new build produces two APKs with no code duplication.
+
+- `android/app/build.gradle` defines product flavors `staff` and `customer`.
+  A flavor only sets the installable identity: `applicationId`
+  (`uk.co.stakeyscycles.staff` / `uk.co.stakeyscycles.customer`) and the icon
+  tint (`customer/res/values/colors.xml` overrides `ic_launcher_background`
+  to brand green; the staff app keeps black). The app name comes from the
+  flavor's `strings.xml`.
+- The web surface bundled into each APK is chosen at build time via
+  `VITE_SURFACE` (`staff` / `customer`), so each app carries only its own code
+  path. Both point at the same API (`VITE_API_BASE_URL`).
+
+Build both at once:
+
+```bash
+npm run apps:build             # both APKs, production API
+npm run apps:build:staff       # just the staff app
+npm run apps:build:customer    # just the customer app
+```
+
+The script re-syncs the web assets once per app (so the correct surface is
+bundled), then assembles each flavor. Output lands in `preview/apps/`:
+
+```
+preview/apps/stakeys-staff.apk      uk.co.stakeyscycles.staff
+preview/apps/stakeys-customer.apk   uk.co.stakeyscycles.customer
+```
+
+Options: `--api https://...` to point both apps at another API, `--only staff`
+or `--only customer`, `--release` for release variants (needs a signing
+config). The script sets `JAVA_HOME`/`ANDROID_HOME` defaults and writes
+`android/local.properties`, so it works from a bare shell.
+
+Run this after any change that should ship to both apps. Because the two APKs
+are built from the same tree, keeping the branches in parity (see below) is
+what keeps the two apps identical apart from their surface.
+
+
 ## iOS
 
 Requirements: **macOS with Xcode and CocoaPods.** The iOS app cannot be built
