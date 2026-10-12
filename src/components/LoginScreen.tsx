@@ -235,6 +235,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
             </div>
           </div>
 
+          {APP_EDITION !== 'web' && (
+            <p className="text-center font-mono text-[10px] text-emerald-400/80 mb-4 tracking-wider uppercase">
+              {APP_EDITION === 'staff' ? 'Full Staff Terminal' : 'Complete Customer App'} · Source {import.meta.env.VITE_SOURCE_SHA || 'dev'}
+            </p>
+          )}
+
           {/* Dedicated 3-Mode Switcher: Customer Sign In | Create Account | Staff Terminal */}
           {APP_EDITION === 'staff' && (
             <div className="mb-5 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 p-4 flex items-center gap-3">
