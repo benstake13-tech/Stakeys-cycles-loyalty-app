@@ -64,7 +64,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base sm:text-lg font-bold text-white dark:text-white light:text-neutral-900 tracking-tight">
+              <h2 className="atelier-display text-[22px] sm:text-[27px] text-white tracking-tight">
                 Exclusive Workshop Promotions
               </h2>
               {/* Background Expiration Monitor Pulse Indicator */}
@@ -77,16 +77,17 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
               </span>
             </div>
             <p className="text-xs text-neutral-400 dark:text-neutral-400 light:text-neutral-600">
-              Interactive 3D dual-state cards — flip card to inspect full terms, conditions, and eligible service tiers.
+              Curated offers for the Stakey’s Cycles community. Explore each offer to view its full terms.
             </p>
           </div>
         </div>
 
         {/* Filter Buttons */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-neutral-900/80 dark:bg-neutral-900/80 light:bg-neutral-100 border border-neutral-800 dark:border-neutral-800 light:border-neutral-200 self-start sm:self-auto text-xs font-semibold">
+        <div className="atelier-segment self-start sm:self-auto text-xs font-semibold">
           <button
             type="button"
             onClick={() => setStatusFilter('active')}
+              aria-pressed={statusFilter === 'active'}
             className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
               statusFilter === 'active'
                 ? 'bg-emerald-500 text-neutral-950 font-bold shadow-sm'
@@ -98,6 +99,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
           <button
             type="button"
             onClick={() => setStatusFilter('upcoming')}
+              aria-pressed={statusFilter === 'upcoming'}
             className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
               statusFilter === 'upcoming'
                 ? 'bg-emerald-500 text-neutral-950 font-bold shadow-sm'
@@ -109,6 +111,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
           <button
             type="button"
             onClick={() => setStatusFilter('all')}
+              aria-pressed={statusFilter === 'all'}
             className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
               statusFilter === 'all'
                 ? 'bg-neutral-800 dark:bg-neutral-800 light:bg-white text-white dark:text-white light:text-neutral-900 shadow-sm'
@@ -122,11 +125,11 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
 
       {/* Promotions 3D Cards Grid */}
       {filteredPromos.length === 0 ? (
-        <div className="p-8 text-center rounded-2xl bg-neutral-900/50 dark:bg-neutral-900/50 light:bg-neutral-100 border border-neutral-800 dark:border-neutral-800 light:border-neutral-200 text-neutral-400 text-xs">
+        <div className="atelier-surface p-8 text-center text-neutral-400 text-xs">
           No promotions match the selected filter at this moment. Check back soon!
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
           {filteredPromos.map((promo) => {
             const isFlipped = !!flippedCards[promo.id];
             const isExpired = promo.status === 'expired';
@@ -135,7 +138,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
             return (
               <div
                 key={promo.id}
-                className="perspective-1200 h-[280px] w-full cursor-pointer select-none group"
+                className="perspective-1200 h-[310px] w-full cursor-pointer select-none group"
                 onClick={() => handleToggleFlip(promo.id)}
               >
                 {/* 3D Card Container that rotates on Y axis */}
@@ -146,11 +149,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
                 >
                   {/* FRONT FACE OF 3D CARD */}
                   <div
-                    className={`absolute inset-0 backface-hidden rounded-2xl p-5 border flex flex-col justify-between overflow-hidden shadow-3d-depth hover:shadow-3d-depth-hover transition-all ${
-                      isDark
-                        ? 'bg-gradient-to-br from-neutral-900 via-neutral-900/95 to-neutral-950 border-neutral-700/80 text-white'
-                        : 'bg-white border-neutral-300 text-neutral-900 shadow-3d-light hover:shadow-3d-light-hover'
-                    }`}
+                    className={`atelier-offer absolute inset-0 backface-hidden p-6 border flex flex-col justify-between overflow-hidden ${isDark ? 'text-white' : 'bg-white text-neutral-900'}`}
                   >
                     {/* Atmospheric glow backdrop */}
                     <div
@@ -198,7 +197,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
                       </div>
 
                       {/* Main Title & Subtitle */}
-                      <h3 className="font-display text-base font-bold text-white dark:text-white light:text-neutral-900 leading-snug line-clamp-2">
+                      <h3 className="atelier-display text-xl sm:text-[22px] text-white leading-snug line-clamp-2">
                         {promo.title}
                       </h3>
                       <p className="text-xs text-neutral-400 dark:text-neutral-400 light:text-neutral-600 mt-1.5 line-clamp-2">
@@ -211,7 +210,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
                       <div className="flex items-baseline justify-between">
                         <div>
                           <span className="text-[10px] text-neutral-400 uppercase font-mono block">Benefit</span>
-                          <span className="text-lg font-black text-emerald-400 dark:text-emerald-400 light:text-emerald-600">
+                          <span className="atelier-display text-[22px] text-[#a4ffd3]">
                             {promo.discountPercentage
                               ? `${promo.discountPercentage}% OFF`
                               : promo.discountAmount
@@ -229,7 +228,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
 
                       {/* Coupon Code Pill */}
                       <div className="flex items-center gap-2">
-                        <div className="flex-1 px-3 py-1.5 rounded-xl bg-neutral-950 dark:bg-neutral-950 light:bg-neutral-100 border border-neutral-800 dark:border-neutral-800 light:border-neutral-300 flex items-center justify-between">
+                        <div className="flex-1 px-3 py-2.5 rounded-2xl bg-black/30 border border-emerald-200/15 flex items-center justify-between">
                           <span className="text-xs font-mono font-bold text-white dark:text-white light:text-neutral-900 tracking-wider">
                             {promo.code}
                           </span>
@@ -255,11 +254,7 @@ export const PromotionsCarousel: React.FC<PromotionsCarouselProps> = ({ onSelect
 
                   {/* BACK FACE OF 3D CARD (Terms & Conditions, Rules, Exclusions) */}
                   <div
-                    className={`absolute inset-0 backface-hidden rotate-y-180 rounded-2xl p-5 border flex flex-col justify-between overflow-hidden shadow-3d-depth ${
-                      isDark
-                        ? 'bg-neutral-950 border-emerald-500/40 text-neutral-200'
-                        : 'bg-neutral-900 border-emerald-600 text-neutral-100'
-                    }`}
+                    className="atelier-offer absolute inset-0 backface-hidden rotate-y-180 p-6 border flex flex-col justify-between overflow-y-auto text-neutral-100"
                   >
                     <div>
                       <div className="flex items-center justify-between pb-2 mb-2 border-b border-neutral-800">
