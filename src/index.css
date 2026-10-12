@@ -81,3 +81,364 @@
   background: #2e3846;
 }
 
+
+
+/* Stakey's Atelier design language — shared by web, customer APK and staff APK.
+ * Premium editorial surfaces replace miscellaneous hard-edged dashboard tiles.
+ * No platform-specific visual forks: one CSS bundle for every edition.
+ */
+:root {
+  color-scheme: dark;
+  --atelier-ink: #07100f;
+  --atelier-elevated: #111b1b;
+  --atelier-elevated-2: #182422;
+  --atelier-emerald: #49e6a4;
+  --atelier-mint: #b8ffe0;
+  --atelier-gold: #d9bd87;
+  --atelier-divider: rgba(191, 226, 211, .13);
+  --atelier-caption: #9caca6;
+  --atelier-shadow: 0 28px 80px -43px rgba(0, 0, 0, .93), 0 6px 28px -16px rgba(0, 0, 0, .6);
+}
+
+@layer base {
+  html {
+    background: #070d0c;
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    min-width: 320px;
+    background: #080e0d;
+    font-feature-settings: "ss01" on, "kern" on;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button, a { touch-action: manipulation; }
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid #49e6a4;
+    outline-offset: 3px;
+  }
+
+  ::selection { background: rgba(73, 230, 164, .32); color: white; }
+}
+
+@layer components {
+  .atelier-app {
+    position: relative;
+    isolation: isolate;
+    background:
+      radial-gradient(ellipse 78% 34% at 54% -12%, rgba(50, 203, 131, .105), transparent 72%),
+      linear-gradient(180deg, #090f10 0%, #090d11 55%, #080d0f 100%);
+  }
+
+  .atelier-backdrop {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-image: radial-gradient(rgba(188, 226, 207, .085) .65px, transparent .65px);
+    background-size: 26px 26px;
+    opacity: .22;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 70%);
+    mask-image: linear-gradient(to bottom, #000 0%, transparent 70%);
+  }
+
+  .atelier-eyebrow {
+    color: #83dfb3;
+    font-family: "Plus Jakarta Sans", sans-serif;
+    font-weight: 800;
+    font-size: .65rem;
+    line-height: 1.4;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+  }
+
+  .atelier-display {
+    font-family: "Syne", "Plus Jakarta Sans", sans-serif;
+    font-weight: 800;
+    letter-spacing: -.055em;
+    line-height: 1.06;
+  }
+
+  .atelier-surface {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border: 1px solid var(--atelier-divider);
+    border-radius: 30px;
+    background:
+      linear-gradient(148deg, rgba(255,255,255,.055), rgba(255,255,255,0) 36%),
+      linear-gradient(165deg, #172120 0%, #10191a 72%, #0e1518 100%);
+    box-shadow: var(--atelier-shadow), inset 0 1px 0 rgba(255, 255, 255, .065);
+  }
+
+  .atelier-surface::before {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(circle at 100% 0%, rgba(88, 234, 169, .08), transparent 45%);
+    opacity: .7;
+  }
+
+  .atelier-surface > * { position: relative; z-index: 1; }
+
+  .atelier-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: clamp(24px, 3vw, 36px);
+    border: 1px solid rgba(118, 232, 173, .26);
+    box-shadow: 0 32px 90px -45px rgba(3, 15, 10, .9), inset 0 1px 0 rgba(255,255,255,.13);
+    background: linear-gradient(118deg, #152d24 0%, #10382b 44%, #0b1c1b 100%);
+  }
+
+  .atelier-hero::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    pointer-events: none;
+    width: min(67%, 470px);
+    height: 140%;
+    top: -40%;
+    right: -16%;
+    background: radial-gradient(circle, rgba(91, 244, 164, .19), transparent 68%);
+    filter: blur(7px);
+  }
+
+  .atelier-hero > * { position: relative; z-index: 1; }
+
+  .atelier-kpi-rail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid rgba(221, 243, 231, .13);
+    background: rgba(5, 19, 16, .57);
+    border-radius: 20px;
+    overflow: hidden;
+    backdrop-filter: blur(18px);
+  }
+
+  .atelier-kpi-rail > * {
+    min-width: 0;
+    padding: 14px clamp(10px, 2vw, 20px);
+  }
+
+  .atelier-kpi-rail > * + * { border-left: 1px solid rgba(224, 246, 236, .12); }
+
+  .atelier-command {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    text-align: left;
+    width: 100%;
+    min-height: 85px;
+    padding: 15px 17px;
+    border: 1px solid transparent;
+    border-radius: 19px;
+    background: transparent;
+    transition: background .25s ease, border-color .25s ease, transform .25s ease;
+  }
+
+  .atelier-command:hover,
+  .atelier-command:focus-visible {
+    background: linear-gradient(100deg, rgba(86, 221, 151, .12), rgba(144, 216, 186, .035));
+    border-color: rgba(134, 241, 192, .23);
+    transform: translateX(3px);
+  }
+
+  .atelier-command:active { transform: translateX(1px) scale(.995); }
+
+  .atelier-command-icon {
+    width: 48px;
+    height: 48px;
+    border: 1px solid rgba(126, 231, 182, .23);
+    border-radius: 15px;
+    background: rgba(58, 222, 147, .085);
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    color: #a0f6cc;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.045);
+  }
+
+  .atelier-command-arrow {
+    color: rgba(190, 235, 209, .45);
+    transition: transform .25s ease, color .25s ease;
+  }
+
+  .atelier-command:hover .atelier-command-arrow { transform: translate(3px, -3px); color: #8cf0bc; }
+
+  .atelier-segment {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 8px;
+    background: linear-gradient(170deg, #111b1b, #0b1214);
+    border: 1px solid var(--atelier-divider);
+    border-radius: 23px;
+    box-shadow: 0 18px 42px -34px #000, inset 0 1px 0 rgba(255,255,255,.055);
+  }
+
+  .atelier-segment button {
+    min-height: 43px;
+    border-radius: 14px;
+    transition: color .2s ease, background .2s ease, box-shadow .2s ease;
+  }
+
+  .atelier-segment button[aria-selected="true"],
+  .atelier-segment button[aria-current="page"] {
+    color: #eafff1;
+    background: linear-gradient(145deg, rgba(52, 149, 98, .25), rgba(51, 108, 76, .11));
+    box-shadow: inset 0 0 0 1px rgba(116, 240, 170, .26), 0 7px 15px -12px rgba(86, 226, 153, .7);
+  }
+
+  .atelier-bike {
+    border: 1px solid rgba(163, 231, 188, .15);
+    border-radius: 28px;
+    overflow: hidden;
+    background: linear-gradient(150deg, #182321, #0e171a);
+    box-shadow: var(--atelier-shadow), inset 0 1px 0 rgba(255,255,255,.055);
+    transition: transform .35s cubic-bezier(.19,1,.22,1), border-color .35s ease, box-shadow .35s ease;
+  }
+
+  .atelier-bike:hover {
+    transform: translateY(-5px);
+    border-color: rgba(127, 246, 186, .45);
+    box-shadow: 0 31px 70px -36px rgba(3, 8, 8, .95), 0 0 0 1px rgba(68, 209, 141, .09);
+  }
+
+  .atelier-divider { border-color: var(--atelier-divider); }
+
+  .atelier-primary {
+    color: #082016;
+    border: 1px solid rgba(178, 255, 211, .65);
+    background: linear-gradient(135deg, #a1f8c2 0%, #42df94 55%, #2dc981 100%);
+    box-shadow: 0 14px 32px -19px rgba(37, 241, 140, .8), inset 0 1px 0 rgba(255,255,255,.7);
+    font-weight: 800;
+    border-radius: 14px;
+    transition: transform .25s ease, filter .25s ease, box-shadow .25s ease;
+  }
+
+  .atelier-primary:hover { filter: brightness(1.07); transform: translateY(-2px); }
+  .atelier-primary:active { transform: translateY(0); }
+
+  .atelier-soft {
+    border: 1px solid rgba(130, 239, 180, .26);
+    background: rgba(85, 226, 150, .105);
+    color: #a5f7c6;
+    border-radius: 14px;
+    transition: background .2s ease, border-color .2s ease;
+  }
+
+  .atelier-soft:hover { background: rgba(85, 226, 150, .19); border-color: rgba(130, 239, 180, .44); }
+
+  .atelier-workstation {
+    padding: 10px;
+    border: 1px solid rgba(195, 237, 213, .12);
+    border-radius: 24px;
+    background: linear-gradient(145deg, #141d1e, #0d1518);
+    box-shadow: 0 16px 48px -36px #000, inset 0 1px 0 rgba(255,255,255,.055);
+  }
+
+  .atelier-workstation > button {
+    min-height: 62px;
+    border-radius: 16px;
+    border: 1px solid transparent;
+    background: rgba(255,255,255,.025);
+    padding: 11px 14px;
+    transition: border-color .2s, background .2s, transform .2s;
+  }
+
+  .atelier-workstation > button:hover,
+  .atelier-workstation > button:focus-visible {
+    background: rgba(93, 207, 147, .09);
+    border-color: rgba(118, 233, 177, .28);
+    transform: translateY(-1px);
+  }
+
+  .atelier-workstation > button[data-active="true"] {
+    background: linear-gradient(145deg, rgba(52, 199, 118, .20), rgba(73, 132, 99, .075));
+    border-color: rgba(113, 237, 164, .38);
+    box-shadow: inset 0 1px 0 rgba(170, 255, 209, .08);
+  }
+
+  .atelier-workstation > button svg { flex: 0 0 auto; }
+
+  .atelier-chart {
+    background: linear-gradient(147deg, #151f20, #0b1618);
+    border: 1px solid rgba(170, 234, 197, .14);
+    border-radius: 27px;
+    box-shadow: var(--atelier-shadow), inset 0 1px 0 rgba(255,255,255,.05);
+  }
+
+  .atelier-metric {
+    position: relative;
+    padding: clamp(16px, 2vw, 26px);
+    min-width: 0;
+  }
+
+  .atelier-metric:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 18%;
+    height: 64%;
+    width: 1px;
+    background: var(--atelier-divider);
+  }
+
+  .atelier-metric-label {
+    font-size: .68rem;
+    text-transform: uppercase;
+    letter-spacing: .13em;
+    font-weight: 700;
+    color: #b3c5bc;
+  }
+
+  .atelier-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: 1px solid rgba(134, 244, 179, .21);
+    border-radius: 999px;
+    background: rgba(55, 186, 120, .11);
+    padding: 6px 12px;
+    color: #baf7d5;
+    font-size: .68rem;
+    font-weight: 750;
+    letter-spacing: .07em;
+  }
+  .atelier-live::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #62f5a4;
+    box-shadow: 0 0 10px rgba(75, 245, 147, .75);
+  }
+}
+
+@media (max-width: 640px) {
+  .atelier-hero, .atelier-surface, .atelier-bike, .atelier-chart { border-radius: 23px; }
+  .atelier-kpi-rail > * { padding: 11px 8px; }
+  .atelier-metric { padding: 18px 10px; }
+  .atelier-metric:not(:last-child)::after { top: 20%; height: 60%; }
+  .atelier-workstation > button { min-height: 66px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atelier-bike, .atelier-command, .atelier-command-arrow, .atelier-primary, .atelier-workstation > button {
+    transition-duration: .01ms !important;
+  }
+  .atelier-bike:hover, .atelier-command:hover, .atelier-primary:hover, .atelier-workstation > button:hover {
+    transform: none;
+  }
+}
+
+/* Avoid browser chrome or Android gesture areas obscuring action controls. */
+.atelier-safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
