@@ -1,0 +1,134 @@
+name: Build Android customer and staff APKs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'api/**'
+      - 'vite.config.ts'
+      - 'capacitor.config.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/android-apks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: ${{ matrix.edition }} APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [customer, staff]
+    env:
+      CI: 'true'
+      BUILD_EDITION: ${{ matrix.edition }}
+      VITE_APP_EDITION: ${{ matrix.edition }}
+      # Set repository variable APP_API_ORIGIN to your HTTPS backend URL
+      # to enable Gemini and other hosted /api endpoints in packaged APKs.
+      VITE_APP_API_ORIGIN: ${{ vars.APP_API_ORIGIN }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Use Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Install app dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Capacitor Android build toolchain
+        run: npm install --no-save --no-package-lock --legacy-peer-deps @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8
+
+      - name: Build ${{ matrix.edition }} web assets
+        run: bun run build
+
+      - name: Generate standalone Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Compile installable debug APK
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Stage APK and checksum
+        run: |
+          mkdir -p android-output
+          cp android/app/build/outputs/apk/debug/app-debug.apk "android-output/Stakeys-Cycles-${BUILD_EDITION}.apk"
+          cd android-output
+          sha256sum *.apk > SHA256SUMS.txt
+          ls -lh *.apk
+          cat SHA256SUMS.txt
+
+      - name: Upload ${{ matrix.edition }} APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stakeys-Cycles-${{ matrix.edition }}-APK
+          path: android-output/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish both APKs
+    needs: android
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download both build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: Stakeys-Cycles-*-APK
+          path: apks
+          merge-multiple: false
+
+      - name: Verify both APKs exist
+        run: |
+          test -s apks/Stakeys-Cycles-customer-APK/Stakeys-Cycles-customer.apk
+          test -s apks/Stakeys-Cycles-staff-APK/Stakeys-Cycles-staff.apk
+
+      - name: Publish fresh Android test installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="android-debug-${{ github.run_number }}"
+          gh release create "$TAG" \
+            apks/Stakeys-Cycles-customer-APK/Stakeys-Cycles-customer.apk \
+            apks/Stakeys-Cycles-staff-APK/Stakeys-Cycles-staff.apk \
+            --repo "${{ github.repository }}" \
+            --title "Stakey's Cycles Android APKs — build ${{ github.run_number }}" \
+            --notes "Two independently installable Android test builds from commit ${{ github.sha }}. Customer and staff editions have distinct package IDs. These are debug-signed APKs for sideload testing, not Play Store releases. Backend Gemini endpoints require APP_API_ORIGIN and GEMINI_API_KEY on the deployed HTTPS server." \
+            --prerelease
