@@ -17,7 +17,9 @@ import { classifyVisionError, VisionErrorInfo } from './visionErrors';
 import {
   EVehicleCategory,
   EVehicleErrorDefinition,
+  EVehicleErrorFamily,
   errorCodesFor,
+  errorCodesForFamily,
   findErrorCode,
   normalizeErrorCode,
 } from '../data/eVehicleCodes';
@@ -33,6 +35,8 @@ export interface ECodeAssistRequest {
   category: EVehicleCategory;
   brand: string;
   model: string;
+  /** When set, match against this code family instead of brand+model. */
+  family?: EVehicleErrorFamily;
   /** The rider's own words about the fault (may be in any language). */
   symptom: string;
 }
@@ -66,7 +70,7 @@ const offlineGuidance = (
   req: ECodeAssistRequest,
   error?: VisionErrorInfo
 ): ECodeAssistResult => {
-  const codes = errorCodesFor(req.category, req.brand, req.model);
+  const codes = req.family ? errorCodesForFamily(req.family) : errorCodesFor(req.category, req.brand, req.model);
   // Keyword buckets map a symptom to the code(s) in THIS model's catalogue whose
   // title or description covers it, so a symptom finds the right code for the
   // selected system (e-bike, scooter, Bosch, Shimano…).
@@ -126,10 +130,10 @@ Reply as JSON with fields: matches (array of {code,title,reason,confidence}), gu
 
 function buildPrompt(req: ECodeAssistRequest, codes: EVehicleErrorDefinition[]): string {
   const catalogue = codes.map((c) => `${c.code} ${c.title}`).join('\n');
+  const system = req.family ? `Display/system: ${req.family}` : `Brand: ${req.brand}\nModel: ${req.model}`;
   return [
     `Category: ${req.category}`,
-    `Brand: ${req.brand}`,
-    `Model: ${req.model}`,
+    system,
     `Rider symptom: ${req.symptom || '(none given)'}`,
     '',
     'Catalogue:',
@@ -155,7 +159,7 @@ function extractJson(text: string): string {
  * Always returns a result; never throws.
  */
 export async function assistECodeLookup(req: ECodeAssistRequest): Promise<ECodeAssistResult> {
-  const codes = errorCodesFor(req.category, req.brand, req.model);
+  const codes = req.family ? errorCodesForFamily(req.family) : errorCodesFor(req.category, req.brand, req.model);
   const offline = offlineGuidance(req);
   const apiKey = getApiKey();
   if (!apiKey) return offline;

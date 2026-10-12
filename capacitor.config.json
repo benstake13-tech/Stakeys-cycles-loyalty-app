@@ -1,0 +1,21 @@
+{
+  "appId": "uk.co.stakeyscycles.staff",
+  "appName": "Stakey's Staff",
+  "webDir": "dist",
+  "android": { "allowMixedContent": true },
+  "server": {
+    "hostname": "www.stakeys-cycles.co.uk",
+    "androidScheme": "https",
+    "allowNavigation": ["www.stakeys-cycles.co.uk", "*.supabase.co", "accounts.google.com"]
+  },
+  "plugins": {
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Scanning for e-scooter controllers…",
+        "cancel": "Cancel",
+        "availableDevices": "Available devices",
+        "noDeviceFound": "No Bluetooth devices found"
+      }
+    }
+  }
+}

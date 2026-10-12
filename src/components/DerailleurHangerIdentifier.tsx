@@ -13,15 +13,13 @@ import {
   Filter,
   SlidersHorizontal,
   ExternalLink,
+  ShoppingCart,
 } from 'lucide-react';
-import { DERAILLEUR_HANGERS_DATABASE } from '../data/derailleurHangerData';
+import { DERAILLEUR_HANGERS_DATABASE, buildHangerPurchaseLinks } from '../data/derailleurHangerData';
+import { HANGER_CROSS_REFERENCE, buildCrossRefBuyLinks } from '../data/hangerCrossReference';
 import { DerailleurHangerItem } from '../types/bikeShop';
-import { useShop } from '../context/ShopContext';
 
 export const DerailleurHangerIdentifier: React.FC = () => {
-  const { theme } = useShop();
-  const isDark = theme === 'dark';
-
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('All');
   const [selectedYear, setSelectedYear] = useState<string>('All');
@@ -434,9 +432,155 @@ export const DerailleurHangerIdentifier: React.FC = () => {
                       </div>
                     )}
                   </div>
+
+                  {/* Buy links — every hanger is purchasable */}
+                  <div className="pt-3 border-t border-neutral-800/80">
+                    <div className="flex items-center gap-1.5 text-[10px] uppercase font-mono text-emerald-400 mb-2">
+                      <ShoppingCart className="w-3.5 h-3.5" /> Buy this hanger
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {buildHangerPurchaseLinks(hanger).map((link) => (
+                        <a
+                          key={link.retailer}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          title={link.note}
+                          className="inline-flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2.5 py-1 text-[11px] font-bold text-neutral-200 transition-colors hover:border-emerald-500/60 hover:text-emerald-300"
+                        >
+                          {link.retailer} <ExternalLink className="w-3 h-3" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* Full UK cross-reference index (Wheels Mfg DROPOUT set) */}
+      <CrossRefIndex />
+    </div>
+  );
+};
+
+/** Searchable cross-reference table for the wider UK hanger set. */
+const CrossRefIndex: React.FC = () => {
+  const [query, setQuery] = useState('');
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return HANGER_CROSS_REFERENCE;
+    return HANGER_CROSS_REFERENCE.filter((h) => {
+      const hay = [h.code, h.brand, h.wheelsMfg, h.description, ...h.oemPartNumbers].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [query]);
+
+  return (
+    <div className="bg-[#0d1015] border border-neutral-800 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-sky-500/15 border border-sky-500/40 text-sky-400 flex items-center justify-center shrink-0">
+            <Layers className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-black text-white tracking-tight">
+              UK Cross-Reference Index
+            </h3>
+            <p className="text-[11px] text-neutral-400">
+              {HANGER_CROSS_REFERENCE.length} hangers keyed to the Wheels Mfg DROPOUT numbers UK stockists use —
+              search by brand, OEM code or DROPOUT number, with a buy link on every row.
+            </p>
+          </div>
+        </div>
+        <div className="relative sm:w-72">
+          <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Brand, OEM code or DROPOUT-…"
+            data-testid="hanger-xref-search"
+            className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-sky-500/60"
+          />
+        </div>
+      </div>
+
+      <div className="text-[11px] font-mono text-neutral-500">
+        {rows.length} of {HANGER_CROSS_REFERENCE.length} shown
+      </div>
+
+      <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1" data-testid="hanger-xref-list">
+        {rows.map((h) => {
+          const open = openId === h.code;
+          return (
+            <div
+              key={h.code}
+              className={`rounded-2xl border transition-colors ${
+                open ? 'border-sky-500/50 bg-sky-950/10' : 'border-neutral-800 bg-neutral-950/40 hover:border-neutral-700'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => setOpenId(open ? null : h.code)}
+                className="w-full text-left px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 cursor-pointer"
+              >
+                <span className="font-mono text-[11px] font-bold text-sky-300 bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 rounded">
+                  {h.code}
+                </span>
+                <span className="text-sm font-bold text-white">{h.brand}</span>
+                <span className="font-mono text-[11px] text-neutral-400">{h.wheelsMfg}</span>
+                {h.sramUdhCompatible && (
+                  <span className="text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded">
+                    UDH
+                  </span>
+                )}
+                <span className="ml-auto text-[11px] text-neutral-500 truncate max-w-[45%]">{h.description}</span>
+              </button>
+
+              {open && (
+                <div className="px-4 pb-4 space-y-3 border-t border-neutral-800/70 pt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
+                    <div className="rounded-xl bg-neutral-950 border border-neutral-800 px-3 py-2">
+                      <span className="text-neutral-500 block">Axle standard</span>
+                      <span className="text-white font-mono font-semibold">{h.axleStandard}</span>
+                    </div>
+                    <div className="rounded-xl bg-neutral-950 border border-neutral-800 px-3 py-2">
+                      <span className="text-neutral-500 block">Direct mount</span>
+                      <span className="text-white font-mono font-semibold">{h.directMountAvailable ? 'Available' : 'Standard mount'}</span>
+                    </div>
+                    <div className="rounded-xl bg-neutral-950 border border-neutral-800 px-3 py-2">
+                      <span className="text-neutral-500 block">OEM codes</span>
+                      <span className="text-white font-mono font-semibold">{h.oemPartNumbers.join(', ') || '—'}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {buildCrossRefBuyLinks(h).map((link) => (
+                      <a
+                        key={link.retailer}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={link.note}
+                        className="inline-flex items-center gap-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2.5 py-1 text-[11px] font-bold text-neutral-200 transition-colors hover:border-sky-500/60 hover:text-sky-300"
+                      >
+                        <ShoppingCart className="w-3 h-3" /> {link.retailer} <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {rows.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-neutral-800 bg-neutral-950/40 p-6 text-center text-xs text-neutral-500">
+            No cross-reference matches “{query}”. Try a brand or a DROPOUT number.
           </div>
         )}
       </div>

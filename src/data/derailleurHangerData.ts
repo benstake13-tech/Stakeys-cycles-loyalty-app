@@ -199,3 +199,33 @@ export const DERAILLEUR_HANGERS_DATABASE: DerailleurHangerItem[] = [
       'Standard 9mm/10mm Quick Release axle fitment. Widely stocked in Halfords and UK independent shops. Ensure frame hanger interface tab is clear of paint buildup before final torque.',
   },
 ];
+
+export interface HangerPurchaseLink {
+  retailer: string;
+  url: string;
+  note: string;
+}
+
+/**
+ * Deep links to buy a derailleur hanger, cheapest/most-reliable first.
+ *
+ * Hangers are cross-referenced by OEM number and by the Wheels Mfg / Pilo
+ * equivalents, because most UK stockists list them by one of those codes rather
+ * than by the bike. The part name is included so a generic listing still shows
+ * the right shape. eBay UK and Amazon are added as a fallback for discontinued
+ * frames where only used/aftermarket stock remains.
+ */
+export function buildHangerPurchaseLinks(hanger: DerailleurHangerItem): HangerPurchaseLink[] {
+  const primary = hanger.oemPartNumbers[0] || hanger.code;
+  const alt = [hanger.wheelsMfgEquivalent, hanger.piloEquivalent].filter(Boolean).join(' ');
+  const query = encodeURIComponent(`${hanger.name} ${primary} ${alt}`.trim());
+  const codeQuery = encodeURIComponent(`${hanger.code} derailleur hanger`);
+  const links: HangerPurchaseLink[] = [
+    { retailer: 'eBay UK', url: `https://www.ebay.co.uk/sch/i.html?_nkw=${query}`, note: 'Cheapest — check the shape against the diagram.' },
+    { retailer: 'RearMechHanger.com', url: `https://rearmechhanger.com/?s=${encodeURIComponent(primary)}&post_type=product`, note: 'Hanger specialist with fitment tables.' },
+    { retailer: 'Wheels Manufacturing', url: `https://wheelsmfg.com/catalogsearch/result/?q=${encodeURIComponent(hanger.wheelsMfgEquivalent || primary)}`, note: 'Premium US-made equivalent where listed.' },
+    { retailer: 'Amazon UK', url: `https://www.amazon.co.uk/s?k=${query}`, note: 'Fast delivery.' },
+    { retailer: 'SJS', url: `https://www.sjscycles.co.uk/search/?search=${codeQuery}`, note: 'UK workshop supplier, wide hanger stock.' },
+  ];
+  return links;
+}
