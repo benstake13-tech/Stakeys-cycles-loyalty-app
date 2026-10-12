@@ -6,6 +6,7 @@
  * have silently broken (usually schema drift). Every write test is
  * non-destructive: rows are created under a sentinel id and removed again.
  */
+import { apiUrl } from './apiBase';
 import { getSupabaseClient } from '../lib/supabase';
 import { checkSupabaseHealth } from '../api/supabaseService';
 import {
@@ -1650,7 +1651,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
     description: 'Confirms the deployed back-end exposes the OneSignal App ID + server-push capability.',
     run: async () => {
       try {
-        const res = await fetch('/api/onesignal/config');
+        const res = await fetch(apiUrl('/api/onesignal/config'));
         const data: any = await res.json().catch(() => null);
         if (!res.ok || !data || typeof data !== 'object' || !('appId' in data)) {
           return {
@@ -1682,7 +1683,7 @@ export const FEATURE_TESTS: FeatureTest[] = [
     description: 'Sends a silent internal test to the endpoint to confirm it can reach OneSignal.',
     run: async () => {
       try {
-        const res = await fetch('/api/onesignal/notify', {
+        const res = await fetch(apiUrl('/api/onesignal/notify'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

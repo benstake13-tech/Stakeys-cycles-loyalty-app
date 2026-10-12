@@ -23,6 +23,7 @@ import {
   Award,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
+import { apiUrl } from '../utils/apiBase';
 import { dispatchTestEmail } from '../utils/notificationService';
 import {
   sendPushToUser,
@@ -325,7 +326,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
   /** Shared dependency bundle for the push repair runner. */
   const pushRepairDeps = {
     getServerConfig: async () => {
-      const res = await fetch('/api/onesignal/config');
+      const res = await fetch(apiUrl('/api/onesignal/config'));
       const data = await res.json();
       return {
         appId: data?.appId ?? null,

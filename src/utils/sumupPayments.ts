@@ -7,6 +7,8 @@
  * touching the network or a live merchant account.
  */
 
+import { apiUrl } from './apiBase';
+
 export type SumupStatus = 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | string;
 
 export interface SumupConfig {
@@ -34,7 +36,7 @@ export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>
 const notConfigured: SumupConfig = { configured: false, currency: 'GBP', hasReader: false, tapToPay: false };
 
 async function postJson(path: string, body: unknown, fetchImpl: FetchLike): Promise<any> {
-  const res = await fetchImpl(path, {
+  const res = await fetchImpl(apiUrl(path), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body ?? {}),
@@ -43,7 +45,7 @@ async function postJson(path: string, body: unknown, fetchImpl: FetchLike): Prom
 }
 
 async function getJson(path: string, fetchImpl: FetchLike): Promise<any> {
-  const res = await fetchImpl(path);
+  const res = await fetchImpl(apiUrl(path));
   return parse(res);
 }
 

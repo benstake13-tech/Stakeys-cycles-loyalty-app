@@ -71,7 +71,7 @@ export function buildReferralCode(seed?: string | number): string {
 export function buildReferralLink(code: string, origin?: string): string {
   const base =
     origin ||
-    (typeof window !== 'undefined' ? window.location.origin : 'https://stakeys-cycle.co.uk');
+    (typeof window !== 'undefined' ? window.location.origin : 'https://www.stakeys-cycles.co.uk');
   return `${base.replace(/\/+$/, '')}/?ref=${encodeURIComponent(formatReferralCode(code))}`;
 }
 

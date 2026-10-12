@@ -1,3 +1,4 @@
+import { apiUrl } from './apiBase';
 import { ShopPromotion } from '../types/bikeShop';
 import { promotionOfferText } from './performanceInsights';
 
@@ -88,7 +89,7 @@ export async function publishToMeta(
   post: ComposedPost
 ): Promise<PublishResult> {
   try {
-    const res = await fetch('/api/meta/publish', {
+    const res = await fetch(apiUrl('/api/meta/publish'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ target, message: post.message, imageUrl: post.imageUrl }),
@@ -119,7 +120,7 @@ export interface PostHistoryEntry {
 /** Recent posts published to the Page (and its linked Instagram account). */
 export async function fetchPostHistory(): Promise<PostHistoryEntry[]> {
   try {
-    const res = await fetch('/api/meta/posts');
+    const res = await fetch(apiUrl('/api/meta/posts'));
     if (!res.ok) return [];
     const data = await res.json().catch(() => null);
     return Array.isArray(data?.posts) ? data.posts : [];
