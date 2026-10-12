@@ -1371,3 +1371,26 @@
 .atelier-navigation-footer { display:flex; justify-content:space-between; gap:1rem; color:#778c7f; font-size:.58rem; font-weight:700; letter-spacing:.14em; padding:1.4rem .25rem; }
 @media(max-width:620px) { .atelier-edition { display:none; } .atelier-destination { grid-template-columns:20px 42px minmax(0,1fr) 22px; gap:.65rem; padding:1.15rem .3rem; min-height:100px; } .atelier-destination-icon { width:40px; height:40px; } .atelier-destination-icon svg { width:19px; height:19px; } .atelier-destination-copy small { font-size:.7rem; } .atelier-destination-action { font-size:0; gap:0; } .atelier-destination-action svg { width:19px; } .atelier-navigation-footer { font-size:.52rem; } }
 @media(prefers-reduced-motion:reduce) { .atelier-destination,.atelier-destination::before,.atelier-destination-action svg { transition:none; } }
+
+
+/* Staff Terminal: five-purpose workspace navigation, replacing the tile wall. */
+.staff-workspace-group{overflow:hidden;border:1px solid rgba(255,255,255,.09);border-radius:20px;background:linear-gradient(145deg,#13191a,#0a0d0e);box-shadow:0 16px 45px rgba(0,0,0,.17)}
+.staff-workspace-heading{display:flex;align-items:center;gap:14px;padding:20px 22px;border-bottom:1px solid rgba(255,255,255,.08)}
+.staff-workspace-heading-icon{width:40px;height:40px;display:grid;place-items:center;color:#5ee9a0;background:rgba(33,198,115,.09);border:1px solid rgba(33,198,115,.2);border-radius:12px}
+.staff-workspace-heading>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
+.staff-workspace-heading strong{font-size:12px;letter-spacing:.17em;color:#f0f7f2;font-weight:800}
+.staff-workspace-heading small{font-size:12px;color:#8c9991}
+.staff-workspace-count{font-size:10px;letter-spacing:.08em;color:#84938a;white-space:nowrap}
+.staff-workspace-entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.staff-workspace-entry{display:flex;align-items:center;gap:14px;min-width:0;text-align:left;padding:19px 22px;border-bottom:1px solid rgba(255,255,255,.055);background:transparent;color:white;transition:background .2s,border-color .2s;cursor:pointer}
+.staff-workspace-entry:nth-child(odd){border-right:1px solid rgba(255,255,255,.055)}
+.staff-workspace-entry:hover,.staff-workspace-entry:focus-visible{background:rgba(46,194,117,.085);outline-offset:-2px;outline-color:#36c97c}
+.staff-workspace-entry-icon{width:43px;height:43px;display:grid;place-items:center;flex-shrink:0;border-radius:12px;background:rgba(255,255,255,.045);color:#69dda2}
+.staff-workspace-entry-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}
+.staff-workspace-entry-copy strong{font-size:14px;font-weight:700;color:#f2f6f3}
+.staff-workspace-entry-copy small{font-size:11px;color:#8b9a90;line-height:1.4}
+.staff-workspace-badge{border-radius:999px;background:rgba(44,190,111,.16);color:#7ce6aa;font-size:11px;padding:4px 8px}
+.staff-workspace-arrow{flex-shrink:0;color:#677b6e;transition:transform .2s,color .2s}
+.staff-workspace-entry:hover .staff-workspace-arrow{transform:translateX(4px);color:#78e7a8}
+@media(max-width:700px){.staff-workspace-entries{grid-template-columns:1fr}.staff-workspace-entry:nth-child(odd){border-right:0}.staff-workspace-heading{padding:17px}.staff-workspace-entry{padding:15px 17px}.staff-workspace-count{display:none}}
+@media(prefers-reduced-motion:reduce){.staff-workspace-entry,.staff-workspace-arrow{transition:none}}
