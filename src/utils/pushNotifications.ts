@@ -31,6 +31,34 @@ interface OneSignalRuntimeConfig {
 
 const envAppId = (import.meta as any).env?.VITE_ONESIGNAL_APP_ID as string | undefined;
 
+type NativePush = {
+  initialize(args: { appId: string }): Promise<void>;
+  login(args: { externalId: string }): Promise<void>;
+  logout(): Promise<void>;
+  requestPermission(): Promise<{ granted: boolean }>;
+  getStatus(): Promise<{ initialized: boolean; permission?: boolean; subscriptionId?: string; optedIn?: boolean }>;
+  optIn(): Promise<void>;
+};
+let nativePushPromise: Promise<NativePush | null> | null = null;
+function nativePush(): Promise<NativePush | null> {
+  if (!nativePushPromise) nativePushPromise = (async () => {
+    try {
+      const { Capacitor, registerPlugin } = await import('@capacitor/core');
+      if (!Capacitor.isNativePlatform()) return null;
+      return registerPlugin<NativePush>('NativeOneSignal');
+    } catch { return null; }
+  })();
+  return nativePushPromise;
+}
+async function readyNativePush(): Promise<NativePush | null> {
+  const native = await nativePush();
+  if (!native) return null;
+  const cfg = await getRuntimeConfig();
+  if (!cfg.appId) return null;
+  try { await native.initialize({ appId: cfg.appId }); return native; }
+  catch (err) { console.warn('[OneSignal] native initialization failed', err); return null; }
+}
+
 let runtimeConfig: OneSignalRuntimeConfig | null = null;
 let initPromise: Promise<boolean> | null = null;
 
@@ -101,6 +129,7 @@ function withOneSignal<T>(fn: (oneSignal: any) => Promise<T> | T): Promise<T | n
 export async function initOneSignal(): Promise<boolean> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
+    if (await nativePush()) return Boolean(await readyNativePush());
     if (!browserReady()) return false;
     const cfg = await getRuntimeConfig();
     if (!cfg.appId) return false;
@@ -111,6 +140,12 @@ export async function initOneSignal(): Promise<boolean> {
 }
 
 export async function getPushPermission(): Promise<PushPermission> {
+  if (await nativePush()) {
+    const native = await readyNativePush();
+    if (!native) return 'not_configured';
+    try { return (await native.getStatus()).permission ? 'granted' : 'default'; }
+    catch { return 'unsupported'; }
+  }
   const cfg = await getRuntimeConfig();
   if (!cfg.appId) return 'not_configured';
   if (!browserReady() || !('Notification' in window)) return 'unsupported';
@@ -129,6 +164,12 @@ export async function getPushPermission(): Promise<PushPermission> {
  * permission state; 'granted' means the device is registered for push.
  */
 export async function requestPushPermission(): Promise<PushPermission> {
+  if (await nativePush()) {
+    const native = await readyNativePush();
+    if (!native) return 'not_configured';
+    try { return (await native.requestPermission()).granted ? 'granted' : 'denied'; }
+    catch { return 'unsupported'; }
+  }
   const cfg = await getRuntimeConfig();
   if (!cfg.appId) return 'not_configured';
 
@@ -147,6 +188,8 @@ export async function requestPushPermission(): Promise<PushPermission> {
 export async function linkUser(userId: string, tags?: Record<string, string | number>) {
   const configured = await initOneSignal();
   if (!configured) return;
+  const native = await nativePush();
+  if (native) { await native.login({ externalId: userId }); return; }
   await withOneSignal(async (os) => {
     try {
       await os?.login?.(userId);
@@ -163,6 +206,8 @@ export async function linkUser(userId: string, tags?: Record<string, string | nu
 
 /** Clears the personal identifiers added by linkUser. */
 export async function unlinkUser() {
+  const native = await nativePush();
+  if (native) { await native.logout(); return; }
   await withOneSignal(async (os) => {
     try {
       await os?.logout?.();
@@ -190,12 +235,16 @@ export async function registerEmailSubscription(email: string) {
 }
 
 export async function getSubscriptionId(): Promise<string | null> {
+  const native = await readyNativePush();
+  if (native) return (await native.getStatus()).subscriptionId || null;
   const id = await withOneSignal((os) => os?.User?.PushSubscription?.id ?? null);
   return (id as string) || null;
 }
 
 /** Whether this device's push subscription is opted in (null when unknown). */
 export async function isPushSubscribed(): Promise<boolean | null> {
+  const native = await readyNativePush();
+  if (native) return (await native.getStatus()).optedIn ?? null;
   const optedIn = await withOneSignal((os) => os?.User?.PushSubscription?.optedIn ?? null);
   return typeof optedIn === 'boolean' ? optedIn : null;
 }
@@ -206,6 +255,8 @@ export async function isPushSubscribed(): Promise<boolean | null> {
  * start receiving pushes again. Returns the subscription id afterwards.
  */
 export async function optInPushSubscription(): Promise<string | null> {
+  const native = await readyNativePush();
+  if (native) { await native.optIn(); return getSubscriptionId(); }
   await withOneSignal(async (os) => {
     try {
       await os?.User?.PushSubscription?.optIn?.();
