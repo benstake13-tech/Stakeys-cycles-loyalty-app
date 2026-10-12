@@ -30,7 +30,6 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { Toaster } from 'react-hot-toast';
 import { APP_EDITION } from './appEdition';
-import { MobileEditionShell } from './components/MobileEditionShell';
 
 function AppContent() {
   const { currentUser, logoutUser, theme, bookings } = useShop();
@@ -98,22 +97,11 @@ function AppContent() {
     return <LoginScreen onGoToBooking={APP_EDITION === 'staff' ? undefined : () => setShowGuestBooking(true)} />;
   }
 
-  // The two Android APKs have independent navigation and role-appropriate screens.
-  // The regular website retains its existing all-in-one interface.
-  if (APP_EDITION !== 'web') {
-    return (
-      <MobileEditionShell
-        currentUser={currentUser}
-        logoutUser={logoutUser}
-        theme={theme}
-        activeTab={activeTab === 'booking' || activeTab === 'promotions' ? activeTab : 'customer'}
-        setActiveTab={setActiveTab}
-      />
-    );
-  }
-
+  // Android editions use exactly the same full feature navigation as the website.
+  // Only login defaults, app branding, and Android package IDs differ.
   return (
     <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
+      {/* Match the website feature set in every Android edition. */}
       {/* Broadcast Winner Announcement to Everybody */}
       <WinnerAnnouncementBanner />
 
@@ -343,6 +331,20 @@ function AppContent() {
               <span>Staff</span>
             </button>
           )}
+          {isStaff && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('deliverables')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'deliverables'
+                  ? isDark ? 'bg-neutral-800 text-white border border-emerald-500/30' : 'bg-neutral-200 text-neutral-900'
+                  : isDark ? 'text-neutral-400 hover:text-white' : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Config &amp; Tools</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -389,6 +391,11 @@ function AppContent() {
             <StakeysLogo className="w-6 h-6" />
             <span className="font-bold text-white">Stakey's Cycles &amp; Scooter</span> • Workshop Repairs &amp; Customer Loyalty
           </div>
+          {APP_EDITION !== 'web' && (
+            <span className="text-[10px] font-mono text-emerald-500/75 uppercase tracking-wide">
+              {APP_EDITION} · {import.meta.env.VITE_SOURCE_SHA || 'development'}
+            </span>
+          )}
           <div className="flex items-center gap-4 text-neutral-500 text-[11px]">
             <span>Fast Turnaround</span>
             <span>•</span>
