@@ -100,13 +100,14 @@ function AppContent() {
   // Android editions use exactly the same full feature navigation as the website.
   // Only login defaults, app branding, and Android package IDs differ.
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
+    <div className={`min-h-screen ${isDark ? 'atelier-app text-neutral-100' : 'bg-slate-50 text-neutral-900'} flex flex-col font-['Plus_Jakarta_Sans',sans-serif]`}>
+      {isDark && <div className="atelier-backdrop" aria-hidden="true" />}
       {/* Match the website feature set in every Android edition. */}
       {/* Broadcast Winner Announcement to Everybody */}
       <WinnerAnnouncementBanner />
 
       {/* Top Navigation Bar: Strict 3-zone contract */}
-      <header className={`sticky top-0 z-40 ${isDark ? 'bg-[#090b0e]/95 border-neutral-800/80 text-white' : 'bg-white/95 border-neutral-200 text-neutral-900'} backdrop-blur-md border-b`}>
+      <header className={`sticky top-0 z-40 ${isDark ? 'atelier-topbar text-white' : 'bg-white/95 border-neutral-200 text-neutral-900 backdrop-blur-xl border-b'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           {/* Zone 1: Brand title, single element */}
           <div className="flex items-center gap-3">
@@ -129,11 +130,12 @@ function AppContent() {
           </div>
 
           {/* Zone 2: Clean single-line nav links with hover underlines and active state */}
-          <nav className="hidden md:flex items-center gap-1 sm:gap-2 text-sm font-medium">
+          <nav aria-label="Main app navigation" className={`hidden md:flex items-center gap-1 sm:gap-2 text-sm font-medium ${isDark ? 'atelier-topnav' : ''}`}>
             {/* Customer Portal: available to all logged-in accounts */}
             <button
               type="button"
               onClick={() => setActiveTab('customer')}
+              aria-current={activeTab === 'customer' ? 'page' : undefined}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'customer'
                   ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
@@ -148,6 +150,7 @@ function AppContent() {
             <button
               type="button"
               onClick={() => setActiveTab('booking')}
+              aria-current={activeTab === 'booking' ? 'page' : undefined}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'booking'
                   ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
@@ -162,6 +165,7 @@ function AppContent() {
             <button
               type="button"
               onClick={() => setActiveTab('promotions')}
+              aria-current={activeTab === 'promotions' ? 'page' : undefined}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'promotions'
                   ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
@@ -177,6 +181,7 @@ function AppContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('staff')}
+              aria-current={activeTab === 'staff' ? 'page' : undefined}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'staff'
                     ? 'bg-emerald-950/80 text-emerald-300 shadow-sm border border-emerald-500/50'
@@ -213,6 +218,7 @@ function AppContent() {
               <button
                 type="button"
                 onClick={() => setActiveTab('deliverables')}
+              aria-current={activeTab === 'deliverables' ? 'page' : undefined}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'deliverables'
                     ? isDark ? 'bg-neutral-800 text-white shadow-sm border border-neutral-700/60' : 'bg-white text-neutral-900 shadow-sm border border-neutral-300'
@@ -264,10 +270,11 @@ function AppContent() {
         </div>
 
         {/* Mobile secondary tab strip */}
-        <div className={`md:hidden flex items-center gap-1 px-4 py-2 border-t overflow-x-auto ${isDark ? 'border-neutral-800/60 bg-[#090b0e]' : 'border-neutral-200 bg-white'}`}>
+        <div role="navigation" aria-label="Mobile app navigation" className={`fixed inset-x-0 bottom-0 z-50 md:hidden flex items-center gap-1.5 px-2 ${isDark ? 'atelier-dock' : 'atelier-dock !bg-white/95 !border-neutral-200'}`}>
           <button
             type="button"
             onClick={() => setActiveTab('customer')}
+            aria-current={activeTab === 'customer' ? 'page' : undefined}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'customer'
                 ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
@@ -281,6 +288,7 @@ function AppContent() {
           <button
             type="button"
             onClick={() => setActiveTab('booking')}
+            aria-current={activeTab === 'booking' ? 'page' : undefined}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'booking'
                 ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
@@ -294,6 +302,7 @@ function AppContent() {
           <button
             type="button"
             onClick={() => setActiveTab('promotions')}
+            aria-current={activeTab === 'promotions' ? 'page' : undefined}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
               activeTab === 'promotions'
                 ? isDark ? 'bg-neutral-800 text-white' : 'bg-neutral-200 text-neutral-900'
@@ -308,6 +317,7 @@ function AppContent() {
             <button
               type="button"
               onClick={() => setActiveTab('staff')}
+            aria-current={activeTab === 'staff' ? 'page' : undefined}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'staff'
                   ? 'bg-emerald-950 text-emerald-300 font-bold border border-emerald-500/50'
@@ -335,6 +345,7 @@ function AppContent() {
             <button
               type="button"
               onClick={() => setActiveTab('deliverables')}
+            aria-current={activeTab === 'deliverables' ? 'page' : undefined}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'deliverables'
                   ? isDark ? 'bg-neutral-800 text-white border border-emerald-500/30' : 'bg-neutral-200 text-neutral-900'
@@ -351,7 +362,7 @@ function AppContent() {
       {/* Main App Content */}
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-9 pb-[108px] md:pb-12 space-y-8 relative z-[1]">
         
         {/* Tab Views */}
         {activeTab === 'customer' && <CustomerPortal />}
@@ -385,7 +396,7 @@ function AppContent() {
       </main>
 
       {/* Footer with Stakey's Shield Logo */}
-      <footer className="border-t border-neutral-900 bg-neutral-950 py-6 text-center text-xs text-neutral-500">
+      <footer className="atelier-safe-bottom border-t border-emerald-200/10 bg-[#080e0f] py-7 text-center text-xs text-neutral-500 relative z-[1]">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-neutral-400">
             <StakeysLogo className="w-6 h-6" />
