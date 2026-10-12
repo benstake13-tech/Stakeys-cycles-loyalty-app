@@ -459,7 +459,7 @@ export interface BleDeviceLike {
 export interface BluetoothHost {
   requestDevice(options: {
     acceptAllDevices?: boolean;
-    filters?: Array<{ services?: string[] }>;
+    filters?: Array<{ services?: string[]; namePrefix?: string }>;
     optionalServices?: string[];
   }): Promise<BleDeviceLike>;
 }
