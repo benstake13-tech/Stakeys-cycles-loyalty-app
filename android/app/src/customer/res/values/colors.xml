@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Customer app uses the brand green so it is distinguishable from the
+         staff app (black) on the home screen. -->
+    <color name="ic_launcher_background">#05C147</color>
+</resources>

@@ -16,6 +16,22 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // One native project ships two apps: the staff terminal and the customer
+    // app. Both are built from the same codebase; the web surface bundled into
+    // each is chosen at build time (see scripts/build-apps.sh). A flavor only
+    // changes the installable identity (application id, app name, icon tint),
+    // never the code.
+    flavorDimensions "app"
+    productFlavors {
+        staff {
+            dimension "app"
+            applicationId "uk.co.stakeyscycles.staff"
+        }
+        customer {
+            dimension "app"
+            applicationId "uk.co.stakeyscycles.customer"
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
