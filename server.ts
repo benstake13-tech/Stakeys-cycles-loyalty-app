@@ -11,6 +11,19 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '8mb' }));
 
+  // Installed Android WebViews use https://localhost as their isolated origin.
+  app.use('/api/gemini', (req, res, next) => {
+    const origin = req.headers.origin;
+    if (origin === 'https://localhost' || origin === 'capacitor://localhost') {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    }
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+
   // Gemini API: server-side key only. Image payloads never go in a URL.
   app.post('/api/gemini/scan-bike', async (req, res) => {
     try {
