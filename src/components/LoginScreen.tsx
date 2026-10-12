@@ -22,6 +22,7 @@ import { StakeysLogo } from './StakeysLogo';
 import { ThemeToggle } from './ThemeToggle';
 import { VehicleCategory } from '../types/bikeShop';
 import confetti from 'canvas-confetti';
+import { APP_EDITION } from '../appEdition';
 
 interface LoginScreenProps {
   onGoToBooking?: () => void;
@@ -30,7 +31,7 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
   const { loginWithCredentials, loginStaff, registerCustomerAccount, addCustomerBike } = useShop();
 
-  const [mode, setMode] = useState<'signin' | 'register' | 'staff'>('signin');
+  const [mode, setMode] = useState<'signin' | 'register' | 'staff'>(APP_EDITION === 'staff' ? 'staff' : 'signin');
 
   // Customer Sign In state
   const [signInIdentifier, setSignInIdentifier] = useState('');
@@ -235,7 +236,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
           </div>
 
           {/* Dedicated 3-Mode Switcher: Customer Sign In | Create Account | Staff Terminal */}
-          <div className="grid grid-cols-3 bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1">
+          {APP_EDITION === 'staff' && (
+            <div className="mb-5 rounded-2xl border border-emerald-500/35 bg-emerald-500/10 p-4 flex items-center gap-3">
+              <ShieldCheck className="w-6 h-6 text-emerald-400" />
+              <div>
+                <p className="text-white text-sm font-bold">Workshop staff sign in</p>
+                <p className="text-neutral-400 text-xs mt-0.5">Your dedicated Stakey's Cycles staff app</p>
+              </div>
+            </div>
+          )}
+          {APP_EDITION !== 'staff' && (
+          <div className={`grid ${APP_EDITION === 'customer' ? 'grid-cols-2' : 'grid-cols-3'} bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1`}>
             <button
               type="button"
               onClick={() => {
@@ -267,6 +278,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               <span>Register</span>
             </button>
 
+            {APP_EDITION === 'web' && (
             <button
               type="button"
               onClick={() => {
@@ -282,7 +294,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               <Shield className="w-3 h-3 text-emerald-400" />
               <span>Staff Station</span>
             </button>
+            )}
           </div>
+
+          )}
 
           {/* Error Notice */}
           {error && (
@@ -367,6 +382,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 )}
               </button>
 
+              {APP_EDITION === 'web' && (
               <div className="text-center pt-1 text-xs text-neutral-400">
                 Are you a customer?{' '}
                 <button
@@ -380,6 +396,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                   Customer Sign In
                 </button>
               </div>
+              )}
             </form>
           )}
 
@@ -397,7 +414,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                     required
                     value={signInIdentifier}
                     onChange={(e) => setSignInIdentifier(e.target.value)}
-                    placeholder="e.g. alex.henderson@example.com or STK-839201"
+                    placeholder="you@example.com"
                     className="w-full bg-neutral-950 border border-neutral-700/80 rounded-lg pl-10 pr-3.5 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-[#05C147] focus:ring-1 focus:ring-[#05C147] transition-all"
                   />
                 </div>
@@ -432,6 +449,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 </div>
               </div>
 
+              {APP_EDITION === 'web' && (
               {/* Demo Accounts Helper */}
               <div className="p-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-400">
                 <div className="font-semibold text-neutral-300 mb-1 flex items-center gap-1.5">
@@ -440,6 +458,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 </div>
                 <div>Demo customers (Alex, Maya, Liam) require password: <code className="text-emerald-400 font-mono font-bold bg-neutral-900 px-1 py-0.5 rounded">password123</code></div>
               </div>
+
+                            )}
 
               <button
                 type="submit"
@@ -471,7 +491,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                   </button>
                 </span>
 
-                <button
+                {APP_EDITION === 'web' && (
+                 <button
                   type="button"
                   onClick={() => {
                     setMode('staff');
@@ -482,6 +503,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                   <Shield className="w-3 h-3" />
                   <span>Staff Station</span>
                 </button>
+                 )}
               </div>
             </form>
           )}
