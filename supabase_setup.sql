@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS public.stamp_logs (
 
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
--- Enabling public read/write access for seamless prototyping across devices
+-- Restrict access to authenticated owners and server-authorized staff.
 -- ============================================================================
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -87,7 +87,7 @@ ALTER TABLE public.service_bookings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stamp_logs ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if any
-DROP POLICY IFIZING "Allow public select profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Allow public select profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Allow public insert profiles" ON public.profiles;
 DROP POLICY IF EXISTS "Allow public update profiles" ON public.profiles;
 
@@ -103,25 +103,56 @@ DROP POLICY IF EXISTS "Allow public update service_bookings" ON public.service_b
 DROP POLICY IF EXISTS "Allow public select stamp_logs" ON public.stamp_logs;
 DROP POLICY IF EXISTS "Allow public insert stamp_logs" ON public.stamp_logs;
 
--- Create permissive open RLS policies to prevent HTTP 401/403 empty responses across devices
-CREATE POLICY "Allow public select profiles" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "Allow public insert profiles" ON public.profiles FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update profiles" ON public.profiles FOR UPDATE USING (true);
+-- Staff access must be granted in auth.users app_metadata by a trusted server/admin,
+-- never via a client-editable profile role.
+CREATE POLICY "Customer read own profile" ON public.profiles FOR SELECT TO authenticated
+  USING (id = auth.uid()::text OR auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'));
+CREATE POLICY "Customer create own profile" ON public.profiles FOR INSERT TO authenticated
+  WITH CHECK (id = auth.uid()::text AND role = 'customer');
+CREATE POLICY "Customer update own profile" ON public.profiles FOR UPDATE TO authenticated
+  USING (id = auth.uid()::text OR auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'))
+  WITH CHECK (id = auth.uid()::text OR auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'));
 
-CREATE POLICY "Allow public select customer_bikes" ON public.customer_bikes FOR SELECT USING (true);
-CREATE POLICY "Allow public insert customer_bikes" ON public.customer_bikes FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update customer_bikes" ON public.customer_bikes FOR UPDATE USING (true);
-CREATE POLICY "Allow public delete customer_bikes" ON public.customer_bikes FOR DELETE USING (true);
+CREATE POLICY "Customer read own bikes" ON public.customer_bikes FOR SELECT TO authenticated
+  USING (customer_id = auth.uid()::text OR auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'));
+CREATE POLICY "Customer add own bikes" ON public.customer_bikes FOR INSERT TO authenticated
+  WITH CHECK (customer_id = auth.uid()::text);
+CREATE POLICY "Customer update own bikes" ON public.customer_bikes FOR UPDATE TO authenticated
+  USING (customer_id = auth.uid()::text) WITH CHECK (customer_id = auth.uid()::text);
+CREATE POLICY "Customer delete own bikes" ON public.customer_bikes FOR DELETE TO authenticated
+  USING (customer_id = auth.uid()::text);
 
-CREATE POLICY "Allow public select service_bookings" ON public.service_bookings FOR SELECT USING (true);
-CREATE POLICY "Allow public insert service_bookings" ON public.service_bookings FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update service_bookings" ON public.service_bookings FOR UPDATE USING (true);
+CREATE POLICY "Customer read own bookings" ON public.service_bookings FOR SELECT TO authenticated
+  USING (customer_id = auth.uid()::text OR auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'));
+CREATE POLICY "Customer create own bookings" ON public.service_bookings FOR INSERT TO authenticated
+  WITH CHECK (customer_id = auth.uid()::text);
+CREATE POLICY "Staff update bookings" ON public.service_bookings FOR UPDATE TO authenticated
+  USING (auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'))
+  WITH CHECK (auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'));
 
-CREATE POLICY "Allow public select stamp_logs" ON public.stamp_logs FOR SELECT USING (true);
-CREATE POLICY "Allow public insert stamp_logs" ON public.stamp_logs FOR INSERT WITH CHECK (true);
+CREATE POLICY "Customer read own stamp logs" ON public.stamp_logs FOR SELECT TO authenticated
+  USING (customer_id = auth.uid()::text OR auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'));
+CREATE POLICY "Staff create stamp logs" ON public.stamp_logs FOR INSERT TO authenticated
+  WITH CHECK (auth.jwt()->'app_metadata'->>'role' IN ('staff','admin'));
 
 -- Enable Realtime publications for instant cross-device sync
-ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_bikes;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.service_bookings;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.stamp_logs;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'profiles') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.profiles;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'customer_bikes') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.customer_bikes;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'service_bookings') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.service_bookings;
+  END IF;
+END $$;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'stamp_logs') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.stamp_logs;
+  END IF;
+END $$;
