@@ -449,8 +449,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 </div>
               </div>
 
-              {APP_EDITION === 'web' && (
               {/* Demo Accounts Helper */}
+              {APP_EDITION === 'web' && (
               <div className="p-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-400">
                 <div className="font-semibold text-neutral-300 mb-1 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
