@@ -339,7 +339,7 @@ export const StaffPortal: React.FC = () => {
       )}
 
       {/* 2. STATION OVERVIEW & METRICS BAR */}
-      <div className="bg-[#0e1217] border border-neutral-800 rounded-2xl p-6 sm:p-7 shadow-xl">
+      <div className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top_right,rgba(5,193,71,.11),transparent_55%)] bg-[#0e1217] border border-neutral-700/70 rounded-[30px] p-6 sm:p-7 shadow-2xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-1">
@@ -404,89 +404,43 @@ export const StaffPortal: React.FC = () => {
             </div>
           </div>
 
-          {/* Quick Metrics Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => setStaffTab('bookings')}
-              className={`p-3 rounded-xl bg-neutral-950 border text-left transition-all cursor-pointer relative overflow-hidden ${
-                freshBookings.length > 0
-                  ? 'border-amber-400/90 shadow-[0_0_18px_rgba(245,158,11,0.3)] hover:border-amber-300'
-                  : 'border-neutral-800 hover:border-emerald-500/40'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                  Workshop Jobs
-                </div>
-                {freshBookings.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-400 to-orange-500 text-neutral-950 animate-pulse border border-amber-300 shadow-sm flex items-center gap-1">
-                    <span className="w-1 h-1 rounded-full bg-red-600 animate-ping" />
-                    {freshBookings.length} NEW
-                  </span>
-                )}
+          {/* Studio-style control panel replaces the old cluster of tiles */}
+          <aside aria-label="Workshop snapshot" className="w-full lg:w-[425px] shrink-0 rounded-[26px] bg-neutral-950/85 border border-white/10 p-5 shadow-[0_24px_55px_-35px_rgba(0,0,0,.9)]">
+            <div className="flex items-center justify-between gap-3 mb-5">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,.7)]" />
+                <span className="text-[10px] uppercase tracking-[0.2em] font-black text-neutral-300">Workshop pulse</span>
               </div>
-              <div className="text-xl font-black text-emerald-400 mt-0.5">
-                {activeBookingsCount}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Active</span>
-              </div>
-            </button>
+              <span className="text-[10px] font-mono text-neutral-500">LIVE OVERVIEW</span>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setStaffTab('staff_roster')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Staff Roster
-              </div>
-              <div className="text-xl font-black text-emerald-400 mt-0.5">
-                {staffMembers.length}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Active</span>
-              </div>
-            </button>
+            <div className="grid grid-cols-3 divide-x divide-white/10 pb-5 border-b border-white/10">
+              <button type="button" onClick={() => setStaffTab('bookings')} className="text-left pr-3 group" aria-label="Open workshop bookings">
+                <span className="text-[10px] text-neutral-400 font-semibold">Workshop jobs</span>
+                <div className="font-display text-3xl font-black text-white mt-1 group-hover:text-emerald-400 transition-colors">{activeBookingsCount}</div>
+                <span className={`text-[10px] font-bold ${freshBookings.length ? 'text-amber-400' : 'text-neutral-500'}`}>{freshBookings.length ? `${freshBookings.length} awaiting review` : 'Up to date'}</span>
+              </button>
+              <button type="button" onClick={() => setStaffTab('customers')} className="text-left px-3 group" aria-label="Open loyalty members">
+                <span className="text-[10px] text-neutral-400 font-semibold">Riders</span>
+                <div className="font-display text-3xl font-black text-white mt-1 group-hover:text-emerald-400 transition-colors">{customerList.length}</div>
+                <span className="text-[10px] text-neutral-500">Loyalty members</span>
+              </button>
+              <button type="button" onClick={() => setStaffTab('promotions')} className="text-left pl-3 group" aria-label="Open promotions">
+                <span className="text-[10px] text-neutral-400 font-semibold">Offers</span>
+                <div className="font-display text-3xl font-black text-white mt-1 group-hover:text-amber-400 transition-colors">{promotions.filter((p) => p.status === 'active').length}</div>
+                <span className="text-[10px] text-neutral-500">Live campaigns</span>
+              </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setStaffTab('promotions')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Promotions
-              </div>
-              <div className="text-xl font-black text-amber-400 mt-0.5">
-                {promotions.filter((p) => p.status === 'active').length}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Live</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStaffTab('customers')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Total Riders
-              </div>
-              <div className="text-xl font-black text-white mt-0.5">
-                {customerList.length}
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setStaffTab('draws')}
-              className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
-            >
-              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
-                Draw Pool
-              </div>
-              <div className="text-xl font-black text-emerald-300 mt-0.5">
-                {eligibleTicketHolders.length}{' '}
-                <span className="text-xs text-neutral-500 font-normal">Entries</span>
-              </div>
-            </button>
-          </div>
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              <button type="button" onClick={() => setStaffTab('staff_roster')} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-3 hover:bg-white/10 hover:border-emerald-500/40 transition-all text-left">
+                <span className="flex items-center gap-2 text-xs font-semibold text-neutral-200"><Users className="w-4 h-4 text-emerald-400" />Staff <span className="text-neutral-500">{staffMembers.length}</span></span><ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+              </button>
+              <button type="button" onClick={() => setStaffTab('draws')} className="flex items-center justify-between gap-2 rounded-xl bg-white/5 border border-white/10 px-3 py-3 hover:bg-white/10 hover:border-emerald-500/40 transition-all text-left">
+                <span className="flex items-center gap-2 text-xs font-semibold text-neutral-200"><Trophy className="w-4 h-4 text-amber-400" />Prize draws <span className="text-neutral-500">{eligibleTicketHolders.length}</span></span><ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+              </button>
+            </div>
+          </aside>
         </div>
       </div>
 
