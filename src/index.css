@@ -480,19 +480,19 @@
     transform: scale(0.97);
   }
 
-  /* ---- Launcher tile motion ---- */
-  /* Each tile rises in on mount (delay set per-tile for a stagger), lifts on
-     hover, springs its icon and slides a light sheen across the surface. */
+  /* ---- Launcher card motion ---- */
+  /* Each card rises in on mount (delay set per-card for a stagger), lifts on
+     hover, springs its medallion and slides a light sheen across the surface. */
   .tile {
     animation: tile-in 0.44s cubic-bezier(0.2, 0.8, 0.3, 1) both;
     transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1), box-shadow 0.28s ease,
       border-color 0.22s ease, background-color 0.22s ease;
   }
   .tile:hover:not(:disabled) {
-    transform: translateY(-4px);
+    transform: translateY(-5px);
   }
   .tile:active:not(:disabled) {
-    transform: translateY(-1px) scale(0.98);
+    transform: translateY(-1px) scale(0.985);
   }
   .tile:focus-visible {
     outline: none;
@@ -502,9 +502,9 @@
     transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.3, 1), background-color 0.22s ease;
   }
   .tile:hover:not(:disabled) .tile-icon {
-    transform: scale(1.12) rotate(-6deg);
+    transform: scale(1.1) rotate(-5deg);
   }
-  /* The brand gradient panel over the tile's base colour. */
+  /* The brand wash over the card's base colour. */
   .tile .tile-panel {
     pointer-events: none;
     opacity: 0.95;
@@ -513,12 +513,12 @@
   .tile:hover:not(:disabled) .tile-panel {
     opacity: 1;
   }
-  /* Radial bloom in the tone colour, so the icon corner glows. */
+  /* Radial bloom in the tone colour, so the medallion corner glows. */
   .tile .tile-bloom {
     pointer-events: none;
-    background: radial-gradient(circle, rgba(var(--tile-glow, 16, 185, 129), 0.55) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(var(--tile-glow, 16, 185, 129), 0.5) 0%, transparent 70%);
   }
-  /* The animated "logo": the icon chip gets a steady halo. A solid halo
+  /* The animated "logo": the medallion gets a steady halo. A solid halo
      (box-shadow) is one of the most repaint-expensive CSS properties, so the
      pulse is set to opacity-only once the entrance has settled — that keeps a
      launcher full of tiles compositor-friendly instead of repainting every
@@ -529,8 +529,25 @@
   .tile:hover:not(:disabled) .tile-icon {
     animation-play-state: paused;
   }
+  /* Inner halo — a soft tone ring drawn inside the medallion. */
+  .tile .tile-halo {
+    pointer-events: none;
+    background: radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.4), transparent 60%);
+    box-shadow: 0 0 22px -6px rgba(var(--tile-glow, 16, 185, 129), 0.7) inset;
+    opacity: 0.9;
+  }
   .tile:hover:not(:disabled) .tile-glyph {
     animation: tile-glyph 0.6s ease-in-out infinite;
+  }
+  /* A specular line along the very top edge of the card. */
+  .tile .tile-edge {
+    pointer-events: none;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+    opacity: 0.5;
+    transition: opacity 0.25s ease;
+  }
+  .tile:hover:not(:disabled) .tile-edge {
+    opacity: 0.9;
   }
   /* Slow rotating colour sweep — a permanently "live" brand cue. Rotating a
      large conic-gradient layer causes a full-tile repaint on every frame, so
@@ -569,10 +586,10 @@
   }
   .tile .tile-arrow {
     transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.2s ease;
-    opacity: 0.35;
+    opacity: 0.45;
   }
   .tile:hover:not(:disabled) .tile-arrow {
-    transform: translateX(3px);
+    transform: translate(2px, -2px);
     opacity: 1;
   }
   @media (prefers-reduced-motion: reduce) {

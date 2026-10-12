@@ -15,7 +15,7 @@ export interface TileGroupProps {
 
 /**
  * A labelled section: an icon-led heading with a fading hairline rule, an
- * optional description, and a trailing action slot, wrapping a grid of tiles.
+ * optional description, and a trailing action slot, wrapping a grid of cards.
  */
 export const TileGroup: React.FC<TileGroupProps> = ({
   label,
@@ -25,21 +25,21 @@ export const TileGroup: React.FC<TileGroupProps> = ({
   icon: Icon,
   className = '',
 }) => (
-  <div className={`space-y-3.5 ${className}`}>
+  <div className={`space-y-4 ${className}`}>
     <div className="flex flex-wrap items-center gap-2.5">
       {Icon && (
-        <span className="flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-white/5">
+        <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-gradient-to-br from-white/10 to-white/[0.02]">
           <Icon className="h-3.5 w-3.5 text-emerald-400" />
         </span>
       )}
-      <span className="font-display text-[11px] font-bold uppercase tracking-[0.2em] text-neutral-300">
+      <span className="font-display text-[12px] font-bold uppercase tracking-[0.22em] text-neutral-200">
         {label}
       </span>
       <div className="hairline flex-1" />
       {action}
     </div>
     {description && (
-      <p className="-mt-1 text-[11px] leading-relaxed text-neutral-500">{description}</p>
+      <p className="-mt-1.5 text-[11px] leading-relaxed text-neutral-500">{description}</p>
     )}
     {children}
   </div>
