@@ -65,7 +65,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
     const cleanPass = signInPassword.trim();
 
     if (!cleanId) {
-      setError('Please enter your email, username, or member ID.');
+      setError('Please enter your email address.');
       return;
     }
     if (!cleanPass) {
@@ -388,7 +388,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
             <form onSubmit={handleCustomerSignIn} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-neutral-200 mb-1.5">
-                  Email, Username, or Member ID
+                  Email Address
                 </label>
                 <div className="relative">
                   <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
