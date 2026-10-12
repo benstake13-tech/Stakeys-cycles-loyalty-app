@@ -1,38 +1,22 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+/** In-browser bridge to our server-owned Gemini 3.5 Flash-Lite service.
+ * GEMINI_API_KEY is never bundled into client assets.
+ */
+export async function analyzeBikeImage(imageDataUrl) {
+  if (typeof imageDataUrl !== 'string' || !imageDataUrl.startsWith('data:image/')) {
+    throw new Error('Choose a valid image file.');
+  }
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
-
-export async function analyzeBikeImage(base64Image) {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
-
-  const prompt = `
-    Analyze this bike image and identify technical specs, fault conditions, and hanger type.
-    Return ONLY valid JSON matching this schema:
-    {
-      "identified_bike": {
-        "make": "string",
-        "model": "string",
-        "type": "string",
-        "frame_material": "string",
-        "drivetrain_components": "string",
-        "derailleur_hanger_type": "string"
-      },
-      "visually_broken_parts": ["string"],
-      "common_model_faults": ["string"],
-      "recommended_solutions": [
-        {
-          "issue": "string",
-          "action": "string",
-          "parts_needed": ["string"]
-        }
-      ]
-    }
-  `;
-
-  const result = await model.generateContent([
-    prompt,
-    { inlineData: { data: base64Image.split(',')[1], mimeType: "image/jpeg" } }
-  ]);
-
-  return JSON.parse(result.response.text());
+  const response = await fetch('/api/gemini/scan-bike', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: imageDataUrl }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || 'The AI scanner is unavailable. Please try again.');
+  }
+  if (!payload?.identified_bike) {
+    throw new Error('Could not identify the bike. Please use a clearer photo.');
+  }
+  return payload;
 }
