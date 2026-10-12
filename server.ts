@@ -11,13 +11,6 @@ async function startServer() {
   const app = express();
   app.use(express.json({ limit: '8mb' }));
 
-  const vite = await createServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
-  });
-
-  app.use(vite.middlewares);
-
   // Gemini API: server-side key only. Image payloads never go in a URL.
   app.post('/api/gemini/scan-bike', async (req, res) => {
     try {
@@ -28,12 +21,6 @@ async function startServer() {
       res.status(error.status || 502).json({ error: error.status ? error.message : 'Bike analysis is currently unavailable. Please try again.' });
     }
   });
-
-  const vite = await createServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
-  });
-  app.use(vite.middlewares);
 
   // Google Business API Proxy Route
   app.get('/api/google-business', async (req, res) => {
@@ -57,6 +44,13 @@ async function startServer() {
       res.status(500).json({ error: 'Failed to fetch business data' });
     }
   });
+
+  // Register SPA fallback after the API endpoints so Vite cannot swallow them.
+  const vite = await createServer({
+    server: { middlewareMode: true },
+    appType: 'spa',
+  });
+  app.use(vite.middlewares);
 
   app.listen(3000, () => console.log('Server running on port 3000'));
 }
