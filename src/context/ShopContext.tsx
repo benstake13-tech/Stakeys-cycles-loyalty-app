@@ -841,16 +841,55 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'Invalid email or password.' };
       }
 
-      // 2. Fetch profile from database using the authenticated user ID
-      const { data: profile, error: profileError } = await supabase
+      // 2. Fetch the profile for this authenticated account.
+      // Older registrations only created the Supabase Auth user, not the matching
+      // public.profiles row. Repair that missing row after sign-in so existing
+      // customers are not permanently locked out.
+      let { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (profileError || !profile) {
+      if (!profile && !profileError) {
+        const displayName =
+          String(data.user.user_metadata?.full_name || data.user.user_metadata?.name || '')
+            .trim() || data.user.email?.split('@')[0] || 'Customer';
+        const membershipNumber = generateMembershipNumber();
+        const { data: createdProfile, error: createProfileError } = await supabase
+          .from('profiles')
+          .insert({
+            id: data.user.id,
+            email: (data.user.email || email).trim().toLowerCase(),
+            display_name: displayName,
+            phone: data.user.user_metadata?.phone || null,
+            membership_number: membershipNumber,
+            role: 'customer',
+            stamps: 0,
+            completed_cards: 0,
+            merit_points: 0,
+          })
+          .select('*')
+          .single();
+
+        if (createProfileError) {
+          console.error('Profile repair failed:', createProfileError);
+          return {
+            success: false,
+            message: 'Your sign-in was accepted, but your customer profile could not be created. Please contact the shop and provide this message: ' + createProfileError.message,
+          };
+        }
+        profile = createdProfile;
+      } else if (profileError) {
         console.error('Profile fetch error:', profileError);
-        return { success: false, message: 'Login successful, but could not load profile. Please contact support.' };
+        return {
+          success: false,
+          message: 'Could not load your customer profile. Please try again. ' + profileError.message,
+        };
+      }
+
+      if (!profile) {
+        return { success: false, message: 'Could not load your customer profile. Please contact the shop.' };
       }
 
       // Map DB profile to UserProfile type
