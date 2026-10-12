@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { APP_SURFACE } from '../config/surface';
 import {
   Bike,
   User,
@@ -211,6 +212,34 @@ export const Navigation3DDeck: React.FC<Navigation3DDeckProps> = ({
       microFootnote: 'workshop operations and till audit logging.',
     },
   ];
+
+  // The native apps use a bespoke editorial navigation, not the website's 3D flip tiles.
+  if (APP_SURFACE === 'staff' || APP_SURFACE === 'customer') {
+    return (
+      <section className="atelier-navigation" aria-label="Explore Stakey's Cycles">
+        <div className="atelier-navigation-heading">
+          <div><span className="atelier-eyebrow">STAKEY'S CYCLES / PRIVATE EXPERIENCE</span><h2>{APP_SURFACE === 'staff' ? 'Your command centre.' : 'Your cycling world.'}</h2></div>
+          <span className="atelier-edition">EST. SALFORD · MMXXVI</span>
+        </div>
+        <div className="atelier-navigation-list">
+          {CARDS.filter(card => APP_SURFACE === 'staff' || card.id !== 'staff').map((card, index) => {
+            const selected = activeTab === card.id;
+            return (
+              <button key={card.id} type="button" className={`atelier-destination ${selected ? 'is-current' : ''}`}
+                onClick={() => card.id === 'staff' && !isStaff ? onUnlockStaffPin() : onSelectTab(card.id)}
+                aria-current={selected ? 'page' : undefined}>
+                <span className="atelier-destination-number">{String(index + 1).padStart(2, '0')}</span>
+                <span className="atelier-destination-icon" aria-hidden="true">{card.icon}</span>
+                <span className="atelier-destination-copy"><strong>{card.title}</strong><small>{card.subtitle}</small></span>
+                <span className="atelier-destination-action">{card.actionLabel}<ArrowRight size={17} aria-hidden="true" /></span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="atelier-navigation-footer">DESIGNED FOR THE RIDE. BUILT FOR THE WORKSHOP. <span>© STAKEY'S CYCLES</span></p>
+      </section>
+    );
+  }
 
   return (
     <div className="w-full mb-8">
