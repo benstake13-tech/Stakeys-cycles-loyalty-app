@@ -1,5 +1,17 @@
 apply plugin: 'com.android.application'
 
+// Release signing is configured from `android/keystore.properties` (git-ignored,
+// alongside the keystore it points at). Keeping the secret out of this tracked
+// file means the repo builds — and `check:parity` stays green — without any
+// signing material; a release build simply stays unsigned until the properties
+// are supplied. See NATIVE_APPS.md -> "Release signing".
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+def hasReleaseSigning = keystoreProps['storeFile'] != null
+
 android {
     namespace "uk.co.stakeyscycles.staff"
     compileSdk rootProject.ext.compileSdkVersion
@@ -32,10 +44,25 @@ android {
             applicationId "uk.co.stakeyscycles.customer"
         }
     }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Sign the release build when credentials are present; otherwise it
+            // is left unsigned and the APK name keeps the `-unsigned` suffix.
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

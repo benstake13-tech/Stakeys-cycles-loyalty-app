@@ -53,9 +53,13 @@ captures/
 .idea/navEditor.xml
 
 # Keystore files
-# Uncomment the following lines if you do not want to check your keystore files in.
-#*.jks
-#*.keystore
+# The release signing key + its credentials must NOT be committed. The keystore
+# (`stakeys-release.jks`) is generated/kept locally and backed up securely; the
+# passwords live in `android/keystore.properties` (also ignored). See
+# NATIVE_APPS.md -> "Release signing".
+*.jks
+*.keystore
+keystore.properties
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
