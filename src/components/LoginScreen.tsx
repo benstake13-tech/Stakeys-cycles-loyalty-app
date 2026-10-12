@@ -200,7 +200,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
           className="w-full h-full object-cover object-center opacity-35 filter saturate-100 scale-105"
         />
         {/* Ambient atmospheric gradients for contrast and depth */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0c1017] via-[#0c1017]/85 to-[#0c1017]/70" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#07120f] via-[#081310]/90 to-[#07130d]/70" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
       </div>
 
@@ -211,14 +211,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
           <ThemeToggle showLabel={true} />
         </div>
 
-        <div className="bg-neutral-900/95 border border-neutral-700/80 rounded-2xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(5,193,71,0.12)] backdrop-blur-xl ring-1 ring-emerald-500/20">
+        <div className="atelier-login p-6 sm:p-9">
           {/* Stakey's Brand Header */}
           <div className="flex flex-col items-center text-center mb-5">
             <div className="p-2 rounded-2xl bg-neutral-950 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 mb-3">
               <StakeysLogo className="w-13 h-13" />
             </div>
 
-            <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center justify-center gap-2">
+            <h1 className="atelier-display text-2xl sm:text-[30px] text-white flex items-center justify-center gap-2">
               <span>STAKEY'S</span>
               <span className="text-[#05C147] text-sm font-bold tracking-wider uppercase font-sans">
                 CYCLES &amp; SCOOTER
@@ -252,14 +252,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
             </div>
           )}
           {APP_EDITION !== 'staff' && (
-          <div className={`grid ${APP_EDITION === 'customer' ? 'grid-cols-2' : 'grid-cols-3'} bg-neutral-950 p-1 rounded-xl border border-neutral-800 mb-5 text-xs font-semibold gap-1`}>
+          <div className={`grid ${APP_EDITION === 'customer' ? 'grid-cols-2' : 'grid-cols-3'} bg-black/30 p-1.5 rounded-2xl border border-emerald-300/10 mb-6 text-xs font-semibold gap-1`}>
             <button
               type="button"
               onClick={() => {
                 setMode('signin');
                 setError(null);
               }}
-              className={`py-2 rounded-lg transition-all cursor-pointer text-center ${
+              className={`py-3 rounded-xl transition-all cursor-pointer text-center ${
                 mode === 'signin'
                   ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
                   : 'text-neutral-400 hover:text-white'
@@ -274,7 +274,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 setMode('register');
                 setError(null);
               }}
-              className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+              className={`py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 mode === 'register'
                   ? 'bg-neutral-800 text-white font-bold shadow-md border border-neutral-700'
                   : 'text-neutral-400 hover:text-white'
@@ -291,7 +291,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
                 setMode('staff');
                 setError(null);
               }}
-              className={`py-2 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+              className={`py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 ${
                 mode === 'staff'
                   ? 'bg-emerald-950/80 text-emerald-300 font-bold shadow-md border border-emerald-500/50'
                   : 'text-amber-400 hover:text-amber-300'
@@ -376,7 +376,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 rounded-lg bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="atelier-primary w-full py-3.5 text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <span>Verifying...</span>
@@ -470,7 +470,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking }) => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-3 rounded-lg bg-[#05C147] hover:bg-emerald-400 text-neutral-950 font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-emerald-500/20 active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="atelier-primary w-full py-3.5 text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <span>Verifying Credentials...</span>
