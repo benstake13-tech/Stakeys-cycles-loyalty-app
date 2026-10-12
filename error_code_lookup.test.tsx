@@ -4,9 +4,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   EVEHICLE_CATEGORIES,
   EVEHICLE_BRANDS,
+  EVEHICLE_DISPLAYS,
   errorCodesFor,
+  errorCodesForFamily,
   errorFamilyFor,
   brandsForEVehicleCategory,
+  displaysForCategory,
+  displayForModel,
   findErrorCode,
   normalizeErrorCode,
 } from './src/data/eVehicleCodes';
@@ -109,6 +113,49 @@ describe('e-vehicle error-code catalogue', () => {
       expect(b.brand).toBeTruthy();
     }
   });
+
+  it('covers the popular budget scooter brands (Kugoo, iENYRID, Gotrax, Hiboy, NIU)', () => {
+    expect(errorFamilyFor('electric_scooter', 'Kugoo / Kukirin', 'M4')).toBe('kugoo');
+    expect(errorFamilyFor('electric_scooter', 'iENYRID', 'M4 Pro S+')).toBe('ienyrid');
+    expect(errorFamilyFor('electric_scooter', 'GoTrax', 'GXL')).toBe('gotrax');
+    expect(errorFamilyFor('electric_scooter', 'Hiboy', 'S2 Pro')).toBe('hiboy');
+    expect(errorFamilyFor('electric_scooter', 'NIU', 'KQi3')).toBe('niu');
+
+    const kugoo = errorCodesFor('electric_scooter', 'Kugoo / Kukirin', 'M4');
+    expect(findErrorCode(kugoo, '1')?.system).toBe('motor');
+    expect(findErrorCode(kugoo, '2')?.system).toBe('throttle');
+
+    const ienyrid = errorCodesFor('electric_scooter', 'iENYRID', 'M4 Pro S+');
+    expect(findErrorCode(ienyrid, '7E')?.system).toBe('throttle');
+    expect(findErrorCode(ienyrid, '15E')?.system).toBe('controller');
+
+    const niu = errorCodesFor('electric_scooter', 'NIU', 'KQi3');
+    expect(findErrorCode(niu, '03')?.system).toBe('throttle');
+    expect(findErrorCode(niu, '21')?.system).toBe('bms');
+  });
+});
+
+describe('display / system identification', () => {
+  it('lists displays for both categories and routes them to a family', () => {
+    const scooters = displaysForCategory('electric_scooter');
+    const bikes = displaysForCategory('ebike');
+    expect(scooters.length).toBeGreaterThan(5);
+    expect(bikes.length).toBeGreaterThan(3);
+    expect(scooters.every((d) => d.codeStyle && d.appearance && d.usedOn.length > 0)).toBe(true);
+  });
+
+  it('maps a chosen brand/model to the display that reports its codes', () => {
+    expect(displayForModel('electric_scooter', 'Xiaomi', 'M365')?.family).toBe('xiaomi');
+    expect(displayForModel('electric_scooter', 'Segway / Ninebot', 'Max G30')?.family).toBe('ninebot');
+    expect(displayForModel('electric_scooter', 'iENYRID', 'M4')?.family).toBe('ienyrid');
+    expect(displayForModel('ebike', 'Shimano', 'STEPS EP8')?.family).toBe('shimano');
+  });
+
+  it('every display family resolves to a non-empty code table', () => {
+    for (const d of EVEHICLE_DISPLAYS) {
+      expect(errorCodesForFamily(d.family).length, `${d.id} has no codes`).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('assistECodeLookup offline fallback', () => {
@@ -157,7 +204,7 @@ describe('ErrorCodeLookupTab UI', () => {
     expect(screen.getByTestId('ev-category')).toBeTruthy();
     expect(screen.getByTestId('ev-brand')).toBeTruthy();
     expect(screen.getByTestId('ev-model')).toBeTruthy();
-    expect(screen.getByText('Choose a brand and model to see its codes.')).toBeTruthy();
+    expect(screen.getByText('Identify the display, or choose a brand and model, to see its codes.')).toBeTruthy();
     expect(screen.queryByTestId('ev-code-list')).toBeNull();
   });
 
@@ -207,7 +254,30 @@ describe('ErrorCodeLookupTab UI', () => {
     fireEvent.change(screen.getByTestId('ev-brand'), { target: { value: 'Xiaomi' } });
     fireEvent.change(screen.getByTestId('ev-model'), { target: { value: 'M365' } });
     fireEvent.click(screen.getByTestId('ev-reset'));
-    expect(screen.getByText('Choose a brand and model to see its codes.')).toBeTruthy();
+    expect(screen.getByText('Identify the display, or choose a brand and model, to see its codes.')).toBeTruthy();
     expect(screen.queryByTestId('ev-code-list')).toBeNull();
+  });
+
+  it('shows a code table from a chosen display without picking a brand or model', () => {
+    render(<ErrorCodeLookupTab />);
+    // iENYRID display → iENYRID "nE" codes, no brand/model needed.
+    fireEvent.click(screen.getByTestId('ev-display-ienyrid-ne'));
+    const list = screen.getByTestId('ev-code-list');
+    expect(within(list).getByText('7E')).toBeTruthy();
+    expect(within(list).getByText('15E')).toBeTruthy();
+    expect(screen.getByTestId('ev-display-banner')).toBeTruthy();
+    // Clearing the display returns to the empty state.
+    fireEvent.click(screen.getByTestId('ev-display-clear'));
+    expect(screen.queryByTestId('ev-code-list')).toBeNull();
+  });
+
+  it('runs AI assist from a display selection in offline mode', async () => {
+    render(<ErrorCodeLookupTab />);
+    fireEvent.click(screen.getByTestId('ev-display-kugoo-numeric'));
+    fireEvent.change(screen.getByTestId('ev-symptom'), { target: { value: 'throttle dead' } });
+    fireEvent.click(screen.getByTestId('ev-assist-run'));
+    const results = await screen.findByTestId('ev-assist-results');
+    expect(results).toBeTruthy();
+    expect(screen.getAllByTestId('ev-assist-match').length).toBeGreaterThan(0);
   });
 });

@@ -21,13 +21,18 @@ import {
   Loader2,
   RotateCcw,
   ExternalLink,
+  MonitorSmartphone,
 } from 'lucide-react';
 import {
   EVehicleCategory,
   EVEHICLE_CATEGORIES,
   EVehicleErrorDefinition,
+  EVehicleDisplay,
   brandsForEVehicleCategory,
   errorCodesFor,
+  errorCodesForFamily,
+  displaysForCategory,
+  displayForModel,
   normalizeErrorCode,
 } from '../data/eVehicleCodes';
 import {
@@ -139,25 +144,102 @@ function PickerSelect({
   );
 }
 
+/**
+ * Display / system identifier.
+ *
+ * Because the same fault number means different things on different displays,
+ * the mechanic should identify the DISPLAY first. Choosing one here sets the
+ * code table directly, without needing to know the brand or model.
+ */
+function DisplayPicker({
+  displays,
+  activeId,
+  onSelect,
+  onClear,
+}: {
+  displays: EVehicleDisplay[];
+  activeId: string | null;
+  onSelect: (d: EVehicleDisplay) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-sky-800/40 bg-gradient-to-br from-sky-950/30 to-neutral-950 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-bold text-sky-300">
+          <MonitorSmartphone className="w-4 h-4" /> Step 1 — Identify the display / system
+        </div>
+        {activeId && (
+          <button
+            type="button"
+            onClick={onClear}
+            data-testid="ev-display-clear"
+            className="text-[11px] font-semibold text-neutral-400 hover:text-white cursor-pointer"
+          >
+            Clear display
+          </button>
+        )}
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-neutral-400">
+        The same code number can mean different things on different displays. Match what the rider sees on the unit
+        below — this is the most reliable way to reach the correct table.
+      </p>
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+        {displays.map((d) => {
+          const active = activeId === d.id;
+          return (
+            <button
+              key={d.id}
+              type="button"
+              onClick={() => onSelect(d)}
+              data-testid={`ev-display-${d.id}`}
+              className={`text-left rounded-xl border p-3 transition-colors cursor-pointer ${
+                active
+                  ? 'border-sky-400 bg-sky-500/10 ring-1 ring-sky-400/40'
+                  : 'border-neutral-800 bg-neutral-950/50 hover:border-sky-700/60'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono text-[11px] font-black text-sky-300">{d.codeStyle}</span>
+                {active && <CheckCircle2 className="w-3.5 h-3.5 text-sky-300" />}
+              </div>
+              <p className="mt-1.5 text-[11px] leading-snug text-neutral-300">{d.appearance}</p>
+              <p className="mt-1.5 text-[10px] text-neutral-500">{d.usedOn.join(' · ')}</p>
+              {d.hint && <p className="mt-1.5 text-[10px] italic text-amber-400/80">{d.hint}</p>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ErrorCodeLookupTab() {
   const [category, setCategory] = useState<EVehicleCategory>('electric_scooter');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
+  const [displayId, setDisplayId] = useState<string | null>(null);
   const [symptom, setSymptom] = useState('');
   const [search, setSearch] = useState('');
   const [assistState, setAssistState] = useState<'idle' | 'thinking' | 'done'>('idle');
   const [assistResult, setAssistResult] = useState<{ matches: ECodeAssistItem[]; guidance: string; error?: ECodeAssistResult['error'] } | null>(null);
 
   const brands = useMemo(() => brandsForEVehicleCategory(category), [category]);
+  const displays = useMemo(() => displaysForCategory(category), [category]);
   const models = useMemo(() => {
     const entry = brands.find((b) => b.brand === brand);
     return entry ? entry.models : [];
   }, [brand, brands]);
 
+  const activeDisplay = useMemo(
+    () => displays.find((d) => d.id === displayId) ?? null,
+    [displays, displayId]
+  );
+
   // Reset model when the brand changes.
   const handleBrandChange = (next: string) => {
     setBrand(next);
     setModel('');
+    setDisplayId(null);
     setSearch('');
     setAssistResult(null);
   };
@@ -165,13 +247,35 @@ export function ErrorCodeLookupTab() {
     setCategory(next as EVehicleCategory);
     setBrand('');
     setModel('');
+    setDisplayId(null);
+    setSearch('');
+    setAssistResult(null);
+  };
+  const handleModelChange = (next: string) => {
+    setModel(next);
+    // A chosen model implies its display; clear the manual display pick.
+    setDisplayId(null);
+    setAssistResult(null);
+  };
+  const handleDisplaySelect = (d: EVehicleDisplay) => {
+    setDisplayId((cur) => (cur === d.id ? null : d.id));
     setSearch('');
     setAssistResult(null);
   };
 
-  const codes: EVehicleErrorDefinition[] = useMemo(
-    () => (category && brand && model ? errorCodesFor(category, brand, model) : []),
-    [category, brand, model]
+  // Which table to show: a chosen model wins; otherwise a chosen display.
+  const mode: 'model' | 'display' | 'none' = model && brand ? 'model' : activeDisplay ? 'display' : 'none';
+
+  const codes: EVehicleErrorDefinition[] = useMemo(() => {
+    if (mode === 'model') return errorCodesFor(category, brand, model);
+    if (mode === 'display' && activeDisplay) return errorCodesForFamily(activeDisplay.family);
+    return [];
+  }, [mode, category, brand, model, activeDisplay]);
+
+  // The display implied by the currently selected model (for the info strip).
+  const impliedDisplay = useMemo(
+    () => (mode === 'model' ? displayForModel(category, brand, model) : null),
+    [mode, category, brand, model]
   );
 
   const searched = useMemo(() => {
@@ -190,10 +294,16 @@ export function ErrorCodeLookupTab() {
   const aiConfigured = isECodeAssistConfigured();
 
   const runAssist = async () => {
-    if (!category || !brand || !model) return;
+    if (mode === 'none') return;
     setAssistState('thinking');
     // Keep the UI responsive while the model decides.
-    const result = await assistECodeLookup({ category, brand, model, symptom });
+    const result = await assistECodeLookup({
+      category,
+      brand,
+      model,
+      family: mode === 'display' ? activeDisplay?.family : undefined,
+      symptom,
+    });
     setAssistResult({
       matches: result.matches,
       guidance: result.guidance,
@@ -206,6 +316,7 @@ export function ErrorCodeLookupTab() {
     setCategory('electric_scooter');
     setBrand('');
     setModel('');
+    setDisplayId(null);
     setSymptom('');
     setSearch('');
     setAssistResult(null);
@@ -221,9 +332,10 @@ export function ErrorCodeLookupTab() {
             <Zap className="w-5 h-5 text-amber-400" /> E-Scooter / E-Bike Error Codes
           </h2>
           <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-            Pick a category, brand and model to see the error codes that machine reports, what they mean, and the
-            usual workshop fix. Type the code the rider saw to narrow the list, or paste the symptom and let the AI
-            pick the most likely codes.
+            Error codes are <strong className="text-neutral-300">not universal</strong> — the same number means
+            different things on different displays. Identify the <strong className="text-neutral-300">display/system</strong> the
+            rider has to reach the correct table, or narrow by brand and model. Then type the code the rider saw, or
+            paste the symptom and let the AI pick the most likely codes.
           </p>
         </div>
         <button
@@ -246,7 +358,7 @@ export function ErrorCodeLookupTab() {
           options={EVEHICLE_CATEGORIES.map((c) => ({ value: c.id, label: c.label }))}
         />
         <PickerSelect
-          label="Brand"
+          label="Brand (optional)"
           testId="ev-brand"
           value={brand}
           onChange={handleBrandChange}
@@ -256,10 +368,10 @@ export function ErrorCodeLookupTab() {
           ]}
         />
         <PickerSelect
-          label="Model"
+          label="Model (optional)"
           testId="ev-model"
           value={model}
-          onChange={(v) => { setModel(v); setAssistResult(null); }}
+          onChange={handleModelChange}
           options={[
             { value: '', label: 'Choose a model…' },
             ...models.map((m) => ({ value: m, label: m })),
@@ -282,13 +394,30 @@ export function ErrorCodeLookupTab() {
         </label>
       </div>
 
+      {/* Display / system identification — the primary route to the right table */}
+      <DisplayPicker
+        displays={displays}
+        activeId={displayId}
+        onSelect={handleDisplaySelect}
+        onClear={() => { setDisplayId(null); setSearch(''); setAssistResult(null); }}
+      />
+
       {/* Model-level status line */}
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
         <Gauge className="w-3.5 h-3.5 text-neutral-600" />
-        <span>
-          {brand && model
-            ? <><span className="font-bold text-neutral-300">{model}</span> · {codes.length} codes in this family</>
-            : 'Choose a brand and model to see its codes.'}
+        <span data-testid="ev-status">
+          {mode === 'model' && (
+            <>
+              <span className="font-bold text-neutral-300">{model}</span>
+              {impliedDisplay ? ` · ${impliedDisplay.codeStyle}` : ''} · {codes.length} codes in this family
+            </>
+          )}
+          {mode === 'display' && activeDisplay && (
+            <>
+              Display: <span className="font-bold text-sky-300">{activeDisplay.codeStyle}</span> · {codes.length} codes
+            </>
+          )}
+          {mode === 'none' && 'Identify the display, or choose a brand and model, to see its codes.'}
         </span>
       </div>
 
@@ -314,7 +443,7 @@ export function ErrorCodeLookupTab() {
           <button
             type="button"
             onClick={runAssist}
-            disabled={!brand || !model || assistState === 'thinking'}
+            disabled={mode === 'none' || assistState === 'thinking'}
             data-testid="ev-assist-run"
             className="pressable inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-emerald-950 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] transition-all cursor-pointer"
           >
@@ -368,10 +497,27 @@ export function ErrorCodeLookupTab() {
             <Bike className="w-6 h-6" />
           </div>
           <p className="text-sm font-bold text-neutral-300">No codes yet</p>
-          <p className="mt-1 text-xs text-neutral-500">Select a brand and model to load its error-code family.</p>
+          <p className="mt-1 text-xs text-neutral-500">Identify the display, or select a brand and model, to load its error-code family.</p>
         </div>
       ) : (
         <div className="space-y-3">
+          {/* Which display/system these codes belong to */}
+          {(() => {
+            const banner = mode === 'display' ? activeDisplay : impliedDisplay;
+            if (!banner) return null;
+            return (
+              <div
+                data-testid="ev-display-banner"
+                className="rounded-xl border border-sky-800/40 bg-sky-950/20 px-4 py-3"
+              >
+                <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-sky-300">
+                  <MonitorSmartphone className="w-3.5 h-3.5" />
+                  These codes are for the {banner.codeStyle} display/system
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-neutral-400">{banner.appearance}</p>
+              </div>
+            );
+          })()}
           {searched.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/60 p-6 text-center text-xs text-neutral-500">
               No catalogue entry matches “{search}”.
@@ -382,14 +528,15 @@ export function ErrorCodeLookupTab() {
               {searched.length > CODE_BREAKPOINT && (
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="text-[10px] font-black uppercase tracking-wider text-neutral-500 mb-2">At a glance</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {searched.map((c) => (
                       <span
                         key={c.code}
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-bold ${SEVERITY_STYLE[c.severity]}`}
                       >
-                        <AlertTriangle className="w-3 h-3" />
-                        {c.code}
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        <span className="font-mono">{c.code}</span>
+                        <span className="font-medium text-neutral-300 truncate">{c.title}</span>
                       </span>
                     ))}
                   </div>

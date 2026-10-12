@@ -14,8 +14,8 @@
  * workshop; `diyCost` is the parts-only price. Treat them as a guide, not a quote.
  */
 
-import type { EVehicleErrorDefinition, EVehicleCategory } from './eVehicleCodes';
-import { errorCodesFor, errorFamilyFor } from './eVehicleCodes';
+import type { EVehicleErrorDefinition, EVehicleCategory, EVehicleErrorFamily } from './eVehicleCodes';
+import { errorCodesFor, errorCodesForFamily, errorFamilyFor } from './eVehicleCodes';
 
 export interface PartOption {
   label: string;
@@ -78,7 +78,7 @@ const E: Record<string, Info> = {
   'xiaomi:E21': { why: 'The controller cannot read the battery — a loose pack connector or a failed BMS.', symptoms: ['No power', 'Won\'t charge', 'Dead on the stand'], difficulty: 'Workshop only', costRange: [80, 160], diyCost: [30, 75], partKeys: ['bms'] },
   'xiaomi:E22': { why: 'The battery did not authenticate — common after fitting a replacement battery without programming.', symptoms: ['No power', 'Error on any battery'], difficulty: 'Workshop only', costRange: [60, 120], diyCost: [0, 0], partKeys: ['battery_pack'] },
   'xiaomi:E23': { why: 'The BMS reports a default/incorrect serial number or an internal battery fault.', symptoms: ['No power', 'Refuses to charge'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [180, 400], partKeys: ['battery_pack'] },
-  'xiaomi:E24': { why: 'System voltage is out of range, or the motor has a short circuit.', symptoms: ['Won\'t power on', 'Blows a fuse', 'Hot motor'], difficulty: 'Workshop only', costRange: [60, 150], diyCost: [45, 110], partKeys: ['controller_xiaomi', 'motor_hub'] },
+  'xiaomi:E24': { why: 'The system supply voltage is out of range — a battery, charging or controller-reading fault.', symptoms: ['Won\'t power on', 'Error on start', 'Odd voltage reading'], difficulty: 'Workshop only', costRange: [60, 150], diyCost: [45, 110], partKeys: ['controller_xiaomi', 'battery_pack'] },
   'xiaomi:E26': { why: 'The controller could not read/write its configuration memory.', symptoms: ['Settings lost on power-off', 'Random errors'], difficulty: 'Workshop only', costRange: [50, 110], diyCost: [45, 100], partKeys: ['controller_xiaomi'] },
   'xiaomi:E27': { why: 'Controller password/activation error — usually after a board swap.', symptoms: ['No assist'], difficulty: 'Workshop only', costRange: [50, 110], diyCost: [45, 100], partKeys: ['controller_xiaomi'] },
   'xiaomi:E28': { why: 'A power transistor (MOSFET) in the controller failed — often from a shorted phase wire.', symptoms: ['Dead or violent jolt', 'Burning smell'], difficulty: 'Workshop only', costRange: [90, 170], diyCost: [45, 100], partKeys: ['controller_xiaomi'] },
@@ -98,7 +98,10 @@ const E: Record<string, Info> = {
   'ninebot:E23': { why: 'BMS serial or data-link fault, similar to E21.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [30, 75], partKeys: ['bms'] },
   'ninebot:E35': { why: 'Vehicle serial number is default/missing — after a controller or dash swap.', symptoms: ['Rides but shows an error'], difficulty: 'Workshop only', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
   'ninebot:E39': { why: 'Battery temperature sensor abnormal or the pack is too hot.', symptoms: ['Cuts out when warm'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [180, 380], partKeys: ['battery_pack'] },
-  'ninebot:E45': { why: 'Retail firmware is flashed (common on ex-rental units).', symptoms: ['Speed limited or odd behaviour'], difficulty: 'Workshop only', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
+  'ninebot:E45': { why: 'A cell group in the battery has discharged below the safe minimum — the pack is deeply discharged or aged.', symptoms: ['Won\'t hold charge', 'Cuts out under load', 'Won\'t power on'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [180, 380], partKeys: ['battery_pack'] },
+  'ninebot:E41': { why: 'The external (second) battery is overheating.', symptoms: ['Cuts out when hot', 'Hot second battery'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: ['battery_pack'] },
+  'ninebot:E16': { why: 'The internal battery reports an abnormal protection-MOS state — an internal battery-electronics fault.', symptoms: ['No power', 'Won\'t charge'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [180, 380], partKeys: ['battery_pack'] },
+  'ninebot:E42': { why: 'The controller cannot communicate with the external battery BMS.', symptoms: ['No power', 'Second battery ignored'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [30, 75], partKeys: ['bms'] },
 
   // ---------------- Generic scooter controller ----------------
   'generic:E1': { why: 'Throttle signal missing/out of range — a common connector or grip fault.', symptoms: ['Won\'t accelerate', 'Throttle dead'], difficulty: 'DIY', costRange: [40, 75], diyCost: [10, 25], partKeys: ['throttle_generic'] },
@@ -139,8 +142,12 @@ const E: Record<string, Info> = {
 
   // ---------------- Shimano STEPS ----------------
   'shimano:E010': { why: 'The drive unit detected an internal abnormality — often a temporary glitch, sometimes a sensor fault.', symptoms: ['Assist disabled', 'Error on start'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
-  'shimano:E012': { why: 'The torque sensor could not initialise — often because the pedals moved at startup.', symptoms: ['No assist', 'Error on start'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
-  'shimano:E013': { why: 'The torque sensor is faulty or misaligned.', symptoms: ['Assist weak or absent'], difficulty: 'Workshop only', costRange: [50, 120], diyCost: [40, 120], partKeys: ['torque_sensor'] },
+  'shimano:E012': { why: 'Sensor initialisation did not complete — often because the pedals moved at startup.', symptoms: ['No assist', 'Error on start'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
+  'shimano:E013': { why: 'The drive unit firmware is abnormal — an update/reinstall is usually needed.', symptoms: ['No assist', 'Error on start'], difficulty: 'Workshop only', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
+  'shimano:E014': { why: 'The speed sensor is giving an abnormal signal — magnet/sensor gap or wiring.', symptoms: ['Speed reads wrong', 'Assist reduced'], difficulty: 'DIY', costRange: [20, 50], diyCost: [12, 40], partKeys: ['speed_sensor'] },
+  'shimano:E023': { why: 'An electrical abnormality was detected in the battery.', symptoms: ['No assist', 'Battery warning'], difficulty: 'Workshop only', costRange: [30, 80], diyCost: [0, 0], partKeys: ['battery_pack'] },
+  'shimano:E024': { why: 'The battery overcurrent protection operated — often reported as a communication error.', symptoms: ['Cuts out under load', 'Battery warning'], difficulty: 'Workshop only', costRange: [30, 80], diyCost: [0, 0], partKeys: ['battery_pack'] },
+  'shimano:E025': { why: 'The battery does not recognise the drive unit — a genuine unit is not connected or its cord is disconnected.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [30, 80], diyCost: [0, 0], partKeys: ['battery_pack'] },
   'shimano:E020': { why: 'Communication error between the battery and the drive unit.', symptoms: ['No assist', 'Battery warning'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: ['battery_pack'] },
   'shimano:E021': { why: 'The connected battery is not supported by this system.', symptoms: ['No power with that battery'], difficulty: 'Workshop only', costRange: [0, 40], diyCost: [0, 0], partKeys: ['battery_pack'] },
   'shimano:E022': { why: 'The connected battery does not conform to system standards.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [0, 40], diyCost: [0, 0], partKeys: ['battery_pack'] },
@@ -181,7 +188,7 @@ const E: Record<string, Info> = {
   'vsett:E2': { why: 'The electronic brake sensor is stuck or disconnected — the motor cut-off is engaged.', symptoms: ['Won\'t accelerate', 'Brake symbol stays on'], difficulty: 'Easy', costRange: [35, 75], diyCost: [8, 22], partKeys: ['brake_sensor'] },
   'vsett:E6': { why: 'Battery voltage too low.', symptoms: ['Won\'t move', 'Won\'t charge'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: ['charger'] },
   'vsett:E7': { why: 'Motor fault (Hall/phase).', symptoms: ['Motor judders or dead'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
-  'vsett:E8': { why: 'Throttle fault.', symptoms: ['No acceleration'], difficulty: 'DIY', costRange: [45, 90], diyCost: [25, 60], partKeys: ['throttle_generic'] },
+  'vsett:E8': { why: 'A motor Hall-sensor or motor power-connection fault.', symptoms: ['Motor judders or dead', 'No power to the wheel'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
   'vsett:E9': { why: 'Controller fault — often a blown MOSFET after water or hard use.', symptoms: ['No power', 'Burning smell'], difficulty: 'Workshop only', costRange: [90, 180], diyCost: [70, 150], partKeys: ['controller_generic'] },
   'vsett:E10': { why: 'Communication fault between the display and controller — usually a loose stem-harness connection.', symptoms: ['Won\'t move', 'Flashing 10'], difficulty: 'Easy', costRange: [30, 70], diyCost: [10, 28], partKeys: ['display_harness'] },
   'vsett:E11': { why: 'Communication transmitting fault (same harness as E10).', symptoms: ['Won\'t move'], difficulty: 'Easy', costRange: [30, 70], diyCost: [10, 28], partKeys: ['display_harness'] },
@@ -189,14 +196,14 @@ const E: Record<string, Info> = {
   'vsett:E13': { why: 'Headlight error — a loose or damaged LED.', symptoms: ['Lights out'], difficulty: 'DIY', costRange: [20, 50], diyCost: [10, 30], partKeys: ['headlight'] },
 
   // ---------------- Kaabo (LT01 / Wolf) ----------------
-  'kaabo:E01': { why: 'Motor phase fault.', symptoms: ['Motor dead or juddering'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
-  'kaabo:E02': { why: 'Brake sensor fault.', symptoms: ['Won\'t accelerate'], difficulty: 'Easy', costRange: [35, 75], diyCost: [8, 22], partKeys: ['brake_sensor'] },
-  'kaabo:E04': { why: 'Throttle fault.', symptoms: ['No acceleration'], difficulty: 'DIY', costRange: [45, 90], diyCost: [25, 60], partKeys: ['throttle_generic'] },
-  'kaabo:E05': { why: 'Undervoltage protection — battery low.', symptoms: ['Won\'t move', 'Won\'t charge'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: ['charger'] },
-  'kaabo:E06': { why: 'Controller fault.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [90, 180], diyCost: [70, 150], partKeys: ['controller_generic'] },
-  'kaabo:E08': { why: 'High-temperature protection.', symptoms: ['Cuts out when hot'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
-  'kaabo:E10': { why: 'Communication failure — the controller is not supplying the Hall reference voltage.', symptoms: ['Won\'t move', 'Flashing 10'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [12, 35], partKeys: ['hall_board'] },
-  'kaabo:E30': { why: 'Central display communication error.', symptoms: ['Display error'], difficulty: 'Easy', costRange: [30, 70], diyCost: [10, 28], partKeys: ['display_harness'] },
+  'kaabo:E01': { why: 'Motor phase fault (central display).', symptoms: ['Motor dead or juddering'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'kaabo:E02': { why: 'Motor Hall sensor fault (central display) — not a brake fault.', symptoms: ['Motor judders or won\'t start'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'kaabo:E04': { why: 'Throttle fault (central display).', symptoms: ['No acceleration'], difficulty: 'DIY', costRange: [45, 90], diyCost: [25, 60], partKeys: ['throttle_generic'] },
+  'kaabo:E06': { why: 'Undervoltage / low-voltage protection — battery low or the P1 voltage setting is wrong.', symptoms: ['Won\'t move', 'Won\'t charge'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: ['charger'] },
+  'kaabo:E07': { why: 'Motor Hall sensor fault (LT01 display).', symptoms: ['Motor judders or won\'t start'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'kaabo:E08': { why: 'Throttle fault (LT01 display).', symptoms: ['No acceleration'], difficulty: 'DIY', costRange: [45, 90], diyCost: [25, 60], partKeys: ['throttle_generic'] },
+  'kaabo:E09': { why: 'Controller communication fault (LT01 display).', symptoms: ['No power', 'Warning'], difficulty: 'Workshop only', costRange: [90, 180], diyCost: [70, 150], partKeys: ['controller_generic'] },
+  'kaabo:E10': { why: 'Display/controller communication fault (LT01 display) — usually the harness.', symptoms: ['Won\'t move', 'Flashing 10'], difficulty: 'Easy', costRange: [30, 70], diyCost: [10, 28], partKeys: ['display_harness'] },
 
   // ---------------- Rad Power Bikes ----------------
   'radpower:6': { why: 'Battery undervoltage — the pack is flat or aged.', symptoms: ['Won\'t assist', 'Won\'t charge'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: ['charger'] },
@@ -210,13 +217,63 @@ const E: Record<string, Info> = {
   'radpower:31': { why: 'The power button was held too long at startup (a safety lock-out).', symptoms: ['Won\'t power on'], difficulty: 'DIY', costRange: [20, 45], diyCost: [12, 35], partKeys: ['key_lock'] },
   'radpower:34': { why: 'Walk-mode disengage fault — the walk button/sensor is stuck.', symptoms: ['Walk mode won\'t exit'], difficulty: 'Easy', costRange: [25, 60], diyCost: [12, 35], partKeys: ['display_unit'] },
 
-  // ---------------- Brose ----------------
-  'brose:1': { why: 'General system error.', symptoms: ['Assist drops out'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: [] },
-  'brose:3': { why: 'Speed sensor error — magnet alignment.', symptoms: ['Speed reads wrong', 'Assist cut'], difficulty: 'DIY', costRange: [25, 60], diyCost: [12, 40], partKeys: ['speed_sensor'] },
-  'brose:5': { why: 'Motor overtemperature.', symptoms: ['Cuts out when hot'], difficulty: 'Easy', costRange: [25, 60], diyCost: [0, 0], partKeys: [] },
-  'brose:9': { why: 'Internal motor error.', symptoms: ['No assist'], difficulty: 'Workshop only', costRange: [60, 130], diyCost: [0, 0], partKeys: [] },
-  'brose:60': { why: 'Communication error between components.', symptoms: ['Intermittent assist'], difficulty: 'Easy', costRange: [30, 75], diyCost: [0, 0], partKeys: [] },
-  'brose:81': { why: 'Speed sensor fault — magnet or wiring.', symptoms: ['Speed wrong', 'Assist cut'], difficulty: 'DIY', costRange: [25, 60], diyCost: [12, 40], partKeys: ['speed_sensor'] },
+  // ---------------- Brose / Serial-1 ----------------
+  'brose:10': { why: 'Battery voltage too low — the pack is discharged or aged.', symptoms: ['Assist drops out', 'Won\'t assist'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: ['battery_pack'] },
+  'brose:11': { why: 'Battery voltage too high — check the charger.', symptoms: ['Error after charging'], difficulty: 'Easy', costRange: [30, 70], diyCost: [0, 0], partKeys: ['charger'] },
+  'brose:12': { why: 'Battery almost or completely discharged.', symptoms: ['Won\'t assist'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: ['battery_pack'] },
+  'brose:20': { why: 'The system electrical measurements are incorrect.', symptoms: ['Assist drops out'], difficulty: 'Workshop only', costRange: [40, 90], diyCost: [0, 0], partKeys: [] },
+  'brose:21': { why: 'A temperature sensor is defective.', symptoms: ['Cuts out', 'Error on start'], difficulty: 'Workshop only', costRange: [50, 120], diyCost: [0, 0], partKeys: [] },
+  'brose:24': { why: 'The internal voltage is outside its working range.', symptoms: ['No assist'], difficulty: 'Workshop only', costRange: [30, 80], diyCost: [0, 0], partKeys: ['battery_pack'] },
+  'brose:25': { why: 'An error in the motor current measurement.', symptoms: ['Assist drops out'], difficulty: 'Workshop only', costRange: [40, 90], diyCost: [0, 0], partKeys: [] },
+  'brose:26': { why: 'The system performed a software reset.', symptoms: ['Brief warning then normal'], difficulty: 'DIY', costRange: [0, 30], diyCost: [0, 0], partKeys: [] },
+  'brose:40': { why: 'Overcurrent in the motor — the motor is working too hard.', symptoms: ['Assist cuts out on hills'], difficulty: 'DIY', costRange: [0, 40], diyCost: [0, 0], partKeys: [] },
+  'brose:41': { why: 'Overcurrent in the motor — same as code 40.', symptoms: ['Assist cuts out on hills'], difficulty: 'DIY', costRange: [0, 40], diyCost: [0, 0], partKeys: [] },
+  'brose:42': { why: 'A fault in the motor rotation.', symptoms: ['No assist'], difficulty: 'Workshop only', costRange: [50, 110], diyCost: [0, 0], partKeys: [] },
+  'brose:43': { why: 'A short circuit in the motor — stop riding.', symptoms: ['No assist', 'Motor fault'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [0, 0], partKeys: [] },
+  'brose:44': { why: 'The motor is overheating.', symptoms: ['Cuts out when hot'], difficulty: 'Easy', costRange: [25, 60], diyCost: [0, 0], partKeys: [] },
+  'brose:45': { why: 'The software corrected an error in motor rotation.', symptoms: ['Brief warning then normal'], difficulty: 'DIY', costRange: [0, 30], diyCost: [0, 0], partKeys: [] },
+  'brose:46': { why: 'No motor movement was recognised — often not a DIY fix.', symptoms: ['No assist', 'Motor dead'], difficulty: 'Workshop only', costRange: [60, 130], diyCost: [0, 0], partKeys: [] },
+  'brose:60': { why: 'A CAN-BUS communication interruption between components.', symptoms: ['Intermittent assist'], difficulty: 'Easy', costRange: [30, 75], diyCost: [0, 0], partKeys: [] },
+  'brose:70': { why: 'A pedal-force (torque) or cadence sensor error.', symptoms: ['Assist weak or absent'], difficulty: 'Workshop only', costRange: [50, 120], diyCost: [40, 120], partKeys: ['torque_sensor'] },
+  'brose:71': { why: 'A pedal-force (torque) or cadence sensor error.', symptoms: ['Assist weak or absent'], difficulty: 'Workshop only', costRange: [50, 120], diyCost: [40, 120], partKeys: ['torque_sensor'] },
+  'brose:74': { why: 'A pedal-force (torque) or cadence sensor error.', symptoms: ['Assist weak or absent'], difficulty: 'Workshop only', costRange: [50, 120], diyCost: [40, 120], partKeys: ['torque_sensor'] },
+
+  // ---------------- Kugoo / Kukirin ----------------
+  'kugoo:1': { why: 'A motor fault — Hall sensor, phase wiring or the motor itself.', symptoms: ['Motor dead or juddering'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'kugoo:2': { why: 'A throttle fault — the signal is out of range or the throttle is disconnected.', symptoms: ['No acceleration'], difficulty: 'DIY', costRange: [40, 80], diyCost: [12, 30], partKeys: ['throttle_generic'] },
+  'kugoo:3': { why: 'A controller fault — an internal failure or a wiring fault.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [80, 160], diyCost: [45, 100], partKeys: ['controller_generic'] },
+  'kugoo:4': { why: 'A brake lever fault — the cut-off switch is stuck or disconnected.', symptoms: ['Won\'t accelerate'], difficulty: 'Easy', costRange: [35, 70], diyCost: [8, 22], partKeys: ['brake_sensor'] },
+  'kugoo:5': { why: 'Low-voltage protection — the pack is below the cut-off voltage.', symptoms: ['Won\'t move', 'Won\'t charge'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: [] },
+  'kugoo:6': { why: 'A display-to-controller communication fault.', symptoms: ['Won\'t move', 'Error on start'], difficulty: 'Easy', costRange: [30, 70], diyCost: [10, 28], partKeys: ['display_harness'] },
+  'kugoo:7': { why: 'A second display-to-controller communication fault (same harness as code 6).', symptoms: ['Won\'t move'], difficulty: 'Easy', costRange: [30, 70], diyCost: [10, 28], partKeys: ['display_harness'] },
+
+  // ---------------- iENYRID ----------------
+  'ienyrid:3E': { why: 'The display reports a motor malfunction — Hall sensor or phase wiring.', symptoms: ['Motor dead or juddering'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'ienyrid:4E': { why: 'Low-voltage issue — the battery needs recharging.', symptoms: ['Won\'t move', 'Won\'t charge'], difficulty: 'Easy', costRange: [20, 50], diyCost: [0, 0], partKeys: [] },
+  'ienyrid:5E': { why: 'The brake lever is malfunctioning — a stuck cut-off switch or wiring.', symptoms: ['Won\'t accelerate'], difficulty: 'Easy', costRange: [35, 70], diyCost: [8, 22], partKeys: ['brake_sensor'] },
+  'ienyrid:6E': { why: 'A second motor malfunction code — motor or controller fault.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [80, 160], diyCost: [45, 100], partKeys: ['controller_generic'] },
+  'ienyrid:7E': { why: 'The throttle is not in the neutral position at startup — it needs resetting.', symptoms: ['Won\'t accelerate'], difficulty: 'DIY', costRange: [40, 80], diyCost: [12, 30], partKeys: ['throttle_generic'] },
+  'ienyrid:10E': { why: 'The display has a sending (transmit) malfunction — replace the display unit.', symptoms: ['Error on start'], difficulty: 'Easy', costRange: [40, 90], diyCost: [30, 70], partKeys: ['display_unit'] },
+  'ienyrid:15E': { why: 'The controller has a receiving (receive) malfunction — replace the controller.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [80, 160], diyCost: [45, 100], partKeys: ['controller_generic'] },
+
+  // ---------------- Gotrax ----------------
+  'gotrax:E2': { why: 'The controller believes the brake lever is engaged — a faulty brake sensor or wiring.', symptoms: ['Won\'t accelerate'], difficulty: 'Easy', costRange: [35, 70], diyCost: [8, 22], partKeys: ['brake_sensor'] },
+  'gotrax:E3': { why: 'A communication issue between the console and the controller.', symptoms: ['Error on start'], difficulty: 'Easy', costRange: [30, 70], diyCost: [10, 28], partKeys: ['display_harness'] },
+  'gotrax:E7': { why: 'A motor-to-controller communication issue — a Hall-sensor failure.', symptoms: ['Motor judders or dead'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+
+  // ---------------- Hiboy ----------------
+  'hiboy:E1': { why: 'A motor communication fault — Hall sensor or phase wiring.', symptoms: ['Motor judders or dead'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'hiboy:E3': { why: 'A motor sensor (Hall) error — no valid motor position signal.', symptoms: ['Motor judders or dead'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'hiboy:E4': { why: 'A controller fault — an internal failure or a wiring fault.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [80, 160], diyCost: [45, 100], partKeys: ['controller_generic'] },
+
+  // ---------------- NIU ----------------
+  'niu:03': { why: 'The controller is not receiving a proper signal from the throttle.', symptoms: ['No acceleration'], difficulty: 'DIY', costRange: [40, 80], diyCost: [12, 30], partKeys: ['throttle_generic'] },
+  'niu:05': { why: 'A motor communication fault — motor Hall sensor failure.', symptoms: ['Motor judders or dead'], difficulty: 'Workshop only', costRange: [70, 150], diyCost: [12, 35], partKeys: ['hall_board'] },
+  'niu:07': { why: 'A controller communication error — a controller malfunction or wiring issue.', symptoms: ['No power'], difficulty: 'Workshop only', costRange: [80, 160], diyCost: [45, 100], partKeys: ['controller_generic'] },
+  'niu:09': { why: 'A battery communication error — a battery management system fault.', symptoms: ['No power', 'Won\'t charge'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [30, 75], partKeys: ['bms'] },
+  'niu:10': { why: 'Overcurrent protection — the controller detected abnormal power draw.', symptoms: ['Cuts out under load'], difficulty: 'Workshop only', costRange: [80, 160], diyCost: [45, 100], partKeys: ['controller_generic'] },
+  'niu:12': { why: 'Motor temperature warning — the motor is overheating.', symptoms: ['Cuts out when hot'], difficulty: 'Easy', costRange: [25, 60], diyCost: [0, 0], partKeys: [] },
+  'niu:21': { why: 'Battery voltage outside the safe operating range.', symptoms: ['Won\'t assist', 'Won\'t charge'], difficulty: 'Workshop only', costRange: [60, 140], diyCost: [180, 380], partKeys: ['battery_pack'] },
 };
 
 /**
@@ -241,6 +298,15 @@ export function partForKey(key: string): PartOption | undefined {
 export function customerCodesFor(category: EVehicleCategory, brand: string, model: string): EVehicleErrorDefinition[] {
   const family = errorFamilyFor(category, brand, model);
   return errorCodesFor(category, brand, model).map((def) => enrichErrorDefinition(def, family));
+}
+
+/**
+ * Customer-facing code list for a whole display/system family. Used when the
+ * rider has identified their display but does not know the exact model — the
+ * codes still route to the correct table.
+ */
+export function customerCodesForFamily(family: EVehicleErrorFamily): EVehicleErrorDefinition[] {
+  return errorCodesForFamily(family).map((def) => enrichErrorDefinition(def, family));
 }
 
 /** Free-text symptom search across an enriched code list. */

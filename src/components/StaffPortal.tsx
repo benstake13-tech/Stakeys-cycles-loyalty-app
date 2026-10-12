@@ -52,6 +52,7 @@ import {
   MessageSquare,
   Zap,
   BookOpen,
+  Radio,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { UserProfile, PrizeWheelSegment, PrizeDraw } from '../types/bikeShop';
@@ -83,6 +84,8 @@ import { StaffDiagnosticsTab } from './StaffDiagnosticsTab';
 import { NotificationBell } from './NotificationBell';
 import { StaffNotificationSettings } from './StaffNotificationSettings';
 import { ErrorCodeLookupTab } from './ErrorCodeLookupTab';
+import { DerailleurHangerIdentifier } from './DerailleurHangerIdentifier';
+import { EscooterDiagnosticTile } from './EscooterDiagnosticTile';
 import { StaffRepairGuideTab } from './StaffRepairGuideTab';
 import { buildWorkshopActivities } from '../utils/notificationActivity';
 
@@ -122,6 +125,8 @@ type StaffTab =
   | 'backend'
   | 'weather'
   | 'ev_codes'
+  | 'hangers'
+  | 'ble_bench'
   | 'repair_guide'
   | 'settings';
 
@@ -144,6 +149,8 @@ const STAFF_TABS: StaffTab[] = [
   'backend',
   'weather',
   'ev_codes',
+  'hangers',
+  'ble_bench',
   'repair_guide',
   'settings',
 ];
@@ -511,6 +518,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'backend'
     | 'weather'
     | 'ev_codes'
+    | 'hangers'
+    | 'ble_bench'
     | 'repair_guide'
     | 'settings';
 
@@ -534,7 +543,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'draws', label: 'Prize Hub', icon: Trophy, tone: 'amber', hint: 'Prize draws and wheel', keywords: 'prize draw wheel raffle winner spin hub' },
     { id: 'staff_roster', label: 'Team', icon: UserPlus, tone: 'neutral', badge: staffMembers.length, hint: 'Staff management', keywords: 'team staff roster employees management' },
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast', keywords: 'weather forecast rain riding conditions' },
-    { id: 'ev_codes', label: 'Error Codes', icon: Zap, tone: 'amber', hint: 'E-Scooter / E-Bike fault code lookup', keywords: 'error codes fault ev escooter ebike diagnostic lookup' },
+    { id: 'ev_codes', label: 'Error Codes', icon: Zap, tone: 'amber', hint: 'E-Scooter / E-Bike fault code lookup', keywords: 'error codes fault ev escooter ebike diagnostic lookup display identify' },
+    { id: 'hangers', label: 'Derailleur Hangers', icon: Wrench, tone: 'sky', hint: 'Identify & buy the correct mech hanger', keywords: 'derailleur hanger mech dropout gear hanger identify buy purchase cross reference wheels mfg dropout' },
+    { id: 'ble_bench', label: 'BLE Bench', icon: Radio, tone: 'sky', hint: 'Live e-scooter Bluetooth diagnostics', keywords: 'ble bluetooth diagnostic bench escooter scooter telemetry live hardware connect lock headlight' },
     { id: 'repair_guide', label: 'Repair Guide', icon: BookOpen, tone: 'emerald', hint: 'Workshop repair & training guide (Sheldon Brown)', keywords: 'repair guide sheldon brown training workshop manual how to' },
   ];
 
@@ -918,6 +929,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* VIEW 8: E-Scooter / E-Bike error-code lookup with AI assist */}
       {staffView('ev_codes', <ErrorCodeLookupTab />)}
+
+      {/* VIEW 8a: Derailleur hanger identification + UK cross-reference + buy links */}
+      {staffView('hangers', <DerailleurHangerIdentifier />)}
+
+      {/* VIEW 8c: Live e-scooter BLE diagnostic bench */}
+      {staffView('ble_bench', <EscooterDiagnosticTile />)}
 
       {/* VIEW 8b: Workshop repair & training guide (static bundle in /guide) */}
       {staffView('repair_guide', <StaffRepairGuideTab />)}
