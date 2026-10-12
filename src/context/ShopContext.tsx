@@ -829,23 +829,67 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const activeWheel = prizeWheels.find((w) => w.active) || null;
 
   // Customer Login with Supabase Auth
-  const loginWithCredentials = async (email: string, password = '') => {
+  const loginWithCredentials = async (identifier: string, password = '') => {
+    const authClient = getSupabaseClient() || supabase;
     try {
+      const cleanIdentifier = identifier.trim();
+      let loginEmail = cleanIdentifier.toLowerCase();
+
+      // The sign-in screen accepts email, username, or membership number.
+      // Supabase password auth needs an email/phone, so resolve non-email
+      // identifiers against the customer profile before authenticating.
+      if (!cleanIdentifier.includes('@')) {
+        const { data: memberProfile, error: memberLookupError } = await authClient
+          .from('profiles')
+          .select('email')
+          .eq('membership_number', cleanIdentifier.toUpperCase())
+          .maybeSingle();
+
+        if (memberLookupError) {
+          console.error('Membership lookup failed:', memberLookupError);
+          return { success: false, message: 'Could not look up that membership number. Please try your email address instead.' };
+        }
+
+        if (memberProfile?.email) {
+          loginEmail = String(memberProfile.email).trim().toLowerCase();
+        } else {
+          const { data: namedProfile, error: nameLookupError } = await authClient
+            .from('profiles')
+            .select('email')
+            .ilike('display_name', cleanIdentifier)
+            .limit(2);
+
+          if (nameLookupError) {
+            console.error('Username lookup failed:', nameLookupError);
+            return { success: false, message: 'Could not look up that username. Please try your email address instead.' };
+          }
+
+          if (namedProfile?.length === 1 && namedProfile[0].email) {
+            loginEmail = String(namedProfile[0].email).trim().toLowerCase();
+          } else {
+            return {
+              success: false,
+              message: namedProfile && namedProfile.length > 1
+                ? 'That name matches more than one account. Please sign in using your email address or membership number.'
+                : 'No account was found for that email, username, or membership number.',
+            };
+          }
+        }
+      }
+
       // 1. Authenticate with Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+      const { data, error } = await authClient.auth.signInWithPassword({
+        email: loginEmail,
         password: password.trim(),
       });
 
       if (error || !data.user) {
-        return { success: false, message: 'Invalid email or password.' };
+        return { success: false, message: 'Invalid email, username, membership number, or password.' };
       }
 
-      // 2. Fetch the profile for this authenticated account.
-      // Older registrations only created the Supabase Auth user, not the matching
-      // public.profiles row. Repair that missing row after sign-in so existing
-      // customers are not permanently locked out.
-      let { data: profile, error: profileError } = await supabase
+      // 2. Fetch the profile for this authenticated account. Older registrations
+      // may have an Auth user without a matching public.profiles row; repair it.
+      let { data: profile, error: profileError } = await authClient
         .from('profiles')
         .select('*')
         .eq('id', data.user.id)
@@ -855,15 +899,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const displayName =
           String(data.user.user_metadata?.full_name || data.user.user_metadata?.name || '')
             .trim() || data.user.email?.split('@')[0] || 'Customer';
-        const membershipNumber = generateMembershipNumber();
-        const { data: createdProfile, error: createProfileError } = await supabase
+        const { data: createdProfile, error: createProfileError } = await authClient
           .from('profiles')
           .insert({
             id: data.user.id,
-            email: (data.user.email || email).trim().toLowerCase(),
+            email: (data.user.email || loginEmail).trim().toLowerCase(),
             display_name: displayName,
             phone: data.user.user_metadata?.phone || null,
-            membership_number: membershipNumber,
+            membership_number: generateMembershipNumber(),
             role: 'customer',
             stamps: 0,
             completed_cards: 0,
@@ -876,7 +919,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Profile repair failed:', createProfileError);
           return {
             success: false,
-            message: 'Your sign-in was accepted, but your customer profile could not be created. Please contact the shop and provide this message: ' + createProfileError.message,
+            message: 'Your sign-in was accepted, but your customer profile could not be created. Please contact the shop. Details: ' + createProfileError.message,
           };
         }
         profile = createdProfile;
@@ -892,7 +935,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { success: false, message: 'Could not load your customer profile. Please contact the shop.' };
       }
 
-      // Map DB profile to UserProfile type
       const userProfile: UserProfile = {
         uid: profile.id,
         email: profile.email,
@@ -903,13 +945,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         stamps: profile.stamps || 0,
         tickets: profile.completed_cards || 0,
         merits: profile.merit_points || 0,
-        bikes: [], // Will be populated by syncUserFromDatabase
+        bikes: [],
         createdAt: new Date(profile.created_at),
         lastStampedAt: profile.last_stamped_at ? new Date(profile.last_stamped_at) : null,
       };
 
       if (userProfile.role === 'staff' || userProfile.role === 'admin') {
-        await supabase.auth.signOut();
+        await authClient.auth.signOut();
         return { success: false, message: 'Please use the Staff Station tab to log in.' };
       }
 
@@ -918,7 +960,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true, user: userProfile };
     } catch (err: any) {
       console.error('Login error:', err);
-      return { success: false, message: 'An unexpected error occurred.' };
+      return { success: false, message: err.message || 'An unexpected error occurred.' };
     }
   };
 
