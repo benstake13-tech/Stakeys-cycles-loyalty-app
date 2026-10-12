@@ -39,6 +39,7 @@ jobs:
       CI: 'true'
       BUILD_EDITION: ${{ matrix.edition }}
       VITE_SURFACE: ${{ matrix.edition }}
+      VITE_ONESIGNAL_ANDROID_APP_ID: ${{ matrix.edition == 'staff' && vars.ONESIGNAL_STAFF_ANDROID_APP_ID || vars.ONESIGNAL_CUSTOMER_ANDROID_APP_ID }}
       # All remote /api routes must go to the real HTTPS backend, never the WebView.
       VITE_API_BASE_URL: ${{ vars.APP_API_ORIGIN || 'https://www.stakeys-cycles.co.uk' }}
     steps:
