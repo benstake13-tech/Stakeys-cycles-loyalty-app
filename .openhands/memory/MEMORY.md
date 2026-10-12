@@ -592,3 +592,4 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - `fetchAuthHealth` now falls back to Supabase's public `/auth/v1/settings` (baked anon key) when
   `/api/auth/health` is absent, so the "service misconfigured" diagnosis survives a static-only deploy.
   Commit 58e470e on all three branches; new authHealth.test.ts; 32/32 auth tests; APK 9.85 MB rebuilt.
+- 2026-10-12f: service-role repair CLI ready (`scripts/repair-member-logins.mjs`); owner registered `SUPABASE_SERVICE_ROLE_KEY` but it needs a NEW conversation to inject. Deploy still pending. Live auth still `mailer_autoconfirm:false` + member `invalid_credentials`.
