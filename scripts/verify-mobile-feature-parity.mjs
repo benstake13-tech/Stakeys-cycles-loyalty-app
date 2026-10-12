@@ -77,7 +77,7 @@ containsAll(`${edition} Android bundled features`, bundle, [
   'Financial Reports',
   'My Garage',
   'Weekly Prize Wheel',
-  'Workshop Service Booking',
+  'Book Service',
 ]);
 const source = process.env.VITE_SOURCE_SHA || '';
 if (!source || !bundle.includes(source)) {
