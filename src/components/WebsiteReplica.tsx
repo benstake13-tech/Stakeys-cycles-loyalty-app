@@ -855,6 +855,32 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
    * Home — sections
    * ------------------------------------------------------------------ */
 
+  const editorialGallery = (
+    <section className="site-editorial-gallery" aria-label="Explore our cycle and e-scooter workshop">
+      <div className="site-editorial-heading">
+        <div><span className="site-eyebrow">THE ART OF THE RIDE / SALFORD</span><h2 className="site-display">Precision in every detail.</h2></div>
+        <p>From finely tuned bicycles to everyday electric mobility. Discover a workshop where the details matter.</p>
+      </div>
+      <div className="site-editorial-grid">
+        <button type="button" className="site-editorial-photo site-editorial-photo--lead" onClick={() => goTo('repairs')} aria-label="Explore cycle servicing and workshop repairs">
+          <img src="/images/hero_workshop_craftsmanship_1790159761910.jpg" alt="Close-up of precision bicycle workshop craftsmanship" loading="eager" decoding="async" />
+          <span className="site-editorial-photo__index">01 / THE WORKSHOP</span>
+          <span className="site-editorial-photo__caption"><strong>Crafted with care.</strong><span>Cycle servicing & repairs <ArrowRight size={18} /></span></span>
+        </button>
+        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore bicycle repair services">
+          <img src="/images/bike_precision_gravel_studio_1790159773368.jpg" alt="Premium gravel bicycle photographed in a dramatic studio setting" loading="lazy" decoding="async" />
+          <span className="site-editorial-photo__index">02 / THE MACHINE</span>
+          <span className="site-editorial-photo__caption"><strong>Every ride matters.</strong><span>Explore bicycle care <ArrowRight size={18} /></span></span>
+        </button>
+        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore electric scooter servicing enquiries">
+          <img src="/images/scooter_performance_studio_1790159785831.jpg" alt="Modern electric scooter photographed with premium studio lighting" loading="lazy" decoding="async" />
+          <span className="site-editorial-photo__index">03 / ELECTRIC MOBILITY</span>
+          <span className="site-editorial-photo__caption"><strong>Electric. Elevated.</strong><span>Enquire about e-scooters <ArrowRight size={18} /></span></span>
+        </button>
+      </div>
+    </section>
+  );
+
   const servicesSection = (
     <section className="space-y-8">
       {sectionHeading(
@@ -1951,6 +1977,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           <div className="space-y-14">
             {heroSection}
             {trustMarquee}
+            {editorialGallery}
             <CustomerErrorCodeHelper onBookService={onBookService} />
             {servicesSection}
             {brandStorySection}
