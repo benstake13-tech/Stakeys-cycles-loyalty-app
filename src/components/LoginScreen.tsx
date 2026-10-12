@@ -38,11 +38,12 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackToWebsite, audience = 'customer' }) => {
-  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, addCustomerBike } = useShop();
+  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, resetPassword, addCustomerBike } = useShop();
 
   const [mode, setMode] = useState<'signin' | 'register' | 'staff'>(audience === 'staff' ? 'staff' : 'signin');
   const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   // Customer Sign In state
   const [signInIdentifier, setSignInIdentifier] = useState('');
@@ -227,6 +228,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
       }
     } finally {
       setResending(false);
+    }
+  };
+
+  // Send a password-reset link to the address typed in the sign-in form. The
+  // link returns to /reset-password on the deployed origin (publicOrigin()),
+  // which is the only origin that can open the installed app's flow.
+  const handleForgotPassword = async () => {
+    setError(null);
+    const id = signInIdentifier.trim();
+    if (!id || !id.includes('@')) {
+      setError('Enter the email address for your account, then tap "Forgot password?".');
+      return;
+    }
+    setResettingPassword(true);
+    try {
+      const res = await resetPassword(id);
+      if (res.success) {
+        setNotice(res.message || 'Password reset link sent to your email.');
+      } else {
+        setError(res.message || 'Could not send the reset link.');
+      }
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -577,13 +601,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
                 </div>
               </div>
 
-              {/* Demo Accounts Helper */}
-              <div className="p-2.5 rounded-lg bg-neutral-950 border border-neutral-800 text-[11px] text-neutral-400">
-                <div className="font-semibold text-neutral-300 mb-1 flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Customer Demo Accounts</span>
-                </div>
-                <div>Demo customers (Alex, Maya, Liam) require password: <code className="text-emerald-400 font-mono font-bold bg-neutral-900 px-1 py-0.5 rounded">password123</code></div>
+              {/* Forgot password — lives where the old, misleading "demo
+                  accounts" hint used to be. resetPassword() emails a link back
+                  to the deployed origin. */}
+              <div className="flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  disabled={resettingPassword}
+                  className="text-xs text-emerald-400 hover:text-emerald-300 font-semibold cursor-pointer disabled:opacity-50"
+                >
+                  {resettingPassword ? 'Sending reset link…' : 'Forgot password?'}
+                </button>
               </div>
 
               <button
