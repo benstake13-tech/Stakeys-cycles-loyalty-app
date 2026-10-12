@@ -136,11 +136,10 @@ describe('EscooterDiagnosticTile — live session (fake host)', () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId('escooter-connect'));
     });
-    // Resolving the native host is async (dynamic imports); flush it.
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(screen.getByText(/Bluetooth is not available/)).toBeTruthy();
+    // Resolving the native host awaits dynamic imports, whose module graph may
+    // take more than one microtask to settle on a cold CI runner. Poll instead
+    // of flushing a fixed number of ticks.
+    expect(await screen.findByText(/Bluetooth is not available/)).toBeTruthy();
     Object.defineProperty(navigator, 'bluetooth', { value: original, configurable: true });
   });
 });
