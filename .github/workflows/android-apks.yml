@@ -253,3 +253,5 @@ jobs:
             --prerelease
 
 # Rebuild native OneSignal Android push bridge for both applications.
+
+# Rebuild Staff Terminal with five reorganized premium workspaces.
