@@ -1,20 +1,10 @@
 name: Build Android customer and staff APKs
 
 on:
+  # Every merged change creates the same-source website editions and APKs.
+  # Avoid file filters so a new component/configuration can never escape packaging.
   push:
     branches: [main]
-    paths:
-      - 'src/**'
-      - 'scripts/**'
-      - 'public/**'
-      - 'index.html'
-      - 'api/**'
-      - 'vite.config.ts'
-      - 'capacitor.config.ts'
-      - 'ANDROID_APKS.md'
-      - 'package.json'
-      - 'bun.lock'
-      - '.github/workflows/android-apks.yml'
   workflow_dispatch:
 
 permissions:
@@ -86,10 +76,46 @@ jobs:
       - name: Verify complete staff and customer feature bundles
         run: node scripts/verify-mobile-feature-parity.mjs
 
+      - name: Upload matching ${{ matrix.edition }} website build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stakeys-Cycles-${{ matrix.edition }}-website
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Generate standalone Android project
         run: |
           npx cap add android
           npx cap sync android
+
+      - name: Verify Android embeds exact website source assets
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import os
+
+          web = Path("dist")
+          native = Path("android/app/src/main/assets/public")
+          assert native.is_dir(), "Capacitor has not copied the website into Android"
+          assets = sorted(p for p in web.rglob("*") if p.is_file())
+          assert assets, "Empty website build"
+          sha = hashlib.sha256()
+          for source in assets:
+              relative = source.relative_to(web)
+              wrapped = native / relative
+              assert wrapped.is_file(), f"Missing in Android APK: {relative}"
+              content = source.read_bytes()
+              assert wrapped.read_bytes() == content, f"Website/APK content mismatch: {relative}"
+              sha.update(relative.as_posix().encode("utf8") + b"\\0")
+              sha.update(hashlib.sha256(content).digest())
+          digest = sha.hexdigest()
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"WEB_ASSET_FINGERPRINT={digest}\\n")
+          print(f"Verified {len(assets)} byte-identical website assets copied into Android")
+          print(f"Web/Android asset fingerprint: {digest}")
+          PY
 
       - name: Enable camera scanner and stamp Android version
         run: |
@@ -138,6 +164,7 @@ jobs:
             echo "edition=${BUILD_EDITION}"
             echo "package_id=${EXPECTED_PACKAGE}"
             echo "source_commit=${GITHUB_SHA}"
+            echo "website_asset_fingerprint=${WEB_ASSET_FINGERPRINT}"
             echo "source_short=${VITE_SOURCE_SHA}"
             echo "android_build=${GITHUB_RUN_NUMBER}"
             echo "build_run=${GITHUB_RUN_ID}"
@@ -181,6 +208,10 @@ jobs:
         run: |
           test -s apks/Stakeys-Cycles-customer-APK/Stakeys-Cycles-customer.apk
           test -s apks/Stakeys-Cycles-staff-APK/Stakeys-Cycles-staff.apk
+          grep -F "source_commit=${{ github.sha }}" apks/Stakeys-Cycles-customer-APK/BUILD_INFO.txt
+          grep -F "source_commit=${{ github.sha }}" apks/Stakeys-Cycles-staff-APK/BUILD_INFO.txt
+          test -s apks/Stakeys-Cycles-customer-APK/SHA256SUMS.txt
+          test -s apks/Stakeys-Cycles-staff-APK/SHA256SUMS.txt
 
       - name: Publish fresh Android test installers
         env:
@@ -192,5 +223,5 @@ jobs:
             apks/Stakeys-Cycles-staff-APK/Stakeys-Cycles-staff.apk \
             --repo "${{ github.repository }}" \
             --title "Stakey's Cycles Android APKs — build ${{ github.run_number }}" \
-            --notes "Two independently installable Android test builds from commit ${{ github.sha }}. Customer and staff editions have distinct package IDs. Feature-parity checks verified all staff and customer routes, including barcode scanner, OEM bike specs, hanger identifier and configuration. Each APK contains its own source commit label. Debug-signed sideload builds; Gemini requires APP_API_ORIGIN plus a deployed server-side GEMINI_API_KEY." \
+            --notes "Two independently installable Android test builds from commit ${{ github.sha }}. Customer and staff editions have distinct package IDs. The same commit builds the full customer and staff websites and their byte-identical embedded Android assets. Automated parity checks cover workshop, bookings, rewards, scanning, bike specs and settings. Each APK includes a matching source SHA and asset fingerprint. Debug-signed sideload builds; Gemini requires APP_API_ORIGIN plus a deployed server-side GEMINI_API_KEY." \
             --prerelease
