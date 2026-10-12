@@ -750,93 +750,37 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       <RideTransition state={ride.state}>
       {showTools ? (
       <div className="space-y-4" data-testid="staff-tool-launcher">
-        <TileGroup
-          label="Operations"
-          icon={Gauge}
-          description="Front-desk and bench tools — the everyday stations."
-          action={
-            /* Notification bell — latest workshop activity, routed on tap */
-            <NotificationBell
-              activities={visualActivities}
-              onOpenBooking={(bookingId) => {
-                setFocusBookingUid(bookingId);
-                openStaffTab('bookings');
-              }}
-              onOpenMember={(memberUid) => {
-                setFocusMemberUid(memberUid);
-                openStaffTab('customers');
-              }}
-              onOpenSettings={() => openStaffTab('settings')}
-            />
-          }
-        >
-          <TileGrid>
-            {visibleOperationTiles.map((t) => (
-              <TileButton
-                key={t.id}
-                icon={t.icon}
-                label={t.label}
-                hint={t.hint}
-                tone={t.tone}
-                badge={t.badge}
-                active={staffTab === t.id}
-                onSelect={() => openStaffTab(t.id)}
-                testId={`staff-tile-${t.id}`}
-              />
-            ))}
-          </TileGrid>
-        </TileGroup>
-
-        <TileGroup
-          label="Admin &amp; Reports"
-          icon={Sliders}
-          description="Configuration, marketing and audit surfaces."
-          action={
-            <button
-              type="button"
-              data-testid="clean-slate"
-              onClick={async () => {
-                if (
-                  !window.confirm(
-                    'Clean the slate? This wipes ALL workshop bookings and the financial records (till sales + online orders) from the database, clears local app data, and reloads the page.'
-                  )
-                ) {
-                  return;
-                }
-                try {
-                  const res = await resetBookingsAndFinancials();
-                  if (!res.success) {
-                    window.alert(res.message);
-                    return;
-                  }
-                } catch (e) {
-                  console.warn('[CLEAN SLATE] reset failed:', e);
-                }
-                hardResetApp();
-              }}
-              className="pressable flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-rose-900 px-3 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-950/60 hover:text-white"
-            >
-              <RefreshCcw className="w-3.5 h-3.5" />
-              <span>Clean Slate</span>
-            </button>
-          }
-        >
-          <TileGrid>
-            {visibleAdminTiles.map((t) => (
-              <TileButton
-                key={t.id}
-                icon={t.icon}
-                label={t.label}
-                hint={t.hint}
-                tone={t.tone}
-                badge={t.badge}
-                active={staffTab === t.id}
-                onSelect={() => openStaffTab(t.id)}
-                testId={`staff-tile-${t.id}`}
-              />
-            ))}
-          </TileGrid>
-        </TileGroup>
+        {/* Purpose-built work areas replace the old undifferentiated tile wall. */}
+        {([
+          { title: '01 / FRONT DESK', subtitle: 'Everything needed when a customer walks in', ids: ['till', 'bookings', 'customers'], icon: ShoppingCart },
+          { title: '02 / WORKSHOP', subtitle: 'Diagnose, repair and identify parts', ids: ['ble_bench', 'ev_codes', 'hangers', 'repair_guide'], icon: Wrench },
+          { title: '03 / SALES & LOYALTY', subtitle: 'Offers, rewards and trade-in enquiries', ids: ['draws', 'promotions', 'discount_codes', 'referrals', 'tradeins', 'offer_prices'], icon: Award },
+          { title: '04 / CUSTOMER EXPERIENCE', subtitle: 'Website, reputation and customer communications', ids: ['website_cms', 'google_business', 'reviews'], icon: Globe },
+          { title: '05 / MANAGEMENT', subtitle: 'Team, records, systems and configuration', ids: ['staff_roster', 'logs', 'backend', 'settings', 'weather'], icon: Settings },
+        ] as const).map((group) => {
+          const entries = [...visibleOperationTiles, ...visibleAdminTiles].filter((t) => (group.ids as readonly string[]).includes(t.id));
+          if (!entries.length) return null;
+          return (
+            <section key={group.title} className="staff-workspace-group" aria-label={group.title}>
+              <header className="staff-workspace-heading">
+                <span className="staff-workspace-heading-icon"><group.icon size={18} /></span>
+                <span><strong>{group.title}</strong><small>{group.subtitle}</small></span>
+                <span className="staff-workspace-count">{entries.length} tools</span>
+              </header>
+              <div className="staff-workspace-entries">
+                {entries.map((t) => (
+                  <button key={t.id} type="button" data-testid={`staff-tile-${t.id}`}
+                    className="staff-workspace-entry" onClick={() => openStaffTab(t.id)}>
+                    <span className="staff-workspace-entry-icon"><t.icon size={20} /></span>
+                    <span className="staff-workspace-entry-copy"><strong>{t.label}</strong><small>{t.hint}</small></span>
+                    {typeof t.badge === 'number' && t.badge > 0 && <span className="staff-workspace-badge">{t.badge}</span>}
+                    <ArrowRight size={17} className="staff-workspace-arrow" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
         {filterActive && visibleOperationTiles.length + visibleAdminTiles.length === 0 && (
           <div className="surface-panel flex flex-col items-center gap-1 p-8 text-center">
