@@ -11,6 +11,8 @@
  * on the backend.
  */
 
+import { apiUrl } from './apiBase';
+
 export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured';
 
 declare global {
@@ -39,7 +41,7 @@ function browserReady(): boolean {
 async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   if (runtimeConfig) return runtimeConfig;
   try {
-    const res = await fetch('/api/onesignal/config');
+    const res = await fetch(apiUrl('/api/onesignal/config'));
     const data = (await res.json()) as Partial<OneSignalRuntimeConfig> & { appId?: string | null };
     // A static host without the serverless function rewrites unknown paths to
     // index.html, so a non-JSON body (or missing appId field) must not be
@@ -289,7 +291,7 @@ export async function sendPushToUser(
 
   if (cfg.serverPush) {
     try {
-      const res = await fetch('/api/onesignal/notify', {
+      const res = await fetch(apiUrl('/api/onesignal/notify'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { apiUrl } from '../utils/apiBase';
 import { Building2, MessageSquare, Star, MapPin } from 'lucide-react';
 
 export const GoogleBusinessTab = () => {
@@ -8,7 +9,7 @@ export const GoogleBusinessTab = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/google-business');
+        const response = await fetch(apiUrl('/api/google-business'));
         if (response.ok) {
           const json = await response.json();
           setData(json);
