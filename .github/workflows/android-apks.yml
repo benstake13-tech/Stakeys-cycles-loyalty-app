@@ -251,3 +251,5 @@ jobs:
             --title "Stakey's complete Staff and Customer Android apps — build ${{ github.run_number }}" \
             --notes "Staff source: staff-terminal @ $STAFF_SHA. Customer source: customer-app @ $CUSTOMER_SHA. Includes source-defined AI tools, Meta and OneSignal API clients, Supabase integration, and staff/customer training guides. APK asset parity and source-branch tests passed. API requests need a live HTTPS backend, valid server-side secrets, and permitted CORS origins. Android WebView OneSignal web push is not native push delivery; native push configuration is separate. These are debug-signed installers, not Play Store release builds." \
             --prerelease
+
+# Rebuild native OneSignal Android push bridge for both applications.
