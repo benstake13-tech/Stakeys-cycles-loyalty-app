@@ -68,7 +68,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Capacitor Android build toolchain
-        run: npm install --no-save --no-package-lock --legacy-peer-deps @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8
+        run: npm install --no-save --no-package-lock --legacy-peer-deps @capacitor/core@8 @capacitor/cli@8 @capacitor/android@8 react-is@19
 
       - name: Build ${{ matrix.edition }} web assets
         run: bun run build
