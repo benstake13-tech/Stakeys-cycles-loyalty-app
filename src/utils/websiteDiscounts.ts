@@ -13,6 +13,7 @@
  */
 import { PUBLIC_DISCOUNT_SET, generateDiscountSet } from './discountAudience';
 import { DiscountAudience, DiscountCode } from '../types/bikeShop';
+import { publicOrigin } from './apiBase';
 
 /** The curated website-visitor set, usable before the migration is applied. */
 export const WEBSITE_DISCOUNT_FALLBACK: DiscountCode[] = generateDiscountSet(PUBLIC_DISCOUNT_SET);
@@ -67,11 +68,7 @@ export function discountCodeFromSearch(search?: string): string {
 /** Build the shareable offer link a coupon card copies (origin + `?code=`). */
 export function discountShareUrl(code: string, origin?: string): string {
   const base =
-    origin !== undefined
-      ? origin
-      : typeof window !== 'undefined'
-      ? window.location.origin
-      : '';
+    origin !== undefined ? origin : publicOrigin();
   const clean = String(code || '').trim().toUpperCase();
   return clean ? `${base}/?code=${encodeURIComponent(clean)}` : base;
 }

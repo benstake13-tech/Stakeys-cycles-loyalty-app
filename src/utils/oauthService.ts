@@ -6,7 +6,7 @@
  * access/refresh tokens back here for the session.
  */
 
-import { apiUrl } from './apiBase';
+import { apiUrl, publicOrigin } from './apiBase';
 
 export type OAuthProvider = 'google' | 'meta';
 
@@ -120,7 +120,7 @@ export async function buildAuthorizationUrl(
   const clientId = getClientId(provider);
   if (!clientId) throw new Error(`${OAUTH_PROVIDERS[provider].label} OAuth is not configured.`);
 
-  const redirectUri = `${window.location.origin}/oauth/callback`;
+  const redirectUri = `${publicOrigin()}/oauth/callback`;
   const state = randomString(24);
   const codeVerifier = randomString(64);
   const challenge = base64UrlEncode(await sha256(codeVerifier));

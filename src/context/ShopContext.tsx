@@ -166,6 +166,7 @@ import {
   upsertAppSettingsToDb,
   AppSettings,
 } from '../api/backendDataService';
+import { publicOrigin } from '../utils/apiBase';
 
 interface ShopContextType {
   currentUser: UserProfile | null;
@@ -2359,7 +2360,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Send the confirmation link back to the app itself. Without this the
           // link falls back to the project Site URL, which may be a different
           // origin and leaves the customer unable to complete the flow here.
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: publicOrigin(),
         },
       });
 
@@ -2404,7 +2405,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email.trim().toLowerCase(),
-        options: { emailRedirectTo: window.location.origin },
+        options: { emailRedirectTo: publicOrigin() },
       });
       if (error) {
         return { success: false, message: error.message };
@@ -2418,7 +2419,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const resetPassword = async (email: string) => {
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${publicOrigin()}/reset-password`,
       });
       if (error) {
         return { success: false, message: error.message };

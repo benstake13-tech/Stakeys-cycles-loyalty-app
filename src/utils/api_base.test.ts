@@ -50,3 +50,20 @@ describe('apiUrl — native build (VITE_API_BASE_URL set)', () => {
     );
   });
 });
+
+describe('publicOrigin — links that leave the app', () => {
+  it('uses the page origin on the web (base unset)', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', '');
+    vi.resetModules();
+    const { publicOrigin } = await import('./apiBase');
+    expect(publicOrigin()).toBe(window.location.origin);
+  });
+
+  it('uses the deployed origin in the native build, never the local WebView', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://www.stakeys-cycles.co.uk');
+    vi.resetModules();
+    const { publicOrigin } = await import('./apiBase');
+    expect(publicOrigin()).toBe('https://www.stakeys-cycles.co.uk');
+    expect(publicOrigin()).not.toContain('localhost');
+  });
+});
