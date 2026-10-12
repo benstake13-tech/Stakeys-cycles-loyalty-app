@@ -7,6 +7,36 @@ export const BikeIdentificationEngine = ({ onAnalysisComplete }) => {
   const [analysis, setAnalysis] = useState(null);
   const [error, setError] = useState('');
 
+  // Keep uploads comfortably below common 4.5 MB serverless request limits.
+  const prepareImage = (file) => new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const maxDimension = 1600;
+        const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('Could not prepare photo for scanning.');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('Could not read that photo. Try JPEG or PNG.'));
+    };
+    image.src = objectUrl;
+  });
+
   const handleFileChange = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -24,12 +54,7 @@ export const BikeIdentificationEngine = ({ onAnalysisComplete }) => {
     setError('');
     setAnalysis(null);
     try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Could not read your photo.'));
-        reader.readAsDataURL(file);
-      });
+      const dataUrl = await prepareImage(file);
       const result = await analyzeBikeImage(dataUrl);
       setAnalysis(result);
     } catch (err) {
