@@ -34,10 +34,10 @@ describe('matchOfferEntry', () => {
     expect(entry?.basePrice).toBe(200);
   });
 
-  it('falls back to the brand-wide price when the model is unknown', () => {
+  it('falls back to the category price when the exact model is unknown', () => {
     const { entry, level } = matchOfferEntry(book, { make: 'Trek', model: 'FX 3', type: 'cycle' });
-    expect(level).toBe('brand');
-    expect(entry?.basePrice).toBe(150);
+    expect(level).toBe('category');
+    expect(entry?.basePrice).toBe(90);
   });
 
   it('falls back to the category default for an unknown brand', () => {

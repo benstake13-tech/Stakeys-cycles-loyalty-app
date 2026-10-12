@@ -232,10 +232,10 @@ describe('StaffOfferPricesTab', () => {
   it('adds a price straight from a catalogue pick', () => {
     render(<StaffOfferPricesTab />);
     fireEvent.click(screen.getByTestId('catalogue-brand-trek'));
-    fireEvent.click(screen.getByTestId('catalogue-model-trek-marlin'));
+    fireEvent.click(screen.getByTestId('catalogue-model-trek-domane'));
     fireEvent.change(screen.getByPlaceholderText('180'), { target: { value: '205' } });
     fireEvent.click(screen.getByText(/Add to price book/i));
-    expect(getOfferPrices().some((p) => p.brand === 'Trek' && p.model === 'Marlin' && p.basePrice === 205)).toBe(true);
+    expect(getOfferPrices().some((p) => p.brand === 'Trek' && p.model === 'Domane' && p.basePrice === 205)).toBe(true);
   });
 
   it('edits and saves a per-model price from the catalogue', () => {
@@ -243,7 +243,7 @@ describe('StaffOfferPricesTab', () => {
     fireEvent.click(screen.getByTestId('catalogue-brand-trek'));
     fireEvent.click(screen.getByTestId('catalogue-model-trek-marlin'));
     fireEvent.change(screen.getByLabelText('good price'), { target: { value: '205' } });
-    fireEvent.click(screen.getByText(/Add to price book/i));
+    fireEvent.click(screen.getByText(/Save changes/i));
     const saved = getOfferPrices().find((p) => p.brand === 'Trek' && p.model === 'Marlin')!;
     expect(saved.conditionPrices?.good?.price).toBe(205);
   });

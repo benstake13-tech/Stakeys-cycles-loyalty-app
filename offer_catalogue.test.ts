@@ -57,10 +57,10 @@ describe('offerCatalogue helpers', () => {
     expect(findEntry(book, 'Trek', 'FX 1 / 2 / 3')?.basePrice).toBe(120);
   });
 
-  it('exposes a brand-wide row as brandEntry', () => {
+  it('does not price a whole brand — a brand-only row is not counted', () => {
     const book = [entry({ brand: 'Giant', model: '', basePrice: 150 })];
     const giant = buildCatalogue(book).find((b) => b.name === 'Giant')!;
-    expect(giant.brandEntry?.basePrice).toBe(150);
+    expect(giant.pricedModels).toBe(0);
   });
 
   it('filters by a model-name query', () => {
