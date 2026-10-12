@@ -13,9 +13,10 @@ import {
   ShieldCheck,
   Info,
 } from 'lucide-react';
-import { EVEHICLE_BRANDS, EVehicleCategory, EVehicleErrorDefinition } from '../data/eVehicleCodes';
+import { EVEHICLE_BRANDS, EVehicleCategory, EVehicleDisplay, EVehicleErrorDefinition, displaysForCategory } from '../data/eVehicleCodes';
 import {
   customerCodesFor,
+  customerCodesForFamily,
   matchBySymptom,
   partForKey,
   buildRetailerLinks,
@@ -269,32 +270,54 @@ export function CustomerErrorCodeHelper({ onBookService }: { onBookService?: () 
   const { map, brands } = useBrandIndex();
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
+  const [displayId, setDisplayId] = useState('');
   const [query, setQuery] = useState('');
   const [openCode, setOpenCode] = useState<string | null>(null);
 
   const brandEntry = brand ? map.get(brand) : undefined;
   const models = brandEntry?.models ?? [];
 
+  // Displays across both categories, for riders who don't know their brand.
+  const displays = useMemo<{ display: EVehicleDisplay; category: EVehicleCategory }[]>(
+    () => [
+      ...displaysForCategory('electric_scooter').map((display) => ({ display, category: 'electric_scooter' as EVehicleCategory })),
+      ...displaysForCategory('ebike').map((display) => ({ display, category: 'ebike' as EVehicleCategory })),
+    ],
+    []
+  );
+  const activeDisplay = displays.find((d) => d.display.id === displayId) ?? null;
+
   const handleBrand = (next: string) => {
     setBrand(next);
     setModel('');
+    setDisplayId('');
     setOpenCode(null);
   };
   const handleModel = (next: string) => {
     setModel(next);
+    setDisplayId('');
+    setOpenCode(null);
+  };
+  const handleDisplay = (next: string) => {
+    setDisplayId(next);
+    setBrand('');
+    setModel('');
     setOpenCode(null);
   };
 
   const allCodes = useMemo(() => {
-    if (!brand || !model || !brandEntry) return [];
-    return customerCodesFor(brandEntry.category, brand, model);
-  }, [brand, model, brandEntry]);
+    if (brand && model && brandEntry) return customerCodesFor(brandEntry.category, brand, model);
+    if (activeDisplay) return customerCodesForFamily(activeDisplay.display.family);
+    return [];
+  }, [brand, model, brandEntry, activeDisplay]);
 
   const shown = useMemo(() => {
     const q = query.trim();
     if (!q) return allCodes;
     return matchBySymptom(allCodes, q);
   }, [allCodes, query]);
+
+  const hasTarget = Boolean(model) || Boolean(activeDisplay);
 
   return (
     <section className="space-y-4">
@@ -358,11 +381,37 @@ export function CustomerErrorCodeHelper({ onBookService }: { onBookService?: () 
               data-testid="cev-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              disabled={!model}
-              placeholder={model ? 'e.g. E14 or "won\'t accelerate"' : 'Pick a model first'}
+              disabled={!hasTarget}
+              placeholder={hasTarget ? 'e.g. E14 or "won\'t accelerate"' : 'Pick a model or display first'}
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5 text-sm font-semibold text-white placeholder-neutral-600 outline-none transition-colors focus:border-emerald-500/60 disabled:opacity-40"
             />
           </label>
+        </div>
+
+        {/* Display / system picker — for riders who don't know the exact model */}
+        <div className="mt-3 border-t border-neutral-800/70 pt-3">
+          <label className="block">
+            <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-sky-400">
+              Don't know the model? Identify your display
+            </span>
+            <select
+              data-testid="cev-display"
+              value={displayId}
+              onChange={(e) => handleDisplay(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-sky-800/50 bg-neutral-950 px-3 py-2.5 text-sm font-semibold text-white outline-none transition-colors focus:border-sky-500/60"
+            >
+              <option value="">Choose the display that matches your machine…</option>
+              {displays.map(({ display, category }) => (
+                <option key={display.id} value={display.id}>
+                  {category === 'ebike' ? 'E-Bike · ' : 'E-Scooter · '}{display.codeStyle} — {display.appearance.slice(0, 60)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="mt-1.5 text-[10px] leading-relaxed text-neutral-500">
+            The same code number means different things on different displays, so matching the display is the most
+            reliable way to get the right answer.
+          </p>
         </div>
 
         {/* Popular brand chips */}
@@ -386,22 +435,31 @@ export function CustomerErrorCodeHelper({ onBookService }: { onBookService?: () 
       </div>
 
       {/* Results */}
-      {!model && (
+      {!hasTarget && (
         <p className="rounded-2xl border border-dashed border-neutral-800 bg-neutral-950/40 p-6 text-center text-xs text-neutral-500">
-          Pick your brand and model above to see every fault code your machine can show — what it means,
-          why it happens, how to fix it and what it costs.
+          Pick your brand and model — or just the display that matches your machine — to see every fault code it can
+          show: what it means, why it happens, how to fix it and what it costs.
         </p>
       )}
 
-      {model && (
+      {hasTarget && (
         <div>
           <div className="mb-2 flex items-center justify-between text-[11px] text-neutral-500">
             <span>
               {shown.length} code{shown.length === 1 ? '' : 's'} for{' '}
-              <span className="font-bold text-neutral-300">{brand} {model}</span>
+              <span className="font-bold text-neutral-300">
+                {model ? `${brand} ${model}` : activeDisplay ? `${activeDisplay.display.codeStyle} display` : ''}
+              </span>
             </span>
             {query.trim() && <button type="button" onClick={() => setQuery('')} className="font-bold text-emerald-400 hover:text-emerald-300">Clear search</button>}
           </div>
+
+          {activeDisplay && !model && (
+            <div className="mb-2 rounded-xl border border-sky-800/40 bg-sky-950/20 px-3 py-2 text-[11px] text-neutral-400">
+              Showing codes for the <span className="font-bold text-sky-300">{activeDisplay.display.codeStyle}</span> display —
+              fitted to {activeDisplay.display.usedOn.join(', ')}.
+            </div>
+          )}
 
           {shown.length === 0 ? (
             <p className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-6 text-center text-xs text-neutral-400">
@@ -414,7 +472,7 @@ export function CustomerErrorCodeHelper({ onBookService }: { onBookService?: () 
                 <CodeCard
                   key={def.code}
                   def={def}
-                  model={model}
+                  model={model || activeDisplay?.display.codeStyle || ''}
                   onBookService={onBookService}
                   open={openCode === def.code}
                   onToggle={() => setOpenCode(openCode === def.code ? null : def.code)}

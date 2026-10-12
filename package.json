@@ -14,9 +14,19 @@
     "check:history": "bash scripts/check-history.sh",
     "network:status": "bash scripts/network-status.sh",
     "sync": "bash scripts/sync-branch.sh",
-    "sync:verify": "bash scripts/sync-verify.sh"
+    "sync:verify": "bash scripts/sync-verify.sh",
+    "android:sync": "npm run build && cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:bundle": "npm run android:sync && cd android && ./gradlew bundleRelease",
+    "android:open": "cap open android",
+    "ios:sync": "npm run build && cap sync ios",
+    "ios:open": "cap open ios"
   },
   "dependencies": {
+    "@capacitor-community/bluetooth-le": "^6.1.0",
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/ios": "^6.2.2",
     "@google/genai": "^2.4.0",
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.117.1",
@@ -46,6 +56,7 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^6.2.2",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/canvas-confetti": "^1.9.0",

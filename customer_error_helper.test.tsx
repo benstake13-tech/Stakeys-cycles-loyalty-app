@@ -33,6 +33,11 @@ describe('customer-facing error-code layer', () => {
       ['ebike', 'Rad Power Bikes', 'RadCity'],
       ['ebike', 'Brose', 'Drive T'],
       ['ebike', 'Swytch', 'Swytch Kit (Conversions)'],
+      ['electric_scooter', 'Kugoo / Kukirin', 'M4'],
+      ['electric_scooter', 'iENYRID', 'M4 Pro S+'],
+      ['electric_scooter', 'GoTrax', 'GXL'],
+      ['electric_scooter', 'Hiboy', 'S2 Pro'],
+      ['electric_scooter', 'NIU', 'KQi3'],
     ];
     for (const [cat, brand, model] of families) {
       const codes = customerCodesFor(cat as any, brand, model);
@@ -129,5 +134,20 @@ describe('CustomerErrorCodeHelper UI', () => {
     const list = screen.getByTestId('cev-code-list');
     expect(within(list).getByText('E14')).toBeTruthy();
     expect(within(list).queryByText('E21')).toBeNull();
+  });
+
+  it('shows codes for a chosen display without a brand or model', () => {
+    render(<CustomerErrorCodeHelper />);
+    fireEvent.change(screen.getByTestId('cev-display'), { target: { value: 'ienyrid-ne' } });
+    const list = screen.getByTestId('cev-code-list');
+    expect(within(list).getByText('7E')).toBeTruthy();
+  });
+
+  it('covers the popular budget scooter brands in the customer layer', () => {
+    for (const brand of ['Kugoo / Kukirin', 'iENYRID', 'NIU']) {
+      expect(EVEHICLE_BRANDS.some((b) => b.brand === brand), `${brand} missing`).toBe(true);
+    }
+    const kugoo = customerCodesFor('electric_scooter', 'Kugoo / Kukirin', 'M4');
+    expect(kugoo.find((c) => c.code === '2')?.system).toBe('throttle');
   });
 });
