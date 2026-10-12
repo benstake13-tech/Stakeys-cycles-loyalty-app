@@ -108,11 +108,11 @@ jobs:
               assert wrapped.is_file(), f"Missing in Android APK: {relative}"
               content = source.read_bytes()
               assert wrapped.read_bytes() == content, f"Website/APK content mismatch: {relative}"
-              sha.update(relative.as_posix().encode("utf8") + b"\\0")
+              sha.update(relative.as_posix().encode("utf8") + b"\0")
               sha.update(hashlib.sha256(content).digest())
           digest = sha.hexdigest()
           with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write(f"WEB_ASSET_FINGERPRINT={digest}\\n")
+              env.write(f"WEB_ASSET_FINGERPRINT={digest}\n")
           print(f"Verified {len(assets)} byte-identical website assets copied into Android")
           print(f"Web/Android asset fingerprint: {digest}")
           PY
@@ -128,8 +128,8 @@ jobs:
           if 'android.permission.CAMERA' not in content:
               assert '<application' in content, 'Android manifest missing application'
               content = content.replace('<application',
-                  '<uses-permission android:name="android.permission.CAMERA" />\\n'
-                  '    <uses-feature android:name="android.hardware.camera" android:required="false" />\\n'
+                  '<uses-permission android:name="android.permission.CAMERA" />\n'
+                  '    <uses-feature android:name="android.hardware.camera" android:required="false" />\n'
                   '    <application', 1)
               manifest.write_text(content)
 
