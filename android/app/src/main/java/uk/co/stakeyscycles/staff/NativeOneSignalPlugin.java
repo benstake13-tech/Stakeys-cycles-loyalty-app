@@ -9,6 +9,9 @@ import com.onesignal.OneSignal;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import kotlin.coroutines.Continuation;
+import kotlin.coroutines.CoroutineContext;
+import kotlin.coroutines.EmptyCoroutineContext;
 
 @CapacitorPlugin(name = "NativeOneSignal")
 public class NativeOneSignalPlugin extends Plugin {
@@ -74,10 +77,22 @@ public class NativeOneSignalPlugin extends Plugin {
             call.reject("Native OneSignal is not initialized");
             return;
         }
-        OneSignal.getNotifications().requestPermission(true, result -> {
-            JSObject data = new JSObject();
-            data.put("granted", result);
-            call.resolve(data);
+        OneSignal.getNotifications().requestPermission(true, new Continuation<Boolean>() {
+            @Override
+            public CoroutineContext getContext() {
+                return EmptyCoroutineContext.INSTANCE;
+            }
+
+            @Override
+            public void resumeWith(Object result) {
+                JSObject data = new JSObject();
+                // Kotlin suspend functions resume with the unboxed Boolean on success.
+                // On failure, read the current permission state instead.
+                data.put("granted", result instanceof Boolean
+                    ? (Boolean) result
+                    : OneSignal.getNotifications().getPermission());
+                call.resolve(data);
+            }
         });
     }
 
