@@ -260,3 +260,5 @@ jobs:
 # Rebuild native OneSignal APKs after Android App ID variables were configured.
 
 # Rebuild staff APK after scooterProtocols.ts TypeScript syntax repair.
+
+# Rebuild both APKs with native push tags and corrected transactional email sender.
