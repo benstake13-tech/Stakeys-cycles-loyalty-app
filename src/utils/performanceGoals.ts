@@ -57,5 +57,5 @@ export function goalProgress(actual: number, target: number) {
 }
 
 export function raiseTargets(targets: GoalTargets): GoalTargets {
-  return Object.fromEntries(GOAL_IDS.map(id => [id, Math.min(id === 'callConversionPct' ? 100 : 1000000, Math.max(1, Math.ceil(targets[id] * 1.1)))])) as GoalTargets;
+  return Object.fromEntries(GOAL_IDS.map(id => [id, Math.min(id === 'callConversionPct' ? 100 : 1000000, Math.max(1, Math.ceil((targets[id] * 110) / 100)))])) as GoalTargets;
 }
