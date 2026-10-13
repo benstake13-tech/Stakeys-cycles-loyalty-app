@@ -249,10 +249,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
   return (
     <div className="stakeys-premium-customer space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
-      <header className="stakeys-customer-brandbar">
-        <StakeysLogo className="w-12 h-14" />
-        <div><span>STAKEYS CYCLES</span><small>Your ride. Your rewards.</small></div>
-        <button type="button" aria-label="Edit your avatar" onClick={() => setIsAvatarEditorOpen(true)} className="stakeys-customer-avatar"><FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={36} /></button>
+      <header className="stakeys-customer-brandbar surface-panel !rounded-2xl px-4 py-3 flex items-center gap-3 border border-emerald-400/20">
+        <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-1"><StakeysLogo className="w-11 h-12" /></div>
+        <div className="min-w-0 flex-1">
+          <span className="block font-display font-black tracking-[0.12em] text-white">STAKEY'S <span className="text-emerald-400">CYCLES</span></span>
+          <small className="block text-xs text-neutral-400">Your ride. Your rewards.</small>
+        </div>
+        <button type="button" aria-label="Edit your avatar" title="Customise your avatar" onClick={() => setIsAvatarEditorOpen(true)} className="stakeys-customer-avatar shrink-0 rounded-full border border-emerald-400/40 p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"><FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={36} /></button>
       </header>
       {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
       <MembershipPassCard user={currentUser} />
