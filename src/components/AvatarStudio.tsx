@@ -39,6 +39,13 @@ export const AvatarStudio:React.FC=()=>{
   const previewTransform=useMemo(()=>`perspective(850px) rotateY(${angle}deg) scale(${settings.view==='Close up'?1.18:settings.view==='Full body'?.86:1})`,[angle,settings.view]);
   useEffect(()=>{
     let mounted=true;
+    if (!document.querySelector('script[data-stakeys-model-viewer]')) {
+      const script=document.createElement('script');
+      script.type='module';
+      script.src='https://ajax.googleapis.com/ajax/libs/model-viewer/4.1.0/model-viewer.min.js';
+      script.dataset.stakeysModelViewer='true';
+      document.head.appendChild(script);
+    }
     fetch('/models/stakeys-avatar.glb',{method:'HEAD'}).then(r=>{if(mounted&&r.ok){setAssetReady(true);setAssetUrl('/models/stakeys-avatar.glb');}}).catch(()=>{});
     return ()=>{mounted=false};
   },[]);
@@ -60,7 +67,7 @@ export const AvatarStudio:React.FC=()=>{
         <div className="relative z-10 flex flex-wrap items-center justify-between gap-2"><span className="rounded-full border border-emerald-400/30 bg-black/40 px-3 py-1.5 text-[10px] uppercase tracking-[.18em] text-emerald-200">{settings.pose} · {settings.expression}</span><span className="rounded-full bg-black/50 px-3 py-1.5 text-[10px] text-neutral-300">{assetReady?'3D asset detected':'3D character asset required'}</span></div>
         <div className="relative z-10 mx-auto flex h-[320px] w-full max-w-lg items-center justify-center sm:h-[430px]">
           <div className="pointer-events-none absolute h-64 w-64 rounded-full bg-emerald-400/15 blur-[75px]"/>
-          {assetReady?<model-viewer src={assetUrl} camera-controls auto-rotate exposure={settings.lighting==='Dramatic'?'0.7':'1.1'} shadow-intensity="1" style={{width:'100%',height:'100%',background:'transparent'}} />:
+          {assetReady?React.createElement('model-viewer', {src:assetUrl,'camera-controls':true,'auto-rotate':true,exposure:settings.lighting==='Dramatic'?'0.7':'1.1','shadow-intensity':'1',style:{width:'100%',height:'100%',background:'transparent'}}):
           <div className="relative flex h-72 w-60 flex-col items-center justify-center rounded-[45%] border border-emerald-400/20 bg-gradient-to-b from-emerald-500/10 to-black/30 transition-transform duration-300 sm:h-80 sm:w-72" style={{transform:previewTransform,boxShadow:'0 0 110px #0ee68c1c'}}><UserRound className="h-40 w-40 text-emerald-300/35 sm:h-48 sm:w-48" strokeWidth={0.65}/><p className="mt-3 text-center text-[11px] font-bold uppercase tracking-[.16em] text-emerald-200">Character preview</p><p className="mt-1 px-4 text-center text-[10px] text-neutral-400">Add a licensed mobile-ready GLB at /public/models/stakeys-avatar.glb</p></div>}
         </div>
         <div className="relative z-10 space-y-3">
