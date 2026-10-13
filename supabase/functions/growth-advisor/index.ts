@@ -53,7 +53,7 @@ Deno.serve(async req => {
     JSON.stringify({ monthly: months, targets }),
   ].join('\n');
   try {
-    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash-lite';
+    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-lite-latest';
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
