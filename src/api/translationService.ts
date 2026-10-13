@@ -1,3 +1,4 @@
+import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
 /**
  * Machine translation of a rider's typed notes into English for the workshop.
  *
@@ -11,12 +12,10 @@
  * be blocked or delayed because Gemini is unavailable, rate-limited or not
  * configured on this build.
  */
-import { GoogleGenAI } from '@google/genai';
 import { LanguageCode } from '../utils/bookingTranslator';
 import { resolveGeminiModel, noThinking } from './geminiModel';
 
-const getApiKey = (): string =>
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || '';
+const getApiKey = () => isGeminiGatewayConfigured() ? 'server-side' : '';
 
 export const isTranslationConfigured = (): boolean => Boolean(getApiKey());
 
@@ -34,7 +33,7 @@ export async function translateToEnglish(text: string, sourceCode: LanguageCode)
   if (!apiKey) return trimmed;
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = { models: { generateContent: generateGemini } };
     const model = resolveGeminiModel();
     const response = await ai.models.generateContent({
       model,
@@ -151,7 +150,7 @@ export async function detectAndTranslateToEnglish(
     let translated = trimmed;
     if (getApiKey()) {
       try {
-        const engine = new GoogleGenAI({ apiKey: getApiKey() });
+        const engine = { models: { generateContent: generateGemini } };
         const response = await engine.models.generateContent({
           model: resolveGeminiModel(),
           contents: [
