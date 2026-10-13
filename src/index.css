@@ -1546,3 +1546,49 @@
 }
 .staff-command-bar .live-dot,.staff-bridge-panel .live-dot {background:#00ff66}
 .staff-command-bar .live-dot::after,.staff-bridge-panel .live-dot::after {box-shadow:none;background:rgba(0,255,102,.2)}
+
+
+/* Growth target scorecard — exactly the same neutral, frosted workshop UI. */
+.staff-goals-panel {
+  padding:16px;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  background:rgba(15,23,19,.7);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  color:#f4fff7;
+}
+.staff-goal-card {
+  padding:15px;min-width:0;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  background:rgba(13,19,16,.78);
+}
+.staff-goals-pill {
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid rgba(0,255,102,.35);
+  background:rgba(0,255,102,.07);
+  border-radius:999px;padding:7px 9px;
+  color:#00ff66;font-size:10px;line-height:1.1;
+  font-weight:800;font-variant-numeric:tabular-nums;
+}
+.staff-goals-edit {
+  display:inline-flex;align-items:center;gap:6px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(13,19,16,.9);
+  border-radius:9px;padding:8px 10px;
+  color:#edfef1;font-size:10px;font-weight:800;cursor:pointer;
+}
+.staff-goals-edit:hover,.staff-goals-edit:focus-visible {
+  border-color:rgba(0,255,102,.6);
+  color:#00ff66;
+}
+.staff-goals-edit:focus-visible {outline:2px solid #00ff66;outline-offset:2px}
+.staff-goals-editor {
+  padding:14px;border:1px solid rgba(0,255,102,.3);
+  border-radius:14px;background:rgba(13,19,16,.7);
+}
+@media(max-width:430px) {
+  .staff-goals-panel {padding:12px}
+  .staff-goal-card {padding:12px}
+}
