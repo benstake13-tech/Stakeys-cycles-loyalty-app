@@ -529,6 +529,20 @@ function AppContent() {
         </div>
       </header>
 
+      {/* Always-visible customer booking entry: prevents workshop bookings becoming
+          inaccessible when the navigation launcher is collapsed or redesigned. */}
+      {!isStaff && (
+        <div className="sticky top-16 z-30 px-3 sm:px-6 py-2 bg-neutral-950/95 border-b border-emerald-500/30 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <span className="text-xs text-neutral-300">Need your bike or scooter repaired?</span>
+            <button type="button" onClick={() => { setMobileMenuOpen(false); setActiveTab('booking'); }}
+              className="inline-flex items-center gap-2 shrink-0 rounded-xl bg-[#05C147] px-4 py-2.5 text-xs font-bold text-neutral-950 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400">
+              <Wrench className="w-4 h-4" /> Book a Repair
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Area.
 
           The shell keeps a stable, height-reserving wrapper and does NOT key or
