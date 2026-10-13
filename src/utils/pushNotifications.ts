@@ -38,6 +38,7 @@ type NativePush = {
   requestPermission(): Promise<{ granted: boolean }>;
   getStatus(): Promise<{ initialized: boolean; permission?: boolean; subscriptionId?: string; optedIn?: boolean }>;
   optIn(): Promise<void>;
+  addTags(args: { tags: Record<string, string> }): Promise<void>;
 };
 let nativePushPromise: Promise<NativePush | null> | null = null;
 function nativePush(): Promise<NativePush | null> {
@@ -194,7 +195,15 @@ export async function linkUser(userId: string, tags?: Record<string, string | nu
   const configured = await initOneSignal();
   if (!configured) return;
   const native = await nativePush();
-  if (native) { await native.login({ externalId: userId }); return; }
+  if (native) {
+    await native.login({ externalId: userId });
+    if (tags) {
+      const stringTags: Record<string, string> = {};
+      for (const [key, value] of Object.entries(tags)) stringTags[key] = String(value);
+      await native.addTags({ tags: stringTags });
+    }
+    return;
+  }
   await withOneSignal(async (os) => {
     try {
       await os?.login?.(userId);
