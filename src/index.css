@@ -1527,3 +1527,22 @@
   .staff-kpi-card,.staff-kpi-icon {transition:none}
 }
 
+
+
+/* Matching charcoal headers/status surfaces — no amber/blue colour blooms. */
+.staff-command-bar,.staff-bridge-panel {
+  background:rgba(15,23,19,.7);
+  border:1px solid rgba(255,255,255,.08);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  box-shadow:none;color:#f4fff7;
+}
+.staff-command-bar .chip,.staff-bridge-panel .chip {
+  border:1px solid rgba(0,255,102,.25);
+  border-radius:999px;
+  background:rgba(0,255,102,.07);
+  color:#00ff66;
+  box-shadow:none;
+}
+.staff-command-bar .live-dot,.staff-bridge-panel .live-dot {background:#00ff66}
+.staff-command-bar .live-dot::after,.staff-bridge-panel .live-dot::after {box-shadow:none;background:rgba(0,255,102,.2)}
