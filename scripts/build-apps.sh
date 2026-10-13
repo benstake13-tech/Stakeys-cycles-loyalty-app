@@ -33,7 +33,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 # The Android toolchain is not always on PATH in a bare shell.
-export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
+export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
 BT="$(ls -d "$ANDROID_HOME"/build-tools/* 2>/dev/null | sort -V | tail -1 || true)"
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:${BT:+$BT:}$PATH"

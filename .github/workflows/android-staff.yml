@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: '17'
       # Hosted Ubuntu runners already include the Android SDK; avoid the setup action
       # which attempts to install the removed legacy 'tools' SDK package.
       - name: Configure Android SDK
