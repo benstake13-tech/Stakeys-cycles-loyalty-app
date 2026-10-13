@@ -637,6 +637,7 @@ export const CounterSaleTab: React.FC = () => {
             {catalogueRows.map(row=><div key={row.id} className="relative min-w-0">
               <button type="button" data-testid={`catalogue-${row.id}`} disabled={row.disabled} onClick={()=>addFromCatalogue(row)}
                 className={`flex h-full min-h-28 w-full flex-col items-start justify-between gap-2 rounded-xl border p-3 text-left transition-colors ${row.disabled?'border-neutral-800 bg-neutral-900/50 text-neutral-600':'border-neutral-700 bg-neutral-900 text-white hover:border-emerald-400 hover:bg-emerald-500/10 active:bg-emerald-500/20'}`}>
+                {row.productId && stockProducts.find(product => product.id === row.productId)?.image && <img className="stakeys-product-photo" src={stockProducts.find(product => product.id === row.productId)!.image} alt="" loading="lazy" />}
                 <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{row.kind==='job'?<Wrench className="h-3 w-3"/>:<Package className="h-3 w-3"/>}{row.kind==='job'?'Service':'Product'}</span>
                 <span className="w-full break-words text-sm font-bold leading-snug">{row.label}</span>
                 <span className="text-[11px] text-neutral-400">{row.hint??row.category}</span>

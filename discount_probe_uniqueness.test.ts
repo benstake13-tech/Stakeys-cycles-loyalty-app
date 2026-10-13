@@ -18,8 +18,11 @@ vi.mock('./src/api/backendDataService', async (importOriginal) => {
       return true;
     }),
     deleteDiscountCodeFromDb: vi.fn(async () => true),
+    incrementDiscountUsageInDb: vi.fn(async () => true),
   };
 });
+
+vi.mock('./src/lib/supabase', () => ({ getSupabaseClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { times_used: 1 }, error: null }) }) }) }) }) }));
 
 import { FEATURE_TESTS } from './src/utils/featureDiagnostics';
 

@@ -1,3 +1,4 @@
+vi.mock('./src/api/geminiGateway', () => ({ isGeminiGatewayConfigured: () => false, generateGemini: vi.fn() }));
 import React from 'react';
 import { render, fireEvent, screen, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

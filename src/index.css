@@ -1648,3 +1648,92 @@
 @media (prefers-reduced-motion: reduce) {
   .stakeys-premium-staff *, .stakeys-premium-staff *::before, .stakeys-premium-staff *::after { scroll-behavior: auto !important; }
 }
+
+/* Staff app reference: black glass, luminous green controls, compact touch navigation. */
+.stakeys-premium-staff {
+  --stakeys-green: #00ed76;
+  color-scheme: dark;
+  padding-bottom: calc(86px + env(safe-area-inset-bottom));
+}
+.stakeys-premium-staff::before {
+  position: fixed; inset: 0;
+  background: linear-gradient(180deg,rgba(0,10,6,.86),rgba(0,6,4,.96)),url('/images/hero_workshop_craftsmanship_1790159761910.jpg') center/cover;
+}
+.stakeys-premium-staff .stakeys-brand-header {
+  border: 0; border-radius: 0; padding: 8px 0 16px; background: transparent;
+  box-shadow: none; backdrop-filter: none;
+}
+.stakeys-brand-identity { align-items: center; }
+.stakeys-premium-staff .stakeys-brand-identity svg { filter:drop-shadow(0 0 12px rgba(0,237,118,.15)); }
+.stakeys-premium-staff .stakeys-brand-title { font-size:clamp(20px,4vw,28px);font-weight:650; }
+.stakeys-premium-staff .stakeys-brand-eyebrow { color:#00ed76;font-size:9px; }
+.stakeys-premium-staff .surface-panel,
+.stakeys-premium-staff .glass,
+.stakeys-premium-staff [data-staff-view] .border.rounded-2xl,
+.stakeys-premium-staff [data-staff-view] .border.rounded-xl {
+  background:linear-gradient(130deg,rgba(26,43,36,.64),rgba(4,13,10,.88));
+  border-color:rgba(162,211,187,.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 6px 18px rgba(0,0,0,.18);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+}
+.stakeys-premium-staff input,.stakeys-premium-staff select,.stakeys-premium-staff textarea {
+  background-color:rgba(10,24,18,.82);border-color:rgba(152,204,175,.24);border-radius:12px;
+}
+.stakeys-premium-staff .staff-command-bar {
+  background:transparent;border:0;box-shadow:none;padding:0 0 10px;
+}
+.stakeys-premium-staff .staff-kpi-card {
+  border-radius:14px;min-height:110px;padding:14px;
+  background:linear-gradient(135deg,rgba(17,61,36,.58),rgba(5,15,11,.9));
+  border:1px solid rgba(128,202,155,.24);
+  box-shadow:inset 0 1px rgba(255,255,255,.08);
+}
+.stakeys-premium-staff .staff-kpi-icon {color:#00ed76;filter:drop-shadow(0 0 8px rgba(0,237,118,.25));}
+.stakeys-quick-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.stakeys-quick-tile {
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:104px;
+  border:1px solid rgba(0,237,118,.32);border-radius:13px;
+  background:radial-gradient(ellipse at 50% 0%,rgba(0,237,118,.13),transparent 80%),linear-gradient(135deg,rgba(19,43,31,.76),rgba(3,12,8,.9));
+  box-shadow:inset 0 1px rgba(255,255,255,.1),0 8px 24px rgba(0,0,0,.3);cursor:pointer;
+}
+.stakeys-quick-tile svg {color:#2dffac;filter:drop-shadow(0 0 9px rgba(0,237,118,.32));}
+.stakeys-quick-tile span {font-size:12px;font-weight:600;color:white;}
+.stakeys-quick-tile:hover {border-color:#00ed76;background-color:rgba(0,237,118,.12);}
+.stakeys-bottom-nav {
+  position:fixed;z-index:45;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,760px);
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;
+  padding:10px 8px calc(10px + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,rgba(12,25,19,.91),rgba(2,8,5,.98));
+  border:1px solid rgba(176,217,192,.28);border-bottom:0;border-radius:20px 20px 0 0;
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 -10px 35px rgba(0,0,0,.35);
+}
+.stakeys-bottom-nav button {display:flex;flex-direction:column;align-items:center;gap:5px;color:#c4d0c9;min-height:46px;border-radius:12px;cursor:pointer;font-size:10px;}
+.stakeys-bottom-nav button[aria-current="page"] {color:#00ffa0;background:radial-gradient(ellipse at top,rgba(0,237,118,.22),transparent 75%);}
+.stakeys-bottom-nav button[aria-current="page"] svg {filter:drop-shadow(0 0 8px #00ed7670);}
+.stakeys-action,.stakeys-category-row button[aria-pressed="true"],.stakeys-premium-staff [data-testid="pos-service-browser"] button[aria-pressed="true"] {
+  background:linear-gradient(140deg,#67ffbb,#00e971 70%,#00b64e);color:#001b0c;border:1px solid #68ffb4;
+  box-shadow:inset 0 1px rgba(255,255,255,.5),0 4px 16px rgba(0,237,118,.19);
+}
+.stakeys-action {padding:9px 14px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer;}
+.stakeys-stock-screen {display:flex;flex-direction:column;gap:16px;}
+.stakeys-search {display:flex;align-items:center;gap:10px;border:1px solid rgba(152,204,175,.24);border-radius:12px;padding:11px 13px;background:rgba(10,24,18,.82);}
+.stakeys-search input {width:100%;background:transparent;border:0;outline:none;font-size:14px;}
+.stakeys-category-row {display:flex;gap:8px;overflow-x:auto;padding-bottom:3px;}
+.stakeys-category-row button {padding:7px 15px;border:1px solid rgba(152,204,175,.24);border-radius:99px;background:rgba(10,24,18,.82);white-space:nowrap;font-size:12px;cursor:pointer;}
+.stakeys-stock-list {display:grid;gap:9px;}
+.stakeys-stock-row {display:flex;align-items:center;gap:12px;border:1px solid rgba(152,204,175,.24);border-radius:13px;padding:10px;text-align:left;background:linear-gradient(130deg,rgba(23,43,33,.64),rgba(3,12,8,.92));cursor:pointer;}
+.stakeys-stock-row img {width:64px;height:64px;object-fit:contain;border-radius:9px;background:rgba(255,255,255,.04);}
+.stakeys-stock-copy {display:flex;flex:1;min-width:0;flex-direction:column;gap:5px;font-size:13px;}
+.stakeys-product-photo {height:100px;width:100%;object-fit:contain;border-radius:9px;}
+.stakeys-staff-login {color-scheme:dark;background:#020905;}
+.stakeys-staff-login main {min-height:100svh;background:linear-gradient(180deg,rgba(1,7,4,.32),rgba(1,7,4,.86)),url('/images/hero_workshop_craftsmanship_1790159761910.jpg') center/cover;}
+.stakeys-staff-login main > .absolute {display:none;}
+.stakeys-staff-login main > .relative > .flex {display:none;}
+.stakeys-staff-login main > .relative > .backdrop-blur-xl {background:rgba(3,12,8,.48);border-color:rgba(201,225,211,.3);box-shadow:0 20px 60px #0008;}
+.stakeys-login-logo {display:block!important;background:transparent!important;border:0!important;box-shadow:none!important;}
+.stakeys-login-logo svg {width:140px;height:140px;}
+.stakeys-staff-login input {background:linear-gradient(130deg,#25342d99,#111c1799);border-color:#adc6b43b;border-radius:11px;}
+.stakeys-staff-login button[type="submit"] {background:linear-gradient(135deg,#26fa97,#00d85a);border:1px solid #69ffb1;box-shadow:0 0 25px #00e87535;border-radius:12px;color:#00190c;}
+.stakeys-login-address {position:relative;z-index:1;text-align:center;font-size:12px;font-style:normal;color:#e7f4ec;margin-top:28px;line-height:1.8;}
+@media(min-width:900px) {.stakeys-quick-grid {grid-template-columns:repeat(6,minmax(0,1fr));}}
+@media(max-width:600px) {.stakeys-premium-staff .stakeys-brand-subtitle {font-size:12px}.stakeys-brand-identity>svg {width:48px;height:58px}.stakeys-premium-staff .staff-workspace-entries {grid-template-columns:repeat(3,minmax(0,1fr));}.stakeys-premium-staff .staff-workspace-entry {border-radius:13px;background:linear-gradient(135deg,#11301c99,#030c08dd);border-color:#00ed7633;min-height:114px;}.stakeys-premium-staff .staff-workspace-entry-copy small {display:none;}.stakeys-premium-staff .staff-workspace-entry-icon {color:#2dffac;}.stakeys-premium-staff .staff-workspace-heading {margin-top:14px;}}

@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { StaffStockTab } from './staff/StaffStockTab';
+import { Home, Package, MoreHorizontal } from 'lucide-react';
 import { StakeysLogo } from './StakeysLogo';
 import confetti from 'canvas-confetti';
 import {
@@ -115,6 +117,7 @@ interface StaffPortalProps {
 }
 
 type StaffTab =
+  | 'stock'
   | 'till'
   | 'bookings'
   | 'staff_roster'
@@ -139,6 +142,7 @@ type StaffTab =
 
 /** Every staff tab, used to validate the persisted last-used tab on restore. */
 const STAFF_TABS: StaffTab[] = [
+  'stock',
   'till',
   'bookings',
   'staff_roster',
@@ -509,6 +513,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const latestFresh = freshBookings[0] || null;
 
   type StaffTabId =
+    | 'stock'
     | 'bookings'
     | 'staff_roster'
     | 'website_cms'
@@ -545,6 +550,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   };
 
   const operationTiles: StaffTile[] = [
+    { id: 'stock', label: 'Stock', icon: Package, tone: 'emerald', hint: 'Products & stock levels', keywords: 'stock products inventory parts accessories' },
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts', keywords: 'till counter sale checkout payment card sumup cash pos' },
     { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings', keywords: 'bookings jobs workshop repair service bench intake' },
     { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members', keywords: 'members customers riders loyalty stamps accounts' },
@@ -698,8 +704,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           <StakeysLogo className="w-16 h-16 sm:w-20 sm:h-20" />
           <div>
             <div className="stakeys-brand-eyebrow">STAKEYS · CYCLES &amp; SCOOTER</div>
-            <h1 className="stakeys-brand-title">Staff workspace</h1>
-            <p className="stakeys-brand-subtitle">Workshop, retail and customer care — all in one place.</p>
+            <h1 className="stakeys-brand-title">{showTools ? `Welcome back, ${currentUser.displayName.split(' ')[0]}` : activeTile?.label ?? 'Staff workspace'}</h1>
+            <p className="stakeys-brand-subtitle">Here’s today’s overview.</p>
           </div>
         </div>
         <div className="stakeys-brand-status"><span className="stakeys-brand-status-dot" /> STAFF STATION</div>
@@ -771,6 +777,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {showTools && (
         <>
           <MetricRail items={metricItems} />
+          <section className="stakeys-quick-grid" aria-label="Daily shortcuts">
+            {([{label:'Till', icon:ShoppingCart, target:'till'}, {label:'Workshop', icon:Wrench, target:'bookings'}, {label:'Bookings', icon:Calendar, target:'bookings'}, {label:'Customers', icon:Users, target:'customers'}, {label:'Stock', icon:Package, target:'stock'}, {label:'Accounts', icon:TrendingUp, target:'settings'}] as const).map(item =>
+              <button key={item.label} type="button" className="stakeys-quick-tile" onClick={() => {openStaffTab(item.target); if(item.label === 'Accounts') setSettingsSection('financials');}}>
+                <item.icon size={28} strokeWidth={1.8} /><span>{item.label}</span>
+              </button>)}
+          </section>
           <GrowthTargets />
         </>
       )}
@@ -781,7 +793,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       <div className="space-y-4" data-testid="staff-tool-launcher">
         {/* Purpose-built work areas replace the old undifferentiated tile wall. */}
         {([
-          { title: '01 / FRONT DESK', subtitle: 'Everything needed when a customer walks in', ids: ['till', 'bookings', 'customers'], icon: ShoppingCart },
+          { title: '01 / FRONT DESK', subtitle: 'Everything needed when a customer walks in', ids: ['till', 'bookings', 'customers', 'stock'], icon: ShoppingCart },
           { title: '02 / WORKSHOP', subtitle: 'Diagnose, repair and identify parts', ids: ['ble_bench', 'ev_codes', 'hangers', 'repair_guide'], icon: Wrench },
           { title: '03 / SALES & LOYALTY', subtitle: 'Offers, rewards and trade-in enquiries', ids: ['draws', 'promotions', 'discount_codes', 'referrals', 'tradeins', 'offer_prices'], icon: Award },
           { title: '04 / CUSTOMER EXPERIENCE', subtitle: 'Website, reputation and customer communications', ids: ['website_cms', 'google_business', 'reviews'], icon: Globe },
@@ -858,6 +870,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       )}
 
       {/* 4. WORKSTATION VIEWS */}
+
+      {staffView('stock', <StaffStockTab onManage={() => openStaffTab('website_cms')} />)}
 
       {/* VIEW 1: Service Bookings Management */}
       {staffView('bookings', (
@@ -1755,6 +1769,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           });
         }}
       />
+
+      <nav className="stakeys-bottom-nav" aria-label="Staff primary navigation">
+        {([{label:'Home', icon:Home, target:null}, {label:'Till', icon:ShoppingCart, target:'till'}, {label:'Jobs', icon:Wrench, target:'bookings'}, {label:'Stock', icon:Package, target:'stock'}, {label:'More', icon:MoreHorizontal, target:'settings'}] as const).map(item => {
+          const selected = item.target === null ? showTools : !showTools && staffTab === item.target;
+          return <button key={item.label} type="button" aria-current={selected ? 'page' : undefined} onClick={() => item.target === null ? closeStaffTool() : openStaffTab(item.target)}><item.icon size={22} strokeWidth={1.65} /><span>{item.label}</span></button>;
+        })}
+      </nav>
 
       {/* Repair App Bridge — the full diagnostics / SQL hand-off modal. */}
       {isBridgeRepairOpen && (
