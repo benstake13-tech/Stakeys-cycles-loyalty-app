@@ -10,12 +10,18 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import kotlin.coroutines.Continuation;
+import kotlin.coroutines.intrinsics.IntrinsicsKt;
+import kotlin.ResultKt;
+import android.os.Handler;
+import android.os.Looper;
+import java.util.concurrent.atomic.AtomicBoolean;
 import kotlin.coroutines.CoroutineContext;
 import kotlin.coroutines.EmptyCoroutineContext;
 
 @CapacitorPlugin(name = "NativeOneSignal")
 public class NativeOneSignalPlugin extends Plugin {
     private boolean initialized = false;
+    private String initializedAppId;
 
     @PluginMethod
     public void initialize(PluginCall call) {
@@ -24,9 +30,15 @@ public class NativeOneSignalPlugin extends Plugin {
             call.reject("OneSignal native App ID is missing");
             return;
         }
+        if (initialized) {
+            if (appId.equals(initializedAppId)) call.resolve();
+            else call.reject("Restart the app before changing the push App ID");
+            return;
+        }
         try {
             OneSignal.initWithContext(getContext(), appId);
             initialized = true;
+            initializedAppId = appId;
             call.resolve();
         } catch (Exception e) {
             call.reject("Native OneSignal initialization failed", e);
@@ -77,21 +89,35 @@ public class NativeOneSignalPlugin extends Plugin {
             call.reject("Native OneSignal is not initialized");
             return;
         }
-        OneSignal.getNotifications().requestPermission(true, new Continuation<Boolean>() {
-            @Override
-            public CoroutineContext getContext() {
-                return EmptyCoroutineContext.INSTANCE;
+        Handler handler = new Handler(Looper.getMainLooper());
+        AtomicBoolean settled = new AtomicBoolean(false);
+        Runnable timeout = () -> {
+            if (settled.compareAndSet(false, true)) call.reject("Push permission request timed out. Retry from app settings.");
+        };
+        handler.postDelayed(timeout, 30000);
+        Continuation<Boolean> completion = new Continuation<Boolean>() {
+            @Override public CoroutineContext getContext() { return EmptyCoroutineContext.INSTANCE; }
+            @Override public void resumeWith(Object result) {
+                if (!settled.compareAndSet(false, true)) return;
+                handler.removeCallbacks(timeout);
+                try {
+                    ResultKt.throwOnFailure(result);
+                    JSObject data = new JSObject();
+                    data.put("granted", result instanceof Boolean ? (Boolean) result : OneSignal.getNotifications().getPermission());
+                    call.resolve(data);
+                } catch (Throwable error) {
+                    call.reject("Push permission failed: " + error.getMessage());
+                }
             }
-
-            @Override
-            public void resumeWith(Object result) {
-                JSObject data = new JSObject();
-                // Kotlin suspend functions resume with the unboxed Boolean on success.
-                // On failure, read the current permission state instead.
-                data.put("granted", result instanceof Boolean
-                    ? (Boolean) result
-                    : OneSignal.getNotifications().getPermission());
-                call.resolve(data);
+        };
+        handler.post(() -> {
+            try {
+                Object result = OneSignal.getNotifications().requestPermission(true, completion);
+                // Kotlin suspend functions can complete immediately WITHOUT invoking continuation.
+                if (result != IntrinsicsKt.getCOROUTINE_SUSPENDED()) completion.resumeWith(result);
+            } catch (Throwable error) {
+                handler.removeCallbacks(timeout);
+                if (settled.compareAndSet(false, true)) call.reject("Push permission failed: " + error.getMessage());
             }
         });
     }

@@ -515,11 +515,9 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - **Reusable:** before `sync-branch.sh`, detach the `/tmp/pv/*` worktrees (`git checkout -f <sha>`) or it fails with "cannot checkout <branch>". The script also fails if a preview worktree holds the target branch.
 
 ## Repair & Training Guide workstream (`/workspace/project`, git `master`)
-- Standalone React 18 + Vite + TS app "Stakeys Cycles Workshop Repair & Training Guide", adapted from Sheldon Brown (`sheldonbrown.com`). **30 modules / 85 lessons / 81 glossary terms** (was 16/46), incl. electric + Sheldon deep-dives. Content modules in `src/content/modules/*.ts`; validated by `scripts/check-content.mjs` (runs in `npm run build`).
-- **Expanded (2026-10-12, commit `e873e38`):** nine modules were drafted-but-never-wired; now in `src/content/index.ts` + validated: tyre-sizing (WHEEL-04), wheelbuilding (WHEEL-03), internal-gear-hubs (IGH-01), hub-brakes (BRAKE-02), gearing (GEAR-01), singlespeed (SSG-01), frame-alignment (FRAME-02), dynamos (ELEC-01), safety-security (SAFE-01). README counts refreshed.
+- Standalone React 18 + Vite + TS app "Stakeys Cycles Workshop Repair & Training Guide", adapted from Sheldon Brown (`sheldonbrown.com`). **16 modules / 46 lessons / 46 glossary terms**, incl. 4 electric modules (E-Bike, E-Scooter, Electric Diagnostics & Error Codes, Safety/Battery/UK Law). Content modules in `src/content/modules/*.ts`; validated by `scripts/check-content.mjs` (runs in `npm run build`).
 - **Embedded into the staff terminal** as an iframe: built with `--base=/guide/` into `dist-guide`, then copied to `staff-src/public/guide/`. Rebuild+embed with `npm run build:guide`. Viewed via `StaffRepairGuideTab.tsx` (testids `guide-reload`/`guide-open-new`/`guide-fullscreen`, `[data-staff-view="repair_guide"]`).
 - **Fix (2026-10-11):** `StaffRepairGuideTab` header said "11 modules · 29 lessons" — stale; corrected to "16 modules · 46 lessons". No test depended on the old text.
-- **Re-embed (2026-10-12, `b31e894`):** after the 30/85 expansion, `npm run build:guide` reproduced `public/guide/` (new asset `index-BJp0x4tA.js`, old `index-D85EyurU.js` deleted) and the staff header now reads "30 modules · 85 lessons". Cherry-picked `-x` to staff-terminal `2dd04e9` + main-website `7a240f9`; the embed commit `b31e894` is byte-identical across all three (same blob hashes). All 3 surface previews rebuilt (`preview/{staff,customer,website}`) + `/tmp/stakeys-website` hub refreshed; `/guide/` shows 30 modules/85 lessons live.
 - To visually check the guide: `cd /workspace/project && npm run build && npm run preview` (port 12000) — it is a normal public SPA, no auth.
 
 ## Session (2026-10-12) — Premium graphical overhaul, all 3 surfaces
@@ -568,29 +566,3 @@ Diagnosed by probing live hosts from the sandbox (read-only curl):
 - **LIVE CUSTOMER SIGNUP IS BROKEN (not an app bug):** `POST /auth/v1/signup` on `lhojocpygcnkxvkrcuxh` -> `{"msg":"Error sending confirmation email"}`. Project has `mailer_autoconfirm:false` AND cannot send mail -> new customers can never confirm. Owner must fix in the Supabase dashboard (custom SMTP or disable email confirmation) - needs `service_role`, which the sandbox lacks.
 - **Demo accounts are fake:** LoginScreen advertises Alex/Maya/Liam @ `password123`; `alex.henderson@example.com`/`maya@example.com`/`liam@example.com` all `invalid_credentials` (not in `profiles`/auth). Real-id logins (`chloelawrence897@`, `stakeyscycle95@`) also fail with backfill `Stakeys123!`.
 - **Live bundle crossover:** `www.stakeyswheels.co.uk` (website) and the customer alias `stakeys-cycles-loyalty-app-i34d.vercel.app` served the SAME byte-identical `index-Dc0118Gt.js` - re-check after next deploy.
-
-## Session 20 (2026-10-07) — Sell Your Bike: per-model pricing only
-- Removed the whole brand-price tier (user: "prices per individual bikes and not per brand"). matchOfferEntry = model -> category -> none. OfferCatalogue no longer shows/sets a brand price. StaffOfferPricesTab requires a model on any brand row. Seed book converted to per-model rows. 4 affected test files 56/56; full suite 1333 (only a pre-existing BLE timing flake fails). Heads: customer-app 30eb666 / staff-terminal 89b4442 / main-website a5f0ddd (blob-identical).
-- Preview hub (/tmp/stakeys-website, ports 12000/12001) was wiped by an env reset; rebuilt from worktrees + guide dist and rewrote the hub landing page. All 7 links 200, 3 distinct bundles.
-
-## Session 19 (2026-10-12d) — Native customer sign-in fix (durable)
-- Symptom "customers cannot sign in to the native Android app" is NOT a Capacitor bug: live Supabase project lhojocpygcnkxvkrcuxh has mailer_autoconfirm:false + dead SMTP, so signup 500s "Error sending confirmation email" and no member password login succeeds. Confirmed via GET /auth/v1/settings with the anon key.
-- App-side fixes (all three branches): src/utils/authErrors.ts describeAuthFailure (stop collapsing every failure to "Invalid email or password"); forgot-password UI + /reset-password screen + completePasswordReset (updateUser); removed fake Alex/Maya/Liam password123 hint; cold-start session restore (was only hydrating on an AUTH_LINK_ON_LOAD confirmation link -> returning customer bounced to login); Android deep-link intent-filters.
-- Durable server repair: api/auth/[action].js (_shared.js) = public GET /api/auth/health snapshot + admin-gated POST /api/auth/provision-member (service-role, reuses profile uuid so profiles.id === auth.users.id). Client src/utils/authHealth.ts. Staff Test Bench -> "Member Sign-In Repair" panel (data-testid="auth-repair-panel").
-- Env: server needs SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_SERVICE_KEY / SERVICE_ROLE_KEY) + ADMIN_EMAILS (or VITE_ADMIN_EMAILS) for the admin gate. api/ now 9 counted functions (Hobby limit 12).
-- Heads: customer-app f2d9acf / staff-terminal 74971d6 / main-website 041f211 (local, NOT pushed). Full suite 158 files / 1359 pass.
-- APK rebuild needs a fresh Android toolchain: apt openjdk-21-jdk-headless + cmdline-tools to /opt/android-sdk; run sudo chown -R $(id -u):$(id -g) /opt/android-sdk BEFORE sdkmanager or it silently installs nothing. build-apps.sh --only customer|staff; run detached (setsid nohup ... </dev/null) or the shell SIGTSTPs it. Both APKs 9.00 MB; previews rebuilt with /previews/<s>/ base + guide recopied; hub /tmp/stakeys-website refreshed (12000/12001).
-
-## Session 20 (2026-10-12e) — native sign-in still failing: it is a DEPLOY + DB problem
-- Root cause split three ways: (1) the auth fix commits are **unpushed/undeployed** — `/api/auth/health`
-  irls 404 on all live domains though other /api functions 200; (2) the Supabase project still has
-  `mailer_autoconfirm:false` + dead SMTP (signup 500, member logins `invalid_credentials`); (3) no
-  service-role/admin cred in the sandbox, and repair RPCs are correctly anon-denied (42501).
-- Ionic key insight: existing members cannot sign in until a **service-role password reset** (or mass
-  reset); `mailer_autoconfirm=true` only unblocks signup, not existing passwords. `profiles` being
-  anon-readable exposes emails/member numbers — flag to owner.
-- `fetchAuthHealth` now falls back to Supabase's public `/auth/v1/settings` (baked anon key) when
-  `/api/auth/health` is absent, so the "service misconfigured" diagnosis survives a static-only deploy.
-  Commit 58e470e on all three branches; new authHealth.test.ts; 32/32 auth tests; APK 9.85 MB rebuilt.
-- 2026-10-12f: service-role repair CLI ready (`scripts/repair-member-logins.mjs`); owner registered `SUPABASE_SERVICE_ROLE_KEY` but it needs a NEW conversation to inject. Deploy still pending. Live auth still `mailer_autoconfirm:false` + member `invalid_credentials`.
-- 2026-10-12g: **SECURITY** — real Gemini key baked into committed guide asset + served APKs by Vite inlining `.env`. Purged via `git filter-repo --partial ... --refs origin/b..b`; rebuild APKs/previews with `VITE_GEMINI_API_KEY=''`. KEY MUST BE ROTATED. Vercel did not auto-deploy the new SHAs.

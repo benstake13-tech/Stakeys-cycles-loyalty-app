@@ -5,15 +5,36 @@
  */
 export type WebsitePageId =
   | 'home'
+  /* Primary destinations */
+  | 'shop'
+  | 'repairs'
+  | 'sell'
+  | 'offers'
+  /* "More" destinations */
+  | 'faqs'
+  | 'visit'
+  | 'join'
+  /* Legacy ids kept so any stored/deep-linked page values still resolve. */
   | 'location'
   | 'weather'
-  | 'faqs'
   | 'gallery'
-  | 'priceList'
-  | 'shop'
-  | 'offers'
-  | 'sell'
-  | 'join';
+  | 'priceList';
+
+/** Top-level navigation entries. A group holds a submenu (e.g. Shop ▸). */
+export interface SiteNavLink {
+  id: WebsitePageId;
+  label: string;
+  /** Optional plain-language hint shown in the mega-menu. */
+  hint?: string;
+}
+export interface SiteNavGroup {
+  id: string;
+  label: string;
+  icon: string;
+  /** Standalone destination — clicking the group goes straight there. */
+  page?: WebsitePageId;
+  children?: SiteNavLink[];
+}
 
 export type WebFaqSection = 'repairs' | 'parts' | 'general';
 

@@ -33,7 +33,6 @@ import { PremiumBackdrop } from './components/PremiumBackdrop';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
-import { SeasonalDecor } from './components/SeasonalDecor';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
@@ -135,9 +134,9 @@ function AppContent() {
         tags.owner_email = ADMIN_NOTIFICATION_EMAIL;
         void registerEmailSubscription(ADMIN_NOTIFICATION_EMAIL);
       }
-      void linkUser(currentUser.uid, tags);
+      void linkUser(currentUser.uid, tags).catch(error => console.warn('[Push] Identity link failed', error));
     } else {
-      void unlinkUser();
+      void unlinkUser().catch(error => console.warn('[Push] Logout failed', error));
     }
   }, [currentUser?.uid, currentUser?.role]);
 
@@ -707,7 +706,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col">
         {/* Graphical swinging celebration banner for the active seasonal theme,
             on every surface and every screen (website, login, staff, customer). */}
-        <SeasonalDecor />
+
         <div className="flex-1 flex flex-col min-h-0">
           <AppContent />
         </div>

@@ -36,8 +36,8 @@ vi.mock('./src/components/LoginScreen', () => ({ LoginScreen: () => <div data-te
 vi.mock('react-hot-toast', () => ({ Toaster: () => null }));
 vi.mock('./src/utils/pushNotifications', () => ({
   initOneSignal: vi.fn(),
-  linkUser: vi.fn(),
-  unlinkUser: vi.fn(),
+  linkUser: vi.fn(async () => {}),
+  unlinkUser: vi.fn(async () => {}),
   registerEmailSubscription: vi.fn(),
   ADMIN_NOTIFICATION_EMAIL: 'a@b.c',
 }));

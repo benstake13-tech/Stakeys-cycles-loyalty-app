@@ -67,7 +67,7 @@ export const ShopAssistant: React.FC<ShopAssistantProps> = ({ surface }) => {
       setMessages([...next, { role: 'assistant', text: reply }]);
     } catch (err) {
       console.warn('[ASSISTANT] reply failed:', err);
-      setMessages([...next, { role: 'assistant', text: config.fallback }]);
+      setMessages([...next, { role: 'assistant', text: `The assistant is temporarily unavailable. ${config.fallback}` }]);
     } finally {
       setThinking(false);
     }

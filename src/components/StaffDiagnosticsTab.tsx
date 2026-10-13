@@ -505,20 +505,17 @@ export const StaffDiagnosticsTab: React.FC = () => {
           kind: 'err',
           text:
             perm === 'not_configured'
-              ? 'OneSignal App ID is missing — set it below and reload.'
+              ? 'Push App ID is missing. Android requires VITE_ONESIGNAL_ANDROID_APP_ID or the server Android App ID.'
+              : perm === 'timeout' ? 'Push setup timed out. Check your connection, close any permission prompt, then retry.'
               : 'Notifications are blocked. Allow them in your browser/phone settings, then retry.',
         });
         return;
       }
-      await optInPushSubscription();
-      const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: true });
-      setPushSteps(steps);
-      const sub = steps.find((s) => s.id === 'subscription');
-      flash(
-        sub && sub.status !== 'warn'
-          ? { kind: 'ok', text: 'This device is now subscribed — run the test dispatch to confirm.' }
-          : { kind: 'err', text: 'Permission granted, but the device has not registered yet. Re-run in a few seconds.' }
-      );
+      const subscriptionId = await optInPushSubscription();
+      flash(subscriptionId
+        ? { kind: 'ok', text: 'Device registered. Use Test Push to check delivery.' }
+        : { kind: 'err', text: 'Permission allowed. Device registration is still pending — check your connection and try again.' });
+
     } catch (e: any) {
       flash({ kind: 'err', text: e?.message || 'Could not enable push on this device.' });
     } finally {

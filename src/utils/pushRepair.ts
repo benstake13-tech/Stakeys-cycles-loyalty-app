@@ -1,3 +1,4 @@
+import { withPushTimeout } from './pushTimeout';
 /**
  * OneSignal push repair — the logic behind the Feature Test Bench's
  * "Repair Push Notifications" section.
@@ -71,7 +72,7 @@ const DEFAULT_REST_KEY_NAMES = [
 
 async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
-    return await fn();
+    return await withPushTimeout(fn(), 30000);
   } catch {
     return fallback;
   }
@@ -161,7 +162,7 @@ export async function runPushRepair(
   let restKeyNames: string[] = [];
   let cfgError: string | null = null;
   try {
-    const cfg = await deps.getServerConfig();
+    const cfg = await withPushTimeout(deps.getServerConfig());
     serverPush = Boolean(cfg.serverPush);
     serverAppId = cfg.appId;
     restKeyEnv = cfg.restKeyEnv ?? null;

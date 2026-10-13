@@ -481,7 +481,7 @@ interface ShopContextType {
   playStaffBookingAlertPing: () => void;
   workshopAudioVolume: WorkshopAudioVolume;
   cycleWorkshopAudioVolume: () => WorkshopAudioVolume;
-  requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported' | 'not_configured'>;
+  requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported' | 'not_configured' | 'timeout'>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -1468,12 +1468,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const requestPushNotificationPermission = async () => {
     const perm = await requestPushPermission();
     if (perm === 'granted') {
-      toast.success('✅ Push notifications enabled — booking alerts will reach this device!', { icon: '🔔' });
-      staffBookingAudio.dispatchPushNotification('Stakey’s Cycles Workshop', 'Push notifications are now active!');
+      toast.success('Notification permission allowed. Device registration and delivery can be checked in Push Diagnostics.', { icon: '🔔' });
+
     } else if (perm === 'denied') {
       toast.error('Push notification permission was denied in your browser settings.');
     } else if (perm === 'not_configured') {
-      toast.error('OneSignal is not configured yet. Add VITE_ONESIGNAL_APP_ID to enable push.');
+      toast.error('Push is not configured. Android needs an Android OneSignal App ID; web needs a Web Push App ID.');
+    } else if (perm === 'timeout') {
+      toast.error('Push setup timed out. Check your connection and retry.');
+    } else {
+      toast.error('Push is unavailable or permission is still pending on this device.');
     }
     return perm;
   };

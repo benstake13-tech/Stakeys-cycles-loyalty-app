@@ -33,6 +33,7 @@ import {
   type FinancialExportMeta,
 } from '../utils/financialExport';
 import { StakeysLogo } from './StakeysLogo';
+import { TaxAccountsPanel } from './TaxAccountsPanel';
 import {
   deleteCounterSaleFromDb,
   deleteOrderFromDb,
@@ -306,6 +307,7 @@ export const FinancialReportingTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <TaxAccountsPanel incomeGross={totals.gross} startDate={startDate} endDate={endDate} />
       {/* Print-only branded letterhead. Screen chrome (filters, buttons) is
           dropped by the `no-print` rule; this is the reverse. */}
       <div className="print-only hidden">

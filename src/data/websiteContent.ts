@@ -159,8 +159,8 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContent = {
     howWeWorkTitle: 'How we work',
     howWeWorkSteps: [
       { title: 'Tell us the problem', body: 'Book online or call. Describe the symptoms and we quote the call-out up front.' },
-      { title: 'We come to you', body: 'We arrive with the tools and common parts to diagnose on the spot at your home or work.' },
       { title: 'You approve the price', body: 'You see a clear, itemised estimate before we touch a bolt. No surprises, ever.' },
+      { title: 'We come to you', body: 'Once you approve, we arrive with the tools and common parts to diagnose on the spot at your home or work.' },
       { title: 'Fixed, tested, tracked', body: 'We service, safety-check and road-test, and you follow the whole job live in the app.' },
     ],
     qualityClaim:

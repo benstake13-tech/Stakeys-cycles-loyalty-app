@@ -20,7 +20,7 @@ import type {
 
 type BleClientLike = {
   initialize(options?: { androidNeverForLocation?: boolean }): Promise<void>;
-  requestDevice(options?: { optionalServices?: string[] }): Promise<{ deviceId: string; name?: string }>;
+  requestDevice(options?: { optionalServices?: string[]; namePrefix?: string }): Promise<{ deviceId: string; name?: string }>;
   connect(deviceId: string, onDisconnect?: (deviceId: string) => void): Promise<void>;
   disconnect(deviceId: string): Promise<void>;
   startNotifications(
@@ -107,7 +107,7 @@ class CapacitorDevice implements BleDeviceLike {
     this.gatt = {
       connected: false,
       connect: async () => {
-        await this.ble.connect(this.deviceId, () => this.disconnectListeners.forEach((l) => l()));
+        await this.ble.connect(this.deviceId, () => (this.gatt!.connected = false, this.disconnectListeners.forEach((l) => l())));
         this.gatt!.connected = true;
         return new CapacitorServer(this.ble, this.deviceId);
       },
@@ -128,9 +128,11 @@ export class CapacitorBluetoothHost implements BluetoothHost {
 
   async requestDevice(options: {
     acceptAllDevices?: boolean;
-    filters?: Array<{ services?: string[] }>;
+    filters?: Array<{ services?: string[]; namePrefix?: string }>;
     optionalServices?: string[];
   }): Promise<BleDeviceLike> {
+    // Android's native chooser supports one name prefix at a time; the strict
+    // scooter identity check in ScooterBleSession rejects unrelated selections.
     const device = await this.ble.requestDevice({ optionalServices: options.optionalServices });
     return new CapacitorDevice(this.ble, device.deviceId, device.name);
   }

@@ -36,6 +36,22 @@ export const SELL_ANGLES: { id: string; label: string; hint: string }[] = [
 interface Props {
   /** Tighter spacing for the embedded website page. */
   compact?: boolean;
+  /**
+   * Seed the form from a bike the customer already has in their garage, so
+   * "Sell this bike" pre-fills the brand/model/condition instead of making them
+   * type it again.
+   */
+  prefill?: SellBikePrefill | null;
+}
+
+export interface SellBikePrefill {
+  /** Garage bike id, used to detect a change of target. */
+  id?: string;
+  brand?: string;
+  model?: string;
+  year?: string | number;
+  category?: string;
+  colour?: string;
 }
 
 type SpecRow = { label: string; value: string };
@@ -131,7 +147,7 @@ function buildSpecSections(r: any): SpecSection[] {
  * from the workshop's price book. The lead lands in the staff inbox with every
  * photo and the AI read attached.
  */
-export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
+export const SellYourBikeForm: React.FC<Props> = ({ compact = false, prefill = null }) => {
   // Pull the workshop's latest price book when the customer opens the form, so a
   // price staff just set in the terminal is used here even if this device already
   // cached an older copy.
@@ -153,6 +169,22 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [declaredCondition, setDeclaredCondition] = useState<'excellent' | 'good' | 'fair' | 'poor' | ''>('');
+  const [prefillActive, setPrefillActive] = useState(false);
+
+  // Seed from a garage bike the first time the customer taps "Sell this bike",
+  // and re-seed whenever they switch to a different bike.
+  useEffect(() => {
+    if (!prefill) return;
+    setBrand(prefill.brand?.trim() || '');
+    setModel(prefill.model?.trim() || '');
+    setNotes((prev) => {
+      const seed = [prefill.colour && `Colour: ${prefill.colour}`, prefill.year && `Year: ${prefill.year}`]
+        .filter(Boolean)
+        .join('. ');
+      return prev.trim() ? prev : seed;
+    });
+    setPrefillActive(true);
+  }, [prefill?.id]);
 
   const configured = isBikeVisionConfigured();
   const capturedCount = SELL_ANGLES.filter((a) => photos[a.id]).length;
@@ -247,8 +279,8 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
       customerPhone: currentUser?.phoneNumber,
       brand: brand.trim(),
       model: model.trim(),
-      year: result?.year || undefined,
-      category: result?.type || 'cycle',
+      year: result?.year || (prefill?.year != null ? String(prefill.year) : undefined),
+      category: result?.type || prefill?.category || 'cycle',
       condition: declaredCondition || valuation?.condition || 'good',
       notes: notes.trim() || undefined,
       photoUrl: orderedPhotos[0]?.dataUrl,
@@ -304,10 +336,22 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false }) => {
         </p>
       </div>
 
+      {prefillActive && prefill && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/30 px-3 py-2.5 text-xs text-emerald-200" data-testid="sell-prefill-banner">
+          <Bike className="h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            Selling your <strong className="font-semibold">{`${prefill.brand ?? ''} ${prefill.model ?? ''}`.trim() || 'garage bike'}</strong> — details filled in below. Add photos for an instant offer.
+          </span>
+          <button type="button" onClick={() => setPrefillActive(false)} aria-label="Dismiss" className="shrink-0 hover:bg-white/10 rounded p-0.5">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {!configured && (
         <div className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/40 px-3 py-2.5 text-xs text-amber-200">
           <CircleAlert className="h-4 w-4 shrink-0" />
-          <span>AI photo identification isn’t configured on this build. Add a VITE_GEMINI_API_KEY to enable instant offers.</span>
+          <span>AI photo identification isn’t configured on this build. Configure the Gemini gateway in Supabase to enable instant offers.</span>
         </div>
       )}
 

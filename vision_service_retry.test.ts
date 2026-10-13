@@ -14,6 +14,11 @@ vi.mock('@google/genai', () => ({
   Type: { OBJECT: 'OBJECT', STRING: 'STRING', NUMBER: 'NUMBER', BOOLEAN: 'BOOLEAN', ARRAY: 'ARRAY' },
 }));
 
+vi.mock('./src/api/geminiGateway', () => ({
+  isGeminiGatewayConfigured: () => true,
+  generateGemini: (request: unknown) => generateContent(request),
+}));
+
 vi.mock('./src/api/geminiModel', () => ({ resolveGeminiModel: () => 'gemini-flash-latest' }));
 
 const OVERLOAD = new Error(

@@ -15,6 +15,7 @@ function onesignalConfig(_req, res) {
   const { key, source } = resolveRestKey();
   return res.status(200).json({
     appId,
+    androidAppId: process.env.ONESIGNAL_ANDROID_APP_ID || process.env.VITE_ONESIGNAL_ANDROID_APP_ID || null,
     serverPush: Boolean(appId && key),
     restKeyEnv: source,
     restKeyEnvNames: REST_KEY_ENV_NAMES,
