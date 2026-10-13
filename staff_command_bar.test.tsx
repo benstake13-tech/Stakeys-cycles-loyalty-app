@@ -77,13 +77,13 @@ beforeEach(() => {
 });
 
 describe('staff command bar', () => {
-  it('renders brand, operator badge and live status chips', () => {
+  it('renders brand, operator badge and station status chips', () => {
     render(<StaffPortal />);
     const bar = screen.getByTestId('staff-command-bar');
     expect(bar).toBeTruthy();
     expect(screen.getByText(/CYCLES/i)).toBeTruthy();
     expect(screen.getByText('Sam Staff')).toBeTruthy();
-    expect(screen.getByText('LIVE')).toBeTruthy();
+    expect(screen.getByText('STATION')).toBeTruthy();
     expect(screen.getByLabelText('Search staff tools')).toBeTruthy();
   });
 
