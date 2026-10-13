@@ -6,6 +6,9 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.onesignal.OneSignal;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 @CapacitorPlugin(name = "NativeOneSignal")
 public class NativeOneSignalPlugin extends Plugin {
@@ -35,6 +38,27 @@ public class NativeOneSignalPlugin extends Plugin {
             return;
         }
         OneSignal.login(externalId);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void addTags(PluginCall call) {
+        if (!initialized) {
+            call.reject("Native OneSignal is not initialized");
+            return;
+        }
+        JSObject tags = call.getObject("tags");
+        if (tags == null) {
+            call.reject("Missing OneSignal tags");
+            return;
+        }
+        Map<String, String> values = new HashMap<>();
+        Iterator<String> keys = tags.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            values.put(key, tags.optString(key, ""));
+        }
+        OneSignal.getUser().addTags(values);
         call.resolve();
     }
 
