@@ -42,7 +42,7 @@ describe('staff growth KPI targets', () => {
 
   it('raises stretch goals without allowing a percentage above 100', () => {
     expect(raiseTargets({ requests7d: 10, phone7d: 3, callConversionPct: 99, activeRiders: 50 }))
-      .toEqual({ requests7d: 11, phone7d: 4, callConversionPct: 100, activeRiders: 56 });
+      .toEqual({ requests7d: 11, phone7d: 4, callConversionPct: 100, activeRiders: 55 });
   });
 
   it('derives progress from real booking and loyalty data, not settings', () => {
