@@ -39,7 +39,7 @@ Deno.serve(async req => {
   }, 409);
   if (!months?.length) return reply({ error: 'No business activity recorded yet. Add real completed sales, repairs and free services before generating advice.' }, 409);
   const current = months[0];
-  const activity = Object.values(current).some(v => typeof v === 'number' && v > 0);
+  const activity = ['revenue_gbp','repair_jobs','free_services','people_helped'].some(k => num(current[k]) > 0);
   if (!activity) return reply({ error: 'No recorded activity yet. Recommendations require actual data.' }, 409);
 
   const prompt = [
