@@ -81,7 +81,7 @@ describe('staff command bar', () => {
     render(<StaffPortal />);
     const bar = screen.getByTestId('staff-command-bar');
     expect(bar).toBeTruthy();
-    expect(screen.getByText(/CYCLES/i)).toBeTruthy();
+    expect(bar.textContent).toMatch(/CYCLES/i);
     expect(screen.getByText('Sam Staff')).toBeTruthy();
     expect(screen.getByText('STATION')).toBeTruthy();
     expect(screen.getByLabelText('Search staff tools')).toBeTruthy();
