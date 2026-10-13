@@ -258,3 +258,5 @@ jobs:
 # Rebuild Staff Terminal with five reorganized premium workspaces.
 
 # Rebuild native OneSignal APKs after Android App ID variables were configured.
+
+# Rebuild staff APK after scooterProtocols.ts TypeScript syntax repair.
