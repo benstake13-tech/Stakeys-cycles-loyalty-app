@@ -402,7 +402,7 @@ function AppContent() {
 
       {/* Page content sits above the seasonal canvas (z-0) so the characters
           ride across the background of every screen, behind the UI. */}
-      <div className="relative z-10 min-h-screen flex flex-col">
+      <div className={`relative z-10 min-h-screen flex flex-col ${APP_SURFACE === 'customer' ? 'stakeys-customer-shell' : ''}`}>
       {/* Ambient premium backdrop for every surface (website, customer, staff). */}
       <PremiumBackdrop />
       {/* Broadcast Winner Announcement to Everybody */}

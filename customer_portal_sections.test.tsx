@@ -82,3 +82,17 @@ describe('CustomerPortal new sections', () => {
     expect(screen.getByTestId('tradein-form')).toBeTruthy();
   });
 });
+
+
+describe('customer companion navigation', () => {
+  it('keeps booking reachable through the bottom bar and returns to the garage', () => {
+    render(<CustomerPortal />);
+    const nav=screen.getByRole('navigation', {name:'Customer primary navigation'});
+    fireEvent.click(within(nav).getByRole('button', {name:'Book'}));
+    expect(within(nav).getByRole('button', {name:'Book'}).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByText('My Registered Bikes & Rides')).toBeNull();
+    fireEvent.click(within(nav).getByRole('button', {name:'Home'}));
+    expect(screen.getByText('My Registered Bikes & Rides')).toBeTruthy();
+    expect(within(nav).getByRole('button', {name:'Home'}).getAttribute('aria-current')).toBe('page');
+  });
+});
