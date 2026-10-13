@@ -72,24 +72,21 @@ export const CommandBar: React.FC<CommandBarProps> = ({
   return (
     <section
       data-testid="staff-command-bar"
-      className="surface-panel relative overflow-hidden p-4 sm:p-5"
+      className="staff-command-bar relative overflow-hidden rounded-[18px] p-4 sm:p-5"
     >
-      <span className="hero-sheen" aria-hidden="true" />
-
       <div className="relative z-10 flex flex-col gap-4">
         {/* Row 1 — identity + live readouts */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/25 to-emerald-500/[0.04] shadow-[0_0_22px_-4px_rgba(5,193,71,0.55)]">
-              <span className="font-display text-lg font-black text-emerald-300">S</span>
-              <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-[#0b0e13] bg-emerald-400" />
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center text-[#00FF66]">
+              <Command className="h-7 w-7" strokeWidth={1.55} aria-hidden="true" />
             </div>
             <div className="min-w-0">
               <h1 className="font-display text-lg sm:text-xl font-extrabold tracking-tight text-white leading-none">
-                STAKEY&apos;S <span className="text-gradient-emerald">CYCLES</span>
+                STAKEY&apos;S <span className="text-[#00FF66]">CYCLES</span>
               </h1>
               <p className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-neutral-500">
-                <Command className="h-3 w-3 text-emerald-400" />
+                <Command className="h-3 w-3 text-[#00FF66]" />
                 Command Station
                 <span aria-hidden="true" className="text-neutral-700">·</span>
                 Workshop Terminal
@@ -100,7 +97,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
           <div className="flex flex-wrap items-center gap-2">
             <span className="chip text-emerald-300">
               <span className="live-dot" />
-              LIVE
+              STATION
             </span>
             <span className="chip font-mono tabular-nums" title={fmtDay(now)}>
               {fmtClock(now)}
@@ -131,7 +128,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
               }}
               placeholder="Search tools — till, bookings, members, repair guide…"
               aria-label="Search staff tools"
-              className="w-full rounded-xl border border-white/10 bg-black/30 py-2.5 pl-10 pr-16 text-sm text-white placeholder:text-neutral-500 outline-none transition-colors focus:border-emerald-500/50 focus:bg-black/40"
+              className="w-full rounded-xl border border-white/10 bg-[#0d1310]/70 py-2.5 pl-10 pr-16 text-sm text-white placeholder:text-neutral-500 outline-none transition-colors focus:border-[#00FF66]/60"
             />
             <kbd className="pointer-events-none absolute right-3 hidden select-none items-center gap-0.5 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400 sm:flex">
               ⌘K
@@ -170,7 +167,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({
             {activeJobs} active job{activeJobs === 1 ? '' : 's'}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className={`h-1.5 w-1.5 rounded-full ${freshCount > 0 ? 'bg-amber-400' : 'bg-neutral-600'}`} />
+            <span className={`h-1.5 w-1.5 rounded-full ${freshCount > 0 ? 'bg-[#00FF66]' : 'bg-neutral-600'}`} />
             {freshCount} fresh request{freshCount === 1 ? '' : 's'}
           </span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-neutral-500">
