@@ -579,6 +579,18 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const filterActive = toolFilter.trim().length > 0;
   const activeTile = [...operationTiles, ...adminTiles].find((t) => t.id === staffTab);
 
+  // Only display real counts. BLE Scan describes an available tool, not an
+  // active connection; the BLE Bench owns its live connection indicator.
+  const statusForTile = (tile: StaffTile): string | null => {
+    if (tile.id === 'ble_bench') return 'BLE Scan';
+    if (tile.id === 'bookings') return `${freshBookings.length} Alert${freshBookings.length === 1 ? '' : 's'}`;
+    if (tile.id === 'customers') return `${customerList.length} Members`;
+    if (tile.id === 'staff_roster') return `${staffMembers.length} Staff`;
+    if (tile.id === 'promotions') return `${promotions.length} Offers`;
+    if (tile.id === 'reviews') return `${reviews.length} Reviews`;
+    return typeof tile.badge === 'number' && tile.badge > 0 ? String(tile.badge) : null;
+  };
+
   /** Headline KPIs shown on the metric rail; each opens its tool. */
   const metricItems: MetricItem[] = [
     {
@@ -705,26 +717,24 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* 1. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
       {freshBookings.length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
-          <span className="hero-sheen" aria-hidden="true" />
+        <div className="staff-booking-alert relative overflow-hidden rounded-[18px] p-5 sm:p-6 text-white">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-400 text-neutral-950 flex items-center justify-center font-black shadow-lg shadow-amber-400/50 shrink-0 animate-bounce">
-                <Bell className="w-6 h-6 text-neutral-950" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center text-[#00FF66]">
+                <Bell className="w-6 h-6" strokeWidth={1.7} />
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-neutral-950 tracking-wider uppercase shadow-sm flex items-center gap-1.5 border border-amber-300">
-                    <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                  <span className="staff-workspace-badge font-mono uppercase tracking-wider">
                     NEW BOOKING ALERT
                   </span>
-                  <span className="font-mono text-xs font-bold text-amber-300">
+                  <span className="font-mono text-xs font-bold text-[#00FF66]">
                     ⚡ {freshBookings.length} Fresh Request{freshBookings.length > 1 ? 's' : ''} Awaiting Bench Capacity Review
                   </span>
                 </div>
                 {latestFresh && (
                   <p className="text-xs sm:text-sm font-semibold text-white mt-1.5">
-                    Latest Request: <strong className="text-amber-300 font-extrabold">{latestFresh.customerName}</strong> (<span className="text-neutral-200">{latestFresh.vehicleModel}</span> • <span className="text-emerald-400 font-bold">{latestFresh.serviceTitle}</span>) scheduled for <strong className="text-white font-mono">{latestFresh.preferredDate}</strong> ({latestFresh.preferredTimeSlot})
+                    Latest Request: <strong className="text-[#00FF66] font-extrabold">{latestFresh.customerName}</strong> (<span className="text-neutral-200">{latestFresh.vehicleModel}</span> • <span className="text-emerald-400 font-bold">{latestFresh.serviceTitle}</span>) scheduled for <strong className="text-white font-mono">{latestFresh.preferredDate}</strong> ({latestFresh.preferredTimeSlot})
                   </p>
                 )}
               </div>
@@ -734,9 +744,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
               <button
                 type="button"
                 onClick={() => openStaffTab('bookings')}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-400/40 flex items-center justify-center gap-2 cursor-pointer border border-amber-300 hover:scale-[1.02]"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#00FF66] hover:bg-[#4dff96] text-[#07100b] font-black text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer border border-[#00FF66]"
               >
-                <Wrench className="w-4 h-4 text-neutral-950" />
+                <Wrench className="w-4 h-4 text-[#07100b]" />
                 <span>Review {freshBookings.length} Fresh Booking{freshBookings.length > 1 ? 's' : ''}</span>
               </button>
             </div>
@@ -764,18 +774,21 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           return (
             <section key={group.title} className="staff-workspace-group" aria-label={group.title}>
               <header className="staff-workspace-heading">
-                <span className="staff-workspace-heading-icon"><group.icon size={18} /></span>
+                <span className="staff-workspace-heading-icon"><group.icon size={20} strokeWidth={1.65} /></span>
                 <span><strong>{group.title}</strong><small>{group.subtitle}</small></span>
                 <span className="staff-workspace-count">{entries.length} tools</span>
               </header>
               <div className="staff-workspace-entries">
                 {entries.map((t) => (
                   <button key={t.id} type="button" data-testid={`staff-tile-${t.id}`}
-                    className="staff-workspace-entry" onClick={() => openStaffTab(t.id)}>
-                    <span className="staff-workspace-entry-icon"><t.icon size={20} /></span>
+                    className="staff-workspace-entry" onClick={() => openStaffTab(t.id)}
+                    aria-label={`${t.label}: ${t.hint}`}>
+                    <span className="staff-workspace-entry-top">
+                      <span className="staff-workspace-entry-icon"><t.icon size={23} strokeWidth={1.65} aria-hidden="true" /></span>
+                      {statusForTile(t) !== null && <span className="staff-workspace-badge">{statusForTile(t)}</span>}
+                    </span>
                     <span className="staff-workspace-entry-copy"><strong>{t.label}</strong><small>{t.hint}</small></span>
-                    {typeof t.badge === 'number' && t.badge > 0 && <span className="staff-workspace-badge">{t.badge}</span>}
-                    <ArrowRight size={17} className="staff-workspace-arrow" />
+                    <ArrowRight size={16} strokeWidth={1.65} className="staff-workspace-arrow" aria-hidden="true" />
                   </button>
                 ))}
               </div>
@@ -810,8 +823,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </button>
           {activeTile && (
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
-                <activeTile.icon className="h-4 w-4 text-emerald-400" />
+              <span className="flex h-8 w-8 items-center justify-center text-[#00FF66]">
+                <activeTile.icon className="h-5 w-5" strokeWidth={1.65} />
               </span>
               <div className="min-w-0">
                 <div className="truncate font-display text-sm font-bold leading-tight text-white">
