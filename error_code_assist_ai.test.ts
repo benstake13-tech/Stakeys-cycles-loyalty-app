@@ -15,6 +15,11 @@ vi.mock('@google/genai', () => ({
   }),
 }));
 
+vi.mock('./src/api/geminiGateway', () => ({
+  isGeminiGatewayConfigured: () => Boolean(import.meta.env.VITE_GEMINI_API_KEY),
+  generateGemini: (request: unknown) => generateContent(request),
+}));
+
 vi.mock('./src/api/geminiModel', () => ({
   resolveGeminiModel: () => 'gemini-flash-lite-latest',
   noThinking: () => ({}),
