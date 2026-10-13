@@ -1,3 +1,4 @@
+import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
 /**
  * Shop assistant chat service.
  *
@@ -6,7 +7,6 @@
  * the staff-managed assistant config, so staff control what it says without a
  * code change.
  */
-import { GoogleGenAI } from '@google/genai';
 import { AssistantConfig, DEFAULT_ASSISTANT_CONFIG } from '../config/assistantConfig';
 import { resolveGeminiModel, noThinking } from './geminiModel';
 
@@ -22,8 +22,7 @@ export interface AssistantContext {
   surface?: 'website' | 'customer';
 }
 
-const getApiKey = (): string =>
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || '';
+const getApiKey = () => isGeminiGatewayConfigured() ? 'server-side' : '';
 
 export const isAssistantConfigured = (): boolean => Boolean(getApiKey());
 
@@ -59,7 +58,7 @@ export async function askAssistant(
     return config.fallback;
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = { models: { generateContent: generateGemini } };
   const model = resolveGeminiModel();
   const response = await ai.models.generateContent({
     model,
