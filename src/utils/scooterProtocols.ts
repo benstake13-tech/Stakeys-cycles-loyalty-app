@@ -559,17 +559,6 @@ export class ScooterBleSession {
     return driver.family;
   }
 
-  private resolveVersion
-    notifyChar.addEventListener('characteristicvaluechanged', (event) => {
-      const reading = this.driver.parseVersionResponse?.(event.target.value) ?? null;
-      if (reading) this.resolveVersion(reading);
-      const parsed = this.driver.parseNotification(event.target.value);
-      this.callbacks.onTelemetry(parsed);
-    });
-
-    return driver.family;
-  }
-
   private resolveVersion(reading: VersionReading): void {
     const idx = this.versionWaiters.findIndex((w) => w.target === reading.target);
     if (idx === -1) return;
