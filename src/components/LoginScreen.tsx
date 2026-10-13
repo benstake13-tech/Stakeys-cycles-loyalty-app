@@ -213,7 +213,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
 
   // Resend the confirmation email for the address typed in the register form
   const handleResendConfirmation = async () => {
-    const email = registerEmail.trim();
+    const email = (mode === 'register' ? registerEmail : signInIdentifier).trim();
+    setError(null);
+    setNotice(null);
     if (!email.includes('@')) {
       setError('Enter the email address you registered with first.');
       return;
@@ -660,6 +662,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
                 )}
               </div>
             </form>
+          )}
+
+          {mode === 'signin' && audience !== 'staff' && (
+            <div className="text-center text-xs text-neutral-400 mt-3">
+              Need another account verification email?{' '}
+              <button type="button" disabled={resending} onClick={handleResendConfirmation}
+                className="text-emerald-400 underline font-semibold disabled:opacity-50">
+                {resending ? 'Sending…' : 'Resend registration email'}
+              </button>
+            </div>
           )}
 
           {/* 3. CREATE ACCOUNT (SIGN UP) FORM */}
