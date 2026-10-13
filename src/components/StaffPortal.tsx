@@ -104,6 +104,7 @@ import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
 import { CommandBar } from './staff/CommandBar';
 import { MetricRail } from './staff/MetricRail';
+import { GrowthTargets } from './staff/GrowthTargets';
 import type { MetricItem } from './staff/MetricRail';
 
 interface StaffPortalProps {
@@ -755,7 +756,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       )}
 
       {/* 2. METRIC RAIL — headline KPIs, each a shortcut into its tool */}
-      {showTools && <MetricRail items={metricItems} />}
+      {showTools && (
+        <>
+          <MetricRail items={metricItems} />
+          <GrowthTargets />
+        </>
+      )}
 
       {/* 3. WORKSTATION LAUNCHER: grouped tiles, one per tool, keyboard-navigable */}
       <RideTransition state={ride.state}>
