@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { StakeysLogo } from './StakeysLogo';
 import confetti from 'canvas-confetti';
 import {
   Search,
@@ -690,8 +691,19 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   );
 
   return (
-    <div className="relative font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="stakeys-premium-staff relative font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="relative z-10 space-y-5">
+      <header className="stakeys-brand-header" aria-label="Stakeys Cycles staff workspace">
+        <div className="stakeys-brand-identity">
+          <StakeysLogo className="w-16 h-16 sm:w-20 sm:h-20" />
+          <div>
+            <div className="stakeys-brand-eyebrow">STAKEYS · CYCLES &amp; SCOOTER</div>
+            <h1 className="stakeys-brand-title">Staff workspace</h1>
+            <p className="stakeys-brand-subtitle">Workshop, retail and customer care — all in one place.</p>
+          </div>
+        </div>
+        <div className="stakeys-brand-status"><span className="stakeys-brand-status-dot" /> STAFF STATION</div>
+      </header>
       {/* BRIDGE STATUS — the top-of-home control that keeps every customer able
           to sign in; repairs the profile<->login bridge in one click. */}
       <BridgeStatusTile onOpenDetails={() => setIsBridgeRepairOpen(true)} />
