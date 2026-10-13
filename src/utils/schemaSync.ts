@@ -16,6 +16,7 @@ import { getStoredSupabaseUrl, getStoredSupabaseAnonKey } from '../supabase';
 
 export type SqlType =
   | 'text'
+  | 'date'
   | 'uuid'
   | 'boolean'
   | 'integer'
@@ -74,7 +75,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
     primaryKey: 'id',
     columns: [
       { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
-      { name: 'spent_on', type: 'text' },
+      { name: 'spent_on', type: 'date' },
       { name: 'supplier', type: 'text' },
       { name: 'description', type: 'text', default: "''" },
       { name: 'category', type: 'text' },
