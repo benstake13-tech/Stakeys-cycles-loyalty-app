@@ -95,9 +95,15 @@ describe('staff Settings tab paging', () => {
       expect(within(launcher).queryByText(gone)).toBeNull();
     }
 
-    // Launcher shows Operations + Admin groups, each tool as its own tile.
-    expect(within(launcher).getByText('Operations')).toBeTruthy();
-    expect(within(launcher).getByText(/Admin/i)).toBeTruthy();
+    // Workspace groups replaced the old Operations/Admin headings.
+    expect(within(launcher).getByText('01 / FRONT DESK')).toBeTruthy();
+    expect(within(launcher).getByText('02 / WORKSHOP')).toBeTruthy();
+    expect(within(launcher).getByText('05 / MANAGEMENT')).toBeTruthy();
+    // Status pills use live data, and BLE Scan does not falsely claim a device
+    // is connected before the technician pairs one.
+    expect(within(launcher).getByText('0 Alerts')).toBeTruthy();
+    expect(within(launcher).getByText('0 Members')).toBeTruthy();
+    expect(within(launcher).getByText('BLE Scan')).toBeTruthy();
     for (const tool of ['till', 'bookings', 'customers', 'draws', 'staff_roster', 'weather',
       'website_cms', 'promotions', 'discount_codes', 'referrals', 'logs', 'backend', 'settings']) {
       expect(within(launcher).queryByTestId(`staff-tile-${tool}`)).toBeTruthy();
