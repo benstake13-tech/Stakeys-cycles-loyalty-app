@@ -671,7 +671,7 @@ export const CounterSaleTab: React.FC = () => {
           </div>
           {lines.length === 0 ? (
             <p className="py-6 text-center text-xs text-neutral-600">
-              Basket is empty. Add items above or scan a code.
+              No items yet. Add a service or product above, or scan a code.
             </p>
           ) : (
             <div className="divide-y divide-neutral-900">
