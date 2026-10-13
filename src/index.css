@@ -1373,24 +1373,157 @@
 @media(prefers-reduced-motion:reduce) { .atelier-destination,.atelier-destination::before,.atelier-destination-action svg { transition:none; } }
 
 
-/* Staff Terminal: five-purpose workspace navigation, replacing the tile wall. */
-.staff-workspace-group{overflow:hidden;border:1px solid rgba(255,255,255,.09);border-radius:20px;background:linear-gradient(145deg,#13191a,#0a0d0e);box-shadow:0 16px 45px rgba(0,0,0,.17)}
-.staff-workspace-heading{display:flex;align-items:center;gap:14px;padding:20px 22px;border-bottom:1px solid rgba(255,255,255,.08)}
-.staff-workspace-heading-icon{width:40px;height:40px;display:grid;place-items:center;color:#5ee9a0;background:rgba(33,198,115,.09);border:1px solid rgba(33,198,115,.2);border-radius:12px}
-.staff-workspace-heading>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}
-.staff-workspace-heading strong{font-size:12px;letter-spacing:.17em;color:#f0f7f2;font-weight:800}
-.staff-workspace-heading small{font-size:12px;color:#8c9991}
-.staff-workspace-count{font-size:10px;letter-spacing:.08em;color:#84938a;white-space:nowrap}
-.staff-workspace-entries{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
-.staff-workspace-entry{display:flex;align-items:center;gap:14px;min-width:0;text-align:left;padding:19px 22px;border-bottom:1px solid rgba(255,255,255,.055);background:transparent;color:white;transition:background .2s,border-color .2s;cursor:pointer}
-.staff-workspace-entry:nth-child(odd){border-right:1px solid rgba(255,255,255,.055)}
-.staff-workspace-entry:hover,.staff-workspace-entry:focus-visible{background:rgba(46,194,117,.085);outline-offset:-2px;outline-color:#36c97c}
-.staff-workspace-entry-icon{width:43px;height:43px;display:grid;place-items:center;flex-shrink:0;border-radius:12px;background:rgba(255,255,255,.045);color:#69dda2}
-.staff-workspace-entry-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:5px}
-.staff-workspace-entry-copy strong{font-size:14px;font-weight:700;color:#f2f6f3}
-.staff-workspace-entry-copy small{font-size:11px;color:#8b9a90;line-height:1.4}
-.staff-workspace-badge{border-radius:999px;background:rgba(44,190,111,.16);color:#7ce6aa;font-size:11px;padding:4px 8px}
-.staff-workspace-arrow{flex-shrink:0;color:#677b6e;transition:transform .2s,color .2s}
-.staff-workspace-entry:hover .staff-workspace-arrow{transform:translateX(4px);color:#78e7a8}
-@media(max-width:700px){.staff-workspace-entries{grid-template-columns:1fr}.staff-workspace-entry:nth-child(odd){border-right:0}.staff-workspace-heading{padding:17px}.staff-workspace-entry{padding:15px 17px}.staff-workspace-count{display:none}}
-@media(prefers-reduced-motion:reduce){.staff-workspace-entry,.staff-workspace-arrow{transition:none}}
+/* Staff Terminal / BLE Bench — charcoal glass, one neon accent, no colour washes.
+   Deliberately scoped: customer and marketing surfaces keep their own theme. */
+.os-backdrop.os-backdrop-charcoal,
+.os-backdrop.os-backdrop-charcoal.light { background: #080e0a; }
+.os-backdrop.os-backdrop-charcoal::before { opacity: .35; }
+.os-backdrop.os-backdrop-charcoal::after { opacity: .025; }
+
+/* Each workspace holds a crisp two-column grid, including on phone screens. */
+.staff-workspace-group {
+  background: rgba(15, 23, 19, .7);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 18px;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  padding: 14px;
+}
+.staff-workspace-heading { display:flex; align-items:center; gap:10px; padding: 5px 5px 15px; }
+.staff-workspace-heading-icon {
+  flex: 0 0 auto; width:25px; height:30px;
+  display:grid; place-items:center; color:#00ff66;
+}
+.staff-workspace-heading>span:nth-child(2) {
+  display:flex;flex:1;flex-direction:column;gap:3px;min-width:0;
+}
+.staff-workspace-heading strong {
+  color:#f4fff7;font-size:11px;font-weight:800;letter-spacing:.14em;
+}
+.staff-workspace-heading small {color:#a3b2a6;font-size:10px;line-height:1.35}
+.staff-workspace-count {
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:999px;padding:5px 8px;
+  font-size:9px;letter-spacing:.07em;color:#a8baad;white-space:nowrap;
+}
+.staff-workspace-entries {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;
+}
+.staff-workspace-entry {
+  display:flex;position:relative;min-height:152px;
+  flex-direction:column;align-items:stretch;gap:12px;
+  padding:15px 14px 17px;min-width:0;text-align:left;
+  border:1px solid rgba(255,255,255,.08);border-radius:18px;
+  background:rgba(15,23,19,.7);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  color:#f1fff6;cursor:pointer;
+  transition:border-color .2s ease,box-shadow .2s ease,background-color .2s ease;
+}
+.staff-workspace-entry:hover,
+.staff-workspace-entry:focus-visible,
+.staff-workspace-entry:active {
+  border-color:rgba(0,255,102,.6);
+  box-shadow:0 0 25px rgba(0,255,102,.18),inset 0 0 15px rgba(0,255,102,.08);
+}
+.staff-workspace-entry:focus-visible { outline:2px solid #00ff66;outline-offset:2px; }
+.staff-workspace-entry-top {
+  display:flex;align-items:flex-start;justify-content:space-between;gap:4px;min-width:0;
+}
+.staff-workspace-entry-icon {
+  display:grid;place-items:center;flex:0 0 auto;
+  background:none;border:0;padding:0;color:#c0d1c5;
+  transition:color .2s ease,filter .2s ease;
+}
+.staff-workspace-entry:hover .staff-workspace-entry-icon,
+.staff-workspace-entry:focus-visible .staff-workspace-entry-icon,
+.staff-workspace-entry:active .staff-workspace-entry-icon {
+  color:#00ff66;filter:drop-shadow(0 0 6px rgba(0,255,102,.45));
+}
+.staff-workspace-entry-copy {display:flex;flex:1;flex-direction:column;justify-content:flex-end;gap:5px;min-width:0;padding-right:10px}
+.staff-workspace-entry-copy strong {
+  display:block;overflow-wrap:break-word;color:#f4fff7;
+  font-size:13px;font-weight:750;line-height:1.2;letter-spacing:-.01em;
+}
+.staff-workspace-entry-copy small {
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  color:#9faf9f;font-size:10px;line-height:1.4;
+}
+.staff-workspace-badge {
+  border:1px solid rgba(0,255,102,.38);
+  background:rgba(0,255,102,.08);border-radius:999px;
+  padding:4px 7px;color:#00ff66;
+  font-size:9px;font-weight:750;line-height:1.1;letter-spacing:.02em;
+  white-space:nowrap;max-width:100%;
+  font-variant-numeric:tabular-nums;
+}
+.staff-workspace-arrow {
+  position:absolute;right:13px;bottom:15px;
+  color:#839d8d;pointer-events:none;
+  transition:transform .2s ease,color .2s ease;
+}
+.staff-workspace-entry:hover .staff-workspace-arrow,
+.staff-workspace-entry:focus-visible .staff-workspace-arrow {
+  transform:translate(2px,-2px);color:#00ff66;
+}
+
+/* The KPI rail uses real values, not fabricated sparklines or random tones. */
+.staff-kpi-card {
+  position:relative;display:flex;flex-direction:column;align-items:flex-start;
+  padding:15px;min-width:0;min-height:146px;
+  border:1px solid rgba(255,255,255,.08);border-radius:18px;
+  background:rgba(15,23,19,.7);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  text-align:left;color:#f4fff7;cursor:pointer;
+  transition:border-color .2s ease,box-shadow .2s ease;
+}
+.staff-kpi-card:hover,.staff-kpi-card:focus-visible,.staff-kpi-card:active {
+  border-color:rgba(0,255,102,.6);
+  box-shadow:0 0 25px rgba(0,255,102,.18),inset 0 0 15px rgba(0,255,102,.08);
+}
+.staff-kpi-card:focus-visible {outline:2px solid #00ff66;outline-offset:2px}
+.staff-kpi-top {display:flex;align-items:flex-start;justify-content:space-between;gap:4px;width:100%}
+.staff-kpi-icon {color:#c0d1c5;transition:color .2s ease,filter .2s ease}
+.staff-kpi-card:hover .staff-kpi-icon,
+.staff-kpi-card:focus-visible .staff-kpi-icon,
+.staff-kpi-card:active .staff-kpi-icon {
+  color:#00ff66;filter:drop-shadow(0 0 6px rgba(0,255,102,.45));
+}
+.staff-kpi-pill {
+  display:inline-block;flex-shrink:0;border:1px solid rgba(0,255,102,.38);
+  border-radius:999px;background:rgba(0,255,102,.08);
+  padding:4px 7px;color:#00ff66;font-size:9px;font-weight:800;
+  line-height:1.1;font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.staff-kpi-value {
+  margin-top:14px;font-size:28px;font-weight:800;line-height:1;
+  color:#f4fff7;letter-spacing:-.04em;font-variant-numeric:tabular-nums;
+}
+.staff-kpi-label {margin-top:7px;font-size:10px;font-weight:750;letter-spacing:.12em;text-transform:uppercase;color:#d8e7dc}
+.staff-kpi-unit {margin-top:4px;font-size:10px;line-height:1.3;color:#a0b1a6}
+.staff-kpi-arrow {position:absolute;right:12px;bottom:12px;color:#819686}
+.staff-kpi-card:hover .staff-kpi-arrow,.staff-kpi-card:focus-visible .staff-kpi-arrow {color:#00ff66}
+
+.staff-booking-alert {
+  border:1px solid rgba(0,255,102,.38);
+  background:rgba(15,23,19,.84);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  box-shadow:inset 0 0 15px rgba(0,255,102,.06);
+}
+@media(max-width:430px) {
+  .staff-workspace-group {padding:10px}
+  .staff-workspace-entries {gap:8px}
+  .staff-workspace-entry {padding:12px 10px 14px;min-height:150px;gap:8px}
+  .staff-workspace-badge,.staff-kpi-pill {font-size:8px;padding:4px 5px}
+  .staff-workspace-entry-copy strong {font-size:12px}
+  .staff-workspace-heading strong {font-size:10px}
+  .staff-workspace-count {display:none}
+  .staff-kpi-card {padding:12px}
+}
+@media(prefers-reduced-motion:reduce) {
+  .staff-workspace-entry,.staff-workspace-entry-icon,.staff-workspace-arrow,
+  .staff-kpi-card,.staff-kpi-icon {transition:none}
+}
+
