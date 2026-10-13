@@ -13,8 +13,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 Deno.serve(async req => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-  const key = Deno.env.get('GEMINI_API_KEY');
-  if (!key) return json({ error: 'GEMINI_API_KEY is not configured' }, 503);
+  const key = Deno.env.get('GEMINI_API_KEY')?.trim();
+  if (!key) return json({ error: 'GEMINI_API_KEY is not configured', code: 'NOT_CONFIGURED' }, 503);
   const size = Number(req.headers.get('content-length') || 0);
   if (size > 9_000_000) return json({ error: 'Request too large' }, 413);
   let body: { contents?: unknown; config?: Record<string, unknown> };
@@ -39,7 +39,10 @@ Deno.serve(async req => {
     });
     if (!response.ok) {
       console.error('Gemini gateway upstream status:', response.status);
-      return json({ error: response.status === 429 ? 'Gemini rate limit reached' : 'Gemini request failed', status: response.status }, 502);
+      const code = response.status === 429 ? 'RATE_LIMITED' : [400, 401, 403].includes(response.status) ? 'UPSTREAM_REJECTED' : 'UPSTREAM_ERROR';
+      const upstream = await response.json().catch(() => null);
+      const keyRejected = [401, 403].includes(response.status) || upstream?.error?.details?.some((d: { reason?: string }) => d.reason === 'API_KEY_INVALID');
+      return json({ error: 'Gemini request failed', code: keyRejected ? 'KEY_REJECTED' : code, status: response.status }, 502);
     }
     const data = await response.json();
     return json({ text: data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '', model });
