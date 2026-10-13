@@ -1,5 +1,7 @@
 import React from 'react';
 import { useShop } from '../context/ShopContext';
+import { isStaffSurface } from '../config/surface';
+
 
 /**
  * Ambient backdrop for every surface (website, customer, staff). A fine
@@ -13,10 +15,14 @@ export const PremiumBackdrop: React.FC = () => {
   const isDark = theme !== 'light';
 
   return (
-    <div className={isDark ? 'os-backdrop' : 'os-backdrop light'} aria-hidden="true">
-      <span className="os-bloom emerald" />
-      <span className="os-bloom sky" />
-      <span className="os-bloom amber" />
+    <div className={`${isDark ? 'os-backdrop' : 'os-backdrop light'}${isStaffSurface ? ' os-backdrop-charcoal' : ''}`} aria-hidden="true">
+      {!isStaffSurface && (
+        <>
+          <span className="os-bloom emerald" />
+          <span className="os-bloom sky" />
+          <span className="os-bloom amber" />
+        </>
+      )}
     </div>
   );
 };

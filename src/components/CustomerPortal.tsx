@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  Home,
+  MoreHorizontal,
   Award,
   Bike,
   Calendar,
@@ -36,6 +38,7 @@ import { TileGrid } from './tiles/TileGrid';
 import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
 
+import { StakeysLogo } from './StakeysLogo';
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
@@ -261,12 +264,20 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   };
 
   return (
-    <div className="space-y-8 animate-fade-in font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="stakeys-premium-customer space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
+      <header className="stakeys-customer-brandbar surface-panel !rounded-2xl px-4 py-3 flex items-center gap-3 border border-emerald-400/20">
+        <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-1"><StakeysLogo className="w-11 h-12" /></div>
+        <div className="min-w-0 flex-1">
+          <span className="block font-display font-black tracking-[0.12em] text-white">STAKEY'S <span className="text-emerald-400">CYCLES</span></span>
+          <small className="block text-xs text-neutral-400">Your ride. Your rewards.</small>
+        </div>
+        <button type="button" aria-label="Edit your avatar" title="Customise your avatar" onClick={() => setIsAvatarEditorOpen(true)} className="stakeys-customer-avatar shrink-0 rounded-full border border-emerald-400/40 p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"><FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={36} /></button>
+      </header>
       {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
       <MembershipPassCard user={currentUser} />
 
       {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
-      <div className="surface-panel relative overflow-hidden !rounded-3xl">
+      <div className="stakeys-customer-welcome surface-panel relative overflow-hidden !rounded-3xl">
         <span className="hero-sheen" aria-hidden="true" />
         {/* Background Workshop Image Asset */}
         <div className="absolute inset-0 z-0">
@@ -372,6 +383,11 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         onNavigate={(target) => setActiveTab(target === 'stamps' ? 'stamps' : target === 'wallet' ? 'wallet' : 'refer')}
       />
 
+      <section className="stakeys-customer-actions" aria-label="Customer quick actions">
+        <button type="button" onClick={() => {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);setActiveTab('booking');}}><Wrench size={26}/><strong>Book a repair</strong><small>Choose your service</small></button>
+        <button type="button" onClick={() => setActiveTab('repairs')}><Activity size={26}/><strong>Track my repair</strong><small>See workshop progress</small></button>
+        <button type="button" onClick={() => setActiveTab('wallet')}><Gift size={26}/><strong>My rewards</strong><small>Vouchers &amp; points</small></button>
+      </section>
       {/* Primary section navigation — grouped launcher tiles */}
       <RideTransition state={ride.state}>
       <div data-testid="customer-section-launcher">
@@ -1078,6 +1094,13 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         onAdded={(bike: CustomerBike) => setViewingBikeSpecs(bike)}
       />
 
+      <nav className="stakeys-customer-bottom-nav" aria-label="Customer primary navigation">
+        {([{label:'Home',icon:Home,target:'garage'},{label:'Book',icon:Calendar,target:'booking'},{label:'Repairs',icon:Wrench,target:'repairs'},{label:'Pass',icon:Award,target:'stamps'},{label:'More',icon:MoreHorizontal,target:null}] as const).map(item => <button key={item.label} type="button" aria-current={activeTab === item.target ? 'page' : undefined} onClick={() => {
+          if (item.target === null) { document.querySelector('[data-testid="customer-section-launcher"]')?.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+          if(item.target === 'booking') {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);}
+          ride.rideIn();setActiveTab(item.target);
+        }}><item.icon size={22} strokeWidth={1.7}/><span>{item.label}</span></button>)}
+      </nav>
       {/* Avatar Editor Modal */}
       {isAvatarEditorOpen && (
         <AvatarEditorModal

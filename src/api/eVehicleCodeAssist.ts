@@ -1,3 +1,4 @@
+import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
 /**
  * AI assist for the staff E-Scooter / E-Bike error-code lookup.
  *
@@ -11,7 +12,6 @@
  * Falls back to the deterministic list (no AI) when the service is not
  * configured, offline, or the reply cannot be parsed.
  */
-import { GoogleGenAI } from '@google/genai';
 import { resolveGeminiModel, noThinking } from './geminiModel';
 import { classifyVisionError, VisionErrorInfo } from './visionErrors';
 import {
@@ -26,8 +26,7 @@ import {
 
 const ASSIST_TIMEOUT_MS = 20000;
 
-const getApiKey = (): string =>
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || '';
+const getApiKey = () => isGeminiGatewayConfigured() ? 'server-side' : '';
 
 export const isECodeAssistConfigured = (): boolean => Boolean(getApiKey());
 
@@ -167,7 +166,7 @@ export async function assistECodeLookup(req: ECodeAssistRequest): Promise<ECodeA
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ASSIST_TIMEOUT_MS);
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = { models: { generateContent: generateGemini } };
     const model = resolveGeminiModel();
     const response = await ai.models.generateContent({
       model,

@@ -1,3 +1,4 @@
+vi.mock('./src/api/geminiGateway', () => ({ isGeminiGatewayConfigured: () => false, generateGemini: vi.fn() }));
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   BOOKING_LANGUAGES,

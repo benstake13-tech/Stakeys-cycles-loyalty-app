@@ -1,167 +1,34 @@
-import React, { useMemo, useState } from 'react';
-import { Palette, Check, Loader2, Sparkles, CalendarClock } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useShop } from '../context/ShopContext';
-import {
-  HOLIDAY_THEME_IDS,
-  SeasonalThemeId,
-  ThemeOverride,
-  SEASONAL_THEME_LABELS,
-  activeHoliday,
-  upcomingHolidays,
-  windowLabel,
-} from '../utils/holidayCalendar';
+import { HOLIDAY_THEME_IDS, SEASONAL_THEME_LABELS, activeHoliday, upcomingHolidays, windowLabel, type ThemeOverride } from '../utils/holidayCalendar';
+import { ThemeWorld, ThemeMotionControl } from './theme/ThemeWorld';
+import { ThemeArtwork } from './theme/ThemeArtwork';
+import { worldFor, type WorldFamily } from './theme/worldCatalog';
 
-const SWATCHES: Record<SeasonalThemeId, string> = {
-  none: 'from-neutral-700 to-neutral-900',
-  halloween: 'from-orange-500 to-purple-800',
-  christmas: 'from-red-500 to-emerald-600',
-  stpatricks: 'from-emerald-400 to-green-700',
-  newyear: 'from-amber-300 to-indigo-700',
-  valentines: 'from-pink-500 to-rose-600',
-  easter: 'from-pink-400 to-sky-400',
-  thanksgiving: 'from-amber-500 to-orange-800',
-  cny: 'from-red-600 to-amber-400',
-  midautumn: 'from-amber-300 to-rose-600',
-  diwali: 'from-fuchsia-500 to-amber-400',
-  holi: 'from-pink-400 to-lime-400',
-  eidfitr: 'from-emerald-400 to-teal-700',
-  eidadha: 'from-teal-500 to-emerald-800',
-  hanukkah: 'from-blue-400 to-slate-100',
-  cincodemayo: 'from-red-500 to-green-600',
-  spring: 'from-pink-300 to-green-400',
-  summer: 'from-amber-300 to-sky-400',
-  autumn: 'from-orange-500 to-amber-800',
-  winter: 'from-slate-300 to-blue-700',
-  mayday: 'from-pink-300 to-emerald-400',
-  springbank: 'from-emerald-300 to-green-600',
-  summerbank: 'from-sky-300 to-amber-400',
-  fathersday: 'from-sky-500 to-blue-800',
-  mothersday: 'from-rose-300 to-pink-500',
-  pancakes: 'from-amber-300 to-yellow-600',
-  ramadan: 'from-teal-300 to-emerald-700',
-  dussehra: 'from-orange-400 to-amber-700',
-  stgeorge: 'from-red-500 to-slate-100',
-  aprilsfools: 'from-lime-300 to-sky-400',
-  earthday: 'from-green-400 to-sky-400',
-  backtoschool: 'from-orange-500 to-amber-700',
-  bonfirenight: 'from-orange-500 to-slate-800',
-  remembranceday: 'from-red-600 to-slate-300',
-  boxingday: 'from-red-400 to-sky-300',
-  januarysales: 'from-amber-300 to-red-500',
-  blackfriday: 'from-amber-400 to-neutral-900',
-  cybermonday: 'from-cyan-400 to-blue-800',
-  smallbusinesssaturday: 'from-amber-400 to-emerald-600',
-};
-
-/**
- * Seasonal theme control. "Auto" follows the 9-day holiday calendar; picking a
- * specific theme forces it everywhere. The choice is stored in one shared
- * Supabase row so every staff and customer device switches together.
- */
 export const StaffThemeSelector = () => {
-  const { seasonalTheme, seasonalOverride, setSeasonalTheme } = useShop();
-  const [selected, setSelected] = useState<ThemeOverride>(seasonalOverride);
-  const [isApplying, setIsApplying] = useState(false);
-
-  const now = useMemo(() => new Date(), []);
-  const active = useMemo(() => activeHoliday(now), [now]);
-  const upcoming = useMemo(() => upcomingHolidays(now, 3), [now]);
-
-  const themes: SeasonalThemeId[] = ['none', ...HOLIDAY_THEME_IDS];
-  const dirty = selected !== seasonalOverride;
-
-  const apply = async () => {
-    setIsApplying(true);
-    try {
-      await setSeasonalTheme(selected);
-    } finally {
-      setIsApplying(false);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-4 space-y-3">
-      <div className="flex items-center gap-2">
-        <Palette className="w-4 h-4 text-emerald-400" />
-        <div>
-          <div className="text-xs font-bold text-white">Seasonal theme</div>
-          <div className="text-[10px] text-neutral-500">
-            Applied to all accounts instantly · currently{' '}
-            <span className="text-emerald-400">{SEASONAL_THEME_LABELS[seasonalTheme]}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Auto schedule status */}
-      <div className="rounded-xl border border-neutral-800 bg-black p-2.5">
-        <button
-          type="button"
-          onClick={() => setSelected('AUTO')}
-          className={`flex w-full items-center gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors ${
-            selected === 'AUTO'
-              ? 'border-emerald-500 bg-emerald-500/10'
-              : 'border-neutral-800 bg-neutral-950 hover:border-neutral-600'
-          }`}
-        >
-          <CalendarClock className="w-4 h-4 shrink-0 text-emerald-400" />
-          <span className="min-w-0 flex-1">
-            <span className="block text-[11px] font-semibold text-neutral-200">
-              Auto (holiday calendar)
-            </span>
-            <span className="block text-[10px] text-neutral-500">
-              {active ? `${active.name} · ${windowLabel(active)}` : 'No holiday window active right now'}
-            </span>
-          </span>
-          {selected === 'AUTO' && <Check className="w-3.5 h-3.5 shrink-0 text-emerald-400" />}
-        </button>
-        {upcoming.length > 0 && (
-          <div className="mt-2 space-y-0.5">
-            {upcoming.map((o) => (
-              <div
-                key={`${o.theme}-${o.celebration.toISOString()}`}
-                className="flex justify-between text-[10px] text-neutral-500"
-              >
-                <span>{o.name}</span>
-                <span className="font-mono">{windowLabel(o)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        {themes.map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setSelected(t)}
-            className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-left transition-colors ${
-              selected === t
-                ? 'border-emerald-500 bg-emerald-500/10'
-                : 'border-neutral-800 bg-black hover:border-neutral-600'
-            }`}
-          >
-            <span className={`h-5 w-5 shrink-0 rounded-md bg-gradient-to-br ${SWATCHES[t]}`} />
-            <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-neutral-200">
-              {SEASONAL_THEME_LABELS[t]}
-            </span>
-            {selected === t && <Check className="w-3.5 h-3.5 shrink-0 text-emerald-400" />}
-            {t === seasonalOverride && selected !== t && (
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" title="Live" />
-            )}
-          </button>
-        ))}
-      </div>
-
-      <button
-        type="button"
-        onClick={apply}
-        disabled={isApplying || !dirty}
-        className="pressable flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 py-2.5 text-xs font-black text-neutral-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-        {isApplying ? 'Applying to all accounts…' : dirty ? 'Apply theme to all accounts' : 'Theme applied'}
-      </button>
-    </div>
-  );
+ const {seasonalTheme,seasonalOverride,setSeasonalTheme}=useShop();
+ const [selected,setSelected]=useState<ThemeOverride>(seasonalOverride);
+ const [busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [search,setSearch]=useState(''),[family,setFamily]=useState('all');
+ useEffect(()=>setSelected(seasonalOverride),[seasonalOverride]);
+ const now=useMemo(()=>new Date(),[]),active=activeHoliday(now),upcoming=upcomingHolidays(now,2);
+ const preview=selected==='AUTO'||selected===null ? active?.theme||'none' : selected;
+ const world=worldFor(preview),dirty=selected!==seasonalOverride;
+ const themes=HOLIDAY_THEME_IDS.filter(id=>SEASONAL_THEME_LABELS[id].toLowerCase().includes(search.toLowerCase())&&(family==='all'||worldFor(id)?.family===family));
+ const apply=async()=>{setBusy(true);setError('');try{const result=await setSeasonalTheme(selected);if(!result.success)throw new Error(result.message||'Theme could not be saved. Please retry.');}catch(e){setError(e instanceof Error?e.message:'Theme could not be saved. Please retry.');}finally{setBusy(false);}};
+ return <section className="theme-studio" aria-label="Seasonal theme studio">
+  <header className="theme-studio-header"><div><div className="theme-studio-kicker">Stakey’s • Atmosphere studio</div><h3>A world for every season.</h3><p>Live: {SEASONAL_THEME_LABELS[seasonalTheme]} · Preview a scene before applying it to all accounts.</p></div></header>
+  <div className="theme-studio-preview">
+   {world?<ThemeWorld theme={preview} preview/>:<div className="theme-studio-empty"><strong>Pure Stakey’s</strong><p>No seasonal scenery</p></div>}
+   {world&&<div className="theme-studio-caption"><strong>{world.label}</strong><p>{world.description}</p></div>}
+  </div>
+  <ThemeMotionControl/>
+  <button type="button" className="theme-auto" aria-pressed={selected==='AUTO'||selected===null} onClick={()=>setSelected('AUTO')}>Automatic holiday calendar · {active?active.name:'Between celebrations'}</button>
+  <p className="mt-3 text-xs text-emerald-100/60">{upcoming.map(o=>`${o.name}: ${windowLabel(o)}`).join(' · ')}</p>
+  <div className="theme-studio-controls"><input aria-label="Search themes" placeholder="Find a holiday or season…" value={search} onChange={e=>setSearch(e.target.value)}/><select aria-label="Scene collection" value={family} onChange={e=>setFamily(e.target.value)}><option value="all">All collections</option>{(['winter','haunted','garden','coast','harvest','lantern','festival','cosmic','romance','remembrance'] as WorldFamily[]).map(f=><option key={f} value={f}>{f[0].toUpperCase()+f.slice(1)}</option>)}</select></div>
+  <div className="theme-studio-grid"><button className="theme-studio-card" type="button" aria-pressed={selected==='none'} onClick={()=>setSelected('none')}><div className="theme-studio-card-art theme-studio-empty" style={{height:96}}>SC</div><span>No seasonal theme</span></button>{themes.map(id=><button key={id} type="button" className="theme-studio-card" aria-pressed={selected===id} onClick={()=>setSelected(id)}><div className="theme-studio-card-art"><ThemeArtwork world={worldFor(id)!}/></div><span>{SEASONAL_THEME_LABELS[id]}</span></button>)}</div>
+  {!themes.length&&<p className="mt-3 text-sm">No themes match this search.</p>}
+  <footer className="theme-studio-footer"><span className="text-xs text-emerald-100/60">{dirty?'Preview only — save to publish this theme.':'Current theme saved.'}</span><button type="button" onClick={apply} disabled={busy||!dirty}>{busy?'Saving theme…':dirty?'Apply theme to all accounts':'Theme applied'}</button></footer>
+  {error&&<p role="alert" className="theme-studio-error">{error}</p>}
+ </section>;
 };

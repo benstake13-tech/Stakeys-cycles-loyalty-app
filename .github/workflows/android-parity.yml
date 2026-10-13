@@ -1,0 +1,48 @@
+name: Build both Android apps
+on:
+  push:
+    branches: ['build/apks-*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-parity-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      VITE_ONESIGNAL_ANDROID_APP_ID: ${{ vars.VITE_ONESIGNAL_ANDROID_APP_ID || secrets.VITE_ONESIGNAL_ANDROID_APP_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Configure Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck and test
+        run: |
+          npm run lint
+          npm test
+      - name: Build both installable APKs
+        run: npm run apps:build
+      - name: Record checksums
+        run: sha256sum preview/apps/*.apk > preview/apps/SHA256SUMS.txt
+      - name: Upload both APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stakeys-Cycles-Staff-and-Customer-APKs
+          path: |
+            preview/apps/*.apk
+            preview/apps/SHA256SUMS.txt
+          if-no-files-found: error

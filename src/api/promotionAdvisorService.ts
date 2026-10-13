@@ -1,3 +1,4 @@
+import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
 /**
  * AI promotion advisor.
  *
@@ -11,7 +12,7 @@
  * falls back to the deterministic `recommendPromotion` — the planner is never
  * left without advice.
  */
-import { GoogleGenAI, Type } from '@google/genai';
+import { Type } from '@google/genai';
 import { resolveGeminiModel, noThinking } from './geminiModel';
 import {
   AdvisorAction,
@@ -24,8 +25,7 @@ import { DiscountAudience, VehicleCategory } from '../types/bikeShop';
 
 const ADVISOR_TIMEOUT_MS = 20000;
 
-const getApiKey = (): string =>
-  (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || '';
+const getApiKey = () => isGeminiGatewayConfigured() ? 'server-side' : '';
 
 export const isPromotionAdvisorConfigured = (): boolean => Boolean(getApiKey());
 
@@ -102,7 +102,7 @@ export async function advisePromotion(brief: PromotionBrief): Promise<AdvisorRes
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ADVISOR_TIMEOUT_MS);
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = { models: { generateContent: generateGemini } };
     const model = resolveGeminiModel();
     const response = await ai.models.generateContent({
       model,

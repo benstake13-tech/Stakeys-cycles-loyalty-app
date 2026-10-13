@@ -1,0 +1,47 @@
+/* Scooter diagnostic section selector: one charcoal/glass language. */
+.scooter-console { color:#f4fff7; }
+.scooter-tile-grid {
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;
+}
+.scooter-glass-tile {
+  appearance:none;position:relative;min-width:0;min-height:152px;
+  display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+  text-align:left;cursor:pointer;padding:16px;
+  background:rgba(15,23,19,.7);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;color:#f4fff7;
+  transition:border-color .2s ease,box-shadow .2s ease;
+}
+.scooter-glass-tile:is(:hover,:focus-visible,:active,.is-active) {
+  border-color:rgba(0,255,102,.6);
+  box-shadow:0 0 25px rgba(0,255,102,.18),inset 0 0 15px rgba(0,255,102,.08);
+}
+.scooter-glass-tile:focus-visible {outline:2px solid #00ff66;outline-offset:2px}
+.scooter-tile-icon {
+  color:#c0d1c5;background:none;border:0;padding:0;
+  transition:color .2s ease,filter .2s ease;
+}
+.scooter-glass-tile:is(:hover,:focus-visible,:active,.is-active) .scooter-tile-icon {
+  color:#00ff66;filter:drop-shadow(0 0 6px rgba(0,255,102,.45));
+}
+.scooter-glass-tile strong {font-size:13px;letter-spacing:-.01em;line-height:1.2;margin-top:auto}
+.scooter-glass-tile small {font-size:10px;line-height:1.45;color:#a5b7ac}
+.scooter-detail-slot {margin-top:14px}
+.scooter-glass-detail {
+  background:rgba(15,23,19,.7);
+  backdrop-filter:blur(16px) saturate(180%);
+  -webkit-backdrop-filter:blur(16px) saturate(180%);
+  border:1px solid rgba(0,255,102,.38);border-radius:18px;padding:20px;
+}
+.scooter-detail-heading {display:flex;justify-content:space-between;align-items:center;gap:12px}
+.scooter-detail-heading button {font-size:24px;color:#00ff66;background:transparent;border:0;cursor:pointer}
+.scooter-detail-heading button:focus-visible {outline:2px solid #00ff66;outline-offset:2px}
+@media(max-width:430px) {
+  .scooter-tile-grid {gap:8px}
+  .scooter-glass-tile {padding:12px;min-height:150px}
+}
+@media(prefers-reduced-motion:reduce) {
+  .scooter-glass-tile,.scooter-tile-icon {transition:none}
+}

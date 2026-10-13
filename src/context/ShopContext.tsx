@@ -481,7 +481,7 @@ interface ShopContextType {
   playStaffBookingAlertPing: () => void;
   workshopAudioVolume: WorkshopAudioVolume;
   cycleWorkshopAudioVolume: () => WorkshopAudioVolume;
-  requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported' | 'not_configured'>;
+  requestPushNotificationPermission: () => Promise<NotificationPermission | 'unsupported' | 'not_configured' | 'timeout'>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -1468,12 +1468,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const requestPushNotificationPermission = async () => {
     const perm = await requestPushPermission();
     if (perm === 'granted') {
-      toast.success('✅ Push notifications enabled — booking alerts will reach this device!', { icon: '🔔' });
-      staffBookingAudio.dispatchPushNotification('Stakey’s Cycles Workshop', 'Push notifications are now active!');
+      toast.success('Notification permission allowed. Device registration and delivery can be checked in Push Diagnostics.', { icon: '🔔' });
+
     } else if (perm === 'denied') {
       toast.error('Push notification permission was denied in your browser settings.');
     } else if (perm === 'not_configured') {
-      toast.error('OneSignal is not configured yet. Add VITE_ONESIGNAL_APP_ID to enable push.');
+      toast.error('Push is not configured. Android needs an Android OneSignal App ID; web needs a Web Push App ID.');
+    } else if (perm === 'timeout') {
+      toast.error('Push setup timed out. Check your connection and retry.');
+    } else {
+      toast.error('Push is unavailable or permission is still pending on this device.');
     }
     return perm;
   };
@@ -4068,8 +4072,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteCustomerAccount = async (userId: string): Promise<{ success: boolean; message: string }> => {
     const target = users.find((u) => u.uid === userId);
-    setUsers((prev) => prev.filter((u) => u.uid !== userId));
-    return { success: true, message: `Account for ${target?.displayName || 'Customer'} has been removed.` };
+    if (!target) return { success: false, message: 'Customer not found.' };
+    // Removing a profile from local React state does NOT delete its Supabase Auth
+    // identity. Claiming success here prevented former members from registering
+    // again, because their email remained registered in Supabase.
+    return {
+      success: false,
+      message: `Cannot delete ${target.displayName}'s login from this screen. Their Supabase Auth account must be deleted securely by an administrator before they can register again. No account has been removed.`,
+    };
   };
 
   const adjustCustomerStamps = async (

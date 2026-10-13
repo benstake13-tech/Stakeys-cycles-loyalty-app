@@ -16,6 +16,7 @@ import { getStoredSupabaseUrl, getStoredSupabaseAnonKey } from '../supabase';
 
 export type SqlType =
   | 'text'
+  | 'date'
   | 'uuid'
   | 'boolean'
   | 'integer'
@@ -69,6 +70,25 @@ export interface SchemaAuditReport {
 const NOW = 'NOW()';
 
 export const EXPECTED_SCHEMA: ExpectedTable[] = [
+  {
+    name: 'tax_expenses',
+    primaryKey: 'id',
+    columns: [
+      { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
+      { name: 'spent_on', type: 'date' },
+      { name: 'supplier', type: 'text' },
+      { name: 'description', type: 'text', default: "''" },
+      { name: 'category', type: 'text' },
+      { name: 'gross_amount', type: 'numeric' },
+      { name: 'business_use_percent', type: 'numeric', default: '100' },
+      { name: 'vat_amount', type: 'numeric', default: '0' },
+      { name: 'evidence_reference', type: 'text', default: "''" },
+      { name: 'claim_status', type: 'text', default: "'review'" },
+      { name: 'created_by', type: 'uuid', default: 'auth.uid()' },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
   {
     name: 'profiles',
     primaryKey: 'id',

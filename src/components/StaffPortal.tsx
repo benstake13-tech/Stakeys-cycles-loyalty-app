@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { StaffStockTab } from './staff/StaffStockTab';
+import { Home, Package, MoreHorizontal } from 'lucide-react';
+import { StakeysLogo } from './StakeysLogo';
 import confetti from 'canvas-confetti';
 import {
   Search,
@@ -74,6 +77,7 @@ import { BridgeStatusTile } from './BridgeStatusTile';
 import { BridgeRepairModal } from './BridgeRepairModal';
 import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
+import { ShopGalleryManager } from './ShopGalleryManager';
 import { AssistantManagerTab } from './AssistantManagerTab';
 import { PerformanceTracker } from './PerformanceTracker';
 import { WeatherForecast } from './weather/WeatherForecast';
@@ -103,6 +107,7 @@ import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
 import { CommandBar } from './staff/CommandBar';
 import { MetricRail } from './staff/MetricRail';
+import { GrowthTargets } from './staff/GrowthTargets';
 import type { MetricItem } from './staff/MetricRail';
 
 interface StaffPortalProps {
@@ -112,6 +117,7 @@ interface StaffPortalProps {
 }
 
 type StaffTab =
+  | 'stock'
   | 'till'
   | 'bookings'
   | 'staff_roster'
@@ -136,6 +142,7 @@ type StaffTab =
 
 /** Every staff tab, used to validate the persisted last-used tab on restore. */
 const STAFF_TABS: StaffTab[] = [
+  'stock',
   'till',
   'bookings',
   'staff_roster',
@@ -506,6 +513,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const latestFresh = freshBookings[0] || null;
 
   type StaffTabId =
+    | 'stock'
     | 'bookings'
     | 'staff_roster'
     | 'website_cms'
@@ -542,6 +550,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   };
 
   const operationTiles: StaffTile[] = [
+    { id: 'stock', label: 'Stock', icon: Package, tone: 'emerald', hint: 'Products & stock levels', keywords: 'stock products inventory parts accessories' },
     { id: 'till', label: 'Till', icon: ShoppingCart, tone: 'emerald', hint: 'Counter sales & discounts', keywords: 'till counter sale checkout payment card sumup cash pos' },
     { id: 'bookings', label: 'Bookings', icon: Wrench, tone: 'emerald', badge: freshBookings.length > 0 ? freshBookings.length : undefined, hint: 'Workshop bookings', keywords: 'bookings jobs workshop repair service bench intake' },
     { id: 'customers', label: 'Members', icon: Users, tone: 'emerald', badge: customerList.length, hint: 'Loyalty members', keywords: 'members customers riders loyalty stamps accounts' },
@@ -577,6 +586,18 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const visibleAdminTiles = adminTiles.filter(matchesFilter);
   const filterActive = toolFilter.trim().length > 0;
   const activeTile = [...operationTiles, ...adminTiles].find((t) => t.id === staffTab);
+
+  // Only display real counts. BLE Scan describes an available tool, not an
+  // active connection; the BLE Bench owns its live connection indicator.
+  const statusForTile = (tile: StaffTile): string | null => {
+    if (tile.id === 'ble_bench') return 'BLE Scan';
+    if (tile.id === 'bookings') return `${freshBookings.length} Alert${freshBookings.length === 1 ? '' : 's'}`;
+    if (tile.id === 'customers') return `${customerList.length} Members`;
+    if (tile.id === 'staff_roster') return `${staffMembers.length} Staff`;
+    if (tile.id === 'promotions') return `${promotions.length} Offers`;
+    if (tile.id === 'reviews') return `${reviews.length} Reviews`;
+    return typeof tile.badge === 'number' && tile.badge > 0 ? String(tile.badge) : null;
+  };
 
   /** Headline KPIs shown on the metric rail; each opens its tool. */
   const metricItems: MetricItem[] = [
@@ -676,8 +697,19 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   );
 
   return (
-    <div className="relative font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="stakeys-premium-staff relative font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="relative z-10 space-y-5">
+      <header className="stakeys-brand-header" aria-label="Stakeys Cycles staff workspace">
+        <div className="stakeys-brand-identity">
+          <StakeysLogo className="w-16 h-16 sm:w-20 sm:h-20" />
+          <div>
+            <div className="stakeys-brand-eyebrow">STAKEYS · CYCLES &amp; SCOOTER</div>
+            <h1 className="stakeys-brand-title">{showTools ? `Welcome back, ${currentUser.displayName.split(' ')[0]}` : activeTile?.label ?? 'Staff workspace'}</h1>
+            <p className="stakeys-brand-subtitle">Here’s today’s overview.</p>
+          </div>
+        </div>
+        <div className="stakeys-brand-status"><span className="stakeys-brand-status-dot" /> STAFF STATION</div>
+      </header>
       {/* BRIDGE STATUS — the top-of-home control that keeps every customer able
           to sign in; repairs the profile<->login bridge in one click. */}
       <BridgeStatusTile onOpenDetails={() => setIsBridgeRepairOpen(true)} />
@@ -704,26 +736,24 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* 1. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
       {freshBookings.length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500/25 via-orange-500/20 to-emerald-500/25 border-2 border-amber-400 p-5 sm:p-6 shadow-[0_0_35px_rgba(245,158,11,0.45)] animate-fade-in text-white">
-          <span className="hero-sheen" aria-hidden="true" />
+        <div className="staff-booking-alert relative overflow-hidden rounded-[18px] p-5 sm:p-6 text-white">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-400 text-neutral-950 flex items-center justify-center font-black shadow-lg shadow-amber-400/50 shrink-0 animate-bounce">
-                <Bell className="w-6 h-6 text-neutral-950" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center text-[#00FF66]">
+                <Bell className="w-6 h-6" strokeWidth={1.7} />
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-400 text-neutral-950 tracking-wider uppercase shadow-sm flex items-center gap-1.5 border border-amber-300">
-                    <span className="w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                  <span className="staff-workspace-badge font-mono uppercase tracking-wider">
                     NEW BOOKING ALERT
                   </span>
-                  <span className="font-mono text-xs font-bold text-amber-300">
+                  <span className="font-mono text-xs font-bold text-[#00FF66]">
                     ⚡ {freshBookings.length} Fresh Request{freshBookings.length > 1 ? 's' : ''} Awaiting Bench Capacity Review
                   </span>
                 </div>
                 {latestFresh && (
                   <p className="text-xs sm:text-sm font-semibold text-white mt-1.5">
-                    Latest Request: <strong className="text-amber-300 font-extrabold">{latestFresh.customerName}</strong> (<span className="text-neutral-200">{latestFresh.vehicleModel}</span> • <span className="text-emerald-400 font-bold">{latestFresh.serviceTitle}</span>) scheduled for <strong className="text-white font-mono">{latestFresh.preferredDate}</strong> ({latestFresh.preferredTimeSlot})
+                    Latest Request: <strong className="text-[#00FF66] font-extrabold">{latestFresh.customerName}</strong> (<span className="text-neutral-200">{latestFresh.vehicleModel}</span> • <span className="text-emerald-400 font-bold">{latestFresh.serviceTitle}</span>) scheduled for <strong className="text-white font-mono">{latestFresh.preferredDate}</strong> ({latestFresh.preferredTimeSlot})
                   </p>
                 )}
               </div>
@@ -733,9 +763,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
               <button
                 type="button"
                 onClick={() => openStaffTab('bookings')}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-neutral-950 font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-amber-400/40 flex items-center justify-center gap-2 cursor-pointer border border-amber-300 hover:scale-[1.02]"
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-[#00FF66] hover:bg-[#4dff96] text-[#07100b] font-black text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer border border-[#00FF66]"
               >
-                <Wrench className="w-4 h-4 text-neutral-950" />
+                <Wrench className="w-4 h-4 text-[#07100b]" />
                 <span>Review {freshBookings.length} Fresh Booking{freshBookings.length > 1 ? 's' : ''}</span>
               </button>
             </div>
@@ -744,99 +774,57 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       )}
 
       {/* 2. METRIC RAIL — headline KPIs, each a shortcut into its tool */}
-      {showTools && <MetricRail items={metricItems} />}
+      {showTools && (
+        <>
+          <MetricRail items={metricItems} />
+          <section className="stakeys-quick-grid" aria-label="Daily shortcuts">
+            {([{label:'Till', icon:ShoppingCart, target:'till'}, {label:'Workshop', icon:Wrench, target:'bookings'}, {label:'Bookings', icon:Calendar, target:'bookings'}, {label:'Customers', icon:Users, target:'customers'}, {label:'Stock', icon:Package, target:'stock'}, {label:'Accounts', icon:TrendingUp, target:'settings'}] as const).map(item =>
+              <button key={item.label} type="button" className="stakeys-quick-tile" onClick={() => {openStaffTab(item.target); if(item.label === 'Accounts') setSettingsSection('financials');}}>
+                <item.icon size={28} strokeWidth={1.8} /><span>{item.label}</span>
+              </button>)}
+          </section>
+          <GrowthTargets />
+        </>
+      )}
 
       {/* 3. WORKSTATION LAUNCHER: grouped tiles, one per tool, keyboard-navigable */}
       <RideTransition state={ride.state}>
       {showTools ? (
       <div className="space-y-4" data-testid="staff-tool-launcher">
-        <TileGroup
-          label="Operations"
-          icon={Gauge}
-          description="Front-desk and bench tools — the everyday stations."
-          action={
-            /* Notification bell — latest workshop activity, routed on tap */
-            <NotificationBell
-              activities={visualActivities}
-              onOpenBooking={(bookingId) => {
-                setFocusBookingUid(bookingId);
-                openStaffTab('bookings');
-              }}
-              onOpenMember={(memberUid) => {
-                setFocusMemberUid(memberUid);
-                openStaffTab('customers');
-              }}
-              onOpenSettings={() => openStaffTab('settings')}
-            />
-          }
-        >
-          <TileGrid>
-            {visibleOperationTiles.map((t) => (
-              <TileButton
-                key={t.id}
-                icon={t.icon}
-                label={t.label}
-                hint={t.hint}
-                tone={t.tone}
-                badge={t.badge}
-                active={staffTab === t.id}
-                onSelect={() => openStaffTab(t.id)}
-                testId={`staff-tile-${t.id}`}
-              />
-            ))}
-          </TileGrid>
-        </TileGroup>
-
-        <TileGroup
-          label="Admin &amp; Reports"
-          icon={Sliders}
-          description="Configuration, marketing and audit surfaces."
-          action={
-            <button
-              type="button"
-              data-testid="clean-slate"
-              onClick={async () => {
-                if (
-                  !window.confirm(
-                    'Clean the slate? This wipes ALL workshop bookings and the financial records (till sales + online orders) from the database, clears local app data, and reloads the page.'
-                  )
-                ) {
-                  return;
-                }
-                try {
-                  const res = await resetBookingsAndFinancials();
-                  if (!res.success) {
-                    window.alert(res.message);
-                    return;
-                  }
-                } catch (e) {
-                  console.warn('[CLEAN SLATE] reset failed:', e);
-                }
-                hardResetApp();
-              }}
-              className="pressable flex shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-rose-900 px-3 py-1.5 text-[11px] font-semibold text-rose-400 hover:bg-rose-950/60 hover:text-white"
-            >
-              <RefreshCcw className="w-3.5 h-3.5" />
-              <span>Clean Slate</span>
-            </button>
-          }
-        >
-          <TileGrid>
-            {visibleAdminTiles.map((t) => (
-              <TileButton
-                key={t.id}
-                icon={t.icon}
-                label={t.label}
-                hint={t.hint}
-                tone={t.tone}
-                badge={t.badge}
-                active={staffTab === t.id}
-                onSelect={() => openStaffTab(t.id)}
-                testId={`staff-tile-${t.id}`}
-              />
-            ))}
-          </TileGrid>
-        </TileGroup>
+        {/* Purpose-built work areas replace the old undifferentiated tile wall. */}
+        {([
+          { title: '01 / FRONT DESK', subtitle: 'Everything needed when a customer walks in', ids: ['till', 'bookings', 'customers', 'stock'], icon: ShoppingCart },
+          { title: '02 / WORKSHOP', subtitle: 'Diagnose, repair and identify parts', ids: ['ble_bench', 'ev_codes', 'hangers', 'repair_guide'], icon: Wrench },
+          { title: '03 / SALES & LOYALTY', subtitle: 'Offers, rewards and trade-in enquiries', ids: ['draws', 'promotions', 'discount_codes', 'referrals', 'tradeins', 'offer_prices'], icon: Award },
+          { title: '04 / CUSTOMER EXPERIENCE', subtitle: 'Website, reputation and customer communications', ids: ['website_cms', 'google_business', 'reviews'], icon: Globe },
+          { title: '05 / MANAGEMENT', subtitle: 'Team, records, systems and configuration', ids: ['staff_roster', 'logs', 'backend', 'settings', 'weather'], icon: Settings },
+        ] as const).map((group) => {
+          const entries = [...visibleOperationTiles, ...visibleAdminTiles].filter((t) => (group.ids as readonly string[]).includes(t.id));
+          if (!entries.length) return null;
+          return (
+            <section key={group.title} className="staff-workspace-group" aria-label={group.title}>
+              <header className="staff-workspace-heading">
+                <span className="staff-workspace-heading-icon"><group.icon size={20} strokeWidth={1.65} /></span>
+                <span><strong>{group.title}</strong><small>{group.subtitle}</small></span>
+                <span className="staff-workspace-count">{entries.length} tools</span>
+              </header>
+              <div className="staff-workspace-entries">
+                {entries.map((t) => (
+                  <button key={t.id} type="button" data-testid={`staff-tile-${t.id}`}
+                    className="staff-workspace-entry" onClick={() => openStaffTab(t.id)}
+                    aria-label={`${t.label}: ${t.hint}`}>
+                    <span className="staff-workspace-entry-top">
+                      <span className="staff-workspace-entry-icon"><t.icon size={23} strokeWidth={1.65} aria-hidden="true" /></span>
+                      {statusForTile(t) !== null && <span className="staff-workspace-badge">{statusForTile(t)}</span>}
+                    </span>
+                    <span className="staff-workspace-entry-copy"><strong>{t.label}</strong><small>{t.hint}</small></span>
+                    <ArrowRight size={16} strokeWidth={1.65} className="staff-workspace-arrow" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
         {filterActive && visibleOperationTiles.length + visibleAdminTiles.length === 0 && (
           <div className="surface-panel flex flex-col items-center gap-1 p-8 text-center">
@@ -865,8 +853,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </button>
           {activeTile && (
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/25 bg-emerald-500/10">
-                <activeTile.icon className="h-4 w-4 text-emerald-400" />
+              <span className="flex h-8 w-8 items-center justify-center text-[#00FF66]">
+                <activeTile.icon className="h-5 w-5" strokeWidth={1.65} />
               </span>
               <div className="min-w-0">
                 <div className="truncate font-display text-sm font-bold leading-tight text-white">
@@ -882,6 +870,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       )}
 
       {/* 4. WORKSTATION VIEWS */}
+
+      {staffView('stock', <StaffStockTab onManage={() => openStaffTab('website_cms')} />)}
 
       {/* VIEW 1: Service Bookings Management */}
       {staffView('bookings', (
@@ -918,7 +908,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* VIEW 7: Google Business Profile Tab */}
       {staffView('google_business', <GoogleBusinessTab />)}
-      {staffView('website_cms', <WebsiteContentManagerTab />)}
+      {staffView('website_cms', <div className="space-y-6"><WebsiteContentManagerTab /><ShopGalleryManager /></div>)}
 
       {/* VIEW 7C: Live 7-day riding weather for planning workshop capacity */}
       {staffView('weather', (
@@ -1021,8 +1011,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                         disabled={pushState === 'working' || pushState === 'granted'}
                         onClick={async () => {
                           setPushState('working');
-                          const perm = await requestPushNotificationPermission();
-                          setPushState(perm === 'granted' ? 'granted' : 'blocked');
+                          try {
+                            const perm = await requestPushNotificationPermission();
+                            setPushState(perm === 'granted' ? 'granted' : 'blocked');
+                          } catch { setPushState('blocked'); }
                         }}
                         className={`pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
                           pushState === 'granted'
@@ -1034,7 +1026,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                         <Bell className="w-4 h-4" />
                         <span>
                           {pushState === 'granted'
-                            ? 'Push Enabled'
+                            ? 'Permission Allowed'
                             : pushState === 'working'
                             ? 'Enabling…'
                             : 'Enable Push'}
@@ -1779,6 +1771,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           });
         }}
       />
+
+      <nav className="stakeys-bottom-nav" aria-label="Staff primary navigation">
+        {([{label:'Home', icon:Home, target:null}, {label:'Till', icon:ShoppingCart, target:'till'}, {label:'Jobs', icon:Wrench, target:'bookings'}, {label:'Stock', icon:Package, target:'stock'}, {label:'More', icon:MoreHorizontal, target:'settings'}] as const).map(item => {
+          const selected = item.target === null ? showTools : !showTools && staffTab === item.target;
+          return <button key={item.label} type="button" aria-current={selected ? 'page' : undefined} onClick={() => item.target === null ? closeStaffTool() : openStaffTab(item.target)}><item.icon size={22} strokeWidth={1.65} /><span>{item.label}</span></button>;
+        })}
+      </nav>
 
       {/* Repair App Bridge — the full diagnostics / SQL hand-off modal. */}
       {isBridgeRepairOpen && (

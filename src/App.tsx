@@ -7,7 +7,6 @@ import {
   LogOut,
   Scan,
   Wrench,
-  ArrowLeft,
   KeyRound,
   X,
   ShieldCheck,
@@ -34,7 +33,6 @@ import { PremiumBackdrop } from './components/PremiumBackdrop';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
 import { ThemeStage } from './components/ThemeStage';
-import { SeasonalDecor } from './components/SeasonalDecor';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
@@ -136,9 +134,9 @@ function AppContent() {
         tags.owner_email = ADMIN_NOTIFICATION_EMAIL;
         void registerEmailSubscription(ADMIN_NOTIFICATION_EMAIL);
       }
-      void linkUser(currentUser.uid, tags);
+      void linkUser(currentUser.uid, tags).catch(error => console.warn('[Push] Identity link failed', error));
     } else {
-      void unlinkUser();
+      void unlinkUser().catch(error => console.warn('[Push] Logout failed', error));
     }
   }, [currentUser?.uid, currentUser?.role]);
 
@@ -262,44 +260,40 @@ function AppContent() {
 
   if (isWebsiteSurface) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#070a09] text-neutral-100' : 'bg-[#f7f5ef] text-neutral-900'} font-['Manrope',sans-serif]`}>
+      <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
         <ThemeStage theme={seasonalTheme} />
-        {showGuestBooking ? (
-          <>
-            <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
-                    <StakeysLogo className="w-9 h-9" />
-                  </div>
-                  <div>
-                    <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
-                      STAKEYS
-                      <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">Cycles &amp; Scooter</span>
-                    </span>
-                    <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Repairs · Parts · Salford</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <ThemeToggle showLabel={false} />
-                  <button
-                    onClick={() => setShowGuestBooking(false)}
-                    className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" /> Back to site
-                  </button>
-                </div>
+        <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
+                <StakeysLogo className="w-9 h-9" />
               </div>
-            </header>
-            <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-              <BookingPortal onBookingComplete={() => setShowGuestBooking(false)} />
-            </main>
-          </>
-        ) : (
-          /* The marketing site owns its own premium header/footer so the whole
-             page reads as one crafted surface. */
-          <WebsiteReplica context="public" onBookService={() => setShowGuestBooking(true)} />
-        )}
+              <div>
+                <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
+                  STAKEYS
+                  <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">Cycles &amp; Scooter</span>
+                </span>
+                <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Repairs · Parts · Salford</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <ThemeToggle showLabel={false} />
+              <button
+                onClick={() => setShowGuestBooking(true)}
+                className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-xs font-black uppercase tracking-wider text-neutral-950 shadow cursor-pointer"
+              >
+                <Wrench className="w-3.5 h-3.5" /> Book a repair
+              </button>
+            </div>
+          </div>
+        </header>
+        <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {showGuestBooking ? (
+            <BookingPortal onBookingComplete={() => setShowGuestBooking(false)} />
+          ) : (
+            <WebsiteReplica context="public" onBookService={() => setShowGuestBooking(true)} />
+          )}
+        </main>
         <ShopAssistant surface="website" />
       </div>
     );
@@ -363,13 +357,36 @@ function AppContent() {
     }
     if (publicView === 'website') {
       return (
-        <div className={`min-h-screen ${isDark ? 'bg-[#070a09] text-neutral-100' : 'bg-[#f7f5ef] text-neutral-900'} font-['Manrope',sans-serif]`}>
+        <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
           <ThemeStage theme={seasonalTheme} />
-          <WebsiteReplica
-            context="public"
-            onBookService={() => setShowGuestBooking(true)}
-            onSignIn={() => setPublicView('login')}
-          />
+          <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
+                  <StakeysLogo className="w-9 h-9" />
+                </div>
+                <div>
+                  <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
+                    STAKEYS
+                    <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">Cycles &amp; Scooter</span>
+                  </span>
+                  <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Repairs · Parts · Salford</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <ThemeToggle showLabel={false} />
+                <button
+                  onClick={() => setPublicView('login')}
+                  className={`pressable inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-200 text-neutral-700 hover:border-emerald-500/50'}`}
+                >
+                  <Lock className="w-3.5 h-3.5" /> Customer Sign In
+                </button>
+              </div>
+            </div>
+          </header>
+          <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <WebsiteReplica context="public" onBookService={() => setShowGuestBooking(true)} />
+          </main>
           <ShopAssistant surface="website" />
         </div>
       );
@@ -384,7 +401,7 @@ function AppContent() {
 
       {/* Page content sits above the seasonal canvas (z-0) so the characters
           ride across the background of every screen, behind the UI. */}
-      <div className="relative z-10 min-h-screen flex flex-col">
+      <div className={`relative z-10 min-h-screen flex flex-col ${APP_SURFACE === 'customer' ? 'stakeys-customer-shell' : ''}`}>
       {/* Ambient premium backdrop for every surface (website, customer, staff). */}
       <PremiumBackdrop />
       {/* Broadcast Winner Announcement to Everybody */}
@@ -510,6 +527,20 @@ function AppContent() {
           </div>
         </div>
       </header>
+
+      {/* Always-visible customer booking entry: prevents workshop bookings becoming
+          inaccessible when the navigation launcher is collapsed or redesigned. */}
+      {!isStaff && (
+        <div className="sticky top-16 z-30 px-3 sm:px-6 py-2 bg-neutral-950/95 border-b border-emerald-500/30 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <span className="text-xs text-neutral-300">Need your bike or scooter repaired?</span>
+            <button type="button" onClick={() => { setMobileMenuOpen(false); setActiveTab('booking'); }}
+              className="inline-flex items-center gap-2 shrink-0 rounded-xl bg-[#05C147] px-4 py-2.5 text-xs font-bold text-neutral-950 shadow-lg shadow-emerald-500/20 hover:bg-emerald-400">
+              <Wrench className="w-4 h-4" /> Book a Repair
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area.
 
@@ -675,7 +706,7 @@ export default function App() {
       <div className="min-h-screen flex flex-col">
         {/* Graphical swinging celebration banner for the active seasonal theme,
             on every surface and every screen (website, login, staff, customer). */}
-        <SeasonalDecor />
+
         <div className="flex-1 flex flex-col min-h-0">
           <AppContent />
         </div>

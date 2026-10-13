@@ -213,7 +213,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
 
   // Resend the confirmation email for the address typed in the register form
   const handleResendConfirmation = async () => {
-    const email = registerEmail.trim();
+    const email = (mode === 'register' ? registerEmail : signInIdentifier).trim();
+    setError(null);
+    setNotice(null);
     if (!email.includes('@')) {
       setError('Enter the email address you registered with first.');
       return;
@@ -255,7 +257,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* ===== LEFT: BRAND / WORKSHOP PANEL (desktop only) ===== */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden p-10 xl:p-14">
         <img
@@ -368,14 +370,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
           <div className="bg-neutral-900/95 border border-neutral-700/80 rounded-3xl p-6 sm:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(5,193,71,0.12)] backdrop-blur-xl ring-1 ring-emerald-500/20">
             {/* Brand Header */}
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="hidden lg:block p-2 rounded-2xl bg-neutral-950 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 mb-3">
+              <div className={`${audience !== 'both' ? 'stakeys-login-logo' : 'hidden lg:block'} p-2 rounded-2xl bg-neutral-950 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 mb-3`}>
                 <StakeysLogo className="w-13 h-13" />
               </div>
               <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                 Welcome back
               </h1>
               <p className="text-xs text-neutral-400 mt-1.5">
-                Sign in to your loyalty pass, or join the workshop in under a minute.
+                {audience === 'staff' ? 'Stakeys Cycles Staff Portal' : 'Sign in to your loyalty pass, or join the workshop in under a minute.'}
               </p>
             </div>
 
@@ -662,6 +664,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
             </form>
           )}
 
+          {mode === 'signin' && audience !== 'staff' && (
+            <div className="text-center text-xs text-neutral-400 mt-3">
+              Need another account verification email?{' '}
+              <button type="button" disabled={resending} onClick={handleResendConfirmation}
+                className="text-emerald-400 underline font-semibold disabled:opacity-50">
+                {resending ? 'Sending…' : 'Resend registration email'}
+              </button>
+            </div>
+          )}
+
           {/* 3. CREATE ACCOUNT (SIGN UP) FORM */}
           {mode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-3.5">
@@ -884,6 +896,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
           )}
           </div>
         </div>
+        {audience !== 'both' && <address className="stakeys-login-address">Stakeys Cycles<br />65 Mulberry Court, Salford M6 5FQ</address>}
       </main>
     </div>
   );

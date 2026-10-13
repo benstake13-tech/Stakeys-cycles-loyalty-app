@@ -66,11 +66,11 @@ export interface NotificationDeps {
 export async function sendWorkshopEmail(to: string, subject: string, html: string): Promise<boolean> {
   try {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.functions.invoke('send-email', {
-      body: { from: 'noreply@stakeyscycles.co.uk', to, subject, html },
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: { from: 'noreply@stakeys-cycles.co.uk', to, subject, html },
     });
-    if (error) {
-      console.error(`[NOTIFY] Email to ${to} failed: ${error.message}`);
+    if (error || !data?.success) {
+      console.error(`[NOTIFY] Email to ${to} failed: ${error?.message || data?.error || 'No provider confirmation'}`);
       return false;
     }
     return true;

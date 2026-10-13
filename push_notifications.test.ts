@@ -53,6 +53,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   delete (window as any).OneSignalDeferred;
   delete (window as any).__oneSignalHeadInit;
@@ -110,10 +111,10 @@ describe('pushNotifications (OneSignal)', () => {
     expect(getConfiguredAppId()).not.toBe('override-app');
   });
 
-  it('getPushPermission reflects the SDK permission', async () => {
+  it('ungranted SDK permission preserves the browser default state', async () => {
     installSdk(fakeSdk({ Notifications: { permission: false } }));
     const { getPushPermission } = await load();
-    expect(await getPushPermission()).toBe('denied');
+    expect(await getPushPermission()).toBe('default');
   });
 
   it('requestPushPermission asks the SDK and reports the resulting permission', async () => {
@@ -197,4 +198,33 @@ describe('pushNotifications (OneSignal)', () => {
     expect(body.segment).toBeUndefined();
     expect(body.externalUserId).toBeUndefined();
   });
+});
+
+describe('push timeout regressions', () => {
+ it('finishes when a loaded SDK permission operation never resolves', async () => {
+  vi.useFakeTimers();
+  installSdk(fakeSdk({Notifications:{requestPermission:()=>new Promise(()=>{})}}));
+  const {requestPushPermission}=await load();
+  const pending=requestPushPermission();
+  await vi.advanceTimersByTimeAsync(8100);
+  expect(await pending).toBe('timeout');
+ });
+ it('does not run an expired queued operation when SDK arrives late', async () => {
+  vi.useFakeTimers();
+  const callbacks:any[]=[];
+  window.OneSignalDeferred=callbacks;
+  const {requestPushPermission}=await load();
+  const pending=requestPushPermission();
+  await vi.advanceTimersByTimeAsync(8100);
+  expect(await pending).toBe('timeout');
+  const sdk=fakeSdk();
+  for(const callback of callbacks)await callback(sdk);
+  expect(sdk.Notifications.requestPermission).not.toHaveBeenCalled();
+ });
+ it('honours a browser denial even when SDK only reports false', async()=>{
+  vi.stubGlobal('Notification',{permission:'denied'});
+  installSdk(fakeSdk({Notifications:{permission:false}}));
+  const {getPushPermission}=await load();
+  expect(await getPushPermission()).toBe('denied');
+ });
 });

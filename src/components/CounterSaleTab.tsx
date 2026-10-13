@@ -20,6 +20,10 @@ import {
   CreditCard,
   Send,
   QrCode,
+  Search,
+  Wrench,
+  Package,
+  LayoutGrid,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { useWebsiteContent, updateWebsiteContent } from '../context/WebsiteContentStore';
@@ -101,6 +105,9 @@ export const CounterSaleTab: React.FC = () => {
   const [qrProduct, setQrProduct] = useState<WebProduct | null>(null);
   const [lastSale, setLastSale] = useState<SaleTransaction | null>(null);
   const [catalogueQuery, setCatalogueQuery] = useState('');
+  const [catalogueType, setCatalogueType] = useState<'all' | 'job' | 'stock'>('all');
+  const [catalogueGroup, setCatalogueGroup] = useState('all');
+  const [showCustomJob, setShowCustomJob] = useState(false);
 
   // Live shop stock, so staff can sell a real product at the till and the
   // storefront quantity is decremented when the sale is processed. Every item
@@ -155,7 +162,8 @@ export const CounterSaleTab: React.FC = () => {
     () => buildCatalogue(webContent.priceList ?? [], stockProducts, lines),
     [webContent.priceList, stockProducts, lines]
   );
-  const catalogueRows = useMemo(() => searchCatalogue(catalogue, catalogueQuery), [catalogue, catalogueQuery]);
+  const catalogueGroups = useMemo(() => Array.from(new Set(catalogue.filter(r => catalogueType === 'all' || r.kind === catalogueType).map(r => r.category))).sort(), [catalogue, catalogueType]);
+  const catalogueRows = useMemo(() => searchCatalogue(catalogue, catalogueQuery).filter(r => (catalogueType === 'all' || r.kind === catalogueType) && (catalogueGroup === 'all' || r.category === catalogueGroup)), [catalogue, catalogueQuery, catalogueType, catalogueGroup]);
 
   /**
    * The active discount is re-evaluated on every basket change, so the amount off
@@ -504,16 +512,16 @@ export const CounterSaleTab: React.FC = () => {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(320px,1fr)]">
       {/* LEFT: basket + quick add */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-black text-white flex items-center gap-2">
-              <ShoppingCart className="w-5 h-5 text-emerald-400" /> Counter Sale / Till
+              <ShoppingCart className="w-5 h-5 text-emerald-400" /> Workshop Point of Sale
             </h2>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Scan a member barcode or a discount code — the discount is applied and the total updated automatically.
+              Find a service or product, tap to add it, then take payment. No calculator needed for standard jobs.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -594,77 +602,60 @@ export const CounterSaleTab: React.FC = () => {
           </button>
         </form>
 
-        {/* Searchable catalogue — every staff-editable price-list job plus shop stock */}
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
-              Catalogue ({catalogueRows.length})
-            </span>
-            <span className="text-[10px] text-neutral-600">Jobs from the website price list + shop stock</span>
-          </div>
-          <div className="relative mb-2">
-            <Scan className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
-            <input
-              data-testid="till-catalogue-search"
-              value={catalogueQuery}
-              onChange={(e) => setCatalogueQuery(e.target.value)}
-              placeholder="Search jobs, parts, stock…"
-              className="w-full rounded-xl border border-neutral-700 bg-black py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-emerald-500"
-            />
-          </div>
-          {catalogueRows.length === 0 ? (
-            <p className="py-4 text-center text-xs text-neutral-600">
-              {catalogue.length === 0
-                ? 'No items yet. Add prices in Staff Station → Website → Price List, or stock in Shop & Stock.'
-                : `No items match “${catalogueQuery}”.`}
-            </p>
-          ) : (
-            <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {catalogueRows.map((row) => (
-                <div key={row.id} className="flex items-stretch gap-1">
-                  <button
-                    type="button"
-                    data-testid={`catalogue-${row.id}`}
-                    disabled={row.disabled}
-                    onClick={() => addFromCatalogue(row)}
-                    className={`flex flex-1 items-center justify-between rounded-xl border px-3 py-2 text-left text-xs ${
-                      row.disabled
-                        ? 'cursor-not-allowed border-neutral-900 bg-neutral-950 text-neutral-600'
-                        : 'border-neutral-800 bg-black text-neutral-300 hover:border-emerald-500/40 hover:text-white'
-                    }`}
-                  >
-                    <span className="min-w-0 pr-2">
-                      <span className="block truncate">{row.label}</span>
-                      <span className={`block text-[10px] ${row.disabled ? 'text-rose-400' : 'text-neutral-500'}`}>
-                        {row.hint ?? row.category}
-                      </span>
-                    </span>
-                    <span className={`font-mono font-semibold ${row.price === undefined ? 'text-neutral-500' : 'text-emerald-400'}`}>
-                      {row.price === undefined ? 'set price' : `£${row.price.toFixed(2)}`}
-                    </span>
-                  </button>
-                  {row.kind === 'stock' && row.productId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const product = stockProducts.find((p) => p.id === row.productId);
-                        if (product) setQrProduct(product);
-                      }}
-                      title={`Print QR code for ${row.label}`}
-                      aria-label={`Print QR code for ${row.label}`}
-                      className="shrink-0 rounded-xl border border-neutral-800 px-2 text-neutral-400 hover:border-emerald-500/40 hover:text-emerald-400"
-                    >
-                      <QrCode className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-              ))}
+        {/* Service-first catalogue: tabs, category chips and prominent one-tap tiles. */}
+        <section className="rounded-2xl border border-emerald-500/25 bg-neutral-950 p-4 space-y-3" data-testid="pos-service-browser">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="flex items-center gap-2 text-base font-black text-white"><LayoutGrid className="w-5 h-5 text-emerald-400"/> Services &amp; products</h3>
+              <p className="text-xs text-neutral-400">Choose a category or search. Tap any tile to add it to the basket.</p>
             </div>
-          )}
-        </div>
-
-        {/* Manual job calculator — add up a bespoke job and bill it as one line */}
-        <TillCalculator onAddLine={addLine} isDark={theme === 'dark'} />
+            <span className="text-xs text-neutral-500">{catalogueRows.length} results</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Catalogue type">
+            {([{id:'all',label:'Everything',Icon:LayoutGrid},{id:'job',label:'Services',Icon:Wrench},{id:'stock',label:'Products',Icon:Package}] as const).map(({id,label,Icon}) =>
+              <button key={id} type="button" aria-pressed={catalogueType===id} onClick={()=>{setCatalogueType(id);setCatalogueGroup('all');}}
+                className={`flex min-h-12 items-center justify-center gap-2 rounded-xl border px-2 py-2 text-sm font-bold ${catalogueType===id?'border-emerald-400 bg-emerald-500/20 text-emerald-300':'border-neutral-700 bg-neutral-900 text-neutral-300 hover:border-emerald-500/50'}`}>
+                <Icon className="h-4 w-4"/> {label}
+              </button>)}
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400"/>
+            <input data-testid="till-catalogue-search" type="search" value={catalogueQuery} onChange={e=>setCatalogueQuery(e.target.value)}
+              placeholder="Search brake pads, punctures, services, brands…" aria-label="Search services and products"
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-900 py-3 pl-11 pr-3 text-base text-white outline-none focus:border-emerald-400"/>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Service and product categories">
+            <button type="button" onClick={()=>setCatalogueGroup('all')} aria-pressed={catalogueGroup==='all'}
+              className={`shrink-0 rounded-full border px-3 py-2 text-xs font-bold ${catalogueGroup==='all'?'bg-emerald-600 border-emerald-500 text-white':'bg-neutral-900 border-neutral-700 text-neutral-300'}`}>All categories</button>
+            {catalogueGroups.map(group=><button key={group} type="button" onClick={()=>setCatalogueGroup(group)} aria-pressed={catalogueGroup===group}
+              className={`shrink-0 rounded-full border px-3 py-2 text-xs font-bold ${catalogueGroup===group?'bg-emerald-600 border-emerald-500 text-white':'bg-neutral-900 border-neutral-700 text-neutral-300'}`}>{group}</button>)}
+          </div>
+          {catalogueRows.length===0 ? <div className="rounded-xl border border-dashed border-neutral-700 p-6 text-center text-sm text-neutral-400">
+            {catalogue.length===0?'Add services in Staff Station → Website → Price List and products in Shop & Stock.':'No matches. Try a different search or category.'}
+            <button type="button" onClick={()=>{setCatalogueQuery('');setCatalogueType('all');setCatalogueGroup('all');}} className="ml-2 font-bold text-emerald-400">Clear filters</button>
+          </div> : <div className="grid max-h-[34rem] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+            {catalogueRows.map(row=><div key={row.id} className="relative min-w-0">
+              <button type="button" data-testid={`catalogue-${row.id}`} disabled={row.disabled} onClick={()=>addFromCatalogue(row)}
+                className={`flex h-full min-h-28 w-full flex-col items-start justify-between gap-2 rounded-xl border p-3 text-left transition-colors ${row.disabled?'border-neutral-800 bg-neutral-900/50 text-neutral-600':'border-neutral-700 bg-neutral-900 text-white hover:border-emerald-400 hover:bg-emerald-500/10 active:bg-emerald-500/20'}`}>
+                {row.productId && stockProducts.find(product => product.id === row.productId)?.image && <img className="stakeys-product-photo" src={stockProducts.find(product => product.id === row.productId)!.image} alt="" loading="lazy" />}
+                <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{row.kind==='job'?<Wrench className="h-3 w-3"/>:<Package className="h-3 w-3"/>}{row.kind==='job'?'Service':'Product'}</span>
+                <span className="w-full break-words text-sm font-bold leading-snug">{row.label}</span>
+                <span className="text-[11px] text-neutral-400">{row.hint??row.category}</span>
+                <span className="text-base font-black text-emerald-400">{row.price===undefined?'Set price':`£${row.price.toFixed(2)}`} <Plus className="inline h-4 w-4"/></span>
+              </button>
+              {row.kind==='stock'&&row.productId&&<button type="button" title={`Print QR code for ${row.label}`} aria-label={`Print QR code for ${row.label}`}
+                onClick={()=>{const product=stockProducts.find(p=>p.id===row.productId);if(product)setQrProduct(product);}}
+                className="absolute right-2 top-2 rounded-lg bg-neutral-800 p-1.5 text-neutral-300 hover:text-emerald-400"><QrCode className="h-3.5 w-3.5"/></button>}
+            </div>)}
+          </div>}
+          <div className="border-t border-neutral-800 pt-3">
+            <button type="button" aria-expanded={showCustomJob} onClick={()=>setShowCustomJob(v=>!v)}
+              className="flex w-full items-center justify-between rounded-lg bg-neutral-900 px-3 py-2 text-sm font-semibold text-neutral-300 hover:text-white">
+              <span>Custom job / manual price</span><span>{showCustomJob?'Hide':'Show'}</span>
+            </button>
+            {showCustomJob&&<div className="mt-3"><TillCalculator onAddLine={addLine} isDark={theme==='dark'}/></div>}
+          </div>
+        </section>
 
         {/* Basket */}
         <div className="rounded-2xl border border-neutral-800 bg-neutral-950 p-3">
@@ -681,7 +672,7 @@ export const CounterSaleTab: React.FC = () => {
           </div>
           {lines.length === 0 ? (
             <p className="py-6 text-center text-xs text-neutral-600">
-              Basket is empty. Add items above or scan a code.
+              No items yet. Add a service or product above, or scan a code.
             </p>
           ) : (
             <div className="divide-y divide-neutral-900">
