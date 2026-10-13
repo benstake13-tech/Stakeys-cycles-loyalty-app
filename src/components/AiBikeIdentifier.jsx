@@ -275,7 +275,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         {!configured && (
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-950/40 px-3 py-2.5 text-xs text-amber-200">
             <CircleAlert className="h-4 w-4 shrink-0" />
-            <span>AI vision isn't configured on this build. Add a VITE_GEMINI_API_KEY to enable photo identification.</span>
+            <span>AI vision isn't configured on this build. Configure the Gemini gateway in Supabase to enable photo identification.</span>
           </div>
         )}
 

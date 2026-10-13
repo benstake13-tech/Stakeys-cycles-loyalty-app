@@ -1011,8 +1011,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                         disabled={pushState === 'working' || pushState === 'granted'}
                         onClick={async () => {
                           setPushState('working');
-                          const perm = await requestPushNotificationPermission();
-                          setPushState(perm === 'granted' ? 'granted' : 'blocked');
+                          try {
+                            const perm = await requestPushNotificationPermission();
+                            setPushState(perm === 'granted' ? 'granted' : 'blocked');
+                          } catch { setPushState('blocked'); }
                         }}
                         className={`pressable inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer border transition-colors ${
                           pushState === 'granted'
@@ -1024,7 +1026,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                         <Bell className="w-4 h-4" />
                         <span>
                           {pushState === 'granted'
-                            ? 'Push Enabled'
+                            ? 'Permission Allowed'
                             : pushState === 'working'
                             ? 'Enabling…'
                             : 'Enable Push'}

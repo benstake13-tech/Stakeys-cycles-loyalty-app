@@ -1,32 +1,46 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRight,
   BadgePoundSterling,
   Bike,
   CalendarCheck,
   Check,
+  ChevronDown,
+  Clock,
   Copy,
   Globe,
   Link2,
+  Lock,
   MapPin,
   MessageCircle,
+  Menu,
   Phone,
+  Quote,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
   Star,
   Store,
   Tag,
   Trash2,
+  Truck,
   CloudRain,
+  Wrench,
   X,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { useWebsiteContent } from '../context/WebsiteContentStore';
 import { supabase } from '../lib/supabase';
-import { SegmentedTab, SegmentedTabs } from './SegmentedTabs';
 import { SocialBrandIcon } from './SocialBrandIcon';
 import { ShareMenu } from './ShareMenu';
-import { WebsitePageId, WebProductCategory, WebCartItem, WebProduct } from '../types/websiteContent';
+import {
+  WebsitePageId,
+  WebProductCategory,
+  WebCartItem,
+  WebProduct,
+  SiteNavGroup,
+} from '../types/websiteContent';
 import { NotifyMeButton } from './NotifyMeButton';
 import {
   applyDiscountToTotal,
@@ -41,12 +55,15 @@ import { DISCOUNT_DISCLAIMERS } from '../utils/workshopPolicy';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { CustomerErrorCodeHelper } from './CustomerErrorCodeHelper';
 import { SellYourBikeForm } from './TradeInRequestForm';
+import { ThemeToggle } from './ThemeToggle';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
   onBookService: () => void;
 /** Which surface is showing the site: the public website or the embedded customer-app tab. */
   context?: 'public' | 'embedded';
+/** Show a "Customer Sign In" action in the site header (used by the public website). */
+  onSignIn?: () => void;
 }
 
 const CART_TITLE = 'Your Basket';
@@ -55,12 +72,111 @@ const CART_BLURB =
 const CART_CTA_LABEL = 'Checkout';
 const CHECKOUT_SUCCESS_TITLE = 'Order received!';
 
+/** All page ids, used to validate a `?page=` deep link before trusting it. */
+const ALL_PAGES: WebsitePageId[] = [
+  'home',
+  'shop',
+  'repairs',
+  'sell',
+  'offers',
+  'faqs',
+  'visit',
+  'join',
+  'location',
+  'weather',
+  'gallery',
+  'priceList',
+];
+
+/** Read the requested page from the URL (`?page=shop`) so links are shareable. */
+function pageFromSearch(): WebsitePageId | null {
+  if (typeof window === 'undefined') return null;
+  const raw = new URLSearchParams(window.location.search).get('page');
+  return raw && (ALL_PAGES as string[]).includes(raw) ? (raw as WebsitePageId) : null;
+}
+
+/**
+ * Reflect the active page in the URL, but only for a session that arrived on a
+ * `?page=` deep link — a plain visit never gains a query param, so the address
+ * bar stays clean and shared links keep working.
+ */
+function syncPageParam(next: WebsitePageId) {
+  if (typeof window === 'undefined' || !window.history?.replaceState) return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('page')) return;
+  if (next === 'home') url.searchParams.delete('page');
+  else url.searchParams.set('page', next);
+  window.history.replaceState(null, '', url.toString());
+}
+
 /** Checkout requires a basket, a name and some contact detail before the order can be placed. */
 function isCheckoutReady(name: string, contact: string, itemCount: number): boolean {
   return itemCount > 0 && name.trim().length > 1 && contact.trim().length > 4;
 }
 
-export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, context = 'public' }) => {
+/**
+ * Reveals its children as they scroll into view (IntersectionObserver, fires
+ * once). Falls back to visible immediately when the API is unavailable so
+ * nothing is ever hidden in a headless render or an old browser.
+ */
+const Reveal: React.FC<{ children: React.ReactNode; className?: string; delay?: number }> = ({
+  children,
+  className = '',
+  delay = 0,
+}) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setShown(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShown(true);
+          io.disconnect();
+        }
+      },
+      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className={`site-reveal ${shown ? 'is-in' : ''} ${className}`}
+      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+    >
+      {children}
+    </div>
+  );
+};
+
+/** Infinite horizontal ticker; the track is duplicated for a seamless loop. */
+const Marquee: React.FC<{ items: string[]; className?: string }> = ({ items, className = '' }) => (
+  <div className={`site-marquee ${className}`} aria-hidden="true">
+    {[0, 1].map((dup) => (
+      <div key={dup} className="site-marquee__track">
+        {items.map((t, i) => (
+          <span key={`${dup}-${i}`} className="flex items-center gap-3.5 whitespace-nowrap">
+            <span className="font-editorial text-lg italic text-[var(--site-ink-soft)]">{t}</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--site-brass)]" />
+          </span>
+        ))}
+      </div>
+    ))}
+  </div>
+);
+
+export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
+  onBookService,
+  context = 'public',
+  onSignIn,
+}) => {
   const { currentUser, theme, promotions, discountCodes, recordDiscountUsage } = useShop();
   const content = useWebsiteContent();
   const isDark = theme === 'dark';
@@ -74,9 +190,39 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
     (c) => c.status === 'active' && (c.audience === 'public' || (c.audience === 'member' && currentUser))
   );
 
-  const [page, setPage] = useState<WebsitePageId>('home');
+  const [page, setPage] = useState<WebsitePageId>(() => pageFromSearch() ?? 'home');
   const [faqFilter, setFaqFilter] = useState<'repairs' | 'parts' | 'general' | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'all' | WebProductCategory>('all');
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const navRef = useRef<HTMLDivElement>(null);
+
+  // Close the mega-menu / mobile drawer when clicking away or pressing Escape.
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (navRef.current && !navRef.current.contains(e.target as Node)) setOpenGroup(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenGroup(null);
+        setMobileNavOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  const goTo = useCallback((next: WebsitePageId) => {
+    setPage(next);
+    setOpenGroup(null);
+    setMobileNavOpen(false);
+    syncPageParam(next);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
 
   const [cart, setCart] = useState<WebCartItem[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
@@ -273,24 +419,56 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
     }
   };
 
-  const pageTabs: SegmentedTab<WebsitePageId>[] = [
-    { id: 'home', label: 'Home', icon: Globe, tone: 'emerald' },
-    { id: 'location', label: 'Location', icon: MapPin, tone: 'sky' },
-    { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky' },
-    { id: 'shop', label: 'Shop', icon: Store, tone: 'amber' },
+  /**
+   * Primary navigation, grouped so a customer always knows where to go:
+   * Shop and Repairs hold the submenus; everything else is one tap away.
+   * Kept in sync with the Staff Station's "Pages" list.
+   */
+  const navGroups: SiteNavGroup[] = [
     {
-      id: 'offers',
-      label: 'Offers',
-      icon: Tag,
-      tone: 'emerald',
-      badge: liveDiscountCodes.length > 0 ? liveDiscountCodes.length : undefined,
+      id: 'shop',
+      label: 'Shop',
+      icon: 'store',
+      page: 'shop',
+      children: [
+        { id: 'shop', label: 'Second-hand bikes & parts', hint: 'Serviced, photographed, ready to ride' },
+        { id: 'sell', label: 'Sell your bike', hint: 'Get an instant AI offer in minutes' },
+      ],
     },
-    { id: 'faqs', label: 'FAQs', icon: MessageCircle, tone: 'neutral' },
-    { id: 'gallery', label: 'Gallery', icon: Bike, tone: 'sky' },
-    { id: 'priceList', label: 'price list', icon: BadgePoundSterling, tone: 'amber' },
-    { id: 'sell', label: 'Sell Your Bike', icon: Tag, tone: 'emerald' },
-    { id: 'join', label: 'Join the Team', icon: Star, tone: 'emerald' },
+    {
+      id: 'repairs',
+      label: 'Repairs & Prices',
+      icon: 'wrench',
+      page: 'repairs',
+      children: [
+        { id: 'repairs', label: 'Repairs & services', hint: 'What we fix and how it works' },
+        { id: 'priceList', label: 'Price list', hint: 'Clear, upfront labour prices' },
+        { id: 'weather', label: 'Riding weather', hint: 'A 7-day "can I ride?" forecast' },
+      ],
+    },
+    { id: 'offers', label: 'Offers', icon: 'tag', page: 'offers' },
+    { id: 'faqs', label: 'FAQs', icon: 'message', page: 'faqs' },
+    {
+      id: 'visit',
+      label: 'Visit',
+      icon: 'map',
+      page: 'visit',
+      children: [
+        { id: 'visit', label: 'Find us & opening', hint: 'Salford workshop + mobile call-out' },
+        { id: 'gallery', label: 'Gallery', hint: 'Recent builds from the workshop' },
+      ],
+    },
+    { id: 'join', label: 'Join us', icon: 'star', page: 'join' },
   ];
+
+  const NAV_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+    store: Store,
+    wrench: Wrench,
+    tag: Tag,
+    message: MessageCircle,
+    map: MapPin,
+    star: Star,
+  };
 
   const call = `tel:${content.phone}`;
   const mail = `mailto:${content.email}`;
@@ -325,391 +503,573 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
     );
     return () => window.clearInterval(id);
   }, [content.siteAnnouncements.length]);
-  const couponPanel = (
-    <div className={'rounded-2xl border p-4 shadow-sm space-y-3 ' + (isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200')}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-emerald-400" />
-          <span className={'text-[11px] font-black uppercase tracking-widest ' + (isDark ? 'text-neutral-200' : 'text-neutral-700')}>
-            Active Coupons &amp; Codes
-          </span>
-        </div>
-        <span className={'text-[10px] font-bold ' + (isDark ? 'text-neutral-500' : 'text-neutral-400')}>
-          {liveDiscountCodes.length} available
-        </span>
-      </div>
-
-      {liveDiscountCodes.length === 0 ? (
-        <p className={'text-[11px] leading-snug ' + (isDark ? 'text-neutral-400' : 'text-neutral-500')}>
-          No active coupon codes right now.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {liveDiscountCodes.map((coupon) => {
-            const isApplied = appliedCode?.code?.toUpperCase() === coupon.code.toUpperCase();
-            return (
-              <div
-                key={coupon.id}
-                className={'rounded-xl border p-3 space-y-1 relative group overflow-hidden ' + (isDark ? 'border-neutral-800 bg-neutral-950/80' : 'border-neutral-200 bg-neutral-50/80')}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className={'text-[11px] font-bold ' + (isDark ? 'text-white' : 'text-neutral-900')}>
-                    {coupon.title}
-                  </span>
-                  <span className={'px-2 py-0.5 rounded text-[8px] font-mono font-bold uppercase ' + (coupon.audience === 'member' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-neutral-800 text-neutral-400 dark:text-neutral-400 light:bg-neutral-200 light:text-neutral-600')}>
-                    {coupon.audience === 'member' ? 'Member Only' : 'Public'}
-                  </span>
-                </div>
-                {coupon.description && (
-                  <p className={'text-[11px] leading-snug ' + (isDark ? 'text-neutral-400' : 'text-neutral-500')}>{coupon.description}</p>
-                )}
-                {coupon.minimumSpend ? (
-                  <p className={'text-[10px] ' + (isDark ? 'text-neutral-500' : 'text-neutral-400')}>
-                    Min. spend £{coupon.minimumSpend.toFixed(2)}
-                  </p>
-                ) : null}
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => copyCode(coupon.code)}
-                    title="Copy code"
-                    className={'pressable inline-flex items-center gap-1.5 rounded-lg border border-dashed px-2 py-0.5 text-[10px] font-mono font-bold cursor-pointer ' + (isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-300 text-neutral-700 hover:border-emerald-500/50')}
-                  >
-                    {copiedCode === coupon.code ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-400" /> Copied
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" /> {coupon.code}
-                      </>
-                    )}
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => copyOfferLink(coupon.code)}
-                      title="Copy shareable offer link"
-                      className={'pressable inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-bold cursor-pointer ' + (isDark ? 'border-neutral-700 text-neutral-300 hover:border-emerald-500/50' : 'border-neutral-300 text-neutral-600 hover:border-emerald-500/50')}
-                    >
-                      {copiedLink === coupon.code ? (
-                        <>
-                          <Check className="w-3 h-3 text-emerald-400" /> Link
-                        </>
-                      ) : (
-                        <>
-                          <Link2 className="w-3 h-3" /> Link
-                        </>
-                      )}
-                    </button>
-                    <span className="text-[10px] text-emerald-400 dark:text-emerald-400 light:text-emerald-600 font-bold">
-                      {coupon.type === 'percent' ? coupon.value + '% Off' : '£' + coupon.value + ' Off'}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => useCoupon(coupon)}
-                  className={'pressable mt-1 w-full rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider cursor-pointer ' + (isApplied ? 'border-emerald-500/60 bg-emerald-500/15 text-emerald-400' : isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-300 text-neutral-700 hover:border-emerald-500/50')}
-                >
-                  {isApplied ? '✓ Applied' : 'Use this code'}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {!currentUser && (
-        <p className={'text-[10px] leading-snug text-center mt-1 border-t border-dashed pt-2 ' + (isDark ? 'border-neutral-800 text-neutral-500' : 'border-neutral-300 text-neutral-400')}>
-          💡 <strong>Sign in</strong> to unlock premium member codes!
-        </p>
-      )}
-    </div>
-  );
-
-
-
-  const promotionsPanel = (
-    <div className={`rounded-2xl border p-4 shadow-sm space-y-3 ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Tag className="w-4 h-4 text-emerald-400" />
-          <span className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>
-            Live Promotions
-          </span>
-        </div>
-        <span className={`text-[10px] font-bold ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
-          {livePromotions.length} running
-        </span>
-      </div>
-      {livePromotions.length === 0 ? (
-        <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-          No promotions running right now — check back soon.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {livePromotions.map((promo) => (
-            <div
-              key={promo.id}
-              className="rounded-xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/10 to-transparent p-3 space-y-1"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className={`text-[11px] font-black uppercase tracking-wider ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                  {promo.title}
-                </span>
-                <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-neutral-950">
-                  {promo.badgeText}
-                </span>
-              </div>
-              <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>{promo.subtitle}</p>
-              <div className="flex items-center gap-2 pt-0.5">
-                <span className={`rounded-lg border border-dashed px-2 py-0.5 text-[10px] font-mono font-bold ${isDark ? 'border-neutral-600 text-neutral-200' : 'border-neutral-300 text-neutral-700'}`}>
-                  {promo.code}
-                </span>
-                <span className={`text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>Ends {promo.endDate}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const heroCard = (
-    <div className={`relative overflow-hidden rounded-[2rem] shadow-2xl ${isDark ? 'border border-white/10 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black' : 'border border-neutral-200 bg-gradient-to-br from-white via-emerald-50/40 to-white'}`}>
-      <span className="hero-sheen" aria-hidden="true" />
-      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-        <div className="absolute -top-24 -right-16 w-72 h-72 rounded-full bg-emerald-500/25 blur-3xl" />
-        <div className="absolute -bottom-24 -left-20 w-64 h-64 rounded-full bg-sky-500/15 blur-3xl" />
-        <div className="absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:28px_28px]" />
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
-      </div>
-      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-8 items-center p-6 sm:p-10">
-        <div className="space-y-5">
-          <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] shadow-sm ${isDark ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-[#05C147] animate-pulse" />
-            {content.heroBadge}
-          </span>
-          <span
-            data-testid="website-context-badge"
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-wider ${isDark ? 'border-neutral-700 bg-neutral-900/70 text-neutral-400' : 'border-neutral-200 bg-white/80 text-neutral-500'}`}
-          >
-            <Globe className="w-3 h-3" />
-            {isEmbedded ? 'Customer app preview' : 'Public website'}
-          </span>
-          <h2 className={`font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.05] ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-            Stakey's{' '}
-            <span className="bg-gradient-to-r from-emerald-500 to-teal-400 bg-clip-text text-transparent">
-              {content.heroTitle}
-            </span>
-          </h2>
-          <p className={`text-base font-bold ${isDark ? 'text-emerald-200/90' : 'text-emerald-700'}`}>
-            {content.homeHeadlineOverride?.[context] || content.heroSubtitle}
-          </p>
-          <p className={`text-sm leading-relaxed max-w-xl ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-            {content.heroBlurb}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { icon: BadgePoundSterling, label: '10 stamps → £40 credit' },
-              { icon: CalendarCheck, label: 'Live repair tracking' },
-              { icon: MapPin, label: 'Salford · call-out' },
-            ].map(({ icon: Icon, label }) => (
-              <span
-                key={label}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold ${isDark ? 'border-neutral-800 bg-neutral-900/70 text-neutral-300' : 'border-neutral-200 bg-white/80 text-neutral-700'}`}
-              >
-                <Icon className="w-3.5 h-3.5 text-emerald-500" />
-                {label}
-              </span>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onBookService}
-              className="btn btn-primary !px-5 !py-2.5 !text-xs !uppercase !tracking-wider"
-            >
-              <CalendarCheck className="w-4 h-4" />
-              {isEmbedded ? 'Book a repair' : content.calloutCta}
-            </button>
-            <a
-              href={call}
-              className={`btn btn-ghost !px-5 !py-2.5 !text-xs ${isDark ? '' : '!border-neutral-300 !text-neutral-800'}`}
-            >
-              <Phone className="w-4 h-4" />
-              Call Us Out
-            </a>
-          </div>
-        </div>
-        {/* Quality claim — the "show big companies how it's done" promise leads the hero. */}
-        <div
-          data-testid="hero-quality-claim"
-          className={`relative rounded-[1.75rem] border p-6 sm:p-8 shadow-xl ${isDark ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-500/10 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}
-        >
-          <span className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-emerald-400/60 to-transparent" aria-hidden="true" />
-          <Sparkles className="w-7 h-7 text-emerald-500" />
-          <p className={`mt-3 text-lg sm:text-xl font-display font-black leading-snug ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-            {content.brandStory.qualityClaim}
-          </p>
-          <div className={`mt-4 space-y-2 border-t border-dashed pt-4 ${isDark ? 'border-neutral-800' : 'border-neutral-200'}`}>
-            {content.brandStory.howWeWorkSteps.slice(0, 3).map((step, i) => (
-              <div key={step.title} className="flex items-start gap-3">
-                <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[10px] font-black text-emerald-500">
-                  {i + 1}
-                </span>
-                <span className={`text-xs font-semibold ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>{step.title}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   const valueProps = [
     {
       icon: CalendarCheck,
       title: 'Book a repair in a minute',
-      body: 'Pick your symptoms, choose a slot and we confirm by text. No phone queue needed.',
+      body: 'Tell us the symptoms, pick a slot and we confirm by text — no phone queue, no guesswork.',
       tone: 'emerald',
     },
     {
       icon: Store,
       title: 'Second-hand bikes & parts',
-      body: 'Serviced, photographed and priced to go — buy online and collect from the workshop.',
-      tone: 'amber',
+      body: 'Every bike is stripped, serviced and photographed before it reaches the shelf. Buy online, collect in person.',
+      tone: 'brass',
     },
     {
       icon: BadgePoundSterling,
       title: 'Loyalty that pays you back',
-      body: 'Collect a stamp every visit. Fill the card and unlock £40 of workshop credit.',
+      body: 'Collect a stamp every visit. Fill the card and £40 of workshop credit is yours to spend.',
       tone: 'sky',
     },
   ] as const;
 
-  const valueBand = (
-    <div className="stagger grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {valueProps.map(({ icon: Icon, title, body, tone }) => (
-        <div
-          key={title}
-          className="surface-panel surface-panel-hover group p-5"
-        >
-          <span
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border ${
-              tone === 'emerald'
-                ? 'bg-emerald-500/15 text-emerald-500 border-emerald-500/20'
-                : tone === 'amber'
-                ? 'bg-amber-500/15 text-amber-500 border-amber-500/20'
-                : 'bg-sky-500/15 text-sky-500 border-sky-500/20'
-            }`}
-          >
-            <Icon className="w-5 h-5" />
-          </span>
-          <h3 className={`mt-3 text-sm font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{title}</h3>
-          <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{body}</p>
-        </div>
-      ))}
-    </div>
+  const TONE_BG: Record<string, string> = {
+    emerald: 'bg-[rgba(18,184,102,0.14)] text-[var(--site-green)]',
+    brass: 'bg-[rgba(216,180,90,0.16)] text-[var(--site-brass)]',
+    sky: 'bg-[rgba(56,189,248,0.14)] text-sky-400',
+  };
+
+  /* ------------------------------------------------------------------ *
+   * Reusable page furniture
+   * ------------------------------------------------------------------ */
+
+  const pageHeading = (eyebrow: string, title: string, body?: string) => (
+    <header className="max-w-3xl">
+      <span className="site-eyebrow">{eyebrow}</span>
+      <h1 className="site-display mt-3 text-4xl sm:text-5xl">{title}</h1>
+      {body && <p className="site-lede mt-4 text-base">{body}</p>}
+    </header>
   );
 
-  const brandStoryBlock = (
-    <div data-testid="home-brand-story" className="surface-panel p-6 sm:p-8">
-      <span className={`eyebrow ${isDark ? '' : '!text-emerald-700'}`}>
-        {content.brandStory.eyebrow}
-      </span>
-      <h3 className={`mt-1 font-display text-2xl sm:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-        {content.brandStory.title}
-      </h3>
-      <p className={`mt-3 text-sm leading-relaxed max-w-3xl ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-        {content.brandStory.body}
-      </p>
-      <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-        {content.brandStory.bullets.map((b) => (
-          <li key={b} className={`flex items-start gap-2 text-xs leading-relaxed ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-            <Check className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-      <h4 className={`mt-6 text-xs font-black uppercase tracking-widest ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>
-        {content.brandStory.howWeWorkTitle}
-      </h4>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {content.brandStory.howWeWorkSteps.map((step, i) => (
-          <div key={step.title} className={`rounded-2xl border p-4 ${isDark ? 'border-neutral-800 bg-neutral-950/60' : 'border-neutral-200 bg-neutral-50/70'}`}>
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-[11px] font-black text-emerald-500">
-              {i + 1}
-            </span>
-            <h5 className={`mt-2 text-xs font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{step.title}</h5>
-            <p className={`mt-1 text-[11px] leading-relaxed ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>{step.body}</p>
-          </div>
-        ))}
+  const sectionHeading = (eyebrow: string, title: string, body?: string, right?: React.ReactNode) => (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="max-w-2xl">
+        <span className="site-eyebrow">{eyebrow}</span>
+        <h2 className="site-display mt-3 text-3xl sm:text-4xl">{title}</h2>
+        {body && <p className="site-lede mt-3 text-sm sm:text-base">{body}</p>}
       </div>
+      {right}
     </div>
   );
 
-  // Discount codes are demoted to a single secondary row below the brand story.
-  const offersTeaser = (
-    <div data-testid="home-offers-teaser" className={`rounded-3xl border p-5 sm:p-6 ${isDark ? 'border-emerald-500/25 bg-gradient-to-br from-emerald-500/8 via-neutral-950 to-black' : 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white'}`}>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <BadgePoundSterling className="w-6 h-6 text-emerald-500" />
-          <div>
-            <h3 className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-              {liveDiscountCodes.length > 0
-                ? `${liveDiscountCodes.length} live offer${liveDiscountCodes.length === 1 ? '' : 's'} running`
-                : 'Offers & member rewards'}
-            </h3>
-            <p className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-              Loyalty stamps, member codes and seasonal deals — kept out of the way until you want them.
-            </p>
-          </div>
-        </div>
+  /* ------------------------------------------------------------------ *
+   * Header — brand lock-up, grouped nav, one clear action
+   * ------------------------------------------------------------------ */
+
+  const utilityBadge = (
+    <span
+      data-testid="website-context-badge"
+      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--site-line)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--site-ink-faint)]"
+    >
+      <Globe className="w-3 h-3" />
+      {isEmbedded ? 'Customer app preview' : 'Public website'}
+    </span>
+  );
+
+  const siteHeader = (
+    <header className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-xl border-b border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-canvas)_82%,transparent)]">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4">
         <button
           type="button"
-          onClick={() => setPage('offers')}
-          className="pressable inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/50 px-3 py-1.5 text-[11px] font-bold text-emerald-500 cursor-pointer"
+          onClick={() => goTo('home')}
+          className="flex items-center gap-3 text-left cursor-pointer"
+          aria-label="Stakey's Cycles home"
         >
-          <Tag className="w-3.5 h-3.5" /> See all offers
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)]">
+            <img
+              src={`${import.meta.env.BASE_URL}logo.svg`}
+              alt="Stakey's Cycles &amp; Scooter"
+              className="h-full w-full object-contain"
+            />
+          </span>
+          <span className="leading-tight">
+            <span className="font-editorial block text-lg font-semibold tracking-tight text-[var(--site-ink)]">
+              Stakey's <span className="text-[var(--site-green)]">Cycles</span>
+            </span>
+            <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--site-ink-faint)] sm:block">
+              Repairs · Salford
+            </span>
+          </span>
         </button>
+
+        {/* Desktop grouped navigation */}
+        <nav ref={navRef} className="hidden lg:flex items-center gap-1" aria-label="Website pages">
+          <button
+            type="button"
+            onClick={() => goTo('home')}
+            className={`site-btn site-btn-sm ${page === 'home' ? 'site-btn-ghost !text-[var(--site-green)] !border-[var(--site-green)]' : 'site-btn-ghost !border-transparent'}`}
+          >
+            Home
+          </button>
+          {navGroups.map((group) => {
+            const Icon = NAV_ICONS[group.icon] ?? Store;
+            const isActive =
+              group.page === page || group.children?.some((c) => c.id === page) || false;
+            const open = openGroup === group.id;
+            if (!group.children) {
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() => group.page && goTo(group.page)}
+                  className={`site-btn site-btn-sm ${isActive ? 'site-btn-ghost !text-[var(--site-green)] !border-[var(--site-green)]' : 'site-btn-ghost !border-transparent'}`}
+                >
+                  <Icon className="w-3.5 h-3.5" /> {group.label}
+                </button>
+              );
+            }
+            return (
+              <div key={group.id} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenGroup(open ? null : group.id)}
+                  aria-expanded={open}
+                  className={`site-btn site-btn-sm ${isActive ? 'site-btn-ghost !text-[var(--site-green)] !border-[var(--site-green)]' : 'site-btn-ghost !border-transparent'}`}
+                >
+                  <Icon className="w-3.5 h-3.5" /> {group.label}
+                  <ChevronDown className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+                </button>
+                {open && (
+                  <div className="site-glass absolute left-0 top-[calc(100%+0.5rem)] z-50 w-72 p-2 animate-slide-down">
+                    {group.children.map((child) => (
+                      <button
+                        key={child.id}
+                        type="button"
+                        onClick={() => goTo(child.id)}
+                        className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-[rgba(18,184,102,0.08)] cursor-pointer"
+                      >
+                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[rgba(18,184,102,0.12)] text-[var(--site-green)]">
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </span>
+                        <span>
+                          <span className="block text-[13px] font-bold text-[var(--site-ink)]">{child.label}</span>
+                          {child.hint && (
+                            <span className="block text-[11px] text-[var(--site-ink-faint)]">{child.hint}</span>
+                          )}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        <div className="flex items-center gap-2">
+          <span className="hidden xl:inline-flex">{utilityBadge}</span>
+          <ThemeToggle className="site-toggle !px-2.5 !py-1.5" />
+          {onSignIn && (
+            <button
+              type="button"
+              onClick={onSignIn}
+              className="site-btn site-btn-ghost site-btn-sm hidden sm:inline-flex"
+            >
+              <Lock className="w-3.5 h-3.5" /> Sign in
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            aria-label="Open basket"
+            className="site-btn site-btn-ghost site-btn-sm relative !px-3"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            {cartCount > 0 && (
+              <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--site-green)] px-1 text-[9px] font-black text-[#04120b]">
+                {cartCount}
+              </span>
+            )}
+          </button>
+          <button type="button" onClick={onBookService} className="site-btn site-btn-primary site-btn-sm">
+            <CalendarCheck className="w-3.5 h-3.5" /> Book a repair
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen((v) => !v)}
+            aria-label="Toggle navigation"
+            aria-expanded={mobileNavOpen}
+            className="site-btn site-btn-ghost site-btn-sm !px-3 lg:hidden"
+          >
+            {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
+
+      {/* Mobile drawer */}
+      {mobileNavOpen && (
+        <div className="lg:hidden pb-4 animate-slide-down">
+          <div className="site-glass p-2">
+            <button
+              type="button"
+              onClick={() => goTo('home')}
+              className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-[var(--site-ink)] hover:bg-[rgba(18,184,102,0.08)] cursor-pointer"
+            >
+              Home
+            </button>
+            {navGroups.map((group) => {
+              const Icon = NAV_ICONS[group.icon] ?? Store;
+              return (
+                <div key={group.id} className="mt-1">
+                  <button
+                    type="button"
+                    onClick={() => group.page && goTo(group.page)}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-[var(--site-ink)] hover:bg-[rgba(18,184,102,0.08)] cursor-pointer"
+                  >
+                    <Icon className="w-4 h-4 text-[var(--site-green)]" /> {group.label}
+                  </button>
+                  {group.children && (
+                    <div className="ml-4 border-l border-[var(--site-line)] pl-2">
+                      {group.children.map((child) => (
+                        <button
+                          key={child.id}
+                          type="button"
+                          onClick={() => goTo(child.id)}
+                          className="block w-full rounded-lg px-3 py-2 text-left text-[13px] text-[var(--site-ink-soft)] hover:text-[var(--site-green)] cursor-pointer"
+                        >
+                          {child.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </header>
+  );
+
+  /* ------------------------------------------------------------------ *
+   * Home — hero
+   * ------------------------------------------------------------------ */
+
+  const heroSection = (
+    <section className="relative overflow-hidden rounded-[2rem] border border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-card-solid)_70%,transparent)] shadow-[var(--site-shadow)]">
+      <span className="site-aurora" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      <div className="relative z-10 grid grid-cols-1 gap-10 p-7 sm:p-12 lg:grid-cols-12 lg:items-center">
+        <div className="lg:col-span-7 space-y-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="site-badge">
+              <span className="h-1.5 w-1.5 rounded-full bg-[var(--site-green)] animate-pulse" />
+              {content.heroBadge}
+            </span>
+          </div>
+          <h1 className="site-display text-5xl sm:text-6xl lg:text-7xl">
+            {content.heroTitle.split(' ').map((word, i, arr) =>
+              i === arr.length - 1 ? (
+                <span key={i} className="italic text-[var(--site-green)]">
+                  {word}
+                </span>
+              ) : (
+                <span key={i}>{word} </span>
+              )
+            )}
+          </h1>
+          <p className="font-editorial text-xl sm:text-2xl italic text-[var(--site-ink-soft)]">
+            {content.homeHeadlineOverride?.[context] || content.heroSubtitle}
+          </p>
+          <p className="site-lede max-w-xl text-sm sm:text-base">{content.heroBlurb}</p>
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <button type="button" onClick={onBookService} className="site-btn site-btn-primary">
+              <CalendarCheck className="w-4 h-4" />
+              {isEmbedded ? 'Book a repair' : content.calloutCta}
+            </button>
+            <a href={call} className="site-btn site-btn-ghost">
+              <Phone className="w-4 h-4" /> Call the workshop
+            </a>
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2">
+            {[
+              { icon: ShieldCheck, label: '10 stamps → £40 credit' },
+              { icon: CalendarCheck, label: 'Live repair tracking' },
+              { icon: MapPin, label: 'Salford · mobile call-out' },
+            ].map(({ icon: Icon, label }) => (
+              <span key={label} className="inline-flex items-center gap-2 text-[12px] font-semibold text-[var(--site-ink-soft)]">
+                <Icon className="w-4 h-4 text-[var(--site-green)]" />
+                {label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Quality promise card */}
+        <div className="lg:col-span-5">
+          <div
+            data-testid="hero-quality-claim"
+            className="site-frame relative rounded-[1.75rem] p-7 sm:p-8 shadow-[var(--site-shadow)]"
+          >
+            <Quote className="w-7 h-7 text-[var(--site-brass)]" />
+            <p className="font-editorial mt-4 text-xl font-semibold leading-snug text-[var(--site-ink)] sm:text-2xl">
+              {content.brandStory.qualityClaim}
+            </p>
+            <div className="mt-6 space-y-3 border-t border-[var(--site-line)] pt-5">
+              {content.brandStory.howWeWorkSteps.slice(0, 3).map((step, i) => (
+                <div key={step.title} className="flex items-start gap-3">
+                  <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(18,184,102,0.14)] text-[11px] font-black text-[var(--site-green)]">
+                    {i + 1}
+                  </span>
+                  <span className="text-[13px] font-semibold text-[var(--site-ink-soft)]">{step.title}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex items-center gap-3">
+              <div className="flex -space-x-1.5">
+                {[0, 1, 2, 3, 4].map((s) => (
+                  <Star key={s} className="w-4 h-4 fill-[var(--site-brass)] text-[var(--site-brass)]" />
+                ))}
+              </div>
+              <span className="text-[11px] font-semibold text-[var(--site-ink-faint)]">
+                Loved by local riders
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const trustMarquee = (
+    <div className="site-glass py-4">
+      <Marquee
+        items={[
+          'Independent since day one',
+          'Serviced before it sells',
+          'Fixed-price labour',
+          'Collection & delivery',
+          'Salford based',
+          'E-bike & e-scooter trained',
+          'Loyalty that pays you back',
+        ]}
+      />
     </div>
   );
 
-  const reviewCard = (
-    <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-gradient-to-br from-neutral-900 to-neutral-950 border-neutral-800' : 'bg-gradient-to-br from-white to-neutral-50 border-neutral-200'}`}>
-      <div className="flex items-center gap-2 mb-3">
-        <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
-        <h3 className={`text-lg font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Your Feedback Keeps the Wheels Turning Smoothly</h3>
+  /* ------------------------------------------------------------------ *
+   * Home — sections
+   * ------------------------------------------------------------------ */
+
+  const editorialGallery = (
+    <section className="site-editorial-gallery" aria-label="Explore our cycle and e-scooter workshop">
+      <div className="site-editorial-heading">
+        <div><span className="site-eyebrow">THE ART OF THE RIDE / SALFORD</span><h2 className="site-display">Precision in every detail.</h2></div>
+        <p>From finely tuned bicycles to everyday electric mobility. Discover a workshop where the details matter.</p>
       </div>
-      <p className={`text-sm leading-relaxed ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-        {content.reviewBlurb}
-      </p>
-      <div className="flex flex-wrap gap-2.5 mt-4">
-        <a
-          href="https://www.google.com/search?q=stakeys+cycles+reviews"
-          target="_blank"
-          rel="noreferrer"
-          className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 px-4 py-2 text-neutral-950 text-xs font-black uppercase tracking-wider cursor-pointer"
-        >
-          <Star className="w-4 h-4" />
-          Leave a Review
-        </a>
-        <a
-          href={mail}
-          className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer"
-        >
-          <MessageCircle className="w-4 h-4" />
-          {content.feedbackTitle}
-        </a>
+      <div className="site-editorial-grid">
+        <button type="button" className="site-editorial-photo site-editorial-photo--lead" onClick={() => goTo('repairs')} aria-label="Explore cycle servicing and workshop repairs">
+          <img src="/images/hero_workshop_craftsmanship_1790159761910.jpg" alt="Close-up of precision bicycle workshop craftsmanship" loading="eager" decoding="async" />
+          <span className="site-editorial-photo__index">01 / THE WORKSHOP</span>
+          <span className="site-editorial-photo__caption"><strong>Crafted with care.</strong><span>Cycle servicing & repairs <ArrowRight size={18} /></span></span>
+        </button>
+        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore bicycle repair services">
+          <img src="/images/bike_precision_gravel_studio_1790159773368.jpg" alt="Premium gravel bicycle photographed in a dramatic studio setting" loading="lazy" decoding="async" />
+          <span className="site-editorial-photo__index">02 / THE MACHINE</span>
+          <span className="site-editorial-photo__caption"><strong>Every ride matters.</strong><span>Explore bicycle care <ArrowRight size={18} /></span></span>
+        </button>
+        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore electric scooter servicing enquiries">
+          <img src="/images/scooter_performance_studio_1790159785831.jpg" alt="Modern electric scooter photographed with premium studio lighting" loading="lazy" decoding="async" />
+          <span className="site-editorial-photo__index">03 / ELECTRIC MOBILITY</span>
+          <span className="site-editorial-photo__caption"><strong>Electric. Elevated.</strong><span>Enquire about e-scooters <ArrowRight size={18} /></span></span>
+        </button>
       </div>
-      <p className={`text-xs leading-relaxed mt-4 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-        {content.feedbackBody}
-      </p>
-    </div>
+    </section>
   );
+
+  const servicesSection = (
+    <section className="space-y-8">
+      {sectionHeading(
+        'What we do',
+        'Everything your bike needs, under one roof',
+        'From a quick puncture to a full e-bike service — booked in a minute and tracked while we work.'
+      )}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {valueProps.map(({ icon: Icon, title, body, tone }) => (
+          <Reveal key={title}>
+            <article className="site-glass site-glass-hover h-full p-6">
+              <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl ${TONE_BG[tone]}`}>
+                <Icon className="w-5 h-5" />
+              </span>
+              <h3 className="font-editorial mt-4 text-lg font-semibold text-[var(--site-ink)]">{title}</h3>
+              <p className="site-lede mt-2 text-[13px]">{body}</p>
+            </article>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+
+  const brandStorySection = (
+    <Reveal>
+      <section data-testid="home-brand-story" className="site-glass overflow-hidden p-7 sm:p-10">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
+          <div className="lg:col-span-5">
+            <span className="site-eyebrow">{content.brandStory.eyebrow}</span>
+            <h2 className="site-display mt-3 text-3xl sm:text-4xl">{content.brandStory.title}</h2>
+            <p className="site-lede mt-4 text-sm sm:text-base">{content.brandStory.body}</p>
+            <ul className="mt-5 space-y-2.5">
+              {content.brandStory.bullets.map((b) => (
+                <li key={b} className="flex items-start gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-green)]" />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="lg:col-span-7">
+            <h3 className="site-eyebrow">{content.brandStory.howWeWorkTitle}</h3>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {content.brandStory.howWeWorkSteps.map((step, i) => (
+                <div key={step.title} className="rounded-2xl border border-[var(--site-line)] p-5">
+                  <span className="site-index">{String(i + 1).padStart(2, '0')}</span>
+                  <h4 className="mt-3 text-sm font-extrabold text-[var(--site-ink)]">{step.title}</h4>
+                  <p className="site-lede mt-1.5 text-[12px]">{step.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    </Reveal>
+  );
+
+  const howItWorksSection = (
+    <section className="space-y-8">
+      {sectionHeading(
+        'How it works',
+        'Three steps from broken to back on the road',
+        undefined,
+        <button type="button" onClick={onBookService} className="site-btn site-btn-primary">
+          <CalendarCheck className="w-4 h-4" /> Start a booking
+        </button>
+      )}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {[
+          { icon: MessageCircle, title: 'Tell us the problem', body: 'Describe the symptoms or send a photo. Our AI helper points you in the right direction.' },
+          { icon: Wrench, title: 'We fix it properly', body: 'Fixed-price labour, honest advice and a text when the job is done. Track progress live.' },
+          { icon: Truck, title: 'Collect or we deliver', body: 'Pick up from the Salford workshop, or arrange collection and delivery across the area.' },
+        ].map(({ icon: Icon, title, body }, i) => (
+          <Reveal key={title} delay={i * 80}>
+            <article className="site-glass h-full p-6">
+              <div className="flex items-center justify-between">
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(18,184,102,0.14)] text-[var(--site-green)]">
+                  <Icon className="w-5 h-5" />
+                </span>
+                <span className="site-index">{String(i + 1).padStart(2, '0')}</span>
+              </div>
+              <h3 className="font-editorial mt-4 text-lg font-semibold text-[var(--site-ink)]">{title}</h3>
+              <p className="site-lede mt-2 text-[13px]">{body}</p>
+            </article>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+
+  const offersTeaser = (
+    <Reveal>
+      <section
+        data-testid="home-offers-teaser"
+        className="site-frame relative overflow-hidden rounded-[1.75rem] p-7 sm:p-9"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-5">
+          <div className="flex items-center gap-4">
+            <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(216,180,90,0.16)] text-[var(--site-brass)]">
+              <BadgePoundSterling className="w-6 h-6" />
+            </span>
+            <div>
+              <h3 className="font-editorial text-xl font-semibold text-[var(--site-ink)]">
+                {liveDiscountCodes.length > 0
+                  ? `${liveDiscountCodes.length} live offer${liveDiscountCodes.length === 1 ? '' : 's'} running`
+                  : 'Offers & member rewards'}
+              </h3>
+              <p className="site-lede text-[13px]">
+                Loyalty stamps, member codes and seasonal deals — all in one place.
+              </p>
+            </div>
+          </div>
+          <button type="button" onClick={() => goTo('offers')} className="site-btn site-btn-brass">
+            <Tag className="w-4 h-4" /> See all offers
+          </button>
+        </div>
+      </section>
+    </Reveal>
+  );
+
+  const reviewSection = (
+    <Reveal>
+      <section className="site-glass p-7 sm:p-10">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
+          <div className="lg:col-span-7">
+            <div className="flex items-center gap-2">
+              <Star className="h-5 w-5 fill-[var(--site-brass)] text-[var(--site-brass)]" />
+              <span className="site-eyebrow !text-[var(--site-brass)]">Reviews</span>
+            </div>
+            <h2 className="site-display mt-3 text-3xl sm:text-4xl">
+              Your feedback keeps the wheels turning
+            </h2>
+            <p className="site-lede mt-3 text-sm sm:text-base">{content.reviewBlurb}</p>
+            <p className="site-lede mt-3 text-[13px]">{content.feedbackBody}</p>
+          </div>
+          <div className="lg:col-span-5">
+            <div className="flex flex-col gap-3">
+              <a
+                href="https://www.google.com/search?q=stakeys+cycles+reviews"
+                target="_blank"
+                rel="noreferrer"
+                className="site-btn site-btn-brass w-full"
+              >
+                <Star className="w-4 h-4" /> Leave a review
+              </a>
+              <a href={mail} className="site-btn site-btn-ghost w-full">
+                <MessageCircle className="w-4 h-4" /> {content.feedbackTitle}
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </Reveal>
+  );
+
+  const ctaBand = (
+    <Reveal>
+      <section className="site-frame relative overflow-hidden rounded-[2rem] p-8 text-center sm:p-14">
+        <span className="site-aurora" aria-hidden="true">
+          <span />
+          <span />
+        </span>
+        <div className="relative z-10 mx-auto max-w-2xl">
+          <span className="site-eyebrow">Ready when you are</span>
+          <h2 className="site-display mt-3 text-4xl sm:text-5xl">
+            Bring it to the workshop that treats it like their own
+          </h2>
+          <p className="site-lede mt-4">
+            Book a repair in a minute, browse the shop, or get an instant offer on your old bike.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            <button type="button" onClick={onBookService} className="site-btn site-btn-primary">
+              <CalendarCheck className="w-4 h-4" /> Book a repair
+            </button>
+            <button type="button" onClick={() => goTo('sell')} className="site-btn site-btn-ghost">
+              <Tag className="w-4 h-4" /> Sell your bike
+            </button>
+            <a href={call} className="site-btn site-btn-ghost">
+              <Phone className="w-4 h-4" /> {content.phone}
+            </a>
+          </div>
+        </div>
+      </section>
+    </Reveal>
+  );
+
+  /* ------------------------------------------------------------------ *
+   * Footer
+   * ------------------------------------------------------------------ */
 
   const socialLinks = (
     <div className="flex flex-wrap gap-2">
@@ -721,470 +1081,428 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
           rel="noreferrer"
           title={s.platform}
           aria-label={s.platform}
-          className={`pressable inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-[11px] font-semibold cursor-pointer ${isDark ? 'border-neutral-700 bg-neutral-900/70 text-neutral-300 hover:border-emerald-500/50' : 'border-neutral-200 bg-white text-neutral-600 hover:border-emerald-500/50'}`}
+          className="site-btn site-btn-ghost site-btn-sm !px-3"
         >
-          <SocialBrandIcon platform={s.platform} className="w-3.5 h-3.5 shrink-0" />
-          <span className="hidden sm:inline">{s.platform}</span>
+          <SocialBrandIcon platform={s.platform} className="w-4 h-4 shrink-0" />
         </a>
       ))}
     </div>
   );
 
-  const footerBar = (
-    <footer className={`mt-10 rounded-3xl border p-6 ${isDark ? 'bg-neutral-900/60 border-neutral-800' : 'bg-white/70 border-neutral-200'}`}>
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="text-center md:text-left">
-          <div className={`font-black tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-            STAKEYS <span className="text-[#05C147] text-xs font-bold uppercase">Cycles &amp; Scooter</span>
+  const siteFooter = (
+    <footer className="mt-14 border-t border-[var(--site-line)] pt-10">
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
+        <div className="md:col-span-5">
+          <div className="flex items-center gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black">
+              <img
+                src={`${import.meta.env.BASE_URL}logo.svg`}
+                alt="Stakey's Cycles &amp; Scooter"
+                className="h-full w-full object-contain"
+              />
+            </span>
+            <span className="font-editorial text-lg font-semibold text-[var(--site-ink)]">
+              Stakey's <span className="text-[var(--site-green)]">Cycles</span>
+            </span>
           </div>
-          <p className={`text-[11px] mt-1 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-            Independent maintenance &amp; repair workshop · Call-out-only service across Salford.
-
+          <p className="site-lede mt-4 max-w-sm text-[13px]">
+            Independent cycle &amp; scooter maintenance and repair workshop. Repairs, second-hand bikes
+            and call-out service across Salford.
           </p>
+          <div className="mt-5">{socialLinks}</div>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          <a href={call} className="pressable inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/40 px-3 py-1.5 text-[11px] font-bold text-emerald-400 cursor-pointer">
-            <Phone className="w-3.5 h-3.5" /> {content.phone}
-          </a>
-          <a href={mail} className="pressable inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-semibold cursor-pointer">
-            <MessageCircle className="w-3.5 h-3.5" /> {content.email}
-          </a>
+        <div className="md:col-span-3">
+          <h4 className="site-eyebrow">Explore</h4>
+          <ul className="mt-4 space-y-2">
+            {navGroups.map((g) => (
+              <li key={g.id}>
+                <button
+                  type="button"
+                  onClick={() => g.page && goTo(g.page)}
+                  className="text-[13px] text-[var(--site-ink-soft)] transition-colors hover:text-[var(--site-green)] cursor-pointer"
+                >
+                  {g.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="md:col-span-4">
+          <h4 className="site-eyebrow">Get in touch</h4>
+          <div className="mt-4 space-y-2.5">
+            <a href={call} className="flex items-center gap-2.5 text-[13px] font-semibold text-[var(--site-ink)]">
+              <Phone className="h-4 w-4 text-[var(--site-green)]" /> {content.phone}
+            </a>
+            <a href={mail} className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
+              <MessageCircle className="h-4 w-4 text-[var(--site-green)]" /> {content.email}
+            </a>
+            <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
+              <MessageCircle className="h-4 w-4 text-[var(--site-green)]" /> WhatsApp us
+            </a>
+            <p className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
+              <Clock className="h-4 w-4 text-[var(--site-green)]" /> Call-out across Salford
+            </p>
+          </div>
         </div>
       </div>
-      <div className="mt-4 pt-4 border-t border-dashed flex flex-wrap justify-between items-center gap-3">
-        {socialLinks}
-        <span className={`text-[10px] font-mono ${isDark ? 'text-neutral-600' : 'text-neutral-400'}`}>
-          © 2026 Stakey's Cycles · Content managed from the Staff Station
+      <div className="site-rule mt-9" />
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pb-2">
+        <span className="text-[11px] text-[var(--site-ink-faint)]">
+          © 2026 Stakey's Cycles &amp; Scooter · Salford
+        </span>
+        <span className="text-[11px] text-[var(--site-ink-faint)]">
+          Content managed from the Staff Station
         </span>
       </div>
     </footer>
   );
 
+  /* ------------------------------------------------------------------ *
+   * Basket drawer
+   * ------------------------------------------------------------------ */
+
   const cartDrawer = cartOpen && (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
-      <aside className={`relative z-10 h-full w-full max-w-md overflow-y-auto border-l p-5 space-y-4 ${isDark ? 'bg-neutral-950 border-neutral-800' : 'bg-white border-neutral-200'}`}>
-        <div className="flex items-center justify-between gap-3">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
+      <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[var(--site-line)] bg-[var(--site-card-solid)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--site-line)] p-5">
           <div>
-            <h3 className={`text-lg font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{CART_TITLE}</h3>
-            <p className={`text-[11px] mt-0.5 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{CART_BLURB}</p>
+            <h3 className="font-editorial text-xl font-semibold text-[var(--site-ink)]">{CART_TITLE}</h3>
+            <p className="site-lede text-[11px]">{CART_BLURB}</p>
           </div>
           <button
             type="button"
             onClick={() => setCartOpen(false)}
-            className={`pressable h-8 w-8 rounded-lg border cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-300' : 'border-neutral-200 text-neutral-600'}`}
             aria-label="Close basket"
+            className="site-btn site-btn-ghost site-btn-sm !px-2.5"
           >
-            <X className="w-4 h-4 mx-auto" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {orderPlaced && (
-          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-[11px] font-bold text-emerald-400">
-            ✓ {CHECKOUT_SUCCESS_TITLE} We've emailed the workshop — we'll confirm collection shortly.
-          </div>
-        )}
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {orderPlaced && (
+            <div className="rounded-xl border border-[rgba(18,184,102,0.4)] bg-[rgba(18,184,102,0.1)] p-3 text-[12px] font-bold text-[var(--site-green)]">
+              ✓ {CHECKOUT_SUCCESS_TITLE} We've emailed the workshop — we'll confirm collection shortly.
+            </div>
+          )}
 
-        {cart.length === 0 ? (
-          <p className={`text-xs ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>Your basket is empty. Browse the Shop to add parts and bikes.</p>
-        ) : (
-          <>
-            <div className="space-y-2">
-              {cart.map((item) => (
-                <div key={item.productId} className={`flex items-center gap-3 rounded-xl border p-2.5 ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-neutral-50'}`}>
-                  <img src={item.image} alt={item.name} className="h-12 w-12 rounded-lg object-cover" loading="lazy" />
-                  <div className="flex-1 min-w-0">
-                    <div className={`truncate text-xs font-bold ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>{item.name}</div>
-                    <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>£{item.price.toFixed(2)} each</div>
+          {cart.length === 0 ? (
+            <p className="site-lede text-[13px]">
+              Your basket is empty. Browse the shop to add parts and bikes.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {cart.map((item) => (
+                  <div key={item.productId} className="flex items-center gap-3 rounded-xl border border-[var(--site-line)] p-2.5">
+                    <img src={item.image} alt={item.name} className="h-12 w-12 rounded-lg object-cover" loading="lazy" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-bold text-[var(--site-ink)]">{item.name}</div>
+                      <div className="text-[11px] text-[var(--site-ink-faint)]">£{item.price.toFixed(2)} each</div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => decrementCart(item.productId)} className="site-btn site-btn-ghost site-btn-sm !px-2 !py-0.5">−</button>
+                      <span className="w-5 text-center text-xs font-bold text-[var(--site-ink)]">{item.qty}</span>
+                      <button type="button" onClick={() => removeFromCart(item.productId)} className="site-btn site-btn-ghost site-btn-sm !px-2 !py-0.5 !text-rose-400">
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <button type="button" onClick={() => decrementCart(item.productId)} className="pressable h-6 w-6 rounded-md border text-xs font-black cursor-pointer">−</button>
-                    <span className={`w-5 text-center text-xs font-bold ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>{item.qty}</span>
-                    <button type="button" onClick={() => removeFromCart(item.productId)} className="pressable h-6 w-6 rounded-md border text-rose-400 cursor-pointer">
-                      <Trash2 className="w-3 h-3 mx-auto" />
+                ))}
+              </div>
+
+              <div className="space-y-1.5 rounded-xl border border-[var(--site-line)] p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--site-ink-faint)]">Subtotal</span>
+                  <span className="text-xs font-bold text-[var(--site-ink)]">£{cartSubtotal.toFixed(2)}</span>
+                </div>
+                {promoActive && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--site-green)]">Code {appliedCode?.code}</span>
+                    <span className="text-xs font-bold text-[var(--site-green)]">−£{cartDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-[var(--site-line)] pt-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--site-ink-faint)]">Total</span>
+                  <span className="font-editorial text-xl font-semibold text-[var(--site-green)]">£{cartTotal.toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                {promoActive ? (
+                  <div className="flex items-center justify-between rounded-xl border border-[rgba(18,184,102,0.4)] bg-[rgba(18,184,102,0.08)] px-3 py-2">
+                    <span className="text-[11px] font-bold text-[var(--site-green)]">
+                      {appliedCode?.code} applied{currentUser ? ' (member)' : ''}
+                    </span>
+                    <button type="button" onClick={clearPromoCode} className="text-[11px] font-semibold text-[var(--site-ink-faint)] hover:text-rose-400 cursor-pointer">
+                      Remove
                     </button>
                   </div>
-                </div>
-              ))}
-            </div>
-
-            <div className={`rounded-xl border p-3 space-y-1.5 ${isDark ? 'border-neutral-800 bg-neutral-900/60' : 'border-neutral-200 bg-neutral-50'}`}>
-              <div className="flex items-center justify-between">
-                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>Subtotal</span>
-                <span className={`text-xs font-bold ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>£{cartSubtotal.toFixed(2)}</span>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={promoInput}
+                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                      placeholder="Discount code"
+                      className="site-field font-mono"
+                    />
+                    <button type="button" onClick={applyPromoCode} className="site-btn site-btn-ghost site-btn-sm shrink-0">
+                      Apply
+                    </button>
+                  </div>
+                )}
+                {promoError && <p className="text-[10px] text-rose-400">{promoError}</p>}
+                {!currentUser && (
+                  <p className="text-[10px] text-[var(--site-ink-faint)]">
+                    Loyalty members get bigger discounts — sign in to unlock member codes.
+                  </p>
+                )}
               </div>
-              {promoActive && (
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-500">Code {appliedCode?.code}</span>
-                  <span className="text-xs font-bold text-emerald-500">−£{cartDiscount.toFixed(2)}</span>
-                </div>
-              )}
-              <div className={`flex items-center justify-between border-t pt-1.5 ${isDark ? 'border-neutral-800' : 'border-neutral-200'}`}>
-                <span className={`text-xs font-bold uppercase tracking-wider ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>Total</span>
-                <span className={`text-lg font-black ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>£{cartTotal.toFixed(2)}</span>
+
+              <div className="space-y-2">
+                <input value={checkoutName} onChange={(e) => setCheckoutName(e.target.value)} placeholder="Your name" className="site-field" />
+                <input value={checkoutContact} onChange={(e) => setCheckoutContact(e.target.value)} placeholder="Phone or email" className="site-field" />
+                <textarea
+                  value={checkoutNote}
+                  onChange={(e) => setCheckoutNote(e.target.value)}
+                  placeholder="Anything we should know? (optional)"
+                  rows={2}
+                  className="site-field"
+                />
+                {content.shopDisclaimers.length > 0 && (
+                  <div className="space-y-1 rounded-xl border border-[rgba(216,180,90,0.3)] bg-[rgba(216,180,90,0.06)] p-2.5 text-[10px] leading-relaxed text-[var(--site-ink-soft)]">
+                    {content.shopDisclaimers.map((d, i) => (
+                      <p key={i} className="flex gap-1.5">
+                        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-[var(--site-brass)]" />
+                        <span>{d}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={!isCheckoutReady(checkoutName, checkoutContact, cartCount) || placing}
+                  onClick={placeOrder}
+                  className="site-btn site-btn-primary w-full disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {placing ? 'Placing order…' : `${CART_CTA_LABEL} · £${cartTotal.toFixed(2)}`}
+                </button>
               </div>
-            </div>
-
-            {/* Promo / discount code — public codes work for everyone, member codes need a signed-in member */}
-            <div className="space-y-1.5">
-              {promoActive ? (
-                <div className="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
-                  <span className="text-[11px] font-bold text-emerald-500">
-                    {appliedCode?.code} applied{currentUser ? ' (member)' : ''}
-                  </span>
-                  <button type="button" onClick={clearPromoCode} className="text-[11px] font-semibold text-neutral-400 hover:text-rose-400 cursor-pointer">
-                    Remove
-                  </button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <input
-                    value={promoInput}
-                    onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                    placeholder="Discount code"
-                    className={`w-full rounded-xl border px-3 py-2 text-xs font-mono outline-none ${isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-100' : 'border-neutral-200 bg-white text-neutral-800'}`}
-                  />
-                  <button
-                    type="button"
-                    onClick={applyPromoCode}
-                    className="pressable shrink-0 rounded-xl border border-emerald-500/50 px-3 py-2 text-xs font-bold text-emerald-500 cursor-pointer"
-                  >
-                    Apply
-                  </button>
-                </div>
-              )}
-              {promoError && <p className="text-[10px] text-rose-400">{promoError}</p>}
-              {!currentUser && (
-                <p className={`text-[10px] ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>
-                  Loyalty members get bigger discounts — sign in to unlock member codes.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <input
-                value={checkoutName}
-                onChange={(e) => setCheckoutName(e.target.value)}
-                placeholder="Your name"
-                className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-100' : 'border-neutral-200 bg-white text-neutral-800'}`}
-              />
-              <input
-                value={checkoutContact}
-                onChange={(e) => setCheckoutContact(e.target.value)}
-                placeholder="Phone or email"
-                className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-100' : 'border-neutral-200 bg-white text-neutral-800'}`}
-              />
-              <textarea
-                value={checkoutNote}
-                onChange={(e) => setCheckoutNote(e.target.value)}
-                placeholder="Anything we should know? (optional)"
-                rows={2}
-                className={`w-full rounded-xl border px-3 py-2 text-xs outline-none ${isDark ? 'border-neutral-800 bg-neutral-900 text-neutral-100' : 'border-neutral-200 bg-white text-neutral-800'}`}
-              />
-              {content.shopDisclaimers.length > 0 && (
-                <div className={`rounded-xl border p-2.5 text-[10px] leading-relaxed space-y-1 ${isDark ? 'border-amber-500/30 bg-amber-500/5 text-amber-200/80' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
-                  {content.shopDisclaimers.map((d, i) => (
-                    <p key={i} className="flex gap-1.5">
-                      <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
-                      <span>{d}</span>
-                    </p>
-                  ))}
-                </div>
-              )}
-              <button
-                type="button"
-                disabled={!isCheckoutReady(checkoutName, checkoutContact, cartCount) || placing}
-                onClick={placeOrder}
-                className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {placing ? 'Placing order…' : `${CART_CTA_LABEL} · £${cartTotal.toFixed(2)}`}
-              </button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </aside>
     </div>
   );
 
-  const renderPage = () => {
-    switch (page) {
-      case 'location':
-        return (
-          <div className="space-y-6">
-            {content.locationImage ? (
-              <div className="relative overflow-hidden rounded-3xl border shadow-lg">
-                <img
-                  src={content.locationImage}
-                  alt="Stakey's Cycles — Salford"
-                  className="w-full h-56 sm:h-72 object-cover"
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-                <div className="absolute bottom-0 left-0 p-6 sm:p-8">
-                  <p className="text-white/90 italic text-sm sm:text-lg font-semibold max-w-2xl leading-relaxed drop-shadow">
-                    “{content.locationQuote}”
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-                <p className={`italic text-sm sm:text-lg font-semibold max-w-3xl leading-relaxed ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>
-                  “{content.locationQuote}”
-                </p>
-              </div>
-            )}
-            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{content.mobileTitle}</h3>
-              <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                {content.mobileBody}
-              </p>
-              <div className="flex flex-wrap gap-2.5 mt-5">
-                <button
-                  type="button"
-                  onClick={onBookService}
-                  className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer"
-                >
-                  <CalendarCheck className="w-4 h-4" />
-                  Book Your Appointment
-                </button>
-                <a href={call} className="pressable inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold cursor-pointer">
-                  <Phone className="w-4 h-4" /> Call Us Out
-                </a>
-              </div>
-            </div>
-            {footerBar}
-          </div>
-        );
-      case 'weather':
-        return (
-          <div className="space-y-6">
-            <div className={`rounded-3xl border p-5 sm:p-6 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <h3 className={`text-xl font-extrabold flex items-center gap-2 ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                <CloudRain className="w-5 h-5 text-sky-400" />
-                Riding conditions for the week ahead
-              </h3>
-              <p className={`text-sm leading-relaxed mt-1 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                Live seven-day forecast for your area, turned into plain “can I ride?” guidance — so you can
-                plan a commute, a delivery shift or a weekend loop around the weather.
-              </p>
-            </div>
-            <WeatherForecast isDark={isDark} />
-            {footerBar}
-          </div>
-        );
-      case 'faqs':
-        return (
-          <div className="space-y-6">
-            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>FAQs</h3>
-              <p className={`text-xs mt-1 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                Answers to common workshop questions — published by your mechanics from the Staff Station.
+  /* ------------------------------------------------------------------ *
+   * Offers page panels
+   * ------------------------------------------------------------------ */
 
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {([{ key: 'all', label: 'All' }, ...faqGroups] as { key: 'all' | 'repairs' | 'parts' | 'general'; label: string }[]).map((g) => (
-                  <button
-                    key={g.key}
-                    type="button"
-                    onClick={() => setFaqFilter(g.key)}
-                    className={`pressable rounded-xl px-3 py-1.5 text-[11px] font-bold cursor-pointer border ${
-                      faqFilter === g.key
-                        ? 'bg-emerald-500 text-neutral-950 border-emerald-400'
-                        : isDark
-                        ? 'bg-neutral-900 border-neutral-700 text-neutral-300'
-                        : 'bg-white border-neutral-200 text-neutral-600'
+  const couponPanel = (
+    <div className="site-glass p-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-[var(--site-brass)]" />
+          <span className="site-eyebrow !text-[var(--site-brass)]">Active coupons &amp; codes</span>
+        </div>
+        <span className="text-[10px] font-bold text-[var(--site-ink-faint)]">{liveDiscountCodes.length} available</span>
+      </div>
+
+      {liveDiscountCodes.length === 0 ? (
+        <p className="site-lede mt-3 text-[12px]">No active coupon codes right now.</p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {liveDiscountCodes.map((coupon) => {
+            const isApplied = appliedCode?.code?.toUpperCase() === coupon.code.toUpperCase();
+            return (
+              <div key={coupon.id} className="rounded-xl border border-[var(--site-line)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-bold text-[var(--site-ink)]">{coupon.title}</span>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[8px] font-mono font-bold uppercase ${
+                      coupon.audience === 'member'
+                        ? 'bg-[rgba(18,184,102,0.16)] text-[var(--site-green)]'
+                        : 'bg-[rgba(255,255,255,0.06)] text-[var(--site-ink-faint)]'
                     }`}
                   >
-                    {g.label}
+                    {coupon.audience === 'member' ? 'Member Only' : 'Public'}
+                  </span>
+                </div>
+                {coupon.description && (
+                  <p className="site-lede mt-1 text-[11px]">{coupon.description}</p>
+                )}
+                {coupon.minimumSpend ? (
+                  <p className="mt-1 text-[10px] text-[var(--site-ink-faint)]">Min. spend £{coupon.minimumSpend.toFixed(2)}</p>
+                ) : null}
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => copyCode(coupon.code)}
+                    title="Copy code"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[var(--site-line-strong)] px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--site-ink)] cursor-pointer"
+                  >
+                    {copiedCode === coupon.code ? (
+                      <>
+                        <Check className="h-3 w-3 text-[var(--site-green)]" /> Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" /> {coupon.code}
+                      </>
+                    )}
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => copyOfferLink(coupon.code)}
+                      title="Copy shareable offer link"
+                      className="inline-flex items-center gap-1 rounded-lg border border-[var(--site-line)] px-2 py-0.5 text-[10px] font-bold text-[var(--site-ink-soft)] cursor-pointer"
+                    >
+                      {copiedLink === coupon.code ? (
+                        <>
+                          <Check className="h-3 w-3 text-[var(--site-green)]" /> Link
+                        </>
+                      ) : (
+                        <>
+                          <Link2 className="h-3 w-3" /> Link
+                        </>
+                      )}
+                    </button>
+                    <span className="text-[10px] font-bold text-[var(--site-green)]">
+                      {coupon.type === 'percent' ? coupon.value + '% Off' : '£' + coupon.value + ' Off'}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => useCoupon(coupon)}
+                  className={`mt-2 w-full rounded-lg border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider cursor-pointer ${
+                    isApplied
+                      ? 'border-[var(--site-green)] bg-[rgba(18,184,102,0.14)] text-[var(--site-green)]'
+                      : 'border-[var(--site-line-strong)] text-[var(--site-ink)] hover:border-[var(--site-green)]'
+                  }`}
+                >
+                  {isApplied ? '✓ Applied' : 'Use this code'}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!currentUser && (
+        <p className="mt-3 border-t border-dashed border-[var(--site-line)] pt-2 text-center text-[10px] text-[var(--site-ink-faint)]">
+          💡 <strong className="text-[var(--site-ink-soft)]">Sign in</strong> to unlock premium member codes!
+        </p>
+      )}
+    </div>
+  );
+
+  const promotionsPanel = (
+    <div className="site-glass p-5">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-[var(--site-brass)]" />
+          <span className="site-eyebrow !text-[var(--site-brass)]">Live promotions</span>
+        </div>
+        <span className="text-[10px] font-bold text-[var(--site-ink-faint)]">{livePromotions.length} running</span>
+      </div>
+      {livePromotions.length === 0 ? (
+        <p className="site-lede mt-3 text-[12px]">No promotions running right now — check back soon.</p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {livePromotions.map((promo) => (
+            <div key={promo.id} className="space-y-1 rounded-xl border border-[rgba(18,184,102,0.3)] bg-[rgba(18,184,102,0.06)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[12px] font-black uppercase tracking-wider text-[var(--site-green)]">{promo.title}</span>
+                <span className="rounded-full bg-[var(--site-brass)] px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#201703]">
+                  {promo.badgeText}
+                </span>
+              </div>
+              <p className="site-lede text-[11px]">{promo.subtitle}</p>
+              <div className="flex items-center gap-2 pt-0.5">
+                <span className="rounded-lg border border-dashed border-[var(--site-line-strong)] px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--site-ink)]">
+                  {promo.code}
+                </span>
+                <span className="text-[10px] text-[var(--site-ink-faint)]">Ends {promo.endDate}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  /* ------------------------------------------------------------------ *
+   * Page router
+   * ------------------------------------------------------------------ */
+
+  const renderPage = () => {
+    switch (page) {
+      case 'shop':
+        return (
+          <div className="space-y-8">
+            <Reveal>{pageHeading('Shop', content.shopNoticeTitle, content.shopNoticeBody)}</Reveal>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="site-btn site-btn-ghost site-btn-sm">
+                <MessageCircle className="w-4 h-4" /> WhatsApp us
+              </a>
+              <a href={call} className="site-btn site-btn-ghost site-btn-sm">
+                <Phone className="w-4 h-4" /> Call / text
+              </a>
+              <a href={mail} className="site-btn site-btn-ghost site-btn-sm">
+                <MessageCircle className="w-4 h-4" /> Email us
+              </a>
+            </div>
+
+            {content.shopDisclaimers.length > 0 && (
+              <ul className="space-y-1.5 rounded-2xl border border-[rgba(216,180,90,0.3)] bg-[rgba(216,180,90,0.06)] p-4 text-[11px] leading-relaxed text-[var(--site-ink-soft)]">
+                {content.shopDisclaimers.map((d, i) => (
+                  <li key={i} className="flex gap-2">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--site-brass)]" />
+                    <span>{d}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {(['all', ...content.shopCategories] as Array<'all' | WebProductCategory>).map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategoryFilter(cat)}
+                    className={`site-btn site-btn-sm ${categoryFilter === cat ? 'site-btn-primary' : 'site-btn-ghost'}`}
+                  >
+                    {cat === 'all' ? 'All items' : cat}
                   </button>
                 ))}
               </div>
-            </div>
-            {faqGroups.map((group) => {
-              const rows = content.faqs.filter((f) => f.section === group.key);
-              if (faqFilter !== 'all' && faqFilter !== group.key) return null;
-              if (rows.length === 0) return null;
-              return (
-                <section key={group.key} className="space-y-2.5">
-                  <h4 className={`text-xs font-black uppercase tracking-widest px-1 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                    {group.label}
-                  </h4>
-                  {rows.map((f) => (
-                    <details
-                      key={f.id}
-                      className={`group rounded-2xl border p-4 cursor-pointer ${isDark ? 'bg-neutral-900/60 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}
-                    >
-                      <summary className={`flex items-center justify-between gap-3 text-sm font-bold list-none cursor-pointer ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>
-                        <span>{f.q}</span>
-                        <span className="text-emerald-500 transition-transform group-open:rotate-90">▸</span>
-                      </summary>
-                      <p className={`text-sm leading-relaxed mt-3 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>{f.a}</p>
-                    </details>
-                  ))}
-                </section>
-              );
-            })}
-            {footerBar}
-          </div>
-        );
-      case 'gallery':
-        return (
-          <div className="space-y-6">
-            <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Gallery</h3>
-            {content.galleryImages.length === 0 ? (
-              <div className={`rounded-2xl border border-dashed p-8 text-center ${isDark ? 'border-neutral-700 text-neutral-400' : 'border-neutral-300 text-neutral-500'}`}>
-                <p className="text-sm font-semibold">Photos coming soon.</p>
-                <p className="text-[11px] mt-1">We're refreshing our gallery with new workshop shots.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {content.galleryImages.map((img) => (
-                  <figure
-                    key={img.id}
-                    className={`overflow-hidden rounded-2xl border shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white border-neutral-200'}`}
-                  >
-                    <img src={img.url} alt="Stakey's Cycles workshop work" className="w-full h-56 object-cover" loading="lazy" />
-                    <figcaption className={`px-4 py-3 text-[11px] font-semibold ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                      Stakey's Cycles — Salford
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-            {footerBar}
-          </div>
-        );
-      case 'priceList':
-        return (
-          <div className="space-y-6">
-            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{content.priceIntroTitle}</h3>
-              <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                {content.priceIntroBody}
+              <p className="text-[11px] font-mono text-[var(--site-ink-faint)]">
+                {visibleProducts.length} results · buy online, collect in person
               </p>
-              <div className="mt-4 space-y-1.5">
-                {content.priceNotes.map((note, i) => (
-                  <p key={i} className="flex gap-2 text-[11px] leading-snug">
-                    <span className="text-emerald-500 font-bold">•</span>
-                    <span className={isDark ? 'text-neutral-400' : 'text-neutral-500'}>{note}</span>
-                  </p>
-                ))}
-              </div>
             </div>
-            {(['bike', 'scooter'] as const).map((scope) => {
-              const groups = groupedPriceRows(scope);
-              return (
-                <section key={scope} className="space-y-4">
-                  <h4 className={`text-xs font-black uppercase tracking-widest px-1 ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>
-                    {scope === 'bike' ? 'Bicycle Repair Price List (Labour Only)' : 'E-Scooter Repair Price List (Labour Only)'}
-                  </h4>
-                  {Object.entries(groups).map(([group, rows]) => (
-                    <div key={group} className={`rounded-2xl border divide-y divide-neutral-800/60 overflow-hidden ${isDark ? 'bg-neutral-900/60 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-                      <div className="px-4 py-2.5 bg-emerald-500/10 text-[11px] font-black uppercase tracking-wider">
-                        {group}
-                      </div>
-                      {rows.map((row) => (
-                        <div key={row.id} className="grid grid-cols-12 gap-2 px-4 py-2.5 items-start">
-                          <div className="col-span-12 sm:col-span-7">
-                            <div className={`text-sm font-bold ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>{row.item}</div>
-                            {row.desc && <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{row.desc}</p>}
-                            {row.note && <p className="text-[10px] text-amber-400/90 italic">{row.note}</p>}
-                          </div>
-                          <div className="col-span-12 sm:col-span-5 sm:text-right">
-                            <span className={`text-sm font-black ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>{row.price}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </section>
-              );
-            })}
-            <div className="flex justify-center">
-              <a href={call} className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-6 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg cursor-pointer">
-                <Phone className="w-4 h-4" /> Call Now for an Exact Quote
-              </a>
-            </div>
-            {footerBar}
-          </div>
-        );
-      case 'shop':
-        return (
-          <div className="space-y-6">
-            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{content.shopNoticeTitle}</h3>
-              <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                {content.shopNoticeBody}
-              </p>
-              {content.shopDisclaimers.length > 0 && (
-                <ul className={`mt-4 space-y-1.5 rounded-xl border p-3 text-[11px] leading-relaxed ${isDark ? 'border-amber-500/30 bg-amber-500/5 text-amber-200/90' : 'border-amber-300 bg-amber-50 text-amber-900'}`}>
-                  {content.shopDisclaimers.map((d, i) => (
-                    <li key={i} className="flex gap-2">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                      <span>{d}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="flex flex-wrap gap-2.5 mt-4">
-                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pressable inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 cursor-pointer">
-                  <MessageCircle className="w-4 h-4" /> WhatsApp Us
-                </a>
-                <a href={call} className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer">
-                  <Phone className="w-4 h-4" /> Call / Text
-                </a>
-                <a href={mail} className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer">
-                  <MessageCircle className="w-4 h-4" /> Email Us
-                </a>
-              </div>
-            </div>
-            {couponPanel}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>Browse by category</span>
-              {(['all', ...content.shopCategories] as Array<'all' | WebProductCategory>).map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`pressable rounded-xl px-3 py-1.5 text-[11px] font-bold cursor-pointer border ${
-                    categoryFilter === cat
-                      ? 'bg-emerald-500 text-neutral-950 border-emerald-400'
-                      : isDark
-                      ? 'bg-neutral-900 border-neutral-700 text-neutral-300'
-                      : 'bg-white border-neutral-200 text-neutral-600'
-                  }`}
-                >
-                  {cat === 'all' ? 'All Items' : cat}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className={`text-[11px] font-mono ${isDark ? 'text-neutral-500' : 'text-neutral-500'}`}>
-                {visibleProducts.length} results · buy online and collect in person from the workshop.
-              </p>
-              <button
-                type="button"
-                onClick={() => setCartOpen(true)}
-                className="pressable inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-bold text-emerald-400 cursor-pointer"
-              >
-                <ShoppingCart className="w-3.5 h-3.5" /> Basket ({cartCount})
-              </button>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {visibleProducts.length === 0 && (
-                <div className={`sm:col-span-2 lg:col-span-3 rounded-2xl border border-dashed p-8 text-center ${isDark ? 'border-neutral-800 bg-neutral-900/40' : 'border-neutral-200 bg-white/60'}`}>
-                  <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500">
-                    <Store className="w-6 h-6" />
+                <div className="site-glass sm:col-span-2 lg:col-span-3 p-10 text-center">
+                  <span className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[rgba(18,184,102,0.14)] text-[var(--site-green)]">
+                    <Store className="h-6 w-6" />
                   </span>
-                  <h4 className={`mt-3 text-sm font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>The shelf is empty right now</h4>
-                  <p className={`mx-auto mt-1 max-w-md text-xs leading-relaxed ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                    Fresh second-hand bikes and parts are listed here as they're serviced. Tell us what you're after and we'll keep an eye out for it.
+                  <h4 className="font-editorial mt-3 text-lg font-semibold text-[var(--site-ink)]">The shelf is empty right now</h4>
+                  <p className="site-lede mx-auto mt-1 max-w-md text-[13px]">
+                    Fresh second-hand bikes and parts are listed here as they're serviced. Tell us what you're
+                    after and we'll keep an eye out for it.
                   </p>
                   <div className="mt-4 flex flex-wrap items-center justify-center gap-2.5">
-                    <a href={call} className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-neutral-950 text-[11px] font-black uppercase tracking-wider cursor-pointer">
+                    <a href={call} className="site-btn site-btn-primary site-btn-sm">
                       <Phone className="w-3.5 h-3.5" /> Call the workshop
                     </a>
-                    <a href={mail} className={`pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[11px] font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200' : 'border-neutral-300 text-neutral-700'}`}>
+                    <a href={mail} className="site-btn site-btn-ghost site-btn-sm">
                       <MessageCircle className="w-3.5 h-3.5" /> Ask about a part
                     </a>
                   </div>
@@ -1194,36 +1512,35 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
                 const inBasket = cartQtyFor(p.id);
                 const soldOut = p.stock <= 0;
                 return (
-                  <div key={p.id} className={`group overflow-hidden rounded-2xl border shadow-lg flex flex-col ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white border-neutral-200'}`}>
+                  <article key={p.id} className="site-glass site-glass-hover group flex flex-col overflow-hidden">
                     <div className="relative overflow-hidden">
-                      <img src={p.image} alt={p.name} className="w-full h-48 object-cover transition-transform group-hover:scale-105" loading="lazy" />
+                      <img
+                        src={p.image}
+                        alt={p.name}
+                        className="h-52 w-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        loading="lazy"
+                      />
                       {p.wasPrice && (
-                        <span className="absolute top-2.5 left-2.5 rounded-full bg-amber-400 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-neutral-950 shadow">
+                        <span className="absolute left-3 top-3 rounded-full bg-[var(--site-brass)] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#201703]">
                           Sale
                         </span>
                       )}
                       {soldOut && (
-                        <span className="absolute top-2.5 right-2.5 rounded-full bg-neutral-950/80 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow">
+                        <span className="absolute right-3 top-3 rounded-full bg-black/75 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white">
                           Out of stock
                         </span>
                       )}
                     </div>
-                    <div className="p-4 space-y-2 flex-1 flex flex-col">
-                      <div className={`text-sm font-bold leading-snug ${isDark ? 'text-neutral-100' : 'text-neutral-800'}`}>{p.name}</div>
-                      {p.description && (
-                        <p className={`text-[11px] leading-snug ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{p.description}</p>
-                      )}
+                    <div className="flex flex-1 flex-col gap-2 p-4">
+                      <h3 className="text-sm font-bold leading-snug text-[var(--site-ink)]">{p.name}</h3>
+                      {p.description && <p className="site-lede text-[11px]">{p.description}</p>}
                       <div className="flex items-baseline gap-2">
-                        <span className={`text-lg font-black ${isDark ? 'text-emerald-300' : 'text-emerald-700'}`}>£{p.price.toFixed(2)}</span>
-                        {p.wasPrice && (
-                          <span className={`text-xs line-through ${isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>£{p.wasPrice.toFixed(2)}</span>
-                        )}
+                        <span className="font-editorial text-xl font-semibold text-[var(--site-green)]">£{p.price.toFixed(2)}</span>
+                        {p.wasPrice && <span className="text-xs text-[var(--site-ink-faint)] line-through">£{p.wasPrice.toFixed(2)}</span>}
                       </div>
                       <div className="flex items-center justify-between gap-2">
-                        <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'bg-neutral-800 text-neutral-300' : 'bg-neutral-100 text-neutral-600'}`}>
-                          {p.category}
-                        </span>
-                        <span className={`text-[10px] font-bold ${soldOut ? 'text-rose-400' : isDark ? 'text-neutral-500' : 'text-neutral-400'}`}>
+                        <span className="site-chip !py-0.5">{p.category}</span>
+                        <span className={`text-[10px] font-bold ${soldOut ? 'text-rose-400' : 'text-[var(--site-ink-faint)]'}`}>
                           {soldOut ? 'Unavailable' : `${p.stock} in stock`}
                         </span>
                       </div>
@@ -1235,19 +1552,13 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
                       <div className="mt-auto pt-1">
                         {inBasket > 0 ? (
                           <div className="flex items-center justify-between gap-2">
-                            <button
-                              type="button"
-                              onClick={() => decrementCart(p.id)}
-                              className="pressable h-8 w-8 rounded-lg border text-sm font-black cursor-pointer"
-                            >
-                              −
-                            </button>
-                            <span className={`text-xs font-bold ${isDark ? 'text-neutral-200' : 'text-neutral-700'}`}>{inBasket} in basket</span>
+                            <button type="button" onClick={() => decrementCart(p.id)} className="site-btn site-btn-ghost site-btn-sm !px-3">−</button>
+                            <span className="text-xs font-bold text-[var(--site-ink)]">{inBasket} in basket</span>
                             <button
                               type="button"
                               disabled={inBasket >= p.stock}
                               onClick={() => addToCart(p)}
-                              className="pressable h-8 w-8 rounded-lg border text-sm font-black cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              className="site-btn site-btn-ghost site-btn-sm !px-3 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               +
                             </button>
@@ -1257,7 +1568,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
                             type="button"
                             disabled={soldOut}
                             onClick={() => addToCart(p)}
-                            className="pressable inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-neutral-950 text-[11px] font-black uppercase tracking-wider shadow cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="site-btn site-btn-primary site-btn-sm w-full disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <ShoppingCart className="w-3.5 h-3.5" /> {soldOut ? 'Out of stock' : 'Add to basket'}
                           </button>
@@ -1267,208 +1578,435 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({ onBookService, c
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>
-            {footerBar}
+            {siteFooter}
           </div>
         );
+
+      case 'repairs':
+        return (
+          <div className="space-y-10">
+            <Reveal>{pageHeading('Repairs & services', 'Fixed-price repairs, done properly', content.priceIntroBody)}</Reveal>
+
+            {servicesSection}
+
+            <section className="space-y-6">
+              {sectionHeading('Price list', content.priceIntroTitle, undefined, (
+                <a href={call} className="site-btn site-btn-ghost site-btn-sm">
+                  <Phone className="w-4 h-4" /> Get an exact quote
+                </a>
+              ))}
+              {content.priceNotes.length > 0 && (
+                <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                  {content.priceNotes.map((note, i) => (
+                    <p key={i} className="flex items-center gap-2 text-[11px] text-[var(--site-ink-faint)]">
+                      <span className="h-1 w-1 rounded-full bg-[var(--site-green)]" /> {note}
+                    </p>
+                  ))}
+                </div>
+              )}
+              {(['bike', 'scooter'] as const).map((scope) => {
+                const groups = groupedPriceRows(scope);
+                return (
+                  <div key={scope} className="space-y-4">
+                    <h3 className="site-eyebrow">
+                      {scope === 'bike' ? 'Bicycle repair — labour only' : 'E-scooter repair — labour only'}
+                    </h3>
+                    {Object.entries(groups).map(([group, rows]) => (
+                      <div key={group} className="site-glass overflow-hidden">
+                        <div className="border-b border-[var(--site-line)] bg-[rgba(18,184,102,0.08)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--site-green)]">
+                          {group}
+                        </div>
+                        <div className="divide-y divide-[var(--site-line)]">
+                          {rows.map((row) => (
+                            <div key={row.id} className="grid grid-cols-12 gap-2 px-5 py-3.5 items-start">
+                              <div className="col-span-12 sm:col-span-8">
+                                <div className="text-sm font-bold text-[var(--site-ink)]">{row.item}</div>
+                                {row.desc && <p className="site-lede text-[11px]">{row.desc}</p>}
+                                {row.note && <p className="mt-0.5 text-[10px] italic text-[var(--site-brass)]">{row.note}</p>}
+                              </div>
+                              <div className="col-span-12 sm:col-span-4 sm:text-right">
+                                <span className="font-editorial text-lg font-semibold text-[var(--site-green)]">{row.price}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </section>
+
+            {howItWorksSection}
+            {ctaBand}
+            {siteFooter}
+          </div>
+        );
+
       case 'offers':
         return (
-          <div className="space-y-6">
-            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <span className={`inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] ${isDark ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-                <Tag className="w-3.5 h-3.5" />
-                Save on repairs &amp; parts
-              </span>
-              <h3 className={`mt-3 text-2xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                Discount codes &amp; offers
-              </h3>
-              <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                Use a code below at the basket, or mention it when you drop your bike in. Every code is checked
-                against your basket automatically — no need to remember the small print.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+          <div className="space-y-8">
+            <Reveal>
+              {pageHeading(
+                'Save on repairs & parts',
+                'Discount codes & offers',
+                'Use a code at the basket, or mention it when you drop your bike in. Every code is checked against your basket automatically — no small print to remember.'
+              )}
+            </Reveal>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
               {promotionsPanel}
               {couponPanel}
             </div>
-
-            <div className={`rounded-2xl border p-5 ${isDark ? 'border-neutral-800 bg-neutral-900/50' : 'border-neutral-200 bg-white/70'}`}>
-              <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-neutral-900'}`}>How to use a code</h4>
-              <ol className={`mt-3 space-y-2 text-sm ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>
-                <li className="flex gap-2.5">
-                  <span className="text-emerald-500 font-bold shrink-0">1.</span>
-                  <span>Add the parts or bikes you want to the basket, or start a repair booking.</span>
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="text-emerald-500 font-bold shrink-0">2.</span>
-                  <span>Tap <strong>Use this code</strong> on an offer, or type it into the basket code box.</span>
-                </li>
-                <li className="flex gap-2.5">
-                  <span className="text-emerald-500 font-bold shrink-0">3.</span>
-                  <span>Watch the discount come off your total before you check out.</span>
-                </li>
+            <div className="site-glass p-6">
+              <h4 className="font-editorial text-lg font-semibold text-[var(--site-ink)]">How to use a code</h4>
+              <ol className="mt-4 space-y-3">
+                {[
+                  'Add the parts or bikes you want to the basket, or start a repair booking.',
+                  'Tap “Use this code” on an offer, or type it into the basket code box.',
+                  'Watch the discount come off your total before you check out.',
+                ].map((step, i) => (
+                  <li key={i} className="flex gap-3 text-sm text-[var(--site-ink-soft)]">
+                    <span className="font-editorial shrink-0 text-lg font-semibold text-[var(--site-green)]">{i + 1}.</span>
+                    <span>{step}</span>
+                  </li>
+                ))}
               </ol>
-              <div className="flex flex-wrap gap-2.5 mt-5">
-                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="pressable inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-bold text-emerald-300 cursor-pointer">
+              <div className="mt-5 flex flex-wrap gap-2.5">
+                <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="site-btn site-btn-ghost site-btn-sm">
                   <MessageCircle className="w-4 h-4" /> Ask about an offer
                 </a>
-                <button
-                  type="button"
-                  onClick={() => setPage('shop')}
-                  className="pressable inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold cursor-pointer"
-                >
+                <button type="button" onClick={() => goTo('shop')} className="site-btn site-btn-ghost site-btn-sm">
                   <Store className="w-4 h-4" /> Browse the shop
                 </button>
               </div>
-
               <div className="mt-5">
-                <PolicyDisclaimers
-                  items={DISCOUNT_DISCLAIMERS}
-                  title="Discount code terms"
-                  tone={isDark ? 'neutral' : 'neutral'}
-                  compact
-                />
+                <PolicyDisclaimers items={DISCOUNT_DISCLAIMERS} title="Discount code terms" tone="neutral" compact />
               </div>
             </div>
-
-            {footerBar}
+            {siteFooter}
           </div>
         );
+
       case 'sell':
         return (
-          <div className="space-y-6">
-            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-400 text-neutral-950 shadow">
-                  <Tag className="w-6 h-6" />
-                </span>
-                <div>
-                  <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>Sell Your Bike</h3>
-                  <p className={`text-sm ${isDark ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                    Snap seven photos, get an instant AI offer, and turn your old bike into cash or credit.
-                  </p>
+          <div className="space-y-8">
+            <Reveal>
+              <section className="site-frame relative overflow-hidden rounded-[1.75rem] p-7 sm:p-10">
+                <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
+                  <div className="lg:col-span-7">
+                    <span className="site-eyebrow">Sell Your Bike</span>
+                    <h1 className="site-display mt-3 text-4xl sm:text-5xl">Turn your old bike into cash or credit</h1>
+                    <p className="site-lede mt-4">
+                      Snap seven guided photos, let our AI identify the bike, and get an instant indicative offer —
+                      no haggling, no waiting.
+                    </p>
+                    <ul className="mt-6 grid gap-2 sm:grid-cols-3">
+                      {['7 guided photo angles', 'AI identifies the bike', 'Instant indicative offer'].map((b) => (
+                        <li key={b} className="flex items-center gap-2 text-[12px] font-semibold text-[var(--site-ink-soft)]">
+                          <Check className="h-4 w-4 text-[var(--site-green)]" /> {b}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div className="lg:col-span-5">
+                    <div className="grid grid-cols-3 gap-3">
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="flex aspect-square items-center justify-center rounded-2xl border border-[var(--site-line)] bg-[rgba(255,255,255,0.03)]">
+                          <Bike className="h-7 w-7 text-[var(--site-ink-faint)]" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </Reveal>
+            <Reveal>
+              <SellYourBikeForm compact />
+            </Reveal>
+            {siteFooter}
+          </div>
+        );
+
+      case 'faqs':
+        return (
+          <div className="space-y-8">
+            <Reveal>{pageHeading('FAQs', 'Questions, answered', 'Published by your mechanics from the Staff Station.')}</Reveal>
+            <div className="flex flex-wrap gap-2">
+              {([{ key: 'all', label: 'All' }, ...faqGroups] as { key: 'all' | 'repairs' | 'parts' | 'general'; label: string }[]).map((g) => (
+                <button
+                  key={g.key}
+                  type="button"
+                  onClick={() => setFaqFilter(g.key)}
+                  className={`site-btn site-btn-sm ${faqFilter === g.key ? 'site-btn-primary' : 'site-btn-ghost'}`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+            {faqGroups.map((group) => {
+              const rows = content.faqs.filter((f) => f.section === group.key);
+              if (faqFilter !== 'all' && faqFilter !== group.key) return null;
+              if (rows.length === 0) return null;
+              return (
+                <section key={group.key} className="space-y-3">
+                  <h3 className="site-eyebrow">{group.label}</h3>
+                  <div className="space-y-2.5">
+                    {rows.map((f) => (
+                      <details key={f.id} className="site-glass group cursor-pointer p-5">
+                        <summary className="flex list-none items-center justify-between gap-3 text-sm font-bold text-[var(--site-ink)] cursor-pointer">
+                          <span>{f.q}</span>
+                          <ChevronDown className="h-4 w-4 shrink-0 text-[var(--site-green)] transition-transform group-open:rotate-180" />
+                        </summary>
+                        <p className="site-lede mt-3 text-[13px]">{f.a}</p>
+                      </details>
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
+            {siteFooter}
+          </div>
+        );
+
+      case 'visit':
+      case 'location':
+        return (
+          <div className="space-y-10">
+            <Reveal>{pageHeading('Visit', 'Find us & get in touch', content.mobileBody)}</Reveal>
+
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+              <div className="lg:col-span-7">
+                {content.locationImage ? (
+                  <div className="relative overflow-hidden rounded-[1.75rem] border border-[var(--site-line)] shadow-[var(--site-shadow)]">
+                    <img src={content.locationImage} alt="Stakey's Cycles — Salford" className="h-72 w-full object-cover sm:h-96" loading="lazy" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute bottom-0 left-0 p-7">
+                      <Quote className="h-6 w-6 text-[var(--site-brass)]" />
+                      <p className="font-editorial mt-2 max-w-xl text-lg italic text-white/95">
+                        “{content.locationQuote}”
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="site-glass p-7">
+                    <Quote className="h-6 w-6 text-[var(--site-brass)]" />
+                    <p className="font-editorial mt-2 text-lg italic text-[var(--site-ink)]">“{content.locationQuote}”</p>
+                  </div>
+                )}
+              </div>
+              <div className="lg:col-span-5">
+                <div className="site-glass h-full p-7">
+                  <h3 className="font-editorial text-xl font-semibold text-[var(--site-ink)]">{content.mobileTitle}</h3>
+                  <p className="site-lede mt-2 text-[13px]">{content.mobileBody}</p>
+                  <div className="mt-5 space-y-2.5">
+                    <a href={call} className="flex items-center gap-2.5 text-[13px] font-semibold text-[var(--site-ink)]">
+                      <Phone className="h-4 w-4 text-[var(--site-green)]" /> {content.phone}
+                    </a>
+                    <a href={mail} className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
+                      <MessageCircle className="h-4 w-4 text-[var(--site-green)]" /> {content.email}
+                    </a>
+                    <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
+                      <MessageCircle className="h-4 w-4 text-[var(--site-green)]" /> WhatsApp
+                    </a>
+                    <p className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
+                      <MapPin className="h-4 w-4 text-[var(--site-green)]" /> Salford · mobile call-out
+                    </p>
+                  </div>
+                  <div className="mt-6 flex flex-wrap gap-2.5">
+                    <button type="button" onClick={onBookService} className="site-btn site-btn-primary site-btn-sm">
+                      <CalendarCheck className="w-4 h-4" /> Book your appointment
+                    </button>
+                    <a href={call} className="site-btn site-btn-ghost site-btn-sm">
+                      <Phone className="w-4 h-4" /> Call us out
+                    </a>
+                  </div>
                 </div>
               </div>
-              <ul className="mt-5 grid gap-2 sm:grid-cols-3">
-                {['7 guided photo angles', 'AI identifies the bike', 'Instant indicative offer'].map((b) => (
-                  <li key={b} className={`flex items-center gap-2 text-xs font-semibold ${isDark ? 'text-neutral-300' : 'text-neutral-700'}`}>
-                    <span className="text-emerald-500 font-bold">✓</span> {b}
-                  </li>
-                ))}
-              </ul>
             </div>
-            <SellYourBikeForm compact />
-            {footerBar}
+
+            <section className="space-y-5">
+              {sectionHeading('Riding weather', 'Riding conditions for the week ahead', 'Live seven-day forecast for your area, turned into plain “can I ride?” guidance.')}
+              <WeatherForecast isDark={isDark} />
+            </section>
+
+            {content.galleryImages.length > 0 && (
+              <section className="space-y-5">
+                {sectionHeading('Gallery', 'From the workshop', undefined, (
+                  <button type="button" onClick={() => goTo('gallery')} className="site-btn site-btn-ghost site-btn-sm">
+                    See the gallery <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                ))}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {content.galleryImages.slice(0, 3).map((img) => (
+                    <figure key={img.id} className="site-glass site-glass-hover overflow-hidden">
+                      <img src={img.url} alt="Stakey's Cycles workshop work" className="h-48 w-full object-cover" loading="lazy" />
+                    </figure>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {ctaBand}
+            {siteFooter}
           </div>
         );
+
+      case 'weather':
+        return (
+          <div className="space-y-8">
+            <Reveal>{pageHeading('Riding weather', 'Riding conditions for the week ahead', 'Live seven-day forecast for your area, turned into plain “can I ride?” guidance — plan a commute, a delivery shift or a weekend loop.')}</Reveal>
+            <WeatherForecast isDark={isDark} />
+            {siteFooter}
+          </div>
+        );
+
+      case 'gallery':
+        return (
+          <div className="space-y-8">
+            <Reveal>{pageHeading('Gallery', 'From the workshop', "Recent builds, repairs and the bikes we've brought back to life.")}</Reveal>
+            {content.galleryImages.length === 0 ? (
+              <div className="site-glass p-10 text-center">
+                <p className="font-editorial text-lg text-[var(--site-ink)]">Photos coming soon.</p>
+                <p className="site-lede mt-1 text-[13px]">We're refreshing our gallery with new workshop shots.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {content.galleryImages.map((img) => (
+                  <figure key={img.id} className="site-glass site-glass-hover overflow-hidden">
+                    <img src={img.url} alt="Stakey's Cycles workshop work" className="h-56 w-full object-cover" loading="lazy" />
+                    <figcaption className="px-4 py-3 text-[11px] font-semibold text-[var(--site-ink-soft)]">
+                      Stakey's Cycles — Salford
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
+            {siteFooter}
+          </div>
+        );
+
+      case 'priceList':
+        return (
+          <div className="space-y-10">
+            <Reveal>{pageHeading('Price list', content.priceIntroTitle, content.priceIntroBody)}</Reveal>
+            {content.priceNotes.length > 0 && (
+              <div className="flex flex-wrap gap-x-6 gap-y-1.5">
+                {content.priceNotes.map((note, i) => (
+                  <p key={i} className="flex items-center gap-2 text-[11px] text-[var(--site-ink-faint)]">
+                    <span className="h-1 w-1 rounded-full bg-[var(--site-green)]" /> {note}
+                  </p>
+                ))}
+              </div>
+            )}
+            {(['bike', 'scooter'] as const).map((scope) => {
+              const groups = groupedPriceRows(scope);
+              return (
+                <div key={scope} className="space-y-4">
+                  <h3 className="site-eyebrow">
+                    {scope === 'bike' ? 'Bicycle repair — labour only' : 'E-scooter repair — labour only'}
+                  </h3>
+                  {Object.entries(groups).map(([group, rows]) => (
+                    <div key={group} className="site-glass overflow-hidden">
+                      <div className="border-b border-[var(--site-line)] bg-[rgba(18,184,102,0.08)] px-5 py-3 text-[11px] font-black uppercase tracking-wider text-[var(--site-green)]">
+                        {group}
+                      </div>
+                      <div className="divide-y divide-[var(--site-line)]">
+                        {rows.map((row) => (
+                          <div key={row.id} className="grid grid-cols-12 gap-2 px-5 py-3.5 items-start">
+                            <div className="col-span-12 sm:col-span-8">
+                              <div className="text-sm font-bold text-[var(--site-ink)]">{row.item}</div>
+                              {row.desc && <p className="site-lede text-[11px]">{row.desc}</p>}
+                              {row.note && <p className="mt-0.5 text-[10px] italic text-[var(--site-brass)]">{row.note}</p>}
+                            </div>
+                            <div className="col-span-12 sm:col-span-4 sm:text-right">
+                              <span className="font-editorial text-lg font-semibold text-[var(--site-green)]">{row.price}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+            <div className="flex justify-center">
+              <a href={call} className="site-btn site-btn-primary">
+                <Phone className="w-4 h-4" /> Call now for an exact quote
+              </a>
+            </div>
+            {siteFooter}
+          </div>
+        );
+
       case 'join':
         return (
-          <div className="space-y-6">
-            <div className={`rounded-3xl border p-6 sm:p-8 shadow-lg ${isDark ? 'bg-neutral-900/70 border-neutral-800' : 'bg-white/80 border-neutral-200'}`}>
-              <h3 className={`text-xl font-extrabold ${isDark ? 'text-white' : 'text-neutral-900'}`}>{content.joinTitle}</h3>
-              <p className={`text-sm leading-relaxed mt-2 ${isDark ? 'text-neutral-300' : 'text-neutral-600'}`}>{content.joinBody}</p>
-              <ul className="mt-4 space-y-2">
-                {content.joinBullets.map((b, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm">
-                    <span className="text-emerald-500 font-bold shrink-0">✓</span>
-                    <span className={isDark ? 'text-neutral-300' : 'text-neutral-600'}>{b}</span>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-5">
-                <a
-                  href={call}
-                  className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer"
-                >
-                  <Phone className="w-4 h-4" />
-                  {content.joinCtaLabel}
-                </a>
-              </div>
-            </div>
-            {footerBar}
+          <div className="space-y-10">
+            <Reveal>
+              <section className="site-frame relative overflow-hidden rounded-[1.75rem] p-8 sm:p-12">
+                <div className="max-w-2xl">
+                  <span className="site-eyebrow">Join the team</span>
+                  <h1 className="site-display mt-3 text-4xl sm:text-5xl">{content.joinTitle}</h1>
+                  <p className="site-lede mt-4 text-base">{content.joinBody}</p>
+                  <ul className="mt-6 space-y-2.5">
+                    {content.joinBullets.map((b, i) => (
+                      <li key={i} className="flex gap-2.5 text-sm text-[var(--site-ink-soft)]">
+                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-green)]" />
+                        <span>{b}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-7">
+                    <a href={call} className="site-btn site-btn-primary">
+                      <Phone className="w-4 h-4" /> {content.joinCtaLabel}
+                    </a>
+                  </div>
+                </div>
+              </section>
+            </Reveal>
+            {siteFooter}
           </div>
         );
+
       case 'home':
       default:
         return (
-          <div className="space-y-6">
-            {heroCard}
+          <div className="space-y-14">
+            {heroSection}
+            {trustMarquee}
+            {editorialGallery}
             <CustomerErrorCodeHelper onBookService={onBookService} />
-            {brandStoryBlock}
-            {valueBand}
+            {servicesSection}
+            {brandStorySection}
+            {howItWorksSection}
             {offersTeaser}
-            {reviewCard}
-            {footerBar}
+            {reviewSection}
+            {ctaBand}
+            {siteFooter}
           </div>
         );
     }
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className={`site-canvas ${isDark ? '' : 'site-light'} font-ui min-h-screen rounded-[1.75rem] px-4 pb-10 pt-0 sm:px-6 lg:px-8`}>
       {content.siteAnnouncements.length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent px-4 py-2.5">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span key={ribbonIndex} className={`animate-fade-in text-xs font-bold tracking-wide ${isDark ? 'text-emerald-200' : 'text-emerald-800'}`}>
+        <div className="mx-auto max-w-7xl pt-3">
+          <div className="flex items-center justify-center gap-2.5 rounded-full border border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-card-solid)_60%,transparent)] px-4 py-2">
+            <Sparkles className="h-4 w-4 shrink-0 text-[var(--site-brass)]" />
+            <span key={ribbonIndex} className="animate-fade-in text-[12px] font-semibold tracking-wide text-[var(--site-ink-soft)]">
               {content.siteAnnouncements[ribbonIndex]}
             </span>
           </div>
         </div>
       )}
 
-      <div className={`sticky top-2 z-30 rounded-2xl border p-3 sm:p-4 shadow-lg backdrop-blur-xl ${isDark ? 'bg-neutral-950/80 border-neutral-800' : 'bg-white/85 border-neutral-200'}`}>
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-400 text-neutral-950 shadow">
-              <Bike className="w-5 h-5" />
-            </span>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500 flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5" />
-                Stakey's Cycles &amp; Scooter
-              </div>
-              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
-                Repairs · Second-hand shop · Live promotions — kept current by the workshop team.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setCartOpen(true)}
-              className={`pressable inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-[11px] font-bold cursor-pointer ${isDark ? 'border-neutral-700 text-neutral-200 hover:border-emerald-500/50' : 'border-neutral-200 text-neutral-700 hover:border-emerald-500/50'}`}
-            >
-              <ShoppingCart className="w-3.5 h-3.5" /> Basket
-              {cartCount > 0 && (
-                <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-neutral-950">{cartCount}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={onBookService}
-              className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-3.5 py-2 text-neutral-950 text-[11px] font-black uppercase tracking-wider shadow cursor-pointer"
-            >
-              <CalendarCheck className="w-3.5 h-3.5" /> Book a repair
-            </button>
-            {currentUser && (
-              <span className={`hidden xl:inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider ${isDark ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-                <span className="w-1.5 h-1.5 rounded-full bg-[#05C147] animate-pulse" />
-                Loyalty active
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="mt-3">
-          <SegmentedTabs tabs={pageTabs} active={page} onChange={setPage} ariaLabel="Website pages" size="sm" />
-        </div>
-      </div>
+      {siteHeader}
 
-      {renderPage()}
+      <main className="mx-auto max-w-7xl pt-10">{renderPage()}</main>
       {cartDrawer}
     </div>
   );
