@@ -36,11 +36,11 @@ describe('runPushRepair — diagnostics', () => {
     expect(steps.some((s) => s.status === 'fail')).toBe(false);
   });
 
-  it('flags a missing REST key with the env names to set', async () => {
+  it('flags a missing OneSignal App API key with the Supabase secret name', async () => {
     const steps = await runPushRepair(makeDeps({}, { serverPush: false, restKeyEnv: null }), CTX);
     const cfg = steps.find((s) => s.id === 'server-config');
     expect(cfg?.status).toBe('fail');
-    expect(cfg?.hint).toContain('ONESIGNAL_REST_API_KEY');
+    expect(cfg?.hint).toContain('ONESIGNAL_APP_API_KEY');
   });
 
   it('flags an unresolved app id', async () => {

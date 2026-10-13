@@ -8,7 +8,7 @@
  */
 import { resolveAppId, resolveRestKey, resolveOrigin, buildTagFilter, REST_KEY_ENV_NAMES } from './_shared.js';
 
-const ONESIGNAL_ENDPOINT = 'https://onesignal.com/api/v1/notifications';
+const ONESIGNAL_ENDPOINT = 'https://api.onesignal.com/notifications';
 
 function onesignalConfig(_req, res) {
   const appId = resolveAppId();
@@ -29,7 +29,7 @@ async function onesignalNotify(req, res) {
   if (!appId || !apiKey) {
     return res.status(500).json({
       error: 'OneSignal server push is not configured',
-      hint: 'Set ONESIGNAL_REST_API_KEY (or ONESIGNAL_API_KEY) in the deployment environment.',
+      hint: 'Set ONESIGNAL_APP_API_KEY in Supabase Edge Function secrets.',
     });
   }
 
@@ -56,8 +56,8 @@ async function onesignalNotify(req, res) {
     const upstream = await fetch(ONESIGNAL_ENDPOINT, {
       method: 'POST',
       headers: {
-        Authorization: `Basic ${apiKey}`,
-        'Content-Type': 'application/json',
+        Authorization: `Key ${apiKey}`,
+        'Content-Type': 'application/json; charset=utf-8',
       },
       body: JSON.stringify(message),
     });
