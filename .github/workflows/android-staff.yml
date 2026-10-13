@@ -1,0 +1,44 @@
+name: Staff Android APK
+on:
+  push:
+    branches: [staff-terminal]
+    paths:
+      - '.github/workflows/android-staff.yml'
+      - 'src/**'
+      - 'supabase/**'
+      - 'package*.json'
+      - 'android/**'
+      - 'scripts/build-apps.sh'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-staff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Install dependencies
+        run: npm ci
+      - name: Build Staff APK
+        run: |
+          export JAVA_HOME="$JAVA_HOME"
+          export ANDROID_HOME="$ANDROID_HOME"
+          npm run apps:build:staff
+      - name: Upload Staff APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Stakeys-Cycles-Staff-Gemini-APK
+          path: preview/apps/*.apk
+          if-no-files-found: error
