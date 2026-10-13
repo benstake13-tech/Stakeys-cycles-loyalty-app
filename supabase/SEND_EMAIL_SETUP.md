@@ -33,18 +33,18 @@ Create a Resend account, add your sending domain, and create an API key. Then:
 ```bash
 supabase secrets set RESEND_API_KEY=re_xxxxxxxx
 # optional: override the default sender
-supabase secrets set MAIL_FROM="Stakey's Cycles <noreply@stakeyscycles.co.uk>"
+supabase secrets set MAIL_FROM="Stakey's Cycles <noreply@stakeys-cycles.co.uk>"
 ```
 
 Or via Dashboard → Project Settings → Edge Functions → Secrets.
 
 ## 3. The sending domain must be verified in Resend
 
-The app sends `from: noreply@stakeyscycles.co.uk`. That domain (or a subdomain
+The app sends `from: noreply@stakeys-cycles.co.uk`. That domain (or a subdomain
 you choose) must be **verified in Resend** (DNS records added), otherwise Resend
 rejects the request with a 4xx and nothing is delivered. Note the correct
-spelling is `stakeyscycles.co.uk` — earlier code had a typo
-(`stakeyscyles.co.uk`) which has since been fixed.
+spelling is `stakeys-cycles.co.uk` — earlier code had a typo
+(`stakeys-cycles.co.uk`) which has since been fixed.
 
 ## 4. The workshop recipient must be set in the app
 
