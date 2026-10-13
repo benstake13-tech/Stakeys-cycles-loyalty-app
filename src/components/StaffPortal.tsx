@@ -74,6 +74,7 @@ import { BridgeStatusTile } from './BridgeStatusTile';
 import { BridgeRepairModal } from './BridgeRepairModal';
 import { GoogleBusinessTab } from './GoogleBusinessTab';
 import { WebsiteContentManagerTab } from './WebsiteContentManagerTab';
+import { ShopGalleryManager } from './ShopGalleryManager';
 import { AssistantManagerTab } from './AssistantManagerTab';
 import { PerformanceTracker } from './PerformanceTracker';
 import { WeatherForecast } from './weather/WeatherForecast';
@@ -862,7 +863,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
       {/* VIEW 7: Google Business Profile Tab */}
       {staffView('google_business', <GoogleBusinessTab />)}
-      {staffView('website_cms', <WebsiteContentManagerTab />)}
+      {staffView('website_cms', <div className="space-y-6"><WebsiteContentManagerTab /><ShopGalleryManager /></div>)}
 
       {/* VIEW 7C: Live 7-day riding weather for planning workshop capacity */}
       {staffView('weather', (
