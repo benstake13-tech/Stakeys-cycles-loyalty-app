@@ -15,17 +15,31 @@ export function ShopGalleryManager() {
 
   const refresh = async () => {
     setError('');
-    const { data, error: listError } = await supabase.storage.from(BUCKET).list(folder, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
-    if (listError) { setError(listError.message); return; }
-    setPhotos((data || []).filter(item => item.name && item.name !== '.emptyFolderPlaceholder').map(item => {
-      const path = `${folder}/${item.name}`;
-      return { name: item.name, path, url: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl };
-    }));
+    // The CMS must never bring down the whole Staff Terminal if Storage is
+    // disabled, unavailable, or omitted by a diagnostic/test environment.
+    if (!supabase?.storage?.from) {
+      setPhotos([]);
+      setError('Photo storage is unavailable. Check the Supabase connection.');
+      return;
+    }
+    try {
+      const bucket = supabase.storage.from(BUCKET);
+      const { data, error: listError } = await bucket.list(folder, { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+      if (listError) throw listError;
+      setPhotos((data || []).filter(item => item.name && item.name !== '.emptyFolderPlaceholder').map(item => {
+        const path = `${folder}/${item.name}`;
+        return { name: item.name, path, url: bucket.getPublicUrl(path).data.publicUrl };
+      }));
+    } catch (err) {
+      setPhotos([]);
+      setError(err instanceof Error ? err.message : 'Unable to load photos.');
+    }
   };
   useEffect(() => { void refresh(); }, [folder]);
 
   const upload = async (files: FileList | null) => {
     if (!files?.length) return;
+    if (!supabase?.storage?.from) { setError('Photo storage is unavailable. Check the Supabase connection.'); return; }
     setBusy(true); setError(''); setMessage('');
     try {
       for (const file of Array.from(files)) {
@@ -44,6 +58,7 @@ export function ShopGalleryManager() {
 
   const remove = async (photo: Photo) => {
     if (!window.confirm(`Permanently delete ${photo.name}?`)) return;
+    if (!supabase?.storage?.from) { setError('Photo storage is unavailable. Check the Supabase connection.'); return; }
     setBusy(true); setError('');
     const { error: deleteError } = await supabase.storage.from(BUCKET).remove([photo.path]);
     if (deleteError) setError(deleteError.message);
