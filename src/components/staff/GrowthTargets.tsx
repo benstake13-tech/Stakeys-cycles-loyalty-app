@@ -36,6 +36,25 @@ export const GrowthTargets: React.FC = () => {
     () => Object.fromEntries(GOAL_IDS.map(id => [id, String(readDeviceTargets()[id])])) as Record<GoalId, string>
   );
   const [editing, setEditing] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiAdvice, setAiAdvice] = useState<{ headline: string; suggestions: Array<{ title: string; reason: string; target_metric: string; discount_pct: number; expected_benefit: string }> } | null>(null);
+  const generateAdvice = async () => {
+    if (aiBusy) return;
+    setAiBusy(true); setAiError('');
+    try {
+      const { data, error } = await supabase.functions.invoke('growth-advisor', { body: {} });
+      if (error) {
+        const detail = typeof error.context?.json === 'function' ? await error.context.json().catch(() => null) : null;
+        throw Error(detail?.error || error.message);
+      }
+      if (data?.error) throw Error(data.error);
+      if (!Array.isArray(data?.suggestions)) throw Error('Unexpected advisor response');
+      setAiAdvice({ headline: String(data.headline || 'Growth opportunities'), suggestions: data.suggestions });
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Gemini growth advisor unavailable');
+    } finally { setAiBusy(false); }
+  };
   const [sync, setSync] = useState<SyncState>('checking');
   const [error, setError] = useState('');
   const [savedNotice, setSavedNotice] = useState('');
@@ -188,6 +207,29 @@ export const GrowthTargets: React.FC = () => {
         </span>
       </div>
 
+      <div className="staff-goals-editor space-y-3" data-testid="staff-gemini-growth-advisor">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-white">Gemini growth advisor</h3>
+            <p className="text-[10px] text-[#a4b8aa]">Reviews real monthly sales, repairs, services and free community work. Promotions need staff approval.</p>
+          </div>
+          <button type="button" onClick={() => void generateAdvice()} disabled={aiBusy}
+            className="staff-goals-edit disabled:opacity-50">
+            <TrendingUp size={15} aria-hidden="true" /> {aiBusy ? 'Analysing…' : 'Suggest promotions'}
+          </button>
+        </div>
+        {aiError && <p role="alert" className="text-[11px] text-white">{aiError}</p>}
+        {aiAdvice && <div className="space-y-2" aria-live="polite">
+          <p className="text-[12px] font-bold text-[#00FF66]">{aiAdvice.headline}</p>
+          {aiAdvice.suggestions.map((s, i) => <article key={i} className="staff-goal-card space-y-1">
+            <strong className="block text-xs text-white">{s.title}</strong>
+            <p className="text-[11px] text-[#c1d3c5]">{s.reason}</p>
+            <p className="text-[10px] text-[#00FF66]">Suggested discount: {s.discount_pct}% · Target: {s.target_metric}</p>
+            <p className="text-[10px] text-[#a4b8aa]">{s.expected_benefit}</p>
+          </article>)}
+          <p className="text-[10px] text-[#a4b8aa]">AI-generated suggestions; check margins and approve before publishing.</p>
+        </div>}
+      </div>
       {savedNotice && <p role="status" className="text-[11px] text-[#00FF66]">{savedNotice}</p>}
       {editing && (
         <form onSubmit={event => void save(event)} className="staff-goals-editor space-y-3">
