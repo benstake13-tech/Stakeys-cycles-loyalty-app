@@ -41,11 +41,12 @@ export const generateGemini = async (request: GeminiRequest): Promise<{ text: st
     if (response instanceof Response) {
       try { detail = await response.clone().json(); } catch { /* non-JSON gateway response */ }
     }
-    const code = detail.code || (detail.error === 'GEMINI_API_KEY is not configured' ? 'NOT_CONFIGURED' : '');
+    const code = detail.code || (detail.error?.toLowerCase().includes('key is not configured') ? 'NOT_CONFIGURED' : '');
     const messages: Record<string, string> = {
       NOT_CONFIGURED: 'The assistant needs GEMINI_API_KEY in Supabase Edge Function secrets.',
       KEY_REJECTED: 'Google rejected the assistant API key. Check the Gemini key and its API restrictions in Supabase.',
       RATE_LIMITED: 'The assistant has reached its Gemini quota. Please try again later.',
+      MODEL_UNAVAILABLE: 'The configured Gemini model is unavailable. Update GEMINI_MODEL in Supabase function secrets.',
     };
     if (messages[code]) throw Error(messages[code]);
     if (response instanceof Response && response.status === 404) throw Error('The gemini-gateway function is not deployed in Supabase.');

@@ -25,7 +25,6 @@ import {
   UserCog,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { apiUrl } from '../utils/apiBase';
 import { dispatchTestEmail } from '../utils/notificationService';
 import {
   sendPushToUser,
@@ -40,6 +39,7 @@ import {
   linkUser,
   registerEmailSubscription,
   adminPushTarget,
+  getOneSignalServerConfig,
 } from '../utils/pushNotifications';
 import { runPushRepair, PushRepairStep, PushRepairStatus, PUSH_STEP_FIX_ACTION } from '../utils/pushRepair';
 import { fetchAuthHealth, provisionMemberLogin, AuthHealth } from '../utils/authHealth';
@@ -335,13 +335,11 @@ export const StaffDiagnosticsTab: React.FC = () => {
   /** Shared dependency bundle for the push repair runner. */
   const pushRepairDeps = {
     getServerConfig: async () => {
-      const res = await fetch(apiUrl('/api/onesignal/config'));
-      const data = await res.json();
+      const data = await getOneSignalServerConfig();
       return {
         appId: data?.appId ?? null,
         serverPush: Boolean(data?.serverPush),
-        restKeyEnv: data?.restKeyEnv ?? null,
-        restKeyEnvNames: data?.restKeyEnvNames,
+        restKeyEnv: data?.keySource ?? null,
       };
     },
     initSdk: initOneSignal,

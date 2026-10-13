@@ -1,5 +1,5 @@
 // Deploy: supabase functions deploy growth-advisor
-// Secrets: GEMINI_API_KEY (existing), SUPABASE_URL, SUPABASE_ANON_KEY
+// Secrets: GEMINI_API_KEY (or GOOGLE_API_KEY), SUPABASE_URL, SUPABASE_ANON_KEY
 // Staff-only, on-demand Gemini advice. No key is ever sent to the browser.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -19,7 +19,7 @@ Deno.serve(async req => {
   if (!jwt) return reply({ error: 'Authentication required' }, 401);
   const url = Deno.env.get('SUPABASE_URL');
   const anon = Deno.env.get('SUPABASE_ANON_KEY');
-  const key = Deno.env.get('GEMINI_API_KEY');
+  const key = (Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY') || '').trim().replace(/^['"]|['"]$/g, '');
   if (!url || !anon || !key) return reply({ error: 'Growth advisor not configured: check Supabase function secrets' }, 503);
   const db = createClient(url, anon, { global: { headers: { Authorization: `Bearer ${jwt}` } }, auth: { persistSession: false } });
   const { data: identity, error: authError } = await db.auth.getUser(jwt);
@@ -53,7 +53,7 @@ Deno.serve(async req => {
     JSON.stringify({ monthly: months, targets }),
   ].join('\n');
   try {
-    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-flash-lite-latest';
+    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash-lite';
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },

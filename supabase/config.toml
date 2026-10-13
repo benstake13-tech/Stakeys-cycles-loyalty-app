@@ -3,3 +3,12 @@
 # verification is fine (the anon key is a valid JWT). Set to false only if you
 # want to allow completely unauthenticated calls.
 verify_jwt = true
+
+[functions.gemini-gateway]
+verify_jwt = true
+
+[functions.onesignal-gateway]
+verify_jwt = true
+
+[functions.marketplace-payments]
+verify_jwt = true

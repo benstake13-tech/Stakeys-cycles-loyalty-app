@@ -1,7 +1,7 @@
 /** Platform-aware OneSignal bootstrap with bounded SDK operations. */
 
-import { apiUrl } from './apiBase';
 import { withPushTimeout } from './pushTimeout';
+import { supabase } from '../lib/supabase';
 
 export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured' | 'timeout';
 
@@ -58,9 +58,12 @@ async function initializeNativePush(): Promise<NativePush | null> {
   if (!native) return null;
   // Android and Web Push may be separate OneSignal apps. Never silently
   // register an Android device against the website's Web Push App ID.
-  const androidAppId = String((import.meta as any).env?.VITE_ONESIGNAL_ANDROID_APP_ID || (await getRuntimeConfig()).androidAppId || '').trim();
+  const config = await getRuntimeConfig();
+  // OneSignal can serve web and Android from the same app. Use a separate
+  // Android App ID when configured; otherwise reuse the configured app ID.
+  const androidAppId = String((import.meta as any).env?.VITE_ONESIGNAL_ANDROID_APP_ID || config.androidAppId || config.appId || '').trim();
   if (!androidAppId) {
-    console.warn('[OneSignal] Set VITE_ONESIGNAL_ANDROID_APP_ID for native Android push');
+      console.warn('[OneSignal] No OneSignal App ID is configured for native Android push');
     return null;
   }
   try { await native.initialize({ appId: androidAppId }); return native; }
@@ -85,17 +88,15 @@ function browserReady(): boolean {
 async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   if (runtimeConfig) return runtimeConfig;
   try {
-    const data = (await withPushTimeout(fetch(apiUrl('/api/onesignal/config')).then(res => {
-      if (!res.ok) throw new Error('Push configuration unavailable');
-      return res.json();
-    }))) as Partial<OneSignalRuntimeConfig> & { appId?: string | null };
+    const { data, error } = await withPushTimeout(supabase.functions.invoke('onesignal-gateway', { body: { action: 'config' } }));
+    if (error) throw error;
     // A static host without the serverless function rewrites unknown paths to
     // index.html, so a non-JSON body (or missing appId field) must not be
     // treated as a configured backend.
     if (data && typeof data === 'object' && 'appId' in data) {
       runtimeConfig = {
         appId: data.appId ?? null,
-        androidAppId: data.androidAppId ?? null,
+        androidAppId: data.androidAppId ?? data.appId ?? null,
         serverPush: Boolean(data.serverPush),
       };
     } else {
@@ -111,6 +112,19 @@ async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   runtimeConfig = resolved;
   if (!resolved.appId && envAppId) resolved.appId = envAppId;
   return resolved;
+}
+
+/** Safe server configuration probe; the Edge Function never returns its secret. */
+export async function getOneSignalServerConfig(): Promise<OneSignalRuntimeConfig & { keySource?: string | null }> {
+  const { data, error } = await withPushTimeout(supabase.functions.invoke('onesignal-gateway', { body: { action: 'config' } }));
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || !('appId' in data)) throw new Error('OneSignal Supabase gateway returned invalid configuration.');
+  return {
+    appId: data.appId ?? null,
+    androidAppId: data.androidAppId ?? null,
+    serverPush: Boolean(data.serverPush),
+    keySource: data.keySource ?? null,
+  };
 }
 
 let sdkInitialization: Promise<void> | null = null;
@@ -428,10 +442,9 @@ export async function sendPushToUser(
 
   if (cfg.serverPush) {
     try {
-      const res = await fetch(apiUrl('/api/onesignal/notify'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await withPushTimeout(supabase.functions.invoke('onesignal-gateway', {
+        body: {
+          action: 'notify',
           title,
           body,
           url,
@@ -439,17 +452,14 @@ export async function sendPushToUser(
           ...(!userId && target?.tag ? { tag: target.tag } : {}),
           ...(!userId && !target?.tag && target?.email ? { email: target.email } : {}),
           ...(!userId && !target?.tag && !target?.email && target?.segment ? { segment: target.segment } : {}),
-        }),
-      });
-      // The function returns OneSignal's JSON envelope. A static host with no
-      // serverless function rewrites this path to index.html, so require a JSON
-      // body before trusting the 200 (otherwise we'd report a false success).
-      const data = await res.json().catch(() => null);
+        },
+      }));
+      if (error) throw error;
       if (data && typeof data === 'object') {
         const errors = Array.isArray((data as any).errors) ? (data as any).errors : [];
         // OneSignal answers 200 with `errors:["All included players are not
         // subscribed"]` when nothing is opted in — that is NOT a delivery.
-        const ok = res.ok && errors.length === 0;
+        const ok = errors.length === 0 && !(data as any).error;
         return { ok, via: 'server', envelope: data as any };
       }
     } catch {

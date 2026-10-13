@@ -56,6 +56,7 @@ import { WeatherForecast } from './weather/WeatherForecast';
 import { CustomerErrorCodeHelper } from './CustomerErrorCodeHelper';
 import { SellYourBikeForm } from './TradeInRequestForm';
 import { ThemeToggle } from './ThemeToggle';
+import { MarketplacePanel } from './MarketplacePanel';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
@@ -78,6 +79,7 @@ const ALL_PAGES: WebsitePageId[] = [
   'shop',
   'repairs',
   'sell',
+  'marketplace',
   'offers',
   'faqs',
   'visit',
@@ -433,6 +435,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
       children: [
         { id: 'shop', label: 'Second-hand bikes & parts', hint: 'Serviced, photographed, ready to ride' },
         { id: 'sell', label: 'Sell your bike', hint: 'Get an instant AI offer in minutes' },
+        { id: 'marketplace', label: 'Local marketplace', hint: 'Buy and sell privately in Greater Manchester' },
       ],
     },
     {
@@ -1724,9 +1727,22 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
                 </div>
               </section>
             </Reveal>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => goTo('marketplace')} className="site-btn site-btn-primary site-btn-sm"><Store className="h-4 w-4"/>List privately on the marketplace</button>
+              <span className="self-center text-xs text-[var(--site-ink-faint)]">Prefer a direct sale? Keep using the Stakey’s trade-in form below.</span>
+            </div>
             <Reveal>
               <SellYourBikeForm compact />
             </Reveal>
+            {siteFooter}
+          </div>
+        );
+
+      case 'marketplace':
+        return (
+          <div className="space-y-8">
+            <div className="flex flex-wrap items-center justify-between gap-3"><button type="button" onClick={() => goTo('sell')} className="site-btn site-btn-ghost site-btn-sm"><Bike className="h-4 w-4"/>Sell directly to Stakey’s</button></div>
+            <MarketplacePanel />
             {siteFooter}
           </div>
         );

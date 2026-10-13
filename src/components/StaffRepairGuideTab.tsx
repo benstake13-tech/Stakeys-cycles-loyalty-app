@@ -1,14 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { ExternalLink, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 
-// The guide is a static bundle in a PUBLIC repo, so its Gemini key is not baked
-// in at build time. Expose ours on the host window; the same-origin iframe reads
-// it at runtime (see hangerAi.ts). Set once, before the frame mounts.
-const guideKey = import.meta.env.VITE_GEMINI_API_KEY;
-if (typeof guideKey === 'string' && guideKey) {
-  (window as unknown as { __STAKEYS_GEMINI_KEY__?: string }).__STAKEYS_GEMINI_KEY__ = guideKey;
-}
-
 /**
  * The Stakeys Cycles Workshop Repair & Training Guide — a self-contained React
  * app (adapted from Sheldon Brown's bicycle technical information) served as a

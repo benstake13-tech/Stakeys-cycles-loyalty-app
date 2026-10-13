@@ -1,20 +1,18 @@
 /**
  * Shared OneSignal server helpers for the Vercel functions.
  *
- * The REST API key is server-only and must never reach the browser. Depending
- * on how the project was set up it may be stored under one of several names
- * (including the `VITE_`-prefixed form, which is harmless as long as it is only
- * read here on the server), so we accept any of them and trim stray whitespace
- * or surrounding quotes from copy-paste.
+ * The App API key is server-only and must never use a VITE_ name. This legacy
+ * server route accepts established server-side aliases while the app migrates
+ * to the Supabase onesignal-gateway.
  */
 
 export const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
 
 /** Every env var name the OneSignal REST key might be stored under. */
 export const REST_KEY_ENV_NAMES = [
+  'ONESIGNAL_APP_API_KEY',
   'ONESIGNAL_REST_API_KEY',
   'ONESIGNAL_API_KEY',
-  'VITE_ONESIGNAL_REST_API_KEY',
 ];
 
 export function resolveAppId(env = process.env) {

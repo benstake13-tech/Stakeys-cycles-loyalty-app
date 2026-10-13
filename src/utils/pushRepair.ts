@@ -65,9 +65,7 @@ export interface PushRepairContext {
 }
 
 const DEFAULT_REST_KEY_NAMES = [
-  'ONESIGNAL_REST_API_KEY',
-  'ONESIGNAL_API_KEY',
-  'VITE_ONESIGNAL_REST_API_KEY',
+  'ONESIGNAL_APP_API_KEY',
 ];
 
 async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
@@ -175,7 +173,7 @@ export async function runPushRepair(
     { label: 'App ID (env)', value: mask(serverAppId), ok: Boolean(serverAppId) },
     { label: 'serverPush', value: String(serverPush), ok: serverPush },
     { label: 'REST key env', value: restKeyEnv || 'not found', ok: Boolean(restKeyEnv) },
-    { label: 'Endpoint', value: '/api/onesignal/config', ok: !cfgError },
+    { label: 'Endpoint', value: 'Supabase onesignal-gateway', ok: !cfgError },
   ];
 
   if (cfgError) {
@@ -183,8 +181,8 @@ export async function runPushRepair(
       id: 'server-config',
       label: 'Server push config',
       status: 'fail',
-      detail: `Could not read /api/onesignal/config (${cfgError}).`,
-      hint: 'The host may not be deploying the api/onesignal functions. Check the Vercel project branch and redeploy.',
+      detail: `Could not read Supabase onesignal-gateway (${cfgError}).`,
+      hint: 'Deploy the onesignal-gateway Supabase Edge Function and verify the project URL and function availability.',
       facts: serverFacts,
     });
   } else if (!serverAppId) {
@@ -192,8 +190,8 @@ export async function runPushRepair(
       id: 'server-config',
       label: 'Server push config',
       status: 'fail',
-      detail: 'The app ID was not returned by /api/onesignal/config.',
-      hint: 'Set VITE_ONESIGNAL_APP_ID (or ONESIGNAL_APP_ID) in the deployment, then redeploy.',
+      detail: 'The app ID was not returned by Supabase onesignal-gateway.',
+      hint: 'Set ONESIGNAL_APP_ID in Supabase Edge Function secrets and VITE_ONESIGNAL_APP_ID in the app build configuration.',
       facts: serverFacts,
     });
   } else if (!serverPush) {
@@ -202,8 +200,8 @@ export async function runPushRepair(
       id: 'server-config',
       label: 'Server push config',
       status: 'fail',
-      detail: 'App ID resolved but serverPush=false — the server cannot see the REST key.',
-      hint: `Add the REST key under one of: ${names}. In Vercel set it for all environments, then Redeploy.`,
+      detail: 'App ID resolved but serverPush=false — Supabase cannot see the OneSignal App API key.',
+      hint: `Add ${names} under Supabase Edge Function secrets, then deploy onesignal-gateway.`,
       facts: serverFacts,
     });
   } else {
@@ -434,7 +432,7 @@ export async function runPushRepair(
         label: 'Test push dispatch',
         status: 'fail',
         detail: `OneSignal error: ${errors.join('; ')}`,
-        hint: 'Make sure the App ID and REST key belong to the same OneSignal app.',
+        hint: 'Make sure ONESIGNAL_APP_ID and ONESIGNAL_APP_API_KEY belong to the same OneSignal app.',
         facts: dispatchFacts,
       });
     } else {
@@ -443,7 +441,7 @@ export async function runPushRepair(
         label: 'Test push dispatch',
         status: 'fail',
         detail: 'Push dispatch did not return a usable response.',
-        hint: 'Deploy the /api/onesignal function and set ONESIGNAL_REST_API_KEY (or VITE_ONESIGNAL_REST_API_KEY) on the server.',
+        hint: 'Deploy the onesignal-gateway Supabase Edge Function and set ONESIGNAL_APP_API_KEY in Supabase secrets.',
         facts: dispatchFacts,
       });
     }
