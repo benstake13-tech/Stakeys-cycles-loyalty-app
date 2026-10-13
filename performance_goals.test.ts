@@ -48,7 +48,7 @@ describe('staff growth KPI targets', () => {
   it('derives progress from real booking and loyalty data, not settings', () => {
     const now = new Date();
     const bookings = [
-      makeBooking({ id: 'one', createdAt: now, status: 'approved',
+      makeBooking({ id: 'one', createdAt: now, status: 'pending', approvalStatus: 'approved',
         notes: 'BOOKING CHANNEL: Phone call' }),
       makeBooking({ id: 'two', createdAt: now, status: 'pending', notes: 'online' }),
       makeBooking({ id: 'three', createdAt: now, status: 'pending', notes: 'BOOKING CHANNEL: Phone call' }),
