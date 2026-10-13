@@ -1,4 +1,5 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
+import { Type } from '@google/genai';
 import { resolveGeminiModel } from "./geminiModel";
 import { classifyVisionError, VisionError } from "./visionErrors";
 import { SPEC_SYSTEMS } from "../utils/bikeSpecTaxonomy";
@@ -12,8 +13,7 @@ const VISION_TIMEOUT_MS = 20000;
 const VISION_MAX_ATTEMPTS = 3; // original + 2 retries
 const RETRY_BASE_DELAY_MS = 700;
 
-const getApiKey = () =>
-  (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_GEMINI_API_KEY) || "";
+const getApiKey = () => isGeminiGatewayConfigured() ? 'server-side' : '';
 
 export const isBikeVisionConfigured = () => Boolean(getApiKey());
 
@@ -255,7 +255,7 @@ export async function identifyBikeFromImage(images, mimeType = "image/jpeg", use
     throw new VisionError(classifyVisionError(new Error("AI vision is not configured."), { configured: false }));
   }
 
-  const ai = new GoogleGenAI({ apiKey });
+  const ai = { models: { generateContent: generateGemini } };
   const imageParts = (Array.isArray(images) ? images : [images])
     .filter(Boolean)
     .map((image) => toImagePart(image, mimeType));
