@@ -4068,8 +4068,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteCustomerAccount = async (userId: string): Promise<{ success: boolean; message: string }> => {
     const target = users.find((u) => u.uid === userId);
-    setUsers((prev) => prev.filter((u) => u.uid !== userId));
-    return { success: true, message: `Account for ${target?.displayName || 'Customer'} has been removed.` };
+    if (!target) return { success: false, message: 'Customer not found.' };
+    // Removing a profile from local React state does NOT delete its Supabase Auth
+    // identity. Claiming success here prevented former members from registering
+    // again, because their email remained registered in Supabase.
+    return {
+      success: false,
+      message: `Cannot delete ${target.displayName}'s login from this screen. Their Supabase Auth account must be deleted securely by an administrator before they can register again. No account has been removed.`,
+    };
   };
 
   const adjustCustomerStamps = async (
