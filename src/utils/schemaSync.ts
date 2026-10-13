@@ -70,6 +70,41 @@ export interface SchemaAuditReport {
 const NOW = 'NOW()';
 
 export const EXPECTED_SCHEMA: ExpectedTable[] = [
+  // Marketplace tables are fully defined by the security-focused
+  // 20261014_marketplace.sql migration (including generated ledger columns,
+  // triggers and RLS); this entry keeps the general table audit aware of them.
+  {
+    name: 'marketplace_listings',
+    primaryKey: 'id',
+    columns: [
+      { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
+      { name: 'seller_id', type: 'uuid', references: 'auth.users(id) ON DELETE RESTRICT' },
+      { name: 'title', type: 'text' },
+      { name: 'category', type: 'text' },
+      { name: 'make_model', type: 'text' },
+      { name: 'condition', type: 'text' },
+      { name: 'description', type: 'text', default: "''" },
+      { name: 'asking_price', type: 'numeric' },
+      { name: 'status', type: 'text', default: "'pending_approval'" },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'marketplace_transactions',
+    primaryKey: 'id',
+    columns: [
+      { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
+      { name: 'listing_id', type: 'uuid', references: 'public.marketplace_listings(id) ON DELETE RESTRICT' },
+      { name: 'buyer_id', type: 'uuid', references: 'auth.users(id) ON DELETE RESTRICT' },
+      { name: 'seller_id', type: 'uuid', references: 'auth.users(id) ON DELETE RESTRICT' },
+      { name: 'gross_amount', type: 'numeric' },
+      { name: 'commission_rate_bps', type: 'integer', default: '2000' },
+      { name: 'payment_status', type: 'text', default: "'pending'" },
+      { name: 'payout_status', type: 'text', default: "'not_due'" },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+    ],
+  },
   {
     name: 'tax_expenses',
     primaryKey: 'id',

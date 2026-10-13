@@ -9,6 +9,7 @@ export type WebsitePageId =
   | 'shop'
   | 'repairs'
   | 'sell'
+  | 'marketplace'
   | 'offers'
   /* "More" destinations */
   | 'faqs'

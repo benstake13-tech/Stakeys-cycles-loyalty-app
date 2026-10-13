@@ -5,14 +5,14 @@
  * Default is a **Flash-Lite** model: it is the cheapest tier, so it consumes the
  * least of the free-tier quota, and it still supports image input + structured
  * JSON output. Google retires specific versions for new API keys, so we use the
- * `gemini-flash-lite-latest` alias, which always resolves to a currently-served
- * Lite model. Pin an exact version with VITE_GEMINI_MODEL if ever needed.
+ * stable Lite model. Model selection is sent to the Supabase gateway, while the
+ * API key remains in Supabase secrets. Use GEMINI_MODEL to change it server-side.
  *
  * (The full `gemini-flash-latest` still works but drains quota far faster — the
  * free-tier project hit `429 RESOURCE_EXHAUSTED` on it, while the Lite models
  * kept answering.)
  */
-const DEFAULT_GEMINI_MODEL = 'gemini-flash-lite-latest';
+const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 export function resolveGeminiModel(): string {
   const override =

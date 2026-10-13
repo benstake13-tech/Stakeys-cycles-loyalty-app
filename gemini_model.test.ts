@@ -6,9 +6,9 @@ describe('resolveGeminiModel', () => {
     vi.unstubAllEnvs();
   });
 
-  it('defaults to the least-quota Lite alias when unset', () => {
+  it('defaults to the stable low-cost Lite model when unset', () => {
     vi.stubEnv('VITE_GEMINI_MODEL', '');
-    expect(resolveGeminiModel()).toBe('gemini-flash-lite-latest');
+    expect(resolveGeminiModel()).toBe('gemini-3.5-flash-lite');
   });
 
   it('honours an explicit override', () => {
@@ -18,7 +18,7 @@ describe('resolveGeminiModel', () => {
 
   it('trims whitespace and ignores a blank override', () => {
     vi.stubEnv('VITE_GEMINI_MODEL', '   ');
-    expect(resolveGeminiModel()).toBe('gemini-flash-lite-latest');
+    expect(resolveGeminiModel()).toBe('gemini-3.5-flash-lite');
     vi.stubEnv('VITE_GEMINI_MODEL', '  gemini-2.5-flash  ');
     expect(resolveGeminiModel()).toBe('gemini-2.5-flash');
   });

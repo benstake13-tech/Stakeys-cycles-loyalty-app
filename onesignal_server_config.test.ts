@@ -5,10 +5,11 @@ const notifyHandler = (req: any, res: any) =>
   onesignalHandler({ ...req, query: { ...(req?.query || {}), action: 'notify' } }, res);
 
 describe('OneSignal server config resolution', () => {
-  it('finds the REST key under any accepted env name', () => {
+  it('finds server-only OneSignal keys and rejects build-exposed VITE names', () => {
+    expect(resolveRestKey({ ONESIGNAL_APP_API_KEY: 'app-key' }).source).toBe('ONESIGNAL_APP_API_KEY');
     expect(resolveRestKey({ ONESIGNAL_REST_API_KEY: 'a' }).key).toBe('a');
     expect(resolveRestKey({ ONESIGNAL_API_KEY: 'b' }).source).toBe('ONESIGNAL_API_KEY');
-    expect(resolveRestKey({ VITE_ONESIGNAL_REST_API_KEY: 'c' }).key).toBe('c');
+    expect(resolveRestKey({ VITE_ONESIGNAL_REST_API_KEY: 'c' }).key).toBe(null);
   });
 
   it('trims whitespace and wrapping quotes from a pasted key', () => {
@@ -104,6 +105,8 @@ describe('notify handler tag targeting', () => {
     );
 
     expect(res.statusCode).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.onesignal.com/notifications');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Key test-rest-key');
     const sent = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(sent.filters).toEqual([
       { field: 'tag', key: 'owner_email', relation: '=', value: 'stakeyscycle95@gmail.com' },

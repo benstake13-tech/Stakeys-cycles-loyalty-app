@@ -83,6 +83,7 @@ import { PerformanceTracker } from './PerformanceTracker';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { StaffReferralsTab } from './StaffReferralsTab';
 import { StaffTradeInsTab } from './StaffTradeInsTab';
+import { MarketplacePanel } from './MarketplacePanel';
 import { StaffOfferPricesTab } from './StaffOfferPricesTab';
 import { ReviewsTab } from './ReviewsTab';
 import { QRCodeScannerModal } from './QRCodeScannerModal';
@@ -130,6 +131,7 @@ type StaffTab =
   | 'google_business'
   | 'referrals'
   | 'tradeins'
+  | 'marketplace'
   | 'offer_prices'
   | 'reviews'
   | 'backend'
@@ -155,6 +157,7 @@ const STAFF_TABS: StaffTab[] = [
   'google_business',
   'referrals',
   'tradeins',
+  'marketplace',
   'offer_prices',
   'reviews',
   'backend',
@@ -526,6 +529,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'google_business'
     | 'referrals'
     | 'tradeins'
+    | 'marketplace'
     | 'offer_prices'
     | 'reviews'
     | 'backend'
@@ -569,6 +573,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes', keywords: 'discount codes vouchers coupons till' },
     { id: 'referrals', label: 'Referrals', icon: Gift, tone: 'emerald', hint: 'Refer a Friend programme', keywords: 'referrals refer a friend invite programme' },
     { id: 'tradeins', label: 'Sell Your Bike', icon: RefreshCw, tone: 'amber', hint: 'Sell-your-bike leads to value', keywords: 'sell your bike trade ins part exchange valuation leads offers' },
+    { id: 'marketplace', label: 'Marketplace', icon: Bike, tone: 'emerald', hint: 'Review private seller listings', keywords: 'marketplace listings peer to peer approve moderation' },
     { id: 'offer_prices', label: 'Offer Prices', icon: BadgePoundSterling, tone: 'emerald', hint: 'What we pay per brand & model', keywords: 'offer prices sell your bike valuation price book brands models pay' },
     { id: 'reviews', label: 'Reviews', icon: MessageSquare, tone: 'amber', badge: reviews.length, hint: 'Customer reviews & feedback', keywords: 'reviews feedback ratings customers' },
     { id: 'logs', label: 'Audit Logs', icon: History, tone: 'neutral', hint: 'Stamp and reward history', keywords: 'logs audit history stamps rewards trail' },
@@ -795,7 +800,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         {([
           { title: '01 / FRONT DESK', subtitle: 'Everything needed when a customer walks in', ids: ['till', 'bookings', 'customers', 'stock'], icon: ShoppingCart },
           { title: '02 / WORKSHOP', subtitle: 'Diagnose, repair and identify parts', ids: ['ble_bench', 'ev_codes', 'hangers', 'repair_guide'], icon: Wrench },
-          { title: '03 / SALES & LOYALTY', subtitle: 'Offers, rewards and trade-in enquiries', ids: ['draws', 'promotions', 'discount_codes', 'referrals', 'tradeins', 'offer_prices'], icon: Award },
+          { title: '03 / SALES & LOYALTY', subtitle: 'Offers, rewards and trade-in enquiries', ids: ['draws', 'promotions', 'discount_codes', 'referrals', 'tradeins', 'marketplace', 'offer_prices'], icon: Award },
           { title: '04 / CUSTOMER EXPERIENCE', subtitle: 'Website, reputation and customer communications', ids: ['website_cms', 'google_business', 'reviews'], icon: Globe },
           { title: '05 / MANAGEMENT', subtitle: 'Team, records, systems and configuration', ids: ['staff_roster', 'logs', 'backend', 'settings', 'weather'], icon: Settings },
         ] as const).map((group) => {
@@ -894,6 +899,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {staffView('discount_codes', <DiscountCodesTab />)}
       {staffView('referrals', <StaffReferralsTab />)}
       {staffView('tradeins', <StaffTradeInsTab />)}
+      {staffView('marketplace', <MarketplacePanel staff enabled={staffTab === 'marketplace'} />)}
       {staffView('offer_prices', <StaffOfferPricesTab />)}
       {staffView('reviews', <ReviewsTab />)}
 
