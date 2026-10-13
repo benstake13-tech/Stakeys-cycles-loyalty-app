@@ -1,3 +1,4 @@
+import '@google/model-viewer';
 import { applyAvatarAppearance, playAvatarAnimation, type AvatarModelElement } from './avatarModelBindings';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Camera, Check, ChevronLeft, ChevronRight, Dices, Eye, Glasses, HardHat, Image, RotateCcw, Save, Scissors, Shirt, Smile, Sparkles, UserRound } from 'lucide-react';
@@ -63,13 +64,6 @@ export const AvatarStudio:React.FC=()=>{
   const previewTransform=useMemo(()=>`perspective(850px) rotateY(${angle}deg) scale(${settings.view==='Close up'?1.18:settings.view==='Full body'?.86:1})`,[angle,settings.view]);
   useEffect(()=>{
     let mounted=true;
-    if (!document.querySelector('script[data-stakeys-model-viewer]')) {
-      const script=document.createElement('script');
-      script.type='module';
-      script.src='https://ajax.googleapis.com/ajax/libs/model-viewer/4.1.0/model-viewer.min.js';
-      script.dataset.stakeysModelViewer='true';
-      document.head.appendChild(script);
-    }
     fetch('/models/stakeys-avatar.glb',{method:'HEAD'}).then(r=>{if(mounted&&r.ok){setAssetReady(true);setAssetUrl('/models/stakeys-avatar.glb');}}).catch(()=>{});
     return ()=>{mounted=false; if(blobRef.current)URL.revokeObjectURL(blobRef.current);};
   },[]);
