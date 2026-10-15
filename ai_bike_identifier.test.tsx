@@ -14,8 +14,12 @@ vi.mock('./src/api/visionService', () => ({
   diagnoseFault: hoisted.diagnoseFault,
 }));
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
+vi.mock('./src/utils/imageCompress', () => ({
+  compressImageFile: async (file: File) => ({ dataUrl: `data:image/jpeg;base64,${btoa(file.name)}`, data: btoa(file.name), mime: 'image/jpeg' }),
+}));
 
 import { AiBikeIdentifier } from './src/components/AiBikeIdentifier';
+import { BIKE_INSPECTION_PHOTO_SLOTS } from './src/utils/bikeInspectionPhotos';
 
 const ANALYSIS = {
   make: 'Trek',
@@ -42,6 +46,18 @@ const selectFile = (input: HTMLElement) => {
   fireEvent.change(input, { target: { files: [file] } });
 };
 
+const uploadTenPhotos = async (container: HTMLElement) => {
+  const input = container.querySelector('input[type="file"]') as HTMLElement;
+  for (const [index, slot] of BIKE_INSPECTION_PHOTO_SLOTS.entries()) {
+    if (index === 0) fireEvent.click(screen.getByRole('button', { name: /Choose photo/i }));
+    else fireEvent.click(screen.getAllByText('Add photo')[0]);
+    selectFile(input);
+    const alt = index === 0 ? 'Bike drive side' : `${index + 1}. ${slot.label}`;
+    await waitFor(() => expect(screen.getByAltText(alt)).toBeTruthy());
+  }
+  fireEvent.click(screen.getByRole('button', { name: /Assess my bike/i }));
+};
+
 beforeEach(() => {
   cleanup();
   hoisted.diagnoseFault.mockReset();
@@ -49,18 +65,22 @@ beforeEach(() => {
   hoisted.shop = { addCustomerBike: vi.fn(async () => ({ id: 'bike-1' })) };
 });
 
-describe('AiBikeIdentifier — fuller spec capture', () => {
-  it('offers a full shot plus brand-name and model close-up slots', () => {
+describe('AiBikeIdentifier — ten-photo spec capture', () => {
+  it('offers ten labelled guided bike photo slots', () => {
     const { container } = render(<AiBikeIdentifier user={{ uid: 'u1' }} isOpen onClose={() => {}} onAdded={() => {}} addBike={undefined} />);
-    expect(screen.getByText(/full side-on photo/i)).toBeTruthy();
-    expect(screen.getByText('Brand name')).toBeTruthy();
-    expect(screen.getByText('Model')).toBeTruthy();
+    expect(BIKE_INSPECTION_PHOTO_SLOTS).toHaveLength(10);
+    expect(screen.getByText('Guided bike assessment')).toBeTruthy();
+    expect(screen.getByText('0/10 photos')).toBeTruthy();
+    for (const [index, slot] of BIKE_INSPECTION_PHOTO_SLOTS.entries()) {
+      const label = `${index + 1}. ${slot.label}`;
+      expect(screen.getByText(label)).toBeTruthy();
+    }
     expect(container.querySelectorAll('input[type="file"]').length).toBe(1);
   });
 
   it('reads wheel size, tyre size, valve type and serial number from the analysis', async () => {
     const { container } = render(<AiBikeIdentifier user={{ uid: 'u1' }} isOpen onClose={() => {}} onAdded={() => {}} addBike={undefined} />);
-    selectFile(container.querySelector('input[type="file"]') as HTMLElement);
+    await uploadTenPhotos(container);
 
     await waitFor(() => expect(hoisted.diagnoseFault).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText(/Wheel 700c/)).toBeTruthy());
@@ -71,11 +91,11 @@ describe('AiBikeIdentifier — fuller spec capture', () => {
 
   it('sends the full image to the vision service as a single request', async () => {
     const { container } = render(<AiBikeIdentifier user={{ uid: 'u1' }} isOpen onClose={() => {}} onAdded={() => {}} addBike={undefined} />);
-    selectFile(container.querySelector('input[type="file"]') as HTMLElement);
+    await uploadTenPhotos(container);
     await waitFor(() => expect(hoisted.diagnoseFault).toHaveBeenCalledTimes(1));
     const [payload] = hoisted.diagnoseFault.mock.calls[0];
     expect(Array.isArray(payload.images)).toBe(true);
-    expect(payload.images).toHaveLength(1);
+    expect(payload.images).toHaveLength(10);
     expect(payload.images[0].mimeType).toBe('image/jpeg');
   });
 });
@@ -96,7 +116,7 @@ describe('AiBikeIdentifier — exhaustive grouped spec sheet', () => {
   it('renders the sheet grouped by system with a coverage meter', async () => {
     hoisted.diagnoseFault.mockResolvedValue({ ...RICH_ANALYSIS, usedFallback: false, fallbackReason: null });
     const { container } = render(<AiBikeIdentifier user={{ uid: 'u1' }} isOpen onClose={() => {}} onAdded={() => {}} addBike={undefined} />);
-    selectFile(container.querySelector('input[type="file"]') as HTMLElement);
+    await uploadTenPhotos(container);
 
     await waitFor(() => expect(screen.getByText(/Full spec sheet \(4 parts\)/)).toBeTruthy());
     // Grouped headers, not a single flat list.
@@ -116,7 +136,7 @@ describe('AiBikeIdentifier — exhaustive grouped spec sheet', () => {
     const addCustomerBike = vi.fn(async (bike: any) => ({ id: 'bike-9', ...bike }));
     hoisted.shop = { addCustomerBike };
     const { container } = render(<AiBikeIdentifier user={{ uid: 'u1' }} isOpen onClose={() => {}} onAdded={() => {}} addBike={undefined} />);
-    selectFile(container.querySelector('input[type="file"]') as HTMLElement);
+    await uploadTenPhotos(container);
 
     await waitFor(() => expect(screen.getByText(/Full spec sheet/)).toBeTruthy());
     fireEvent.click(screen.getByRole('button', { name: /add to my garage/i }));
@@ -196,11 +216,11 @@ describe('AiBikeIdentifier — text-only intake & graceful fallback', () => {
   it('passes the typed notes along with the photos on a photo analysis', async () => {
     const { container } = render(<AiBikeIdentifier user={{ uid: 'u1' }} isOpen onClose={() => {}} onAdded={() => {}} addBike={undefined} />);
     fireEvent.change(screen.getByTestId('ai-bike-notes'), { target: { value: 'rear wheel wobbles' } });
-    selectFile(container.querySelector('input[type="file"]') as HTMLElement);
+    await uploadTenPhotos(container);
 
     await waitFor(() => expect(hoisted.diagnoseFault).toHaveBeenCalled());
     const payload = hoisted.diagnoseFault.mock.calls.at(-1)![0];
-    expect(payload.userNotes).toBe('rear wheel wobbles\nPhoto order: full');
-    expect(payload.images).toHaveLength(1);
+    expect(payload.userNotes).toBe(`rear wheel wobbles\nPhoto order: ${BIKE_INSPECTION_PHOTO_SLOTS.map(slot => slot.label).join('; ')}`);
+    expect(payload.images).toHaveLength(10);
   });
 });
