@@ -1,5 +1,4 @@
 import { announceMilestone } from '../utils/milestoneAnimations';
-import { Capacitor } from '@capacitor/core';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Bike, CheckCircle2, CircleAlert, Clock3, ImagePlus, LoaderCircle, MapPin, MessageCircle, RefreshCw, Send, ShieldCheck, Store, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -46,7 +45,7 @@ const marketplaceInspectionFromResult = (result:any):MarketplaceInspection => ({
 /** Shared marketplace surface used by the public website and customer app. */
 export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> = ({ staff = false, enabled = true }) => {
   const { currentUser } = useShop();
-  const native = Capacitor.isNativePlatform();
+  const native = import.meta.env.VITE_APP_EDITION === 'customer';
   const checkoutEnabled = import.meta.env.VITE_MARKETPLACE_PAYMENTS_ENABLED === 'true';
   const [appNotice, setAppNotice] = useState(false);
   const [imageWarning, setImageWarning] = useState(false);
