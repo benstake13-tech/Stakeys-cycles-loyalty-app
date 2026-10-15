@@ -21,7 +21,7 @@ type EasterHuntRow = { tap_count: number; completed: boolean; discount_code: str
 export function ThemeWorld({ theme, preview=false, motion:requested, huntEnabled=false, huntUserId, onEggTap }: {theme:string;preview?:boolean;motion?:ThemeMotion;huntEnabled?:boolean;huntUserId?:string;onEggTap?:()=>void}) {
  const world=worldFor(theme),[saved]=useThemeMotion();
  const [hidden,setHidden]=useState(false),[ready,setReady]=useState(false),[reaction,setReaction]=useState(0),[open,setOpen]=useState(false),[reduced,setReduced]=useState(false);
- const [eggTaps,setEggTaps]=useState(0),[eggCode,setEggCode]=useState(''),[eggMessage,setEggMessage]=useState(''),[eggBusy,setEggBusy]=useState(false),[eggCopied,setEggCopied]=useState(false);
+ const [eggTaps,setEggTaps]=useState(0),[eggCode,setEggCode]=useState(''),[eggMessage,setEggMessage]=useState(''),[eggBusy,setEggBusy]=useState(false),[eggCopied,setEggCopied]=useState(false),[celebrating,setCelebrating]=useState(false);
  const dialog=useRef<HTMLDivElement>(null);
  useEffect(()=>{
   setEggTaps(0);setEggCode('');setEggMessage('');
@@ -44,7 +44,7 @@ export function ThemeWorld({ theme, preview=false, motion:requested, huntEnabled
    const row=(Array.isArray(data)?data[0]:data) as EasterHuntRow|null;
    if(!row)throw new Error('The hunt did not return progress.');
    setEggTaps(current=>Math.max(current,Number(row.tap_count)||0));
-   if(row.completed&&row.discount_code){setEggCode(row.discount_code);setEggMessage('You found the Easter Bunny! Your rewards are ready.');}
+   if(row.completed&&row.discount_code){setEggCode(row.discount_code);setEggMessage('You found the Easter Bunny! Your rewards are ready.');setCelebrating(true);}
   }catch(error){console.error('[EASTER HUNT] Could not record bunny tap:',error);setEggMessage('We could not save that tap. Check your connection and try again.');}
   finally{setEggBusy(false);}
  },[huntEnabled,huntUserId,theme,eggCode]);
@@ -100,6 +100,18 @@ export function ThemeWorld({ theme, preview=false, motion:requested, huntEnabled
      </section>}
      <div className="theme-scene-dialog-footer"><p>{motion==='still'?'A quiet view of the seasonal world.':'Tap a character and watch it tumble, then recover.'}</p><ThemeMotionControl/></div>
     </div>
+    {celebrating&&<div className="easter-celebration" role="dialog" aria-modal="true" aria-labelledby="easter-celebration-title">
+     <div className="easter-celebration-card">
+      <button type="button" className="easter-celebration-close" aria-label="Close Easter reward" onClick={()=>setCelebrating(false)}>×</button>
+      <div className="easter-celebration-character"><ThemeWorld theme="easter" preview motion={reduced?'gentle':'full'}/></div>
+      <span className="easter-celebration-kicker">A LITTLE EASTER MAGIC</span>
+      <h2 id="easter-celebration-title">Happy Easter!</h2>
+      <p className="easter-celebration-quote">“Hey, you curious bunny! You found me. Here’s an Easter treat!”</p>
+      <p>Your account has been given <strong>1 stamp, 50 points and 2 prize draw entries.</strong></p>
+      <div className="easter-celebration-offer"><span>Your treat</span><strong>£5 off</strong><p>Use your personal code on your next Stakey’s Cycles purchase. One use, no minimum spend, valid for 90 days.</p><code>{eggCode}</code></div>
+      <button type="button" className="easter-celebration-done" onClick={()=>setCelebrating(false)}>Enjoy your treat</button>
+     </div>
+    </div>}
    </div>}
   </>,document.body)}
  </>;

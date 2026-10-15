@@ -39,8 +39,10 @@ describe('seasonal worlds',()=>{
   for(let i=0;i<75;i++){
    await act(async()=>{fireEvent.click(screen.getByRole('button',{name:/Tap the bunny/}));await Promise.resolve();});
   }
-  expect(screen.getByText('EASTER-12AB34CD')).toBeTruthy();
+  expect(screen.getAllByText('EASTER-12AB34CD')).toHaveLength(2);
   expect(screen.getByText(/1 stamp, 50 points, 2 prize draw entries/)).toBeTruthy();
+  expect(screen.getByRole('dialog',{name:'Happy Easter!'})).toBeTruthy();
+  expect(screen.getByText('£5 off',{exact:true})).toBeTruthy();
   expect(backend.rpc).toHaveBeenCalledTimes(76);
  });
 });
