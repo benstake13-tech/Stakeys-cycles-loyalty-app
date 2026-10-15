@@ -158,10 +158,9 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContent = {
     ],
     howWeWorkTitle: 'How we work',
     howWeWorkSteps: [
-      { title: 'Tell us the problem', body: 'Book online or call. Describe the symptoms and we quote the call-out up front.' },
-      { title: 'You approve the price', body: 'You see a clear, itemised estimate before we touch a bolt. No surprises, ever.' },
-      { title: 'We come to you', body: 'Once you approve, we arrive with the tools and common parts to diagnose on the spot at your home or work.' },
-      { title: 'Fixed, tested, tracked', body: 'We service, safety-check and road-test, and you follow the whole job live in the app.' },
+      { title: 'Tell us what’s wrong', body: 'Book online or call. Describe the problem and get the call-out estimate up front.' },
+      { title: 'Approve the estimate', body: 'Review the itemised price and confirm before any repair work begins.' },
+      { title: 'We come and fix it', body: 'A mobile mechanic repairs and checks your bike at home or work, with updates as the job progresses.' },
     ],
     qualityClaim:
       "We're out to show the big chains how it's done — proper work, fair prices and a face you know, from a workshop that answers its own phone.",
