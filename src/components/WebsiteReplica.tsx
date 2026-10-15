@@ -812,16 +812,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
             <p className="font-editorial mt-4 text-xl font-semibold leading-snug text-[var(--site-ink)] sm:text-2xl">
               {content.brandStory.qualityClaim}
             </p>
-            <div className="mt-6 space-y-3 border-t border-[var(--site-line)] pt-5">
-              {content.brandStory.howWeWorkSteps.slice(0, 3).map((step, i) => (
-                <div key={step.title} className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(18,184,102,0.14)] text-[11px] font-black text-[var(--site-green)]">
-                    {i + 1}
-                  </span>
-                  <span className="text-[13px] font-semibold text-[var(--site-ink-soft)]">{step.title}</span>
-                </div>
-              ))}
-            </div>
             <div className="mt-6 flex items-center gap-3">
               <div className="flex -space-x-1.5">
                 {[0, 1, 2, 3, 4].map((s) => (
@@ -910,8 +900,8 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   const brandStorySection = (
     <Reveal>
       <section data-testid="home-brand-story" className="site-glass overflow-hidden p-7 sm:p-10">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
-          <div className="lg:col-span-5">
+        <div className="max-w-4xl">
+          <div>
             <span className="site-eyebrow">{content.brandStory.eyebrow}</span>
             <h2 className="site-display mt-3 text-3xl sm:text-4xl">{content.brandStory.title}</h2>
             <p className="site-lede mt-4 text-sm sm:text-base">{content.brandStory.body}</p>
@@ -924,18 +914,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
               ))}
             </ul>
           </div>
-          <div className="lg:col-span-7">
-            <h3 className="site-eyebrow">{content.brandStory.howWeWorkTitle}</h3>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {content.brandStory.howWeWorkSteps.map((step, i) => (
-                <div key={step.title} className="rounded-2xl border border-[var(--site-line)] p-5">
-                  <span className="site-index">{String(i + 1).padStart(2, '0')}</span>
-                  <h4 className="mt-3 text-sm font-extrabold text-[var(--site-ink)]">{step.title}</h4>
-                  <p className="site-lede mt-1.5 text-[12px]">{step.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </section>
     </Reveal>
@@ -944,20 +922,18 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   const howItWorksSection = (
     <section className="space-y-8">
       {sectionHeading(
-        'How it works',
-        'Three steps from broken to back on the road',
+        content.brandStory.howWeWorkTitle,
+        'Three clear steps from your first call to a completed repair',
         undefined,
         <button type="button" onClick={onBookService} className="site-btn site-btn-primary">
           <CalendarCheck className="w-4 h-4" /> Start a booking
         </button>
       )}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {[
-          { icon: MessageCircle, title: 'Tell us the problem', body: 'Describe the symptoms or send a photo. Our AI helper points you in the right direction.' },
-          { icon: Wrench, title: 'We fix it properly', body: 'Fixed-price labour, honest advice and a text when the job is done. Track progress live.' },
-          { icon: Truck, title: 'Collect or we deliver', body: 'Pick up from the Salford workshop, or arrange collection and delivery across the area.' },
-        ].map(({ icon: Icon, title, body }, i) => (
-          <Reveal key={title} delay={i * 80}>
+        {content.brandStory.howWeWorkSteps.slice(0, 3).map((step, i) => {
+          const Icon = [MessageCircle, Check, Wrench][i];
+          return (
+          <Reveal key={step.title} delay={i * 80}>
             <article className="site-glass h-full p-6">
               <div className="flex items-center justify-between">
                 <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(18,184,102,0.14)] text-[var(--site-green)]">
@@ -965,11 +941,12 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
                 </span>
                 <span className="site-index">{String(i + 1).padStart(2, '0')}</span>
               </div>
-              <h3 className="font-editorial mt-4 text-lg font-semibold text-[var(--site-ink)]">{title}</h3>
-              <p className="site-lede mt-2 text-[13px]">{body}</p>
+              <h3 className="font-editorial mt-4 text-lg font-semibold text-[var(--site-ink)]">{step.title}</h3>
+              <p className="site-lede mt-2 text-[13px]">{step.body}</p>
             </article>
           </Reveal>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
