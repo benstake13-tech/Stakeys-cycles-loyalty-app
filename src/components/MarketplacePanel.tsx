@@ -46,7 +46,8 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
   const [verifying, setVerifying] = useState(false);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [payoutRefs, setPayoutRefs] = useState<Record<string,string>>({});
-  const [files, setFiles] = useState<BikePhoto[]>([]);\n  const [captureArea, setCaptureArea] = useState<string>(BIKE_PHOTO_GUIDE[0].id);
+  const [files, setFiles] = useState<BikePhoto[]>([]);
+  const [captureArea, setCaptureArea] = useState<string>(BIKE_PHOTO_GUIDE[0].id);
   const [serialPhoto, setSerialPhoto] = useState<File | null>(null);
   const [frameSerial, setFrameSerial] = useState('');
   const [aiInspection, setAiInspection] = useState<Record<string, any> | null>(null);
