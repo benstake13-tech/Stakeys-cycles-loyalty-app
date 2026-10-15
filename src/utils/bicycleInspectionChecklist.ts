@@ -364,6 +364,24 @@ export const COMPONENT_SPEC_FIELDS: Record<string, string[]> = {
   ]
 };
 
+// Standards are recorded only when marked, measured or documented for the exact model.
+const technicalFields: Record<string, string[]> = {
+  frame: ['Rear axle thread pitch', 'Brake mount', 'Bottom bracket shell internal diameter'],
+  fork: ['Axle thread pitch', 'Brake mount'],
+  headset: ['Upper SHIS code', 'Lower SHIS code', 'Steerer crown race diameter'],
+  'front-rim': ['ETRTO bead seat diameter'], 'rear-rim': ['ETRTO bead seat diameter'],
+  'brake-levers': ['Right lever controls', 'Left lever controls', 'Specified brake fluid'],
+  'front-brake': ['Specified brake fluid', 'Fluid identification marking'],
+  'rear-brake': ['Specified brake fluid', 'Fluid identification marking'],
+  crankset: ['Chainline', 'Q-factor', 'Drive unit spline interface'],
+  shifters: ['Actuation family', 'Electronic wire / protocol standard'],
+  'rear-derailleur': ['Actuation family', 'Manufacturer total capacity', 'Hanger / Full Mount interface'],
+  motor: ['Axle flats', 'Anti-rotation hardware', 'Assistance cutoff label'],
+  controller: ['Throttle / walk-assist mode', 'Approval marking'],
+  wiring: ['Connector model / pinout reference', 'Visible heat or corrosion damage'],
+};
+for (const [id, fields] of Object.entries(technicalFields)) COMPONENT_SPEC_FIELDS[id] = [...(COMPONENT_SPEC_FIELDS[id] || []), ...fields];
+
 export interface SpecificationDetail { name: string; value: string; verification: 'photo-supported' | 'needs-verification' | 'not-assessed' }
 export function normaliseSpecificationDetails(componentId: string, raw: unknown, photoSupported = false): SpecificationDetail[] {
   const supplied = Array.isArray(raw) ? raw : [];

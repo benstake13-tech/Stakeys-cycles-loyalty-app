@@ -277,10 +277,10 @@ function AppContent() {
   // without a login and without touching any profile. Available on every
   // surface so the creator can be reviewed before it ships.
   const nativeApp = Capacitor.isNativePlatform();
-  if (!nativeApp && (APP_SURFACE === 'staff' || APP_SURFACE === 'customer') && isResetRoute) {
+  if (!nativeApp && !isWebsiteSurface && (APP_SURFACE === 'staff' || APP_SURFACE === 'customer') && isResetRoute) {
     return <ResetPasswordScreen />;
   }
-  if (requiresInstalledApp(APP_SURFACE, nativeApp, window.location.pathname)) {
+  if (!isWebsiteSurface && requiresInstalledApp(APP_SURFACE, nativeApp, window.location.pathname)) {
     return <AppRequiredScreen audience={APP_SURFACE === 'staff' ? 'staff' : 'customer'} />;
   }
 

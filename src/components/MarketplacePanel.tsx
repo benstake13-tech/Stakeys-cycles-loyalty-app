@@ -1,3 +1,4 @@
+import { announceMilestone } from '../utils/milestoneAnimations';
 import { Capacitor } from '@capacitor/core';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Bike, CheckCircle2, CircleAlert, Clock3, ImagePlus, LoaderCircle, MapPin, RefreshCw, ShieldCheck, Store, X } from 'lucide-react';
@@ -18,6 +19,7 @@ const STATUS: Record<string,string> = { pending_approval: 'Awaiting review', act
 export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> = ({ staff = false, enabled = true }) => {
   const { currentUser } = useShop();
   const native = Capacitor.isNativePlatform();
+  const checkoutEnabled = import.meta.env.VITE_MARKETPLACE_PAYMENTS_ENABLED === 'true';
   const [appNotice, setAppNotice] = useState(false);
   const [imageWarning, setImageWarning] = useState(false);
   const [loadError, setLoadError] = useState('');
@@ -103,6 +105,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
       const { error } = await supabase.from('marketplace_listings').insert({ id, seller_id:userId, ...form, asking_price:Math.round(price*100)/100, images:imageUrls, status:'pending_approval' });
       if (error) throw error;
       toast.success('Listing sent for review. It will appear publicly after approval.');
+      announceMilestone({ id: `marketplace-submitted:${id}`, scope: userId, kind: 'listing', title: 'Listing submitted', detail: 'The team will review it before it goes live.' });
       setForm({title:'',category:'bicycle',make_model:'',condition:'good',description:'',asking_price:''}); setFiles([]); setShowForm(false); await load();
     } catch (err:any) { toast.error(err?.message || 'Could not submit the listing.'); }
     finally { setBusy(false); }
@@ -110,7 +113,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
 
   const moderate = async (item: Listing, status: 'active'|'rejected'|'sold') => {
     const { error } = await supabase.from('marketplace_listings').update({ status }).eq('id',item.id);
-    if (error) toast.error(`Could not update listing: ${error.message}`); else { toast.success(`Listing ${STATUS[status].toLowerCase()}.`); await load(); }
+    if (error) toast.error(`Could not update listing: ${error.message}`); else { toast.success(`Listing ${STATUS[status].toLowerCase()}.`); if (userId && (status === 'active' || status === 'sold')) announceMilestone({ id: `marketplace-${status}:${item.id}`, scope: userId, kind: status === 'sold' ? 'sale' : 'listing', title: status === 'sold' ? 'Sale recorded' : 'Listing approved', detail: status === 'sold' ? 'The listing has been marked as sold.' : 'This ride is now visible in the marketplace.' }); await load(); }
   };
 
   const markPayoutPaid = async (tx: LedgerRow) => {
@@ -123,6 +126,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
 
   const buy = async (item: Listing) => {
     if (!native || !userId) { setAppNotice(true); return; }
+    if (!checkoutEnabled) { toast.error('Please contact the workshop to arrange this purchase.'); return; }
     setBuyingId(item.id);
     try {
       const { data, error } = await supabase.functions.invoke('marketplace-payments', { body: { action:'create', listing_id:item.id } });
@@ -165,9 +169,9 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     {loading ? <div className="flex justify-center py-12 text-emerald-300"><LoaderCircle className="h-6 w-6 animate-spin"/></div> : loadError ? null : listings.length===0 ? <div className="rounded-2xl border border-dashed border-white/10 px-5 py-12 text-center"><Bike className="mx-auto h-8 w-8 text-neutral-600"/><p className="mt-3 font-semibold text-white">{staff?'Nothing waiting for review':'No approved listings yet'}</p><p className="mt-1 text-sm text-neutral-500">{staff?'New seller listings will appear here.':'Check back soon, or list your ride to get started.'}</p></div> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{listings.map(item=><article key={item.id} className="overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/80">
       <div className="relative aspect-[4/3] bg-neutral-950">{item.images?.[0]?<img src={item.images[0]} alt={item.title} loading="lazy" className="h-full w-full object-cover"/>:<div className="flex h-full items-center justify-center"><Bike className="h-12 w-12 text-neutral-700"/></div>}<span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-200">{STATUS[item.status]||item.status}</span></div>
       <div className="space-y-3 p-4"><div className="flex items-start justify-between gap-2"><div><h3 className="font-bold text-white">{item.title}</h3><p className="mt-0.5 text-xs capitalize text-neutral-400">{item.make_model} · {item.category==='ebike'?'E-bike':item.category==='escooter'?'E-scooter':'Bicycle'} · {item.condition}</p></div><strong className="shrink-0 font-mono text-lg text-emerald-300">{money(Number(item.asking_price))}</strong></div>{item.description&&<p className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-neutral-400">{item.description}</p>}
-        {staff?<div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">{item.status==='pending_approval'&&<><button onClick={()=>void moderate(item,'active')} className="min-h-10 rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Approve listing</button><button onClick={()=>void moderate(item,'rejected')} className="min-h-10 rounded-lg border border-amber-400/30 px-3 text-xs font-bold text-amber-200">Request changes</button></>}{item.status==='active'&&<button onClick={()=>void moderate(item,'sold')} className="min-h-10 rounded-lg border border-white/10 px-3 text-xs font-bold text-neutral-200">Mark sold</button>}<span className="inline-flex items-center gap-1 text-[11px] text-neutral-500"><Clock3 className="h-3.5 w-3.5"/>{new Date(item.created_at).toLocaleDateString()}</span></div>:item.status==='active'&&(!userId || item.seller_id!==userId)?<div className="space-y-2 border-t border-white/5 pt-3"><button disabled={buyingId===item.id} onClick={()=>void buy(item)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-sm font-bold text-neutral-950 disabled:opacity-60">{buyingId===item.id&&<LoaderCircle className="h-4 w-4 animate-spin"/>}{native && userId ? 'Buy securely with SumUp' : 'Use the app to buy'}</button><p className="text-[11px] leading-4 text-neutral-500">Your card payment is processed through the shop’s SumUp account. The seller’s share is recorded for manual payout after confirmation.</p></div>:<div className="border-t border-white/5 pt-3 text-xs leading-5 text-neutral-400"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-400"/>{item.seller_id===userId?'Your listing':'Sale completed'}</div>}
+        {staff?<div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">{item.status==='pending_approval'&&<><button onClick={()=>void moderate(item,'active')} className="min-h-10 rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Approve listing</button><button onClick={()=>void moderate(item,'rejected')} className="min-h-10 rounded-lg border border-amber-400/30 px-3 text-xs font-bold text-amber-200">Request changes</button></>}{item.status==='active'&&<button onClick={()=>void moderate(item,'sold')} className="min-h-10 rounded-lg border border-white/10 px-3 text-xs font-bold text-neutral-200">Mark sold</button>}<span className="inline-flex items-center gap-1 text-[11px] text-neutral-500"><Clock3 className="h-3.5 w-3.5"/>{new Date(item.created_at).toLocaleDateString()}</span></div>:item.status==='active'&&(!userId || item.seller_id!==userId)?<div className="space-y-2 border-t border-white/5 pt-3">{native && userId && !checkoutEnabled ? <a href="https://www.stakeyswheels.co.uk/?page=visit" className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-emerald-400 px-3 text-sm font-bold text-neutral-950">Arrange purchase with the workshop</a> : <button disabled={buyingId===item.id} onClick={()=>void buy(item)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-sm font-bold text-neutral-950 disabled:opacity-60">{buyingId===item.id&&<LoaderCircle className="h-4 w-4 animate-spin"/>}{native && userId ? 'Buy securely with SumUp' : 'Use the app to buy'}</button>}<p className="text-[11px] leading-4 text-neutral-500">Confirm the item, handover arrangements and sale terms with the workshop before paying.</p></div>:<div className="border-t border-white/5 pt-3 text-xs leading-5 text-neutral-400"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-400"/>{item.seller_id===userId?'Your listing':'Sale completed'}</div>}
       </div></article>)}</div>}
-    {!staff&&<p className="text-center text-[11px] leading-5 text-neutral-500">Peer-to-peer listings are supplied by private sellers. The shop checks listing submissions but does not certify condition or ownership. Confirm item details and sale terms before paying. The proposed 20% fee and seller balance are recorded separately; the final fee, tax treatment and seller terms require business approval.</p>}
+    {!staff&&<p className="text-center text-[11px] leading-5 text-neutral-500">Peer-to-peer listings are supplied by private sellers. The shop checks listing submissions but does not certify condition or ownership. Confirm item details and sale terms before paying. Fees and seller payout terms must be confirmed with the workshop before a sale.</p>}
   </section>;
 };
 

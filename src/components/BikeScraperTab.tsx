@@ -475,6 +475,7 @@ export const BikeScraperTab: React.FC<BikeScraperTabProps> = ({ initialCustomer 
                             {comp.currentPart}
                           </span>
                           <BikeSpecificationDetails details={comp.specDetails} />
+                          {comp.stockComparisonNote && <p className="mt-1 text-xs text-amber-200">{comp.stockComparisonNote}</p>}
                           {comp.mechanicNotes && (
                             <p className="text-[11px] text-neutral-400 italic mt-0.5">
                               Note: {comp.mechanicNotes}
