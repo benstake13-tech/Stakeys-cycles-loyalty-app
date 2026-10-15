@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 22766)
+Total output lines: 1994
+
 import { MarketplacePanel } from './MarketplacePanel';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -571,7 +574,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   );
 
   const siteHeader = (
-    <header className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-xl border-b border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-canvas)_82%,transparent)]">
+    <header data-testid="website-site-header" className="site-header-glass -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4">
         <button
           type="button"
@@ -968,243 +971,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
                   ? `${liveDiscountCodes.length} live offer${liveDiscountCodes.length === 1 ? '' : 's'} running`
                   : 'Offers & member rewards'}
               </h3>
-              <p className="site-lede text-[13px]">
-                Loyalty stamps, member codes and seasonal deals — all in one place.
-              </p>
-            </div>
-          </div>
-          <button type="button" onClick={() => goTo('offers')} className="site-btn site-btn-brass">
-            <Tag className="w-4 h-4" /> See all offers
-          </button>
-        </div>
-      </section>
-    </Reveal>
-  );
-
-  const reviewSection = (
-    <Reveal>
-      <section className="site-glass p-7 sm:p-10">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
-          <div className="lg:col-span-7">
-            <div className="flex items-center gap-2">
-              <Star className="h-5 w-5 fill-[var(--site-brass)] text-[var(--site-brass)]" />
-              <span className="site-eyebrow !text-[var(--site-brass)]">Reviews</span>
-            </div>
-            <h2 className="site-display mt-3 text-3xl sm:text-4xl">
-              Your feedback keeps the wheels turning
-            </h2>
-            <p className="site-lede mt-3 text-sm sm:text-base">{content.reviewBlurb}</p>
-            <p className="site-lede mt-3 text-[13px]">{content.feedbackBody}</p>
-          </div>
-          <div className="lg:col-span-5">
-            <div className="flex flex-col gap-3">
-              <a
-                href="https://www.google.com/search?q=stakeys+cycles+reviews"
-                target="_blank"
-                rel="noreferrer"
-                className="site-btn site-btn-brass w-full"
-              >
-                <Star className="w-4 h-4" /> Leave a review
-              </a>
-              <a href={mail} className="site-btn site-btn-ghost w-full">
-                <MessageCircle className="w-4 h-4" /> {content.feedbackTitle}
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-    </Reveal>
-  );
-
-  const ctaBand = (
-    <Reveal>
-      <section className="site-frame relative overflow-hidden rounded-[2rem] p-8 text-center sm:p-14">
-        <span className="site-aurora" aria-hidden="true">
-          <span />
-          <span />
-        </span>
-        <div className="relative z-10 mx-auto max-w-2xl">
-          <span className="site-eyebrow">Ready when you are</span>
-          <h2 className="site-display mt-3 text-4xl sm:text-5xl">
-            Bring it to the workshop that treats it like their own
-          </h2>
-          <p className="site-lede mt-4">
-            Book a repair in a minute, browse the shop, or get an instant offer on your old bike.
-          </p>
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-            <button type="button" onClick={onBookService} className="site-btn site-btn-primary">
-              <CalendarCheck className="w-4 h-4" /> Book a repair
-            </button>
-            <button type="button" onClick={() => goTo('sell')} className="site-btn site-btn-ghost">
-              <Tag className="w-4 h-4" /> Sell your bike
-            </button>
-            <a href={call} className="site-btn site-btn-ghost">
-              <Phone className="w-4 h-4" /> {content.phone}
-            </a>
-          </div>
-        </div>
-      </section>
-    </Reveal>
-  );
-
-  /* ------------------------------------------------------------------ *
-   * Footer
-   * ------------------------------------------------------------------ */
-
-  const socialLinks = (
-    <div className="flex flex-wrap gap-2">
-      {content.socials.map((s) => (
-        <a
-          key={s.id}
-          href={s.url}
-          target="_blank"
-          rel="noreferrer"
-          title={s.platform}
-          aria-label={s.platform}
-          className="site-btn site-btn-ghost site-btn-sm !px-3"
-        >
-          <SocialBrandIcon platform={s.platform} className="w-4 h-4 shrink-0" />
-        </a>
-      ))}
-    </div>
-  );
-
-  const siteFooter = (
-    <footer className="mt-14 border-t border-[var(--site-line)] pt-10">
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-12">
-        <div className="md:col-span-5">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black">
-              <img
-                src={`${import.meta.env.BASE_URL}logo.svg`}
-                alt="Stakey's Cycles &amp; Scooter"
-                className="h-full w-full object-contain"
-              />
-            </span>
-            <span className="font-editorial text-lg font-semibold text-[var(--site-ink)]">
-              Stakey's <span className="text-[var(--site-green)]">Cycles</span>
-            </span>
-          </div>
-          <p className="site-lede mt-4 max-w-sm text-[13px]">
-            Independent cycle &amp; scooter maintenance and repair workshop. Repairs, second-hand bikes
-            and call-out service across Salford.
-          </p>
-          <div className="mt-5">{socialLinks}</div>
-        </div>
-        <div className="md:col-span-3">
-          <h4 className="site-eyebrow">Explore</h4>
-          <ul className="mt-4 space-y-2">
-            {navGroups.map((g) => (
-              <li key={g.id}>
-                <button
-                  type="button"
-                  onClick={() => g.page && goTo(g.page)}
-                  className="text-[13px] text-[var(--site-ink-soft)] transition-colors hover:text-[var(--site-green)] cursor-pointer"
-                >
-                  {g.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="md:col-span-4">
-          <h4 className="site-eyebrow">Get in touch</h4>
-          <div className="mt-4 space-y-2.5">
-            <a href={call} className="flex items-center gap-2.5 text-[13px] font-semibold text-[var(--site-ink)]">
-              <Phone className="h-4 w-4 text-[var(--site-green)]" /> {content.phone}
-            </a>
-            <a href={mail} className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
-              <MessageCircle className="h-4 w-4 text-[var(--site-green)]" /> {content.email}
-            </a>
-            <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
-              <MessageCircle className="h-4 w-4 text-[var(--site-green)]" /> WhatsApp us
-            </a>
-            <p className="flex items-center gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
-              <Clock className="h-4 w-4 text-[var(--site-green)]" /> Call-out across Salford
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="site-rule mt-9" />
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pb-2">
-        <span className="text-[11px] text-[var(--site-ink-faint)]">
-          © 2026 Stakey's Cycles &amp; Scooter · Salford
-        </span>
-        <span className="text-[11px] text-[var(--site-ink-faint)]">
-          Content managed from the Staff Station
-        </span>
-      </div>
-    </footer>
-  );
-
-  /* ------------------------------------------------------------------ *
-   * Basket drawer
-   * ------------------------------------------------------------------ */
-
-  const cartDrawer = cartOpen && (
-    <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
-      <aside className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[var(--site-line)] bg-[var(--site-card-solid)]">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--site-line)] p-5">
-          <div>
-            <h3 className="font-editorial text-xl font-semibold text-[var(--site-ink)]">{CART_TITLE}</h3>
-            <p className="site-lede text-[11px]">{CART_BLURB}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setCartOpen(false)}
-            aria-label="Close basket"
-            className="site-btn site-btn-ghost site-btn-sm !px-2.5"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex-1 space-y-4 overflow-y-auto p-5">
-          {orderPlaced && (
-            <div className="rounded-xl border border-[rgba(18,184,102,0.4)] bg-[rgba(18,184,102,0.1)] p-3 text-[12px] font-bold text-[var(--site-green)]">
-              ✓ {CHECKOUT_SUCCESS_TITLE} We've emailed the workshop — we'll confirm collection shortly.
-            </div>
-          )}
-
-          {cart.length === 0 ? (
-            <p className="site-lede text-[13px]">
-              Your basket is empty. Browse the shop to add parts and bikes.
-            </p>
-          ) : (
-            <>
-              <div className="space-y-2">
-                {cart.map((item) => (
-                  <div key={item.productId} className="flex items-center gap-3 rounded-xl border border-[var(--site-line)] p-2.5">
-                    <img src={item.image} alt={item.name} className="h-12 w-12 rounded-lg object-cover" loading="lazy" />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-bold text-[var(--site-ink)]">{item.name}</div>
-                      <div className="text-[11px] text-[var(--site-ink-faint)]">£{item.price.toFixed(2)} each</div>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => decrementCart(item.productId)} className="site-btn site-btn-ghost site-btn-sm !px-2 !py-0.5">−</button>
-                      <span className="w-5 text-center text-xs font-bold text-[var(--site-ink)]">{item.qty}</span>
-                      <button type="button" onClick={() => removeFromCart(item.productId)} className="site-btn site-btn-ghost site-btn-sm !px-2 !py-0.5 !text-rose-400">
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-1.5 rounded-xl border border-[var(--site-line)] p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--site-ink-faint)]">Subtotal</span>
-                  <span className="text-xs font-bold text-[var(--site-ink)]">£{cartSubtotal.toFixed(2)}</span>
-                </div>
-                {promoActive && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--site-green)]">Code {appliedCode?.code}</span>
-                    <span className="text-xs font-bold text-[var(--site-green)]">−£{cartDiscount.toFixed(2)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between border-t border-[var(--site-line)] pt-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--site-ink-faint)]">Total</span>
+        …2766 tokens truncated… <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--site-ink-faint)]">Total</span>
                   <span className="font-editorial text-xl font-semibold text-[var(--site-green)]">£{cartTotal.toFixed(2)}</span>
                 </div>
               </div>
@@ -1975,6 +1742,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
   return (
     <div className={`site-canvas ${isDark ? '' : 'site-light'} font-ui min-h-screen rounded-[1.75rem] px-4 pb-10 pt-0 sm:px-6 lg:px-8`}>
+      {siteHeader}
       {content.siteAnnouncements.length > 0 && (
         <div className="mx-auto max-w-7xl pt-3">
           <div className="flex items-center justify-center gap-2.5 rounded-full border border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-card-solid)_60%,transparent)] px-4 py-2">
@@ -1985,8 +1753,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           </div>
         </div>
       )}
-
-      {siteHeader}
 
       <main className="mx-auto max-w-7xl pt-10">{renderPage()}</main>
       {cartDrawer}
