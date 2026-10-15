@@ -8,10 +8,13 @@ vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => hoisted
 // only the header navigation wiring.
 const hoisted = vi.hoisted(() => ({
   native: true,
+  publicWebsite: false,
   user: { uid: 'u1', displayName: 'Rider One', membershipNumber: 'STK-1', role: 'customer' } as
     | { uid: string; displayName: string; membershipNumber: string; role: string }
     | null,
 }));
+
+vi.mock('./src/config/surface', async (importOriginal) => { const original = await importOriginal<typeof import('./src/config/surface')>(); return { ...original, get isWebsiteSurface() { return hoisted.publicWebsite || original.isWebsiteSurface; } }; });
 
 vi.mock('./src/context/ShopContext', () => ({
   ShopProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -54,6 +57,7 @@ beforeEach(() => {
   cleanup();
   localStorage.clear();
   hoisted.native = true;
+  hoisted.publicWebsite = false;
   window.history.replaceState({}, '', '/');
   hoisted.user = { uid: 'u1', displayName: 'Rider One', membershipNumber: 'STK-1', role: 'customer' };
 });
@@ -84,6 +88,12 @@ describe('staff header navigation', () => {
 
 // Browser landing pages must replace the app, including existing web sessions.
 describe('browser app blanket', () => {
+  it('keeps the public shop domain reachable even when a hosted app surface setting is stale', () => {
+    hoisted.native = false; hoisted.publicWebsite = true;
+    render(<App/>);
+    expect(screen.getByTestId('website')).toBeTruthy();
+    expect(screen.queryByText(/This web address does not provide account access/)).toBeNull();
+  });
   it('keeps recovery links limited to password reset even with an existing session', () => {
     hoisted.native = false;
     window.history.replaceState({}, '', '/reset-password');

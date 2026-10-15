@@ -1,3 +1,4 @@
+import { TechnicalDiagnosticAudit } from './TechnicalDiagnosticAudit';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Camera,
@@ -187,6 +188,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         componentId: spec.componentId,
         specValue: spec.specValue,
         specDetails: spec.specDetails,
+        stockComparison: spec.stockComparison, stockComparisonNote: spec.stockComparisonNote, stockReference: spec.stockReference,
         brand: spec.brand,
         model: spec.model,
         visibility: spec.visibility,
@@ -209,6 +211,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         coverage: result.coverage,
         photoRequests: result.photoRequests || [],
         stockVerification: result.stockVerification,
+        technicalAudit: result.technicalAudit,
         workshopChecks: result.workshopChecks || [],
         // Structured diagnostic intake (multilingual notes + fallback-safe faults).
         inputLanguageDetected: result.inputLanguageDetected,
@@ -417,6 +420,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
               }}
             />
 
+            {result && <TechnicalDiagnosticAudit audit={result.technicalAudit} calculator />}
             {result?.photoRequests?.length > 0 && <div className="rounded-2xl border border-amber-500/30 p-3 space-y-3">
               <h4 className="font-bold text-amber-300">More detail needed</h4>
               <p className="text-xs text-neutral-400">Unknown specifications stay unconfirmed. Add a close-up to reanalyse all supplied photos.</p>
@@ -662,6 +666,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                                 </div>
                               )}
                               {spec.specDetails?.length > 0 && <details className="mt-2 text-[11px] text-neutral-300"><summary className="cursor-pointer text-emerald-300">Technical details ({spec.specDetails.filter(d => d.value).length}/{spec.specDetails.length} recorded)</summary><dl className="mt-2 space-y-1">{spec.specDetails.map(d => <div key={d.name} className="flex flex-wrap justify-between gap-x-3 border-b border-white/5 py-1"><dt>{d.name}</dt><dd className="text-neutral-400">{d.value || 'Not assessed'}{d.value && d.verification !== 'photo-supported' ? ' · needs verification' : ''}</dd></div>)}</dl></details>}
+                              {spec.stockComparisonNote && <p className={`mt-1 text-[11px] ${spec.stockComparison === 'possible-non-stock' ? 'text-amber-300' : 'text-neutral-400'}`}>{spec.stockComparisonNote}</p>}
                               {typeof spec.confidence === 'number' && (
                                 <div className="mt-0.5 text-[9px] text-neutral-600">
                                   confidence {Math.round(spec.confidence * 100)}%

@@ -1,3 +1,4 @@
+import { hostedSurfaceForBranch } from './src/config/surfaceRouting';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +8,9 @@ import { DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from './src/config/su
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "VITE_");
   const guideConfig = JSON.stringify({ url: env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL, anonKey: env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY });
+  const hostedSurface = hostedSurfaceForBranch(process.env.VERCEL_GIT_COMMIT_REF);
   return {
+    define: hostedSurface ? { 'import.meta.env.VITE_SURFACE': JSON.stringify(hostedSurface) } : {},
     plugins: [react(), tailwindcss(), {
       name: 'guide-public-supabase-config',
       generateBundle() {

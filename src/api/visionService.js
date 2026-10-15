@@ -1,3 +1,4 @@
+import { UK_DIAGNOSTIC_PROMPT } from '../utils/ukVehicleDiagnostics';
 import { DETAILED_SPEC_CHECKLIST, EXTENDED_FAULT_CHECKLIST } from '../utils/bicycleInspectionChecklist';
 import { completeBikeInspection } from '../utils/bikeInspection';
 import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
@@ -26,7 +27,7 @@ export const taxonomyChecklist = SPEC_SYSTEMS.map(
   (system) => `- ${system.label} [${system.id}]: ${system.components.map((c) => `${c.name} [${c.id}]`).join(", ")}`
 ).join("\n");
 
-const BIKE_IDENTIFICATION_PROMPT = `You are Stakey's Cycles' master mechanic and bike identification engine.
+const BIKE_IDENTIFICATION_PROMPT = `${UK_DIAGNOSTIC_PROMPT}\nYou are Stakey's Cycles' master mechanic and bike identification engine.
 Do not call a part stock, upgraded, original or aftermarket based on appearance alone. Distinguish fitted observations from manufacturer specifications. Do not invent a model year, trim, source URL, dimension or part number.
 A deflated tyre is an observation, not proof of a puncture. Leak tests, torque, internal damage, bearing play and brake effectiveness require workshop checks. Use condition "unknown" when obscured or unassessed. Additional photos are labelled by the component area.
 Study the photo(s) of the bicycle or scooter carefully and return a precise, structured assessment.
@@ -103,6 +104,7 @@ DIAGNOSTIC INTAKE (multilingual + graceful fallback):
 const BIKE_RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
+    technicalAudit: { type: Type.OBJECT, properties: Object.fromEntries(['profile', 'legal', 'compatibility', 'wear', 'remediation'].map(key => [key, { type: Type.ARRAY, items: { type: Type.STRING } }])), required: ['profile', 'legal', 'compatibility', 'wear', 'remediation'] },
     make: { type: Type.STRING, description: "Brand/make, e.g. Trek, Specialized, Giant. Use 'Unknown / To Be Inspected' when it cannot be determined." },
     model: { type: Type.STRING, description: "Model name/family, or 'Unknown / To Be Inspected' when it cannot be determined" },
     type: { type: Type.STRING, description: "One of: cycle, ebike, electric_scooter, cargo" },

@@ -1033,6 +1033,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                           {c.currentPart}
                         </div>
                         <BikeSpecificationDetails details={c.specDetails} />
+                        {c.stockComparisonNote && <p className="mt-1 text-xs text-amber-200">{c.stockComparisonNote}</p>}
                         {c.isUpgraded && (
                           <div className="text-[10px] text-neutral-500 font-mono mt-0.5">
                             Original Factory Stock: {c.stockOEM}
