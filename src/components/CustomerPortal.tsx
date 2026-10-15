@@ -167,7 +167,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     { id: 'bookings', label: 'Bookings', icon: Calendar, tone: 'emerald', badge: customerBookings.length, hint: 'Your service bookings' },
     { id: 'stamps', label: 'Loyalty Pass', icon: Award, tone: 'emerald', badge: `${currentUser.stamps || 0}/10`, hint: 'Your stamp card' },
     { id: 'wallet', label: 'Rewards Wallet', icon: Wallet, tone: 'emerald', hint: 'All your vouchers, credits and points' },
-    { id: 'symptom', label: 'Symptom Checker', icon: Stethoscope, tone: 'sky', hint: 'Describe the fault — we pre-fill your booking' },
+    { id: 'symptom', label: 'Symptom Checker', icon: Stethoscope, tone: 'sky', hint: 'Describe symptoms, then add a photo review to your booking' },
     { id: 'care', label: 'Care Schedule', icon: CalendarClock, tone: 'emerald', hint: 'When each bike is next due a service' },
     { id: 'guides', label: 'How-To Guides', icon: BookOpen, tone: 'emerald', hint: 'Short care and maintenance guides' },
     { id: 'tradein', label: 'Sell Your Bike', icon: RefreshCw, tone: 'amber', hint: '7 photos → AI offer for your old bike' },
@@ -384,7 +384,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       />
 
       <section className="stakeys-customer-actions" aria-label="Customer quick actions">
-        <button type="button" onClick={() => {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);setActiveTab('booking');}}><Wrench size={26}/><strong>Book a repair</strong><small>Choose your service</small></button>
+        <button type="button" onClick={() => {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);setActiveTab('booking');}}><Wrench size={26}/><strong>Book a repair</strong><small>Photos, symptoms and a workshop report</small></button>
         <button type="button" onClick={() => setActiveTab('repairs')}><Activity size={26}/><strong>Track my repair</strong><small>See workshop progress</small></button>
         <button type="button" onClick={() => setActiveTab('wallet')}><Gift size={26}/><strong>My rewards</strong><small>Vouchers &amp; points</small></button>
       </section>
