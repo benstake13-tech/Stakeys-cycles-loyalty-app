@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useShop } from '../context/ShopContext';
 import { buildWorkshopActivities } from '../utils/notificationActivity';
 import { activityMilestone, pendingMilestones, claimMilestone, MILESTONE_EVENT, milestoneCopy, type MilestoneEvent } from '../utils/milestoneAnimations';
-import { MilestoneArtwork } from './MilestoneArtwork';
+import { MilestoneMessage } from './MilestoneArtwork';
+import { MILESTONE_NOTICE_MS } from '../utils/milestoneVisuals';
 
 function AccountMilestones({ scope }: { scope: string }) {
   const { currentUser, users = [], bookings = [], draws = [], notificationPreferences } = useShop();
@@ -31,7 +33,7 @@ function AccountMilestones({ scope }: { scope: string }) {
   }, [currentUser, users, bookings, draws, notificationPreferences, scope]);
   useEffect(() => {
     if (!active) return;
-    const timer = setTimeout(() => setQueue(q => q.slice(1)), 4200);
+    const timer = setTimeout(() => setQueue(q => q.slice(1)), MILESTONE_NOTICE_MS);
     return () => clearTimeout(timer);
   }, [active]);
   useEffect(() => {
@@ -41,11 +43,9 @@ function AccountMilestones({ scope }: { scope: string }) {
   }, []);
   if (!active) return null;
   const copy = milestoneCopy[active.kind];
-  return <div className="stakeys-milestone-overlay"><div className="stakeys-milestone-message" role="status" aria-live="polite" key={active.id}>
-    <MilestoneArtwork kind={active.kind}/>
-    <h3>{active.title || copy.title}</h3><p>{active.detail || copy.detail}</p>
-    <button type="button" aria-label="Dismiss animation" onClick={() => setQueue(q => q.slice(1))}>×</button>
-  </div></div>;
+  return createPortal(<div className="stakeys-milestone-overlay">
+    <MilestoneMessage key={active.id} kind={active.kind} title={active.title || copy.title} detail={active.detail || copy.detail} onDismiss={() => setQueue(q => q.slice(1))}/>
+  </div>, document.body);
 }
 export function MilestoneOverlay() {
   const { currentUser } = useShop();

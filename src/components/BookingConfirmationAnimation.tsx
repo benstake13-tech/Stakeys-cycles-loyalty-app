@@ -1,4 +1,6 @@
-import { MilestoneArtwork } from './MilestoneArtwork';
+import { MilestoneMessage } from './MilestoneArtwork';
+import { MILESTONE_NOTICE_MS } from '../utils/milestoneVisuals';
+import { createPortal } from 'react-dom';
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -24,26 +26,17 @@ export const BookingConfirmationAnimation: React.FC<{ bookingId: string }> = ({ 
 
   useEffect(() => {
     if (!playing) return;
-    const timer = setTimeout(() => setPlaying(false), 4200);
+    const timer = setTimeout(() => setPlaying(false), MILESTONE_NOTICE_MS);
     return () => clearTimeout(timer);
   }, [playing]);
 
-  return (
-    <div role="status" aria-label="Booking request received. Awaiting team approval." className="mx-auto">
-      {playing ? (
-        <div className="stakeys-milestone-overlay" data-testid="booking-confirmation-animation">
-          <div className="stakeys-milestone-message">
-            <MilestoneArtwork kind="booking" />
-            <h3>Booking request received</h3>
-            <p>Awaiting approval from the team.</p>
-            <button type="button" aria-label="Dismiss booking animation" onClick={() => setPlaying(false)}>×</button>
-          </div>
-        </div>
-      ) : (
-        <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
-          <CheckCircle2 className="w-6 h-6" aria-hidden="true" />
-        </div>
-      )}
+  return playing ? createPortal(
+    <div className="stakeys-milestone-overlay" data-testid="booking-confirmation-animation">
+      <MilestoneMessage kind="booking" title="Booking request received" detail="Awaiting approval from the team." dismissLabel="Dismiss booking animation" onDismiss={() => setPlaying(false)}/>
+    </div>, document.body
+  ) : (
+    <div role="status" aria-label="Booking request received. Awaiting team approval." className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
+      <CheckCircle2 className="w-6 h-6" aria-hidden="true"/>
     </div>
   );
 };
