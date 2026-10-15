@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { StaffTargets } from './StaffTargets';
 import confetti from 'canvas-confetti';
 import {
   Search,
@@ -86,6 +87,7 @@ export const StaffPortal: React.FC = () => {
 
   const [staffTab, setStaffTab] = useState<
     | 'dashboard'
+    | 'targets'
     | 'bookings'
     | 'staff_roster'
     | 'promotions'
@@ -462,6 +464,7 @@ export const StaffPortal: React.FC = () => {
         <p className="text-xs text-neutral-500 max-w-xs">All workshop modules, available on desktop and Android.</p>
       </div>
       <nav aria-label="Staff workstation tools" className="atelier-workstation grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2">
+        <button type="button" onClick={() => setStaffTab('targets')} data-active={staffTab === 'targets'} className="group flex items-center gap-3 text-[11px] sm:text-xs font-bold text-left text-neutral-300 hover:text-white cursor-pointer"><TrendingUp className="w-4 h-4 text-emerald-400" /><span>Targets &amp; KPIs</span></button>
         <button
           type="button"
           onClick={() => setStaffTab('dashboard')}
@@ -619,6 +622,7 @@ export const StaffPortal: React.FC = () => {
       {/* 4. WORKSTATION VIEWS */}
 
       {/* VIEW 0: Workshop Metrics & Loyalty Admin Dashboard */}
+      {staffTab === 'targets' && <StaffTargets staffName={currentUser?.displayName || 'Staff'} isAdmin={currentUser?.role === 'admin'} />}
       {staffTab === 'dashboard' && <AdminDashboard />}
 
       {/* VIEW 1: Service Bookings Management */}

@@ -1,3 +1,4 @@
+import { AvatarStudio } from './AvatarStudio';
 import React, { useState } from 'react';
 import {
   Award,
@@ -46,7 +47,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     saveBikeScrapedSpecs,
   } = useShop();
 
-  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps'>('garage');
+  const [activeTab, setActiveTab] = useState<'garage' | 'wheel' | 'booking' | 'bookings' | 'stamps' | 'avatar'>('garage');
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   const [viewingBikeSpecs, setViewingBikeSpecs] = useState<CustomerBike | null>(null);
   const [viewingCustomerInvoice, setViewingCustomerInvoice] = useState<ServiceBooking | null>(null);
@@ -299,6 +300,8 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       </div>
 
       {/* TAB 1: MY REGISTERED BIKES (GARAGE) */}
+      <button type="button" onClick={() => setActiveTab('avatar')} className="mb-5 w-full rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 font-bold text-emerald-300">Open Avatar Studio</button>
+      {activeTab === 'avatar' && <AvatarStudio />}
       {activeTab === 'garage' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
