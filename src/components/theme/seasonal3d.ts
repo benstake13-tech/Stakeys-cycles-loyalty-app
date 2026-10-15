@@ -317,6 +317,49 @@ function workshop(draw:DrawItem[],root:Float32Array,theme:SceneTheme){
  for(const x of [-.61,.61])add('box',[x,.64,.58],[.35,.43,.04],'#d4b77b',[0,0,0],.25,0,1,.14);
  add('box',[.56,1.40,-.2],[.23,.57,.23],'#6f7d70');
 }
+function easterGarden(draw:DrawItem[],root:Float32Array,time:number){
+ const {add,ball}=builder(draw,root);
+ // A curved stepping-stone trail carries the eye through the meadow to the workshop.
+ for(let i=0;i<7;i++){
+  const t=i/6,z=1.85-t*3.05,x=.04+Math.sin(t*Math.PI)*.28;
+  add('plane',[x,.012,z],[.26,.018,.20],i%2?'#9b9b7d':'#b2a98e',[0,Math.sin(i)*.12,0],.98);
+  if(i<6){const dx=x+.30;add('plane',[dx,.014,z-.13],[.20,.016,.15],'#8f987c',[0,-.08,0],.98);}
+ }
+ // Raised flower borders add colour and depth without hiding the characters.
+ const beds:[number,number,number][]=[[-2.25,.26,.78],[-2.28,.88,.58],[2.22,.30,.68],[2.22,.98,.50]];
+ const petalColors=['#e6a6c9','#f2d47e','#f3eee0','#c4a9e8','#e68d82'];
+ beds.forEach(([x,z,s],index)=>{
+  ball([x,.08,z],[.32*s,.10,.24*s],index%2?'#496a43':'#55784b',.95);
+  for(let k=0;k<3;k++){
+   const a=k/3*TAU+index*.37,fx=x+Math.cos(a)*.19*s,fz=z+Math.sin(a)*.14*s;
+   add('cylinder',[fx,.22*s,fz],[.012,.14*s,.012],'#64814b',[0,0,.12*Math.sin(a)]);
+   const sway=Math.sin(time*1.1+index+k)*.012;
+   ball([fx+sway,.35*s,fz],[.055*s,.045*s,.052*s],petalColors[(index+k)%petalColors.length],.45);
+  }
+  ball([x,.35*s,z],[.036*s,.03*s,.036*s],'#e8c977',.35);
+ });
+ // Painted eggs and a low woven basket tucked beside the trail.
+ const eggs:[number,number,string][]=[[-2.04,1.52,'#cb94c5'],[-1.76,1.60,'#e1bf69'],[2.02,1.50,'#88bca3'],[2.28,1.35,'#d8847c']];
+ eggs.forEach(([x,z,shade],i)=>{
+  const y=.16+Math.sin(time*1.4+i)*.018;
+  ball([x,y,z],[.095,.145,.085],shade,.28);
+  add('torus',[x,y,z],[.072,.018,.072],i%2?'#f6e5ac':'#eff3d7',[Math.PI/2,0,0],.25,.05);
+  ball([x-.024,y+.052,z+.064],[.016,.016,.012],'#fff2d1',.15);
+ });
+ add('cylinder',[1.70,.13,1.95],[.24,.08,.20],'#9c7147',[0,0,0],.8);
+ add('torus',[1.70,.30,1.95],[.23,.17,.18],'#bd905e',[Math.PI/2,0,0],.75);
+ // A small carrot patch makes the spring setting read as an Easter garden.
+ for(let i=0;i<3;i++){
+  const x=-1.90+i*.22,z=-1.15+(i%2)*.13;
+  add('cone',[x,.18,z],[.055,.26,.055],'#e48b47',[Math.PI,0,.04*i],.48);
+  for(let leaf=0;leaf<3;leaf++)add('cone',[x+(leaf-1)*.045,.39,z],[.027,.12,.027],[ '#6aa35c','#80b76d','#4e8a52'][leaf],[.12*(leaf-1),0,.08*(leaf-1)],.75);
+ }
+ // A few softly lit fireflies make the scene feel alive even in a still image.
+ for(let i=0;i<4;i++){
+  const a=time*.55+i*TAU/4,x=Math.cos(a)*2.35,z=-.7+Math.sin(a)*.55;
+  ball([x,1.0+(i%2)*.28,z],[.025,.025,.025],'#f5e8a2',.18);
+ }
+}
 export function buildScene(theme:SceneTheme,time:number,reactions:Reaction[]=[],pointer:V3=[0,0,0]):DrawItem[] {
  const draw:DrawItem[]=[],root=identity(),b=builder(draw,root);
  const snow=theme.family==='winter',still=theme.id==='remembranceday';
@@ -332,6 +375,7 @@ export function buildScene(theme:SceneTheme,time:number,reactions:Reaction[]=[],
   for(const side of [-1,1])b.add('sphere',[x+side*.15,y,z],[.19,.035,.085],'#46374f',[0,0,side*(.28+Math.sin(time*9)*.5)]);
  }
  tree(draw,root,[2.15,0,-1.5],1.35,theme,time);tree(draw,root,[.8,0,-2.0],.80,theme,time);
+ if(theme.id==='easter')easterGarden(draw,root,time);
  const pair:[CharacterKind,CharacterKind|null]=CHARACTER_CATALOG[theme.id]||['robot','fox'];
  const placement:V3[]=[[-.67,0,.64],[1.18,0,.03]];
  for(let i=0;i<pair.length;i++){
