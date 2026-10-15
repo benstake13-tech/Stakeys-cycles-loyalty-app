@@ -1,6 +1,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('./src/config/surface', async (importOriginal) => ({ ...await importOriginal<typeof import('./src/config/surface')>(), APP_SURFACE: 'customer', isCustomerSurface: true, isStaffSurface: false, isFullSurface: false }));
 const calls = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => ({ currentUser: { uid: 'customer', displayName: 'Sam Rider', email: 'sam@example.com', phoneNumber: '+44 7911 123456', bikes: [] }, createBooking: calls.create, redeemServiceVoucher: vi.fn(), ownerConfig: { businessName: 'Stakeys', ownerEmail: 'shop@example.com' } }) }));
 vi.mock('./src/api/translationService', () => ({ isTranslationConfigured: () => false, translateBookingNotesWithOriginal: async (fields: any) => ({ translated: fields, original: fields }) }));

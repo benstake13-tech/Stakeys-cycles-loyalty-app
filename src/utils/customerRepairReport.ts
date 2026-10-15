@@ -1,3 +1,5 @@
+import { normaliseSpecificationDetails, type SpecificationDetail } from './bicycleInspectionChecklist';
+import { ALL_SPEC_COMPONENTS } from './bikeSpecTaxonomy';
 /** A preliminary customer report, never a mechanic's diagnosis or a parts order. */
 export interface RepairPhoto { id: string; label: string; dataUrl: string }
 export interface RepairFinding {
@@ -21,6 +23,7 @@ export interface CustomerRepairReport {
   summary: string;
   stopRiding: boolean;
   findings: RepairFinding[];
+  specifications?: { componentId: string; componentName: string; photoIds: string[]; details: SpecificationDetail[] }[];
   systems: { id: string; status: 'concern' | 'no-obvious-issue' | 'not-assessed'; note: string }[];
   photoRequests: { area: string; instruction: string; reason: string }[];
   questions: string[];
@@ -74,6 +77,11 @@ export function normaliseRepairReport(raw: unknown, input: RepairReportInput, mo
     version: 1, createdAt: new Date().toISOString(), mode: 'ai-review', model: text(model, 100),
     bike: input.bike, symptoms: [...input.symptoms], customerDescription: input.notes, photos,
     summary: text(r.summary, 1200), stopRiding: input.safetyConcern || r.stopRiding === true || findings.some(f => f.severity === 'urgent'),
+    specifications: Array.isArray(r.specifications) ? ALL_SPEC_COMPONENTS.map(component => {
+      const supplied = r.specifications.find((s: any) => s?.componentId === component.id);
+      const photoIds = list(supplied?.photoIds).filter(id => ids.has(id));
+      return { componentId: component.id, componentName: component.name, photoIds, details: normaliseSpecificationDetails(component.id, supplied?.details, photoIds.length > 0) };
+    }) : undefined,
     findings, systems: REPAIR_SYSTEMS.map(s => {
       const found = r.systems.find((v: any) => v && v.id === s.id);
       const status = photos.length && ['concern', 'no-obvious-issue'].includes(found?.status) ? found.status : 'not-assessed';
@@ -110,6 +118,7 @@ export function formatRepairReport(report: CustomerRepairReport): string {
       `Workshop checks: ${f.workshopChecks.join('; ') || 'Mechanic assessment required.'}`,
       f.replacement ? `Replacement to verify: ${f.replacement.part}. Visible markings: ${f.replacement.markings || 'Unreadable'}. Search query: ${f.replacement.searchQuery || f.replacement.part}. Compatibility: ${f.replacement.compatibilityChecks.join('; ')}` : '',
     ].filter(Boolean).join('\n')),
+    ...(report.specifications || []).flatMap(s => s.details.filter(d => d.value).map(d => `Fitted spec — ${s.componentName}: ${d.name}: ${d.value} [${d.verification}]`)),
     'SYSTEM CHECKLIST', ...report.systems.map(s => `${REPAIR_SYSTEMS.find(x => x.id === s.id)?.label || s.id}: ${s.status} — ${s.note}`),
     ...Object.entries(report.answers).filter(([, a]) => a.trim()).map(([q, a]) => `Customer answer — ${q}: ${a}`),
     ...report.photoRequests.map(p => `More detail needed — ${p.area}: ${p.instruction} ${p.reason}`),

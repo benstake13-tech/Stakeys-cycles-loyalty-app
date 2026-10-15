@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Bike, CheckCircle2, CircleAlert, Clock3, ImagePlus, LoaderCircle, MapPin, RefreshCw, ShieldCheck, Store, X } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,6 +17,10 @@ const STATUS: Record<string,string> = { pending_approval: 'Awaiting review', act
 /** Shared marketplace surface used by the public website and customer app. */
 export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> = ({ staff = false, enabled = true }) => {
   const { currentUser } = useShop();
+  const native = Capacitor.isNativePlatform();
+  const [appNotice, setAppNotice] = useState(false);
+  const [imageWarning, setImageWarning] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [listings, setListings] = useState<Listing[]>([]);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -31,6 +36,9 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
   const load = useCallback(async () => {
     if (!enabled) return;
     setLoading(true);
+    setLoadError('');
+    setImageWarning(false);
+    try {
     const table = supabase.from('marketplace_listings');
     let query = userId || staff
       ? table.select('id,seller_id,title,category,make_model,condition,description,asking_price,images,status,created_at').order('created_at',{ascending:false})
@@ -39,11 +47,12 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     else if (userId) query = query.or(`status.eq.active,seller_id.eq.${userId}`);
     else query = query.eq('status','active');
     const { data, error } = await query;
-    if (error) toast.error('Marketplace is unavailable. Apply the Supabase marketplace migration and try again.');
+    if (error) throw error;
     else {
       const rows = (data || []) as Listing[];
       const paths = rows.flatMap(row => row.images || []);
       const signed = paths.length ? await supabase.storage.from('marketplace-images').createSignedUrls(paths, 3600) : { data: [] };
+      if ('error' in signed && signed.error) setImageWarning(true);
       const signedByPath = new Map((signed.data || []).map((x:any) => [x.path, x.signedUrl]));
       setListings(rows.map(row => ({ ...row, images:(row.images || []).map(path => signedByPath.get(path) || '').filter(Boolean) })));
     }
@@ -52,14 +61,15 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
       if (ledgerError) toast.error('Could not load marketplace ledger.');
       else setLedger((rows || []) as LedgerRow[]);
     }
-    setLoading(false);
+    } catch { setLoadError('We could not load the marketplace. Please refresh or contact Stakey’s Cycles if this continues.'); }
+    finally { setLoading(false); }
   }, [staff,userId,enabled]);
 
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
     const txId = new URLSearchParams(window.location.search).get('marketplace_tx');
-    if (!txId || staff || verifying) return;
+    if (!txId || staff || verifying || !native || !userId) return;
     setVerifying(true);
     void supabase.functions.invoke('marketplace-payments', { body: { action:'confirm', transaction_id:txId } }).then(({data,error}) => {
       if (error) throw error;
@@ -72,7 +82,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId) { toast.error('Sign in to create a listing.'); return; }
+    if (!native || !userId) { setAppNotice(true); return; }
     if (files.length > 5) { toast.error('Choose up to 5 photos.'); return; }
     if (files.some(f => !['image/jpeg','image/png','image/webp'].includes(f.type) || f.size > 8*1024*1024)) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
     const price = Number(form.asking_price);
@@ -112,7 +122,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
   };
 
   const buy = async (item: Listing) => {
-    if (!userId) { toast.error('Sign in with a verified email to buy.'); return; }
+    if (!native || !userId) { setAppNotice(true); return; }
     setBuyingId(item.id);
     try {
       const { data, error } = await supabase.functions.invoke('marketplace-payments', { body: { action:'create', listing_id:item.id } });
@@ -129,14 +139,18 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
           <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">Bikes, e-bikes &amp; scooters</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-300">Browse rides listed by local owners. Every listing is reviewed by Stakey’s Cycles before it goes live.</p>
         </div>
-        {!staff && <button type="button" onClick={()=>setShowForm(v=>!v)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-neutral-950 hover:bg-emerald-300">{showForm?<X className="h-4 w-4"/>:<ImagePlus className="h-4 w-4"/>}{showForm?'Close':'List your ride'}</button>}
+        {!staff && <button type="button" onClick={()=> native && userId ? setShowForm(v=>!v) : setAppNotice(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 py-2.5 text-sm font-bold text-neutral-950 hover:bg-emerald-300">{showForm?<X className="h-4 w-4"/>:<ImagePlus className="h-4 w-4"/>}{showForm?'Close':'List your ride'}</button>}
       </div>
       {!staff && <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs text-neutral-400"><span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-emerald-400"/>Email-verified accounts</span><span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4 text-emerald-400"/>Inspection and handover arranged locally</span></div>}
     </header>
 
     {staff&&<section className="space-y-3 rounded-2xl border border-white/10 bg-neutral-900/70 p-4 sm:p-5"><div><h2 className="font-bold text-white">Marketplace sales &amp; payout ledger</h2><p className="mt-1 text-xs text-neutral-400">SumUp charges the buyer’s full amount to the shop account. Seller balances are due for separate manual payout; this app does not send the payout. Admins can record completed payouts with a reference.</p></div>{ledger.length===0?<p className="rounded-xl border border-dashed border-white/10 p-5 text-center text-sm text-neutral-500">No marketplace payments yet.</p>:<div className="space-y-2">{ledger.map(tx=><div key={tx.id} className="grid gap-3 rounded-xl border border-white/5 bg-neutral-950/70 p-3 text-xs sm:grid-cols-[1fr_auto_auto_auto]"><div className="min-w-0"><div className="truncate font-semibold text-white">{tx.listing?.[0]?.title||'Marketplace item'} · {tx.listing?.[0]?.make_model||''}</div><div className="truncate font-mono text-neutral-500">Sale {tx.id} · seller {tx.seller_id}</div><div className="mt-1 text-neutral-500">{new Date(tx.created_at).toLocaleString()} · payment {tx.payment_status} · payout {tx.payout_status}{tx.payout_reference?` · ref ${tx.payout_reference}`:''}</div></div><div className="text-neutral-300">Gross <b className="text-white">{money(Number(tx.gross_amount))}</b></div><div className="text-neutral-300">Fee <b className="text-emerald-300">{money(Number(tx.commission_amount))}</b></div><div className="text-neutral-300">Seller due <b className="text-amber-200">{money(Number(tx.seller_payable))}</b></div>{currentUser?.role==='admin'&&tx.payment_status==='completed'&&tx.payout_status!=='paid'&&<div className="flex gap-2 sm:col-span-4"><input aria-label="Payout reference" value={payoutRefs[tx.id]??''} onChange={e=>setPayoutRefs({...payoutRefs,[tx.id]:e.target.value})} placeholder="Bank transfer / payout reference" className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-neutral-900 px-3 text-xs text-white"/><button onClick={()=>void markPayoutPaid(tx)} className="min-h-10 rounded-lg bg-emerald-400 px-3 font-bold text-neutral-950">Record payout</button></div>}</div>)}</div>}</section>}
 
-    {!staff && showForm && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-white/10 bg-neutral-900/80 p-5 sm:grid-cols-2" data-testid="marketplace-listing-form">
+    {!staff && (!native || appNotice) && <aside className="rounded-2xl border border-emerald-400/20 bg-emerald-950/20 p-5 text-sm leading-6 text-neutral-300" role="status"><h2 className="font-semibold text-white">Browse here. Buy and sell in the app.</h2><p className="mt-2">Open the Stakey’s Cycles app to sign in, list your ride or continue with a purchase. Contact the workshop if you need the current installation link.</p></aside>}
+    {imageWarning && <p role="status" className="text-sm text-amber-200">Some listing photos could not be loaded. Refresh to try again.</p>}
+    {!staff && loadError && <p role="alert" className="rounded-xl border border-amber-400/25 p-4 text-sm text-amber-200">{loadError}</p>}
+    {staff && loadError && <p role="alert" className="text-sm text-amber-200">{loadError}</p>}
+    {!staff && native && userId && showForm && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-white/10 bg-neutral-900/80 p-5 sm:grid-cols-2" data-testid="marketplace-listing-form">
       <label className="text-xs font-semibold text-neutral-300">Listing title<input required maxLength={120} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Trek hybrid bike, medium" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-400/60"/></label>
       <label className="text-xs font-semibold text-neutral-300">Make and model<input required maxLength={120} value={form.make_model} onChange={e=>setForm({...form,make_model:e.target.value})} placeholder="Brand and model" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-400/60"/></label>
       <label className="text-xs font-semibold text-neutral-300">Type<select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white"><option value="bicycle">Bicycle</option><option value="ebike">E-bike</option><option value="escooter">E-scooter</option></select></label>
@@ -148,10 +162,10 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     </form>}
 
     <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-white">{staff?'Listings to review':'Available locally'}</h2><button onClick={()=>void load()} type="button" aria-label="Refresh listings" className="rounded-lg border border-white/10 p-2 text-neutral-400 hover:text-white"><RefreshCw className="h-4 w-4"/></button></div>
-    {loading ? <div className="flex justify-center py-12 text-emerald-300"><LoaderCircle className="h-6 w-6 animate-spin"/></div> : listings.length===0 ? <div className="rounded-2xl border border-dashed border-white/10 px-5 py-12 text-center"><Bike className="mx-auto h-8 w-8 text-neutral-600"/><p className="mt-3 font-semibold text-white">{staff?'Nothing waiting for review':'No approved listings yet'}</p><p className="mt-1 text-sm text-neutral-500">{staff?'New seller listings will appear here.':'Check back soon, or list your ride to get started.'}</p></div> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{listings.map(item=><article key={item.id} className="overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/80">
+    {loading ? <div className="flex justify-center py-12 text-emerald-300"><LoaderCircle className="h-6 w-6 animate-spin"/></div> : loadError ? null : listings.length===0 ? <div className="rounded-2xl border border-dashed border-white/10 px-5 py-12 text-center"><Bike className="mx-auto h-8 w-8 text-neutral-600"/><p className="mt-3 font-semibold text-white">{staff?'Nothing waiting for review':'No approved listings yet'}</p><p className="mt-1 text-sm text-neutral-500">{staff?'New seller listings will appear here.':'Check back soon, or list your ride to get started.'}</p></div> : <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{listings.map(item=><article key={item.id} className="overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/80">
       <div className="relative aspect-[4/3] bg-neutral-950">{item.images?.[0]?<img src={item.images[0]} alt={item.title} loading="lazy" className="h-full w-full object-cover"/>:<div className="flex h-full items-center justify-center"><Bike className="h-12 w-12 text-neutral-700"/></div>}<span className="absolute left-3 top-3 rounded-full border border-white/10 bg-black/70 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-200">{STATUS[item.status]||item.status}</span></div>
       <div className="space-y-3 p-4"><div className="flex items-start justify-between gap-2"><div><h3 className="font-bold text-white">{item.title}</h3><p className="mt-0.5 text-xs capitalize text-neutral-400">{item.make_model} · {item.category==='ebike'?'E-bike':item.category==='escooter'?'E-scooter':'Bicycle'} · {item.condition}</p></div><strong className="shrink-0 font-mono text-lg text-emerald-300">{money(Number(item.asking_price))}</strong></div>{item.description&&<p className="line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-neutral-400">{item.description}</p>}
-        {staff?<div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">{item.status==='pending_approval'&&<><button onClick={()=>void moderate(item,'active')} className="min-h-10 rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Approve listing</button><button onClick={()=>void moderate(item,'rejected')} className="min-h-10 rounded-lg border border-amber-400/30 px-3 text-xs font-bold text-amber-200">Request changes</button></>}{item.status==='active'&&<button onClick={()=>void moderate(item,'sold')} className="min-h-10 rounded-lg border border-white/10 px-3 text-xs font-bold text-neutral-200">Mark sold</button>}<span className="inline-flex items-center gap-1 text-[11px] text-neutral-500"><Clock3 className="h-3.5 w-3.5"/>{new Date(item.created_at).toLocaleDateString()}</span></div>:item.status==='active'&&item.seller_id!==userId?<div className="space-y-2 border-t border-white/5 pt-3"><button disabled={buyingId===item.id} onClick={()=>void buy(item)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-sm font-bold text-neutral-950 disabled:opacity-60">{buyingId===item.id&&<LoaderCircle className="h-4 w-4 animate-spin"/>}Buy securely with SumUp</button><p className="text-[11px] leading-4 text-neutral-500">Your card payment is processed through the shop’s SumUp account. The seller’s share is recorded for manual payout after confirmation.</p></div>:<div className="border-t border-white/5 pt-3 text-xs leading-5 text-neutral-400"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-400"/>{item.seller_id===userId?'Your listing':'Sale completed'}</div>}
+        {staff?<div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">{item.status==='pending_approval'&&<><button onClick={()=>void moderate(item,'active')} className="min-h-10 rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Approve listing</button><button onClick={()=>void moderate(item,'rejected')} className="min-h-10 rounded-lg border border-amber-400/30 px-3 text-xs font-bold text-amber-200">Request changes</button></>}{item.status==='active'&&<button onClick={()=>void moderate(item,'sold')} className="min-h-10 rounded-lg border border-white/10 px-3 text-xs font-bold text-neutral-200">Mark sold</button>}<span className="inline-flex items-center gap-1 text-[11px] text-neutral-500"><Clock3 className="h-3.5 w-3.5"/>{new Date(item.created_at).toLocaleDateString()}</span></div>:item.status==='active'&&(!userId || item.seller_id!==userId)?<div className="space-y-2 border-t border-white/5 pt-3"><button disabled={buyingId===item.id} onClick={()=>void buy(item)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-3 text-sm font-bold text-neutral-950 disabled:opacity-60">{buyingId===item.id&&<LoaderCircle className="h-4 w-4 animate-spin"/>}{native && userId ? 'Buy securely with SumUp' : 'Use the app to buy'}</button><p className="text-[11px] leading-4 text-neutral-500">Your card payment is processed through the shop’s SumUp account. The seller’s share is recorded for manual payout after confirmation.</p></div>:<div className="border-t border-white/5 pt-3 text-xs leading-5 text-neutral-400"><CheckCircle2 className="mr-1 inline h-4 w-4 text-emerald-400"/>{item.seller_id===userId?'Your listing':'Sale completed'}</div>}
       </div></article>)}</div>}
     {!staff&&<p className="text-center text-[11px] leading-5 text-neutral-500">Peer-to-peer listings are supplied by private sellers. The shop checks listing submissions but does not certify condition or ownership. Confirm item details and sale terms before paying. The proposed 20% fee and seller balance are recorded separately; the final fee, tax treatment and seller terms require business approval.</p>}
   </section>;

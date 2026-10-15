@@ -1,3 +1,4 @@
+import { MarketplacePanel } from './MarketplacePanel';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
@@ -76,6 +77,7 @@ const CHECKOUT_SUCCESS_TITLE = 'Order received!';
 const ALL_PAGES: WebsitePageId[] = [
   'home',
   'shop',
+  'marketplace',
   'repairs',
   'sell',
   'offers',
@@ -446,6 +448,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
         { id: 'weather', label: 'Riding weather', hint: 'A 7-day "can I ride?" forecast' },
       ],
     },
+    { id: 'marketplace', label: 'Marketplace', icon: 'store', page: 'marketplace' },
     { id: 'offers', label: 'Offers', icon: 'tag', page: 'offers' },
     { id: 'faqs', label: 'FAQs', icon: 'message', page: 'faqs' },
     {
@@ -594,7 +597,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
         </button>
 
         {/* Desktop grouped navigation */}
-        <nav ref={navRef} className="hidden lg:flex items-center gap-1" aria-label="Website pages">
+        <nav ref={navRef} className="hidden xl:flex items-center gap-1" aria-label="Website pages">
           <button
             type="button"
             onClick={() => goTo('home')}
@@ -690,7 +693,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
             onClick={() => setMobileNavOpen((v) => !v)}
             aria-label="Toggle navigation"
             aria-expanded={mobileNavOpen}
-            className="site-btn site-btn-ghost site-btn-sm !px-3 lg:hidden"
+            className="site-btn site-btn-ghost site-btn-sm !px-3 xl:hidden"
           >
             {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
@@ -699,7 +702,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
       {/* Mobile drawer */}
       {mobileNavOpen && (
-        <div className="lg:hidden pb-4 animate-slide-down">
+        <div className="xl:hidden pb-4 animate-slide-down">
           <div className="site-glass p-2">
             <button
               type="button"
@@ -1441,6 +1444,8 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
   const renderPage = () => {
     switch (page) {
+      case 'marketplace':
+        return <MarketplacePanel />;
       case 'shop':
         return (
           <div className="space-y-8">
