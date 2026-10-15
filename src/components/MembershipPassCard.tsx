@@ -66,7 +66,9 @@ function Barcode({ payload }: { payload: string }) {
       JsBarcode(svg, payload, { format:'CODE128', displayValue:false, height:54, width:1.6, margin:12, background:'#ffffff', lineColor:'#0b0d10' });
       // JsBarcode writes intrinsic dimensions; a viewBox lets the complete code
       // scale into mobile layouts instead of clipping the right-hand bars.
-      svg.setAttribute('viewBox', '0 0 ' + svg.getAttribute('width') + ' ' + svg.getAttribute('height'));
+      const width = Number.parseFloat(svg.getAttribute('width') || '0');
+      const height = Number.parseFloat(svg.getAttribute('height') || '0');
+      if (width > 0 && height > 0) svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
       svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
       setValid(true);
     } catch { setValid(false); }
