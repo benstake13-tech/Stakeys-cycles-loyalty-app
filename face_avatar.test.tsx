@@ -41,6 +41,33 @@ describe('FaceAvatar Programmatic Logic', () => {
     expect(configFromJson.hairStyle).toBe('pompadour');
     expect(configFromJson.glasses).toBe('sporty_cycling');
   });
+
+  it('keeps extended appearance, uniform, prop, and ride options through save and reload', () => {
+    const expanded = {
+      ...getDeterministicConfig('Alex'),
+      faceShape: 'square' as const,
+      clothing: 'hi_vis' as const,
+      prop: 'wrench' as const,
+      vehicle: 'electric_dirt_bike' as const,
+    };
+    expect(parseConfigString(JSON.stringify(expanded), 'Alex')).toEqual(expanded);
+    const { container } = render(<FaceAvatar seed="Alex" config={expanded} size={180} />);
+    expect(container.querySelector('svg')?.classList.contains('avatar-idle')).toBe(true);
+    expect(container.querySelector('svg [aria-label="electric dirt bike"]')).toBeTruthy();
+  });
+
+  it('persists detailed model options and renders each new face silhouette', () => {
+    const detailed = {
+      ...getDeterministicConfig('Riley'), faceShape: 'heart' as const, eyeColor: 'violet' as const,
+      faceDetail: 'freckles' as const, bodyShape: 'broad' as const, pose: 'leaning' as const,
+      browStyle: 'determined' as const, noseStyle: 'button' as const, hairStyle: 'braids' as const,
+    };
+    expect(parseConfigString(JSON.stringify(detailed), 'Riley')).toEqual(detailed);
+    const { container, rerender } = render(<FaceAvatar seed="Riley" config={detailed} />);
+    expect(container.querySelector('svg path[d^="M100 140C91 132"]')).toBeTruthy();
+    rerender(<FaceAvatar seed="Riley" config={{ ...detailed, faceShape: 'angular' }} />);
+    expect(container.querySelector('svg path[d^="M61 69Q61 56"]')).toBeTruthy();
+  });
 });
 
 describe('FaceAvatar Component Rendering', () => {
@@ -83,6 +110,7 @@ describe('AvatarEditorModal Customization', () => {
     expect(screen.getByText('Hair & Skin')).toBeTruthy();
     expect(screen.getByText('Face & Gear')).toBeTruthy();
     expect(screen.getByText('Clothing')).toBeTruthy();
+    expect(screen.getByText('Model & Pose')).toBeTruthy();
 
     // Tap Randomize button
     const randomizeBtn = screen.getByText(/Randomize/);
@@ -98,5 +126,15 @@ describe('AvatarEditorModal Customization', () => {
     const savedConfig = JSON.parse(handleSave.mock.calls[0][0]);
     expect(savedConfig.backdrop).toBeDefined();
     expect(savedConfig.skinTone).toBeDefined();
+  });
+
+  it('exposes face shape, workshop props, and vehicle choices', () => {
+    render(<AvatarEditorModal name="Alex" onSave={() => {}} onClose={() => {}} />);
+    fireEvent.click(screen.getByText('Hair & Skin'));
+    fireEvent.click(screen.getByText('Strong Square'));
+    fireEvent.click(screen.getByText('Clothing'));
+    fireEvent.click(screen.getByText('Workshop wrench'));
+    fireEvent.click(screen.getByText('E-scooter'));
+    expect(screen.getByText('E-scooter').getAttribute('aria-pressed')).toBe('true');
   });
 });

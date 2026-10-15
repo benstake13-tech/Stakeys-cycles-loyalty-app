@@ -30,7 +30,7 @@ type SyncState = 'checking' | 'shared' | 'device' | 'saving';
  * team" claim. No customer data is written to the targets table.
  */
 export const GrowthTargets: React.FC = () => {
-  const { bookings = [], users = [] } = useShop();
+  const { bookings = [], users = [], sales = [] } = useShop();
   const [targets, setTargets] = useState<GoalTargets>(readDeviceTargets);
   const [draft, setDraft] = useState<Record<GoalId, string>>(
     () => Object.fromEntries(GOAL_IDS.map(id => [id, String(readDeviceTargets()[id])])) as Record<GoalId, string>
@@ -59,7 +59,7 @@ export const GrowthTargets: React.FC = () => {
   const [error, setError] = useState('');
   const [savedNotice, setSavedNotice] = useState('');
 
-  const actual = useMemo(() => growthSnapshot(bookings, users), [bookings, users]);
+  const actual = useMemo(() => growthSnapshot(bookings, users, sales), [bookings, users, sales]);
   const reached = GOAL_IDS.filter(id => actual[id] >= targets[id]).length;
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export const GrowthTargets: React.FC = () => {
       const text = draft[id].trim();
       const value = Number(text);
       if (!/^\d+$/.test(text) || !isValidGoalValue(id, value)) {
-        setError(`${GOAL_META[id].label}: enter a whole-number target between 1 and ${id === 'callConversionPct' ? '100' : '1,000,000'}.`);
+        setError(`${GOAL_META[id].label}: enter a whole-number target between 1 and ${id === 'callConversionPct' ? '100' : '100,000,000'}.`);
         return;
       }
       parsed[id] = value;
@@ -148,12 +148,12 @@ export const GrowthTargets: React.FC = () => {
             <p className="text-[10px] font-extrabold tracking-[.19em] text-[#00FF66] uppercase">Growth scorecard</p>
             <h2 className="mt-1 font-display text-lg font-bold text-white">Targets worth chasing</h2>
             <p className="mt-1 max-w-lg text-[11px] leading-relaxed text-[#a4b8aa]">
-              Actual figures are calculated from bookings and loyalty activity. Targets are editable.
+              Live figures from bookings, customer sign-ups, loyalty and completed till sales. Choose goals across bookings, customers and sales.
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="staff-goals-pill" aria-label={`${reached} of 4 growth goals reached`}>
+          <span className="staff-goals-pill" aria-label={`${reached} of ${GOAL_IDS.length} growth goals reached`}>
             <Flag size={13} strokeWidth={1.7} aria-hidden="true" /> {reached} / {GOAL_IDS.length} reached
           </span>
           <button type="button" onClick={editing ? () => setEditing(false) : openEditor}
@@ -163,12 +163,15 @@ export const GrowthTargets: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        {GOAL_IDS.map(id => {
+      {(['Bookings', 'Customers', 'Sales'] as const).map(group => <div key={group} className="space-y-2">
+        <h3 className="px-1 text-[10px] font-extrabold uppercase tracking-[.16em] text-[#00FF66]">{group} targets</h3>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+        {GOAL_IDS.filter(id => GOAL_META[id].group === group).map(id => {
           const value = actual[id];
           const target = targets[id];
           const progress = goalProgress(value, target);
           const meta = GOAL_META[id];
+          const displayValue = (amount: number) => meta.unit === '£' ? `£${amount.toLocaleString('en-GB')}` : `${amount}${meta.unit}`;
           return (
             <article key={id} className="staff-goal-card" data-testid={`staff-goal-${id}`}>
               <div className="flex flex-wrap justify-between items-start gap-1">
@@ -176,8 +179,8 @@ export const GrowthTargets: React.FC = () => {
                 {progress.reached && <Check size={15} strokeWidth={2} className="shrink-0 text-[#00FF66]" aria-label="Target reached" />}
               </div>
               <div className="mt-3 flex flex-wrap items-baseline gap-1.5">
-                <strong className="text-[25px] font-black leading-none tabular-nums tracking-tight text-white">{value}{meta.unit}</strong>
-                <span className="text-[11px] tabular-nums text-[#a4b8aa]">/ {target}{meta.unit}</span>
+                <strong className="text-[25px] font-black leading-none tabular-nums tracking-tight text-white">{displayValue(value)}</strong>
+                <span className="text-[11px] tabular-nums text-[#a4b8aa]">/ {displayValue(target)}</span>
               </div>
               <div className="mt-3 h-[5px] w-full overflow-hidden rounded-full bg-[#293a30]"
                 role="progressbar" aria-label={`${meta.label} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress.barPercent}>
@@ -193,7 +196,8 @@ export const GrowthTargets: React.FC = () => {
             </article>
           );
         })}
-      </div>
+        </div>
+      </div>)}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] leading-relaxed text-[#a4b8aa]" role="status">
@@ -246,7 +250,7 @@ export const GrowthTargets: React.FC = () => {
             {GOAL_IDS.map(id => <label key={id} className="block min-w-0">
               <span className="block text-[10px] text-[#d8e8dd] mb-1.5">{GOAL_META[id].label} {GOAL_META[id].unit}</span>
               <input data-testid={`staff-target-input-${id}`} type="number" inputMode="numeric" step="1" min="1"
-                max={id === 'callConversionPct' ? '100' : '1000000'}
+                max={id === 'callConversionPct' ? '100' : '100000000'}
                 value={draft[id]} onChange={e => setDraft(current => ({ ...current, [id]: e.target.value }))}
                 className="w-full rounded-lg border border-white/10 bg-[#0d1310] px-3 py-2.5 text-sm text-white tabular-nums outline-none focus:border-[#00FF66]" />
             </label>)}

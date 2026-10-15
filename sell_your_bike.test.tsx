@@ -39,6 +39,7 @@ import {
 } from './src/context/OfferPriceBook';
 import { getTradeInRequests, deleteTradeInRequest, submitTradeInRequest } from './src/context/TradeInStore';
 import { valueBike } from './src/utils/bikeValuation';
+import { buildCatalogue } from './src/data/offerCatalogue';
 
 const selectPhoto = (input: HTMLElement) => {
   const file = new File(['fake-bytes'], 'bike.jpg', { type: 'image/jpeg' });
@@ -155,6 +156,42 @@ describe('OfferPriceBook store', () => {
     const prices = getOfferPrices();
     expect(prices.length).toBeGreaterThan(0);
     expect(prices.some((p) => p.brand === 'Trek')).toBe(true);
+  });
+
+  it('keeps every Trek offer between £10 and £160 with £10–£20 condition steps', () => {
+    const trek = getOfferPrices().filter((p) => p.brand === 'Trek' && p.model);
+    expect(trek).toHaveLength(22);
+    for (const entry of trek) {
+      const grades = entry.conditionPrices!;
+      expect(grades.fair!.price - grades.poor!.price).toBeGreaterThanOrEqual(10);
+      expect(grades.fair!.price - grades.poor!.price).toBeLessThanOrEqual(20);
+      expect(grades.good!.price - grades.fair!.price).toBeGreaterThanOrEqual(10);
+      expect(grades.good!.price - grades.fair!.price).toBeLessThanOrEqual(20);
+      expect(grades.excellent!.price - grades.good!.price).toBeGreaterThanOrEqual(10);
+      expect(grades.excellent!.price - grades.good!.price).toBeLessThanOrEqual(20);
+      expect(Math.min(...Object.values(grades).map((point) => point!.price))).toBeGreaterThanOrEqual(10);
+      expect(Math.max(...Object.values(grades).map((point) => point!.price))).toBeLessThanOrEqual(160);
+    }
+  });
+
+  it('prices every remaining brand and model within the £10–£160 budget', () => {
+    const book = getOfferPrices();
+    const models = buildCatalogue(book).flatMap(brand => brand.models);
+    expect(models).toHaveLength(621);
+    expect(models.every(model => model.entry)).toBe(true);
+    for (const { entry } of models) {
+      const points = Object.values(entry!.conditionPrices!);
+      expect(Math.min(...points.map(point => point!.price))).toBeGreaterThanOrEqual(10);
+      expect(Math.max(...points.map(point => point!.price))).toBeLessThanOrEqual(160);
+      const ordered = [entry!.conditionPrices!.poor!.price, entry!.conditionPrices!.fair!.price,
+        entry!.conditionPrices!.good!.price, entry!.conditionPrices!.excellent!.price];
+      for (let index = 1; index < ordered.length; index++) {
+        expect(ordered[index] - ordered[index - 1]).toBeGreaterThanOrEqual(10);
+        expect(ordered[index] - ordered[index - 1]).toBeLessThanOrEqual(20);
+      }
+    }
+    expect(book.find(entry => entry.brand === 'Pinarello' && /Dogma/i.test(entry.model))?.basePrice)
+      .toBeGreaterThan(book.find(entry => entry.brand === 'Raleigh' && /Pioneer/i.test(entry.model))?.basePrice ?? 0);
   });
 
   it('adds, edits and deletes a price', () => {

@@ -6,18 +6,27 @@ import React, { useId } from 'react';
 
 export type BackdropGradient =
   | 'sunset' | 'ocean' | 'cyberpunk' | 'emerald' | 'solar' | 'midnight' | 'rose' | 'forest';
-export type SkinTone = 'porcelain' | 'warm_beige' | 'honey' | 'golden_tan' | 'chocolate' | 'espresso';
+export type SkinTone = 'porcelain' | 'warm_beige' | 'honey' | 'golden_tan' | 'chocolate' | 'espresso' | 'rose_beige' | 'deep_mahogany';
 export type HairStyle =
   | 'none' | 'crop' | 'pompadour' | 'waves' | 'bun' | 'afro' | 'bob' | 'beanie'
-  | 'cycling_cap' | 'undercut' | 'long_straight';
-export type HairColor = 'onyx' | 'espresso_brown' | 'golden_blonde' | 'auburn_red' | 'platinum_silver' | 'cyber_neon';
+  | 'cycling_cap' | 'undercut' | 'long_straight' | 'ponytail' | 'braids' | 'locs' | 'curly_top' | 'top_knot';
+export type HairColor = 'onyx' | 'espresso_brown' | 'golden_blonde' | 'auburn_red' | 'platinum_silver' | 'cyber_neon' | 'copper' | 'ash_brown' | 'teal';
 export type FacialHair = 'none' | 'stubble' | 'beard' | 'mustache' | 'goatee';
 export type EyesStyle = 'kind' | 'focused' | 'playful' | 'chill';
 export type ExpressionStyle = 'smile' | 'grin' | 'excited' | 'neutral';
 export type GlassesStyle =
   | 'none' | 'round_wireframe' | 'square_nerd' | 'sporty_cycling' | 'retro_cat' | 'aviator';
 export type AccessoryStyle = 'none' | 'earbuds' | 'stud' | 'headset' | 'scarf';
-export type ClothingStyle = 'dungarees' | 'collar' | 'hoodie' | 'brand_tee' | 'tank' | 'varsity';
+export type ClothingStyle = 'dungarees' | 'collar' | 'hoodie' | 'brand_tee' | 'tank' | 'varsity' | 'mechanic' | 'hi_vis' | 'bunny' | 'elf' | 'skeleton' | 'racing_kit' | 'leather_jacket' | 'rain_shell' | 'wizard';
+export type FaceShape = 'soft' | 'oval' | 'square' | 'round' | 'heart' | 'angular';
+export type AvatarProp = 'none' | 'wrench' | 'coffee' | 'medal';
+export type AvatarVehicle = 'none' | 'bicycle' | 'scooter' | 'electric_dirt_bike';
+export type EyeColor = 'brown' | 'blue' | 'green' | 'amber' | 'gray' | 'violet';
+export type FaceDetail = 'none' | 'freckles' | 'beauty_mark' | 'rosy_cheeks';
+export type BodyShape = 'slim' | 'balanced' | 'broad';
+export type AvatarPose = 'casual' | 'ready' | 'leaning';
+export type BrowStyle = 'natural' | 'bold' | 'arched' | 'determined';
+export type NoseStyle = 'soft' | 'button' | 'strong';
 
 export interface FaceAvatarConfig {
   backdrop: BackdropGradient;
@@ -31,6 +40,15 @@ export interface FaceAvatarConfig {
   accessory: AccessoryStyle;
   clothing: ClothingStyle;
   clothingColor?: string; // Custom hex or palette index
+  faceShape?: FaceShape;
+  prop?: AvatarProp;
+  vehicle?: AvatarVehicle;
+  eyeColor?: EyeColor;
+  faceDetail?: FaceDetail;
+  bodyShape?: BodyShape;
+  pose?: AvatarPose;
+  browStyle?: BrowStyle;
+  noseStyle?: NoseStyle;
 }
 
 // ============================================================================
@@ -55,6 +73,8 @@ export const SKIN_TONE_OPTIONS: { id: SkinTone; name: string; base: string; shad
   { id: 'golden_tan', name: 'Golden Tan', base: '#B07C4D', shadow: '#8C5A2C' },
   { id: 'chocolate', name: 'Chocolate', base: '#784B29', shadow: '#583011' },
   { id: 'espresso', name: 'Espresso', base: '#4E2C10', shadow: '#311703' },
+  { id: 'rose_beige', name: 'Rose Beige', base: '#E3B4A0', shadow: '#BC8576' },
+  { id: 'deep_mahogany', name: 'Deep Mahogany', base: '#603328', shadow: '#3E211B' },
 ];
 
 export const HAIR_STYLE_OPTIONS: { id: HairStyle; name: string }[] = [
@@ -69,6 +89,11 @@ export const HAIR_STYLE_OPTIONS: { id: HairStyle; name: string }[] = [
   { id: 'cycling_cap', name: "Stakey's Cycling Cap" },
   { id: 'undercut', name: 'Swept Undercut' },
   { id: 'long_straight', name: 'Long & Straight' },
+  { id: 'ponytail', name: 'Workshop Ponytail' },
+  { id: 'braids', name: 'Braided Crown' },
+  { id: 'locs', name: 'Textured Locs' },
+  { id: 'curly_top', name: 'Curly Top' },
+  { id: 'top_knot', name: 'Mechanic Top Knot' },
 ];
 
 export const HAIR_COLOR_OPTIONS: { id: HairColor; name: string; colors: [string, string] }[] = [
@@ -78,6 +103,34 @@ export const HAIR_COLOR_OPTIONS: { id: HairColor; name: string; colors: [string,
   { id: 'auburn_red', name: 'Auburn Red', colors: ['#C0392B', '#8E1C0E'] },
   { id: 'platinum_silver', name: 'Platinum', colors: ['#E2E8F0', '#94A3B8'] },
   { id: 'cyber_neon', name: 'Cyber Pink', colors: ['#EC4899', '#BE185D'] },
+  { id: 'copper', name: 'Copper', colors: ['#D97745', '#994729'] },
+  { id: 'ash_brown', name: 'Ash Brown', colors: ['#9A8172', '#63534A'] },
+  { id: 'teal', name: 'Deep Teal', colors: ['#19B8A6', '#08766D'] },
+];
+
+export const EYE_COLOR_OPTIONS: { id: EyeColor; name: string; color: string }[] = [
+  { id: 'brown', name: 'Brown', color: '#6D3C21' },
+  { id: 'blue', name: 'Blue', color: '#3488C6' },
+  { id: 'green', name: 'Green', color: '#278657' },
+  { id: 'amber', name: 'Amber', color: '#C77A18' },
+  { id: 'gray', name: 'Gray', color: '#77808A' },
+  { id: 'violet', name: 'Violet', color: '#8254B8' },
+];
+export const FACE_DETAIL_OPTIONS: { id: FaceDetail; name: string }[] = [
+  { id: 'none', name: 'Clear skin' }, { id: 'freckles', name: 'Freckles' },
+  { id: 'beauty_mark', name: 'Beauty mark' }, { id: 'rosy_cheeks', name: 'Rosy cheeks' },
+];
+export const BODY_SHAPE_OPTIONS: { id: BodyShape; name: string }[] = [
+  { id: 'slim', name: 'Slim' }, { id: 'balanced', name: 'Balanced' }, { id: 'broad', name: 'Broad' },
+];
+export const AVATAR_POSE_OPTIONS: { id: AvatarPose; name: string }[] = [
+  { id: 'casual', name: 'Easygoing' }, { id: 'ready', name: 'Workshop ready' }, { id: 'leaning', name: 'Confident lean' },
+];
+export const BROW_STYLE_OPTIONS: { id: BrowStyle; name: string }[] = [
+  { id: 'natural', name: 'Natural' }, { id: 'bold', name: 'Bold' }, { id: 'arched', name: 'Arched' }, { id: 'determined', name: 'Determined' },
+];
+export const NOSE_STYLE_OPTIONS: { id: NoseStyle; name: string }[] = [
+  { id: 'soft', name: 'Soft' }, { id: 'button', name: 'Button' }, { id: 'strong', name: 'Strong' },
 ];
 
 export const FACIAL_HAIR_OPTIONS: { id: FacialHair; name: string }[] = [
@@ -126,6 +179,26 @@ export const CLOTHING_OPTIONS: { id: ClothingStyle; name: string }[] = [
   { id: 'brand_tee', name: "Cycling Logo Tee" },
   { id: 'tank', name: "Sleeveless Jersey" },
   { id: 'varsity', name: "Varsity Jacket" },
+  { id: 'mechanic', name: 'Workshop Mechanic' },
+  { id: 'hi_vis', name: 'Hi-vis Technician' },
+  { id: 'bunny', name: 'Easter Bunny Suit' },
+  { id: 'elf', name: 'Festive Workshop Elf' },
+  { id: 'skeleton', name: 'Glow Skeleton' },
+  { id: 'racing_kit', name: 'Road Racing Kit' },
+  { id: 'leather_jacket', name: 'Biker Leather Jacket' },
+  { id: 'rain_shell', name: 'All-Weather Shell' },
+  { id: 'wizard', name: 'Workshop Wizard' },
+];
+
+export const FACE_SHAPE_OPTIONS: { id: FaceShape; name: string }[] = [
+  { id: 'soft', name: 'Soft Round' }, { id: 'oval', name: 'Classic Oval' }, { id: 'square', name: 'Strong Square' },
+  { id: 'round', name: 'Round' }, { id: 'heart', name: 'Heart' }, { id: 'angular', name: 'Angular' },
+];
+export const PROP_OPTIONS: { id: AvatarProp; name: string }[] = [
+  { id: 'none', name: 'No prop' }, { id: 'wrench', name: 'Workshop wrench' }, { id: 'coffee', name: 'Coffee cup' }, { id: 'medal', name: 'Champion medal' },
+];
+export const VEHICLE_OPTIONS: { id: AvatarVehicle; name: string }[] = [
+  { id: 'none', name: 'None' }, { id: 'bicycle', name: 'Bicycle' }, { id: 'scooter', name: 'E-scooter' }, { id: 'electric_dirt_bike', name: 'Electric dirt bike' },
 ];
 
 export const CLOTHING_COLORS = [
@@ -192,6 +265,15 @@ export function getDeterministicConfig(seed: string, fallbackColor?: string): Fa
     accessory,
     clothing,
     clothingColor,
+    faceShape: FACE_SHAPE_OPTIONS[Math.abs(hash >> 11) % FACE_SHAPE_OPTIONS.length].id,
+    prop: 'none',
+    vehicle: 'none',
+    eyeColor: EYE_COLOR_OPTIONS[Math.abs(hash >> 12) % EYE_COLOR_OPTIONS.length].id,
+    faceDetail: 'none',
+    bodyShape: 'balanced',
+    pose: 'casual',
+    browStyle: 'natural',
+    noseStyle: 'soft',
   };
 }
 
@@ -246,6 +328,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
   const bgOpt = BACKDROP_OPTIONS.find((o) => o.id === config.backdrop) || BACKDROP_OPTIONS[3];
   const skinOpt = SKIN_TONE_OPTIONS.find((o) => o.id === config.skinTone) || SKIN_TONE_OPTIONS[1];
   const hairColorOpt = HAIR_COLOR_OPTIONS.find((o) => o.id === config.hairColor) || HAIR_COLOR_OPTIONS[0];
+  const eyeColorOpt = EYE_COLOR_OPTIONS.find((o) => o.id === config.eyeColor) || EYE_COLOR_OPTIONS[0];
   const glassesOpt = GLASSES_OPTIONS.find((o) => o.id === config.glasses) || GLASSES_OPTIONS[0];
   const clothColor = config.clothingColor || CLOTHING_COLORS[0];
 
@@ -254,6 +337,9 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
   const hairGradientUrl = 'url(#hair-' + componentId + ')';
   const sportyLensGradientUrl = 'url(#sporty-lens-' + componentId + ')';
   const beanieRibPatternUrl = 'url(#beanie-rib-' + componentId + ')';
+  const bodyScale = config.bodyShape === 'slim' ? 0.92 : config.bodyShape === 'broad' ? 1.08 : 1;
+  const poseAngle = config.pose === 'ready' ? -2 : config.pose === 'leaning' ? 3 : 0;
+  const modelTransform = `translate(100 130) rotate(${poseAngle}) scale(${bodyScale} 1) translate(-100 -130)`;
 
   // Extract conditional JSX rendering to clean helper functions
   // This modularizes the SVG components and prevents shell validation warnings
@@ -336,6 +422,24 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             <text x="126" y="187" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#ffffff">S</text>
           </>
         );
+      case 'mechanic':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#18221d"/><path d="M72 158L94 169 86 178 62 164M128 158L106 169 114 178 138 164" fill="#35463c"/><path d="M98 169h4v31h-4z" fill="#05C147"/><path d="M58 186h20v11H58z" fill="#27372f" stroke="#61796a"/></g>;
+      case 'hi_vis':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#d5ef48"/><path d="M58 175h84v7H58zm-3 15h90v7H55z" fill="#f7f7e8" opacity=".9"/><path d="M92 162h16v7H92z" fill="#24352b"/></g>;
+      case 'bunny':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#f4eee8"/><path d="M70 170q30-18 60 0v28H70z" fill="#fff" stroke="#d8c8bb" strokeWidth="2"/><circle cx="100" cy="181" r="8" fill="#f5a7b2"/><path d="M85 170l-8-12 14 6m24 6 8-12-14 6" fill="#f7dfe2" stroke="#d7aeb6" strokeWidth="2"/><path d="M89 199q11-8 22 0" fill="none" stroke="#05C147" strokeWidth="4"/></g>;
+      case 'elf':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#126b3a"/><path d="M50 160Q100 155 150 160l4 9H46z" fill="#c52f37"/><path d="M67 179h66v6H67zM67 193h66v6H67z" fill="#f3d168"/><path d="M90 163h20v9H90z" fill="#d8b658"/><circle cx="100" cy="168" r="3" fill="#6b4812"/></g>;
+      case 'skeleton':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#171a1b" stroke="#dcebdc" strokeWidth="2"/><path d="M100 166v26m-18-17 18 6 18-6m-31 15 13-5 13 5" fill="none" stroke="#f4fff4" strokeWidth="3"/><circle cx="100" cy="198" r="3" fill="#bdeec5"/></g>;
+      case 'racing_kit':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill={clothColor}/><path d="M50 160q50 10 100 0l-3 13q-47 8-94 0z" fill="#111a16"/><path d="M58 180h84v4H58zm-3 10h90v4H55z" fill="#f2f5ed"/><path d="M96 162h8v35h-8z" fill="#05C147"/><circle cx="100" cy="177" r="5" fill="#102016" stroke="#effff4" strokeWidth="1.5"/></g>;
+      case 'leather_jacket':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#202122"/><path d="M79 159L98 171 88 183 73 160M121 159L102 171 112 183 127 160" fill="#343638" stroke="#a5a5a5" strokeWidth="1"/><path d="M99 170v29" stroke="#d5d7d8" strokeWidth="2"/><path d="M63 178h19m36 0h19" stroke="#9b9c9c" strokeWidth="2"/><circle cx="77" cy="179" r="2" fill="#d8bf70"/><circle cx="123" cy="179" r="2" fill="#d8bf70"/></g>;
+      case 'rain_shell':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill={clothColor}/><path d="M67 158q33 21 66 0" fill="none" stroke="#263d4b" strokeWidth="5"/><path d="M100 167v33" stroke="#dceef4" strokeWidth="2" strokeDasharray="3 2"/><path d="M55 184h17m56 0h17" stroke="#f4d86e" strokeWidth="5"/><path d="M68 161l-7 14m71-14 7 14" stroke="rgba(255,255,255,.36)" strokeWidth="2"/></g>;
+      case 'wizard':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#43246f"/><path d="M74 161l26 12 26-12-11 39H85z" fill="#321a5b" stroke="#c7a6ff" strokeWidth="2"/><path d="M100 177l3 6h7l-5.5 4.5 2 7-6.5-4-6.5 4 2-7L90 183h7z" fill="#ffe27a"/><path d="M65 179h12m46 0h12" stroke="#8ae4bd" strokeWidth="2"/></g>;
       default:
         return null;
     }
@@ -356,12 +460,12 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         return (
           <>
             <ellipse cx="82" cy="96" rx="9" ry="6.5" fill="#ffffff" />
-            <circle cx="82" cy="96" r="4.8" fill={bgGradientUrl} />
+            <circle cx="82" cy="96" r="4.8" fill={eyeColorOpt.color} />
             <circle cx="82" cy="96" r="2.5" fill="#111827" />
             <circle cx="84.5" cy="93.8" r="1.3" fill="#ffffff" />
 
             <ellipse cx="118" cy="96" rx="9" ry="6.5" fill="#ffffff" />
-            <circle cx="118" cy="96" r="4.8" fill={bgGradientUrl} />
+            <circle cx="118" cy="96" r="4.8" fill={eyeColorOpt.color} />
             <circle cx="118" cy="96" r="2.5" fill="#111827" />
             <circle cx="120.5" cy="93.8" r="1.3" fill="#ffffff" />
 
@@ -373,7 +477,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         return (
           <>
             <ellipse cx="82" cy="96" rx="9" ry="6.5" fill="#ffffff" />
-            <circle cx="82" cy="96" r="4.8" fill={bgGradientUrl} />
+            <circle cx="82" cy="96" r="4.8" fill={eyeColorOpt.color} />
             <circle cx="82" cy="96" r="2.5" fill="#111827" />
             <circle cx="84.5" cy="93.8" r="1.3" fill="#ffffff" />
 
@@ -387,12 +491,12 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         return (
           <>
             <ellipse cx="82" cy="97" rx="9" ry="4" fill="#ffffff" />
-            <ellipse cx="82" cy="96" rx="4.5" ry="3.2" fill="#111827" />
+            <ellipse cx="82" cy="96" rx="4.5" ry="3.2" fill={eyeColorOpt.color} />
             <circle cx="83.8" cy="95.2" r="1" fill="#ffffff" />
             <path d="M 72 94 Q 82 93 92 95 Z" fill={skinOpt.shadow} />
 
             <ellipse cx="118" cy="97" rx="9" ry="4" fill="#ffffff" />
-            <ellipse cx="118" cy="96" rx="4.5" ry="3.2" fill="#111827" />
+            <ellipse cx="118" cy="96" rx="4.5" ry="3.2" fill={eyeColorOpt.color} />
             <circle cx="119.8" cy="95.2" r="1" fill="#ffffff" />
             <path d="M 108 94 Q 118 93 128 95 Z" fill={skinOpt.shadow} />
 
@@ -403,6 +507,19 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
       default:
         return null;
     }
+  };
+
+  const renderBrowDetail = () => {
+    if (!config.browStyle || config.browStyle === 'natural') return null;
+    const strokeWidth = config.browStyle === 'bold' ? 4.5 : 2.6;
+    const browPaths = config.browStyle === 'arched'
+      ? ['M 71 86 Q 80 77 91 86', 'M 109 86 Q 120 77 129 86']
+      : config.browStyle === 'determined'
+        ? ['M 71 88 Q 81 82 92 86', 'M 108 86 Q 119 82 129 88']
+        : ['M 71 86 Q 81 79 91 86', 'M 109 86 Q 119 79 129 86'];
+    return <g fill="none" stroke="#221916" strokeWidth={strokeWidth} strokeLinecap="round">
+      {browPaths.map((d) => <path key={d} d={d} />)}
+    </g>;
   };
 
   const renderMouth = () => {
@@ -554,6 +671,53 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
             <path d="M 70 62 Q 100 50 130 62 Q 100 58 70 62 Z" fill="rgba(255,255,255,0.12)" />
           </g>
         );
+      case 'ponytail':
+        return (
+          <g fill={hairGradientUrl}>
+            <path d="M132 61q21-12 23 9l-4 42q-8 9-15-1l4-34q-7-3-10-8z" />
+            <path d="M60 72q-7-30 40-31 47 0 40 34-17-14-39-14-24 0-41 11z" />
+            <path d="M62 68q-2 10 0 19l-5 8-3-18zM138 68q2 10 0 19l5 8 3-18z" />
+            <path d="M68 57q31-24 63 0" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="3" />
+            <path d="M134 69l7 4" stroke="#D4AF37" strokeWidth="4" />
+          </g>
+        );
+      case 'braids':
+        return (
+          <g fill={hairGradientUrl} stroke={hairColorOpt.colors[1]} strokeWidth="1.2">
+            <path d="M58 73q-6-27 10-33v26q-4 12-8 27l-6-1zM142 73q6-27-10-33v26q4 12 8 27l6-1z" />
+            <path d="M60 69q0-31 40-31t40 31q-18-12-40-12T60 69z" />
+            <path d="M55 80l10 6-8 6 9 5-8 6 8 5M145 80l-10 6 8 6-9 5 8 6-8 5" fill="none" strokeWidth="3" strokeLinecap="round" />
+            <path d="M55 105l7 1m81-1-7 1" stroke="#05C147" strokeWidth="4" />
+          </g>
+        );
+      case 'locs':
+        return (
+          <g fill={hairGradientUrl}>
+            <path d="M59 76q-7-30 15-37t53 0q20 9 14 37-19-12-41-12T59 76z" />
+            {[-1, 0, 1].map((n) => <g key={n}>
+              <path d={`M${65 + n * 13} 61q-7 19 0 34t0 32q-5 5-9 0 5-16-1-31t2-33z`} />
+              <path d={`M${136 + n * 6} 61q7 19 0 34t0 32q5 5 9 0-5-16 1-31t-2-33z`} />
+            </g>)}
+            <circle cx="76" cy="48" r="4" fill="#D4AF37" /><circle cx="124" cy="48" r="4" fill="#D4AF37" />
+          </g>
+        );
+      case 'curly_top':
+        return (
+          <g fill={hairGradientUrl}>
+            <path d="M59 76q-8-26 17-34 29-19 53 0 20 9 12 34-21-11-41-11T59 76z" />
+            {[0, 1, 2, 3, 4, 5, 6].map((n) => <circle key={n} cx={66 + n * 11} cy={48 + (n % 2) * 4} r="8" />)}
+            <path d="M63 72q37-17 74 0" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="2" />
+          </g>
+        );
+      case 'top_knot':
+        return (
+          <g fill={hairGradientUrl}>
+            <path d="M60 75q-7-31 40-33t40 33q-18-10-40-10T60 75z" />
+            <circle cx="100" cy="30" r="13" />
+            <path d="M91 30q9-7 18 0" fill="none" stroke="rgba(255,255,255,.22)" strokeWidth="2" />
+            <path d="M61 72v14m78-14v14" stroke="#B7A58A" strokeWidth="2" />
+          </g>
+        );
       default:
         return null;
     }
@@ -670,7 +834,7 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
       height={size}
       role="img"
       aria-label={`${seed}'s avatar`}
-      className={"rounded-2xl shadow-md overflow-hidden " + className}
+      className={"rounded-2xl shadow-md overflow-hidden " + (size >= 120 ? 'avatar-idle ' : '') + className}
       style={{ display: 'inline-block', verticalAlign: 'middle' }}
     >
       <defs>
@@ -727,6 +891,9 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
       {/* Bottom vignette */}
       <rect width="200" height="200" fill={'url(#vignette-' + componentId + ')'} />
 
+      {/* The portrait layers share a controllable silhouette scale and pose. */}
+      <g transform={modelTransform} data-avatar-model="true">
+
       {/* 2. NECK & SHOULDERS */}
       {/* Neck */}
       <rect
@@ -749,33 +916,44 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
       {/* 4. BASE FACE & EARS */}
       <circle cx="58" cy="98" r="9" fill={skinGradientUrl} />
       <path d="M 58 94 A 5 5 0 0 0 58 102" fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="1.5" />
+      <path d="M57 96q2-3 4 0m-4 4q2 3 4 0" fill="none" stroke={skinOpt.shadow} strokeWidth="1" opacity=".75" />
 
       <circle cx="142" cy="98" r="9" fill={skinGradientUrl} />
       <path d="M 142 94 A 5 5 0 0 1 142 102" fill="none" stroke="rgba(0,0,0,0.12)" strokeWidth="1.5" />
+      <path d="M139 96q2-3 4 0m-4 4q2 3 4 0" fill="none" stroke={skinOpt.shadow} strokeWidth="1" opacity=".75" />
 
-      <rect
-        x="61"
-        y="56"
-        width="78"
-        height="84"
-        rx="36"
-        fill={skinGradientUrl}
-      />
+      {config.faceShape === 'heart' ? (
+        <path d="M100 140C91 132 61 111 61 86C61 68 73 56 87 56C94 56 98 60 100 65C103 60 107 56 114 56C128 56 139 68 139 86C139 111 109 132 100 140Z" fill={skinGradientUrl} />
+      ) : config.faceShape === 'angular' ? (
+        <path d="M61 69Q61 56 75 56H125Q139 56 139 69L134 112 100 140 66 112Z" fill={skinGradientUrl} />
+      ) : config.faceShape === 'round' ? (
+        <ellipse cx="100" cy="98" rx="40" ry="42" fill={skinGradientUrl} />
+      ) : (
+        <rect x="61" y="56" width="78" height="84" rx={config.faceShape === 'square' ? 25 : config.faceShape === 'oval' ? 33 : 39} fill={skinGradientUrl} />
+      )}
 
-      <ellipse cx="73" cy="114" rx="6" ry="3.5" fill="#FF8A8A" opacity="0.25" />
-      <ellipse cx="127" cy="114" rx="6" ry="3.5" fill="#FF8A8A" opacity="0.25" />
+      <path d="M68 72q5-8 13-8" fill="none" stroke="rgba(255,255,255,.25)" strokeWidth="3" strokeLinecap="round" />
+      <path d="M131 67q6 4 7 10" fill="none" stroke="rgba(255,255,255,.14)" strokeWidth="2" strokeLinecap="round" />
+      <ellipse cx="73" cy="114" rx="7" ry="4" fill="#FF8A8A" opacity={config.faceDetail === 'rosy_cheeks' ? 0.48 : 0.2} />
+      <ellipse cx="127" cy="114" rx="7" ry="4" fill="#FF8A8A" opacity={config.faceDetail === 'rosy_cheeks' ? 0.48 : 0.2} />
+      {config.faceDetail === 'freckles' && <g fill={skinOpt.shadow} opacity=".92">
+        <circle cx="68" cy="111" r="1.2"/><circle cx="74" cy="109" r="1"/><circle cx="80" cy="112" r="1.1"/>
+        <circle cx="120" cy="112" r="1.1"/><circle cx="126" cy="109" r="1"/><circle cx="132" cy="111" r="1.2"/>
+      </g>}
+      {config.faceDetail === 'beauty_mark' && <circle cx="128" cy="116" r="1.6" fill={skinOpt.shadow} />}
 
       {/* 5. EYES & EYEBROWS */}
       {renderEyes()}
+      {renderBrowDetail()}
 
       {/* 6. NOSE */}
-      <path
-        d="M 97 101 Q 100 108 103 101 Q 100 108 105 108"
-        fill="none"
-        stroke="rgba(0, 0, 0, 0.22)"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-      />
+      {config.noseStyle === 'button' ? (
+        <path d="M94 106q6 5 12 0" fill="none" stroke={skinOpt.shadow} strokeWidth="2.5" strokeLinecap="round" />
+      ) : config.noseStyle === 'strong' ? (
+        <path d="M96 97q2 11 7 12h-5" fill="none" stroke={skinOpt.shadow} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <path d="M97 101q3 8 6 2l2 5" fill="none" stroke="rgba(0,0,0,.24)" strokeWidth="2" strokeLinecap="round" />
+      )}
 
       {/* 7. EXPRESSION / MOUTH */}
       {renderMouth()}
@@ -791,6 +969,34 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
 
       {/* 11. ACCESSORIES */}
       {renderAccessories()}
+      </g>
+
+      {/* Stakey's brand mark and selected ride are compact, readable profile badges. */}
+      {(config.clothing === 'collar' || config.clothing === 'brand_tee' || config.clothing === 'dungarees') && (
+        <g aria-label="Stakey's Cycles uniform mark">
+          <circle cx="125" cy="181" r="9" fill="#07130d" stroke="#45e58a" strokeWidth="1.5" />
+          <circle cx="120" cy="184" r="2.2" fill="none" stroke="#fff" strokeWidth="1" />
+          <circle cx="130" cy="184" r="2.2" fill="none" stroke="#fff" strokeWidth="1" />
+          <path d="M120 184l4-6 6 6h-5l-1-3" fill="none" stroke="#fff" strokeWidth="1" strokeLinejoin="round" />
+        </g>
+      )}
+      {config.vehicle && config.vehicle !== 'none' && (
+        <g transform="translate(154 151)" aria-label={config.vehicle.replaceAll('_', ' ')}>
+          <circle cx="7" cy="29" r="5" fill="#101713" stroke="#62efa0" strokeWidth="2" />
+          <circle cx="31" cy="29" r="5" fill="#101713" stroke="#62efa0" strokeWidth="2" />
+          {config.vehicle === 'bicycle' && <path d="M7 29l9-14 8 14H7l7-10h9m0 0-4-6h5" fill="none" stroke="#f4fff8" strokeWidth="2" strokeLinejoin="round" />}
+          {config.vehicle === 'scooter' && <path d="M7 29h22l-3-16h5M13 29l4-13" fill="none" stroke="#f4fff8" strokeWidth="2.5" strokeLinecap="round" />}
+          {config.vehicle === 'electric_dirt_bike' && <path d="M7 29l7-13h10l7 13M13 16l-2-5h8l4 5m-9 2 7 6" fill="none" stroke="#f4fff8" strokeWidth="2.5" strokeLinejoin="round" />}
+        </g>
+      )}
+      {config.prop && config.prop !== 'none' && (
+        <g transform="translate(18 159)" aria-label={config.prop}>
+          <circle cx="12" cy="12" r="11" fill="#0b1911" stroke="#5de995" strokeWidth="1.5" />
+          {config.prop === 'wrench' && <path d="M7 17l7-7m-3-4a5 5 0 0 0 6 6l-7 7-3-3 7-7a5 5 0 0 1-6-6l3 3 3-1 1-3-3-3z" fill="none" stroke="#effff4" strokeWidth="1.5" strokeLinejoin="round" />}
+          {config.prop === 'coffee' && <g fill="none" stroke="#effff4" strokeWidth="1.5"><path d="M7 8h11v9H7zM18 10h2a2 2 0 0 1 0 4h-2M9 5q-2-2 0-3m5 3q-2-2 0-3" /></g>}
+          {config.prop === 'medal' && <g><path d="M8 3h8l-2 8h-4z" fill="#34d878"/><circle cx="12" cy="15" r="5" fill="#ffd76b" stroke="#fff0b0"/><path d="m12 12 1 2h2l-2 1.5.7 2.2-1.7-1.3-1.7 1.3.7-2.2-2-1.5h2z" fill="#fff"/></g>}
+        </g>
+      )}
     </svg>
   );
 };
