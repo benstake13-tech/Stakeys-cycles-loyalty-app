@@ -61,9 +61,18 @@ build_one() {
   echo " Building $app app  (surface=$surface, flavor=$flavor, $BUILD_TYPE)"
   echo "=============================================================="
 
+  npm run themes:bundle
+
   # 1. web bundle for this surface, with the API origin inlined for native.
   VITE_SURFACE="$surface" VITE_API_BASE_URL="$API_BASE" \
     npx vite build
+
+  # Record the exact source used in each APK; the payload verifier checks this after Gradle.
+  THEME_BUILD_SURFACE="$surface" node --input-type=module - <<'NODE'
+import {writeFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
+writeFileSync('dist/theme-build.json',JSON.stringify({sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),surface:process.env.THEME_BUILD_SURFACE}));
+NODE
 
   # 2. copy that bundle into the native project + refresh plugins/config.
   npx cap sync android
@@ -77,6 +86,7 @@ build_one() {
   mkdir -p "$OUT"
   local dest="$OUT/stakeys-${app}.apk"
   cp "$src" "$dest"
+  python3 scripts/verify-theme-apk.py "$dest"
 
   local pkg
   pkg="$(aapt dump badging "$dest" 2>/dev/null | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"

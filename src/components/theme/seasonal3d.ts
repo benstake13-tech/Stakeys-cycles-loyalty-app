@@ -19,7 +19,12 @@ export const CHARACTER_CATALOG:Record<string,[CharacterKind,CharacterKind|null]>
  cybermonday:['robot','lantern'],smallbusinesssaturday:['robot','fox'],
 };
 export const characterLabel = (theme:string) => {
- const pair=CHARACTER_CATALOG[theme];return pair ? pair.filter(Boolean).map(v=>v![0].toUpperCase()+v!.slice(1)).join(' & ') : '';
+ if(['remembranceday','ramadan','eidfitr','eidadha','hanukkah'].includes(theme))return 'A quiet woodland workshop';
+ if(theme==='halloween')return 'Goblin & cloth ghost';
+ if(theme==='christmas'||theme==='boxingday')return 'Santa at the woodland workshop';
+ if(theme==='stpatricks')return 'Leprechaun & woodland fox';
+ if(theme==='easter')return 'Spring rabbits';
+ return 'Woodland fox & rabbit';
 };
 const PI=Math.PI,TAU=PI*2;
 const clamp=(v:number,a=0,b=1)=>Math.min(b,Math.max(a,v));
