@@ -20,3 +20,30 @@
 @keyframes theme-breathe{to{opacity:.3}}@keyframes theme-sway{to{rotate:3deg}}@keyframes theme-depth{to{transform:translateX(7px) scale(1.025)}}@keyframes theme-firework{0%,60%,100%{opacity:0;scale:.4}70%{opacity:.8;scale:1}90%{opacity:0;scale:1.2}}
 @media(max-width:600px){.theme-world-background .theme-artwork{width:150%;left:-25%}.theme-particles i:nth-child(n+17){display:none}.theme-studio-preview .theme-world-preview{aspect-ratio:4/3}.theme-studio-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.theme-studio-header{align-items:flex-start}}
 @media(prefers-reduced-motion:reduce){.theme-world *{animation:none!important}.theme-particles{display:none}}
+
+/* Actual 3D world, decorative fallback and a clear space to interact. */
+.theme-world{background:linear-gradient(180deg,var(--world-sky,#07151e),var(--world-horizon,#294647));}
+.theme-3d-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.theme-world[data-renderer=webgl]>.theme-artwork{visibility:hidden}
+.theme-world-preview{pointer-events:auto}
+.theme-world-preview .theme-3d-canvas{pointer-events:auto;touch-action:pan-y}
+.theme-world-preview .theme-atmosphere,.theme-world-preview .theme-particles{pointer-events:none}
+.theme-world-background:after{pointer-events:none;background:linear-gradient(180deg,rgba(4,12,18,.15),rgba(4,12,18,.26) 50%,rgba(4,12,18,.12)),radial-gradient(ellipse at center,transparent 35%,#06121d66)}
+.theme-scene-tools{position:absolute;bottom:12px;left:14px;right:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:none;color:#ebfbf0;font-size:10px}
+.theme-scene-tools>span{padding:6px 10px;border:1px solid #a1d3b244;border-radius:20px;background:#0a2318b8;backdrop-filter:blur(12px)}
+.theme-scene-tools button{pointer-events:auto;min-height:36px;padding:7px 12px;border:1px solid #8dcaab77;border-radius:20px;background:#102c20e8;color:#d9fce7;font-size:10px;font-weight:650;cursor:pointer}
+.theme-scene-tools button:disabled{opacity:.45;cursor:default}
+.theme-scene-tools button:focus-visible,.theme-scene-launcher:focus-visible{outline:2px solid #9bf2bc;outline-offset:3px}
+.theme-scene-launcher{position:fixed;z-index:44;left:14px;bottom:calc(env(safe-area-inset-bottom) + 94px);display:flex;align-items:center;gap:7px;min-height:36px;max-width:170px;padding:8px 12px;border:1px solid #87c6a455;border-radius:24px;background:#10251bd9;backdrop-filter:blur(18px);color:#c0edcf;font-family:inherit;font-size:10px;font-weight:650;cursor:pointer;box-shadow:0 7px 24px #0003}
+.theme-scene-overlay{position:fixed;inset:0;z-index:9000;background:#030d09e8;backdrop-filter:blur(14px);display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));overflow-y:auto}
+.theme-scene-dialog{width:100%;max-width:850px;max-height:95vh;overflow:auto;border:1px solid #416d5377;border-radius:24px;background:#0b1b12;color:#edfff3;box-shadow:0 30px 80px #0008;font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+.theme-scene-dialog>header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:20px 22px}
+.theme-scene-dialog small{font-size:8px;letter-spacing:.18em;color:#8ccaa3;font-weight:700}
+.theme-scene-dialog h2{font-size:24px;letter-spacing:-.04em;font-weight:750;margin:4px 0 0}
+.theme-scene-dialog header p{color:#a5bdae;font-size:11px;margin:5px 0 0}
+.theme-scene-dialog>header>button{width:40px;height:40px;border-radius:50%;border:1px solid #416c53;background:#183424;color:#dcf8e7;font-size:24px;cursor:pointer;flex-shrink:0}
+.theme-scene-dialog>.theme-world-preview{border-radius:0;aspect-ratio:16/10;min-height:230px;max-height:60vh}
+.theme-scene-dialog-footer{padding:16px 22px}
+.theme-scene-dialog-footer>p{font-size:12px;color:#b8cdbf;line-height:1.6}
+.theme-studio-caption{position:relative;padding:16px 22px;background:#0a2118}
+@media(max-width:600px){.theme-scene-dialog>.theme-world-preview{aspect-ratio:4/3}.theme-scene-launcher{bottom:calc(env(safe-area-inset-bottom) + 96px);font-size:9px}}
