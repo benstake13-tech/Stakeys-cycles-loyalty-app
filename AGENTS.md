@@ -37,10 +37,13 @@ anything that could affect a deploy.
 
 Setting a Vercel env var does nothing until a **new build succeeds**. Env vars are
 not shared across the three projects by default — set each one per project (or as
-a team-shared var). Public/build values include `VITE_ONESIGNAL_APP_ID`,
-`VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`. Gemini and OneSignal API
-credentials belong in Supabase Edge Function secrets (`GEMINI_API_KEY` and
-`ONESIGNAL_APP_API_KEY`); never use a `VITE_` prefix for provider secrets.
+a team-shared var). Relevant keys: `META_SYSTEM_USER_TOKEN`, `ONESIGNAL_REST_API_KEY`,
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+
+AI credentials are server-only Supabase Edge Function secrets: `GEMINI_API_KEY`
+with `gemini-flash-latest` pinned on the server. All browser/native AI features, including the
+embedded repair guide, call `gemini-gateway`; the staff growth advisor reads the
+same shared server settings. Never inject `VITE_GEMINI_API_KEY` into a build.
 
 ## How to tell whether a push is actually live
 

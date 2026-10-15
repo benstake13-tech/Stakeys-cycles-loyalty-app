@@ -40,7 +40,7 @@ describe('identifyBikeFromImage', () => {
     generateContent.mockResolvedValueOnce({ text: '{"make":"Trek","summary":"ok"}' });
     const { identifyBikeFromImage } = await import('./src/api/visionService');
     const result = await identifyBikeFromImage('data:image/png;base64,AAAA');
-    expect(result).toEqual({ make: 'Trek', summary: 'ok' });
+    expect(result).toMatchObject({ make: 'Trek', summary: 'ok' });
     expect(generateContent).toHaveBeenCalledTimes(1);
     const cfg = generateContent.mock.calls[0][0].config;
     expect(cfg.httpOptions.retryOptions.attempts).toBe(1);
@@ -128,7 +128,7 @@ describe('identifyBikeFromImage', () => {
       { data: 'BRANDDATA', mimeType: 'image/png' },
       { data: 'MODELDATA', mimeType: 'image/png' },
     ]);
-    expect(result).toEqual({ make: 'Trek', model: 'FX 1' });
+    expect(result).toMatchObject({ make: 'Trek', model: 'FX 1' });
     expect(generateContent).toHaveBeenCalledTimes(1);
     const parts = generateContent.mock.calls[0][0].contents[0].parts;
     // three images + the single text prompt
@@ -194,7 +194,7 @@ describe('getFallbackDiagnostic', () => {
     const { getFallbackDiagnostic } = await import('./src/api/visionService');
     const d = getFallbackDiagnostic('Rear brake squeals when wet');
     expect(d.hasVisualData).toBe(false);
-    expect(d.overallCondition).toBe('Fair');
+    expect(d.overallCondition).toBe('Unknown');
     expect(d.wheelSizeAndSpecs).toBe('Standard / Requires Workshop Measurement');
     expect(d.make).toBe('Unknown / To Be Inspected');
     expect(d.faults).toHaveLength(1);

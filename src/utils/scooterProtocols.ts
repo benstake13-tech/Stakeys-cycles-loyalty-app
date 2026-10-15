@@ -18,6 +18,14 @@
  */
 
 export type ScooterFamily = 'Xiaomi/Ninebot' | 'MiniRobot' | 'Generic UART';
+export type ScooterConnectBrand = 'windgoo-youfs' | 'xiaomi-ninebot' | 'minirobot-aovo' | 'other';
+
+export const SCOOTER_CONNECT_BRANDS: Array<{ id: ScooterConnectBrand; label: string; prefixes: string[]; note: string }> = [
+  { id: 'windgoo-youfs', label: 'Windgoo · YouFS-A', prefixes: ['Windgoo', 'YOUFS', 'YFS'], note: 'Uses Windgoo/YouFS discovery and read-only GATT notifications. Close YouFS first if it is connected.' },
+  { id: 'xiaomi-ninebot', label: 'Xiaomi / Ninebot / Segway', prefixes: ['Xiaomi', 'M365', 'Ninebot', 'Segway', 'Mi'], note: 'Probes the known Xiaomi/Ninebot UART service.' },
+  { id: 'minirobot-aovo', label: 'MiniRobot / AOVO', prefixes: ['MiniRobot', 'AOVO'], note: 'Uses the known MiniRobot/AOVO service.' },
+  { id: 'other', label: 'Other / choose manually', prefixes: [], note: 'Shows the Bluetooth chooser without a brand filter.' },
+];
 
 export interface ScooterTelemetry {
   connected: boolean;
@@ -430,24 +438,33 @@ export function errorTextFor(family: ScooterFamily, code: number): string {
 // ---------------------------------------------------------------------------
 
 export interface BleCharacteristicLike {
+  uuid?: string;
   startNotifications(): Promise<BleCharacteristicLike>;
   writeValue(value: Uint8Array): Promise<void>;
   addEventListener(type: 'characteristicvaluechanged', listener: (event: { target: { value: DataView } }) => void): void;
   value?: DataView;
+  properties?: { notify?: boolean; indicate?: boolean; read?: boolean; write?: boolean; writeWithoutResponse?: boolean };
 }
 
 export interface BleServiceLike {
+  uuid?: string;
   getCharacteristic(uuid: string): Promise<BleCharacteristicLike>;
+  getCharacteristics?(): Promise<BleCharacteristicLike[]>;
 }
 
 export interface BleServerLike {
   connected: boolean;
   disconnect(): void;
   getPrimaryService(uuid: string): Promise<BleServiceLike>;
+  getPrimaryServices?(): Promise<BleServiceLike[]>;
 }
 
 export interface BleDeviceLike {
   name?: string;
+  advertisement?: {
+    capturedAt: string; localName?: string; rssi?: number; services: string[];
+    manufacturerData: Record<string, string>; serviceData: Record<string, string>;
+  };
   gatt?: {
     connected: boolean;
     connect(): Promise<BleServerLike>;
@@ -486,6 +503,30 @@ export class ScooterBleSession {
     resolve: (r: VersionReading | null) => void;
     timer: ReturnType<typeof setTimeout>;
   }> = [];
+  private selectedDeviceName = '';
+  private note = '';
+  private protocolHint = 'unknown';
+  private advertisement: BleDeviceLike['advertisement'];
+  private connectionEvents: Array<{ time: string; event: string }> = [];
+  private recordEvent(event: string): void {
+    this.connectionEvents.push({ time: new Date().toISOString(), event });
+    if (this.connectionEvents.length > 100) this.connectionEvents.shift();
+  }
+  private gattProfile: Array<{ service: string; characteristic: string; properties: BleCharacteristicLike['properties']; subscription: string }> = [];
+  private receivedFrames: Array<{ time: string; characteristic: string; hex: string }> = [];
+
+  diagnosticCapture() {
+    return {
+      schema: 'stakeys.ble.capture.v1', capturedAt: new Date().toISOString(),
+      deviceName: this.selectedDeviceName, connected: this.connected,
+      protocolFamily: this.driver.family, connectionNote: this.note,
+      protocolHint: this.protocolHint,
+      advertisement: this.advertisement,
+      connectionEvents: this.connectionEvents.map((event) => ({ ...event })),
+      gattProfile: this.gattProfile.map((entry) => ({ ...entry })),
+      receivedFrames: this.receivedFrames.map((frame) => ({ ...frame })),
+    };
+  }
 
   constructor(host: BluetoothHost, callbacks: ScooterSessionCallbacks) {
     this.host = host;
@@ -500,21 +541,44 @@ export class ScooterBleSession {
     return Boolean(this.server?.connected);
   }
 
-  async connect(): Promise<ScooterTelemetry['protocolFamily']> {
+  get deviceName(): string { return this.selectedDeviceName; }
+  get connectionNote(): string { return this.note; }
+
+  async connect(brand: ScooterConnectBrand = 'other'): Promise<ScooterTelemetry['protocolFamily']> {
+    this.gattProfile = [];
+    this.receivedFrames = [];
+    this.protocolHint = 'unknown';
+    this.advertisement = undefined;
+    this.connectionEvents = [];
+    this.recordEvent('device-selection-started');
+    const brandProfile = SCOOTER_CONNECT_BRANDS.find((profile) => profile.id === brand) ?? SCOOTER_CONNECT_BRANDS[3];
+    const filters = brandProfile.prefixes.map((namePrefix) => ({ namePrefix }));
     const device = await this.host.requestDevice({
-      filters: [{ namePrefix: 'Ninebot' }, { namePrefix: 'Xiaomi' }, { namePrefix: 'M365' }, { namePrefix: 'AOVO' }, { namePrefix: 'Scooter' }, { namePrefix: 'Segway' }, { namePrefix: 'Kugoo' }, { namePrefix: 'iScooter' }, { namePrefix: 'NIU' }, { namePrefix: 'Mi' }, { namePrefix: 'NB-' }, { namePrefix: 'MiniRobot' }],
-      optionalServices: [XiaomiNinebotDriver.serviceUuid, MiniRobotDriver.serviceUuid],
+      ...(filters.length && brand !== 'windgoo-youfs' ? { filters } : { acceptAllDevices: true }),
+      optionalServices: [XiaomiNinebotDriver.serviceUuid, MiniRobotDriver.serviceUuid, '0000fd50-0000-1000-8000-00805f9b34fb'],
     });
-    if (!isRecognisedScooter(device.name || '')) throw new Error('This Bluetooth device is not recognised as an e-scooter. Select a supported scooter broadcasting its model name.');
+    const deviceName = device.name || '';
+    this.selectedDeviceName = deviceName;
+    this.advertisement = device.advertisement;
+    this.recordEvent('device-selected');
+    // The Windgoo/YouFS controller is sold under several rebadged BLE names.
+    // The user explicitly chose that scooter type, so allow its chosen device
+    // through even when its advertised name is an unknown alias; this path is
+    // read-only and never sends controller commands.
+    if (brand !== 'other' && brand !== 'windgoo-youfs' && brandProfile.prefixes.length && !brandProfile.prefixes.some((prefix) => deviceName.toLowerCase().startsWith(prefix.toLowerCase()))) {
+      throw new Error(`The selected device name does not match ${brandProfile.label}. Select the matching brand before scanning.`);
+    }
+    if (brand === 'other' && !isRecognisedScooter(deviceName)) throw new Error('This Bluetooth device is not recognised as an e-scooter. Select a supported scooter broadcasting its model name.');
     if (!device.gatt) throw new Error('Device does not expose a GATT server');
 
     device.addEventListener('gattserverdisconnected', () => {
+      this.recordEvent('gatt-disconnected');
       this.server = null;
       this.writeChar = null;
       this.callbacks.onDisconnect();
     });
 
-    const name = device.name || '';
+    const name = deviceName;
     const namedDriver = detectDriver(name, []);
     // Many rebadged scooters advertise a different brand but share one of the
     // two supported GATT layouts. Probe service availability rather than
@@ -525,8 +589,66 @@ export class ScooterBleSession {
     let driver: ScooterDriver = namedDriver;
     let server: BleServerLike;
     try {
+      this.recordEvent('gatt-connecting');
       server = await device.gatt.connect();
       this.server = server;
+      this.recordEvent('gatt-connected');
+      if (brand === 'windgoo-youfs') {
+        this.driver = GenericUartDriver;
+        const services = await server.getPrimaryServices?.();
+        const discovered = services ? await Promise.all(services.map(async (service) => ({
+          service,
+          characteristics: await service.getCharacteristics?.() ?? [],
+        }))) : [];
+        const profiles = new Map<BleCharacteristicLike, (typeof this.gattProfile)[number]>();
+        for (const { service, characteristics } of discovered) {
+          for (const characteristic of characteristics) {
+            const profile = { service: service.uuid ?? 'unknown', characteristic: characteristic.uuid ?? 'unknown', properties: characteristic.properties, subscription: 'not requested' };
+            this.gattProfile.push(profile);
+            profiles.set(characteristic, profile);
+          }
+        }
+        const tuyaService = discovered.find(({ service, characteristics }) =>
+          service.uuid?.toLowerCase() === '0000fd50-0000-1000-8000-00805f9b34fb'
+          && characteristics.some((c) => c.uuid?.toLowerCase() === '00000001-0000-1001-8001-00805f9b07d0' && (c.properties?.write || c.properties?.writeWithoutResponse))
+          && characteristics.some((c) => c.uuid?.toLowerCase() === '00000002-0000-1001-8001-00805f9b07d0' && c.properties?.notify));
+        if (tuyaService) this.protocolHint = 'tuya-compatible';
+        // Generic Attribute / Service Changed describes GATT changes, not scooter data.
+        const notifiables = discovered.filter(({ service }) => service.uuid?.toLowerCase() !== '00001801-0000-1000-8000-00805f9b34fb').flatMap(({ characteristics }) => characteristics
+          .filter((characteristic) => characteristic.properties?.notify || characteristic.properties?.indicate));
+        if (!services?.length) {
+          this.note = 'Bluetooth link established, but this platform did not expose the Windgoo GATT profile. No scooter data is being claimed.';
+        } else if (!notifiables.length) {
+          this.note = `Bluetooth link established; found ${services.length} GATT service(s), but no notification channel. No scooter data is being claimed.`;
+        } else {
+          let subscribed = 0;
+          for (const characteristic of notifiables) {
+            const profile = profiles.get(characteristic);
+            characteristic.addEventListener('characteristicvaluechanged', (event) => {
+              this.receivedFrames.push({ time: new Date().toISOString(), characteristic: characteristic.uuid ?? 'unknown', hex: bytesToHex(dataViewToBytes(event.target.value)) });
+              if (this.receivedFrames.length > 200) this.receivedFrames.shift();
+              this.callbacks.onTelemetry(this.driver.parseNotification(event.target.value));
+            });
+            try {
+              await characteristic.startNotifications();
+              this.recordEvent('notification-channel-opened');
+              subscribed += 1;
+              if (profile) profile.subscription = 'opened';
+            } catch {
+              this.recordEvent('notification-channel-failed');
+              if (profile) profile.subscription = 'failed';
+            }
+          }
+          this.note = subscribed
+            ? `Windgoo BLE link established; subscribed to ${subscribed} read-only channel(s). Raw data is shown until the exact YouFS controller protocol is identified.`
+            : `Bluetooth link established, but the ${notifiables.length} notification channel(s) could not be opened. No scooter data is being claimed.`;
+        }
+        if (tuyaService) {
+          this.note += ' The channel UUIDs match the Tuya BLE profile. An authenticated Tuya integration is not implemented here; a Bluetooth subscription alone does not enable telemetry or controls.';
+        }
+        if (!this.connected) throw new Error('Scooter disconnected during Bluetooth discovery. No controller session was established.');
+        return 'Generic UART';
+      }
       let notifyChar: BleCharacteristicLike | null = null;
       let lastError: unknown;
       for (const candidate of candidates) {
@@ -552,10 +674,12 @@ export class ScooterBleSession {
         this.callbacks.onTelemetry(this.driver.parseNotification(event.target.value));
       });
     } catch (error) {
+      this.recordEvent('connection-setup-failed');
       this.disconnect();
       throw error;
     }
 
+    if (!this.connected) throw new Error('Scooter disconnected before the controller session was ready.');
     return driver.family;
   }
 
@@ -604,9 +728,11 @@ export class ScooterBleSession {
   }
 
   disconnect(): void {
+    this.recordEvent('disconnect-requested');
     if (this.server) this.server.disconnect();
     this.server = null;
     this.writeChar = null;
+    // Retain device identity and evidence so a failed session can be exported.
   }
 
   async setLock(locked: boolean): Promise<boolean> {

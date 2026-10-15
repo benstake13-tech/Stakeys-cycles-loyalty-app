@@ -7,8 +7,8 @@ verify_jwt = true
 [functions.gemini-gateway]
 verify_jwt = true
 
-[functions.onesignal-gateway]
+[functions.growth-advisor]
 verify_jwt = true
 
-[functions.marketplace-payments]
+[functions.onesignal-gateway]
 verify_jwt = true

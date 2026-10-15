@@ -1647,29 +1647,30 @@ export const FEATURE_TESTS: FeatureTest[] = [
   {
     id: 'push-runtime-config',
     area: 'reach',
-    label: 'Push runtime config (Supabase)',
-    description: 'Confirms the Supabase OneSignal Edge Function exposes the App ID and server-push capability.',
+    label: 'Push runtime config (/api/onesignal/config)',
+    description: 'Confirms the deployed back-end exposes the OneSignal App ID + server-push capability.',
     run: async () => {
       try {
-        const { data, error } = await getSupabaseClient().functions.invoke('onesignal-gateway', { body: { action: 'config' } });
-        if (error || !data || typeof data !== 'object' || !('appId' in data)) {
+        const res = await fetch(apiUrl('/api/onesignal/config'));
+        const data: any = await res.json().catch(() => null);
+        if (!res.ok || !data || typeof data !== 'object' || !('appId' in data)) {
           return {
             status: 'fail',
-            detail: error?.message || 'Supabase returned no OneSignal configuration.',
-            hint: 'Deploy the onesignal-gateway Edge Function and set ONESIGNAL_APP_API_KEY in Supabase Edge Function secrets.',
+            detail: `Endpoint returned ${res.status} ${friendlyType(res)} — no JSON config.`,
+            hint: 'The production host has no /api/onesignal/config function, so server pushes never fire (the SPA rewrite returns index.html). Deploy the /api/onesignal function and set ONESIGNAL_REST_API_KEY.',
           };
         }
         if (data.appId && data.serverPush) {
-          return { status: 'pass', detail: `App ID ${String(data.appId).slice(0, 8)}… and Supabase server push configured.` };
+          return { status: 'pass', detail: `App ID ${String(data.appId).slice(0, 8)}… and server push configured${data.restKeyEnv ? ` (key from ${data.restKeyEnv})` : ''}.` };
         }
         if (data.appId) {
           return {
-            status: 'fail',
-            detail: 'App ID resolved but the Supabase OneSignal API key is missing.',
-            hint: 'Set ONESIGNAL_APP_API_KEY in Supabase Dashboard → Edge Functions → Secrets.',
+            status: 'warn',
+            detail: 'App ID resolved but serverPush=false — the REST key is missing on the server.',
+            hint: `Set the OneSignal REST key in the deployment environment under one of: ${(data.restKeyEnvNames || ['ONESIGNAL_REST_API_KEY', 'ONESIGNAL_API_KEY', 'VITE_ONESIGNAL_REST_API_KEY']).join(', ')}. In Vercel, add it to ALL environments, then Redeploy.`,
           };
         }
-        return { status: 'fail', detail: 'No OneSignal App ID returned.', hint: 'Set ONESIGNAL_APP_ID in Supabase Edge Function secrets.' };
+        return { status: 'fail', detail: 'No OneSignal App ID returned.', hint: 'Set VITE_ONESIGNAL_APP_ID / ONESIGNAL_APP_ID.' };
       } catch (e) {
         return { status: 'fail', detail: err(e), hint: 'The request never reached the server.' };
       }
@@ -1678,37 +1679,25 @@ export const FEATURE_TESTS: FeatureTest[] = [
   {
     id: 'push-server-dispatch',
     area: 'reach',
-    label: 'Server push dispatch (Supabase)',
-    description: 'Sends a silent internal test to the endpoint to confirm it can reach OneSignal.',
+    label: 'Push notification endpoint (no-send check)',
+    description: 'Checks that the notify route is deployed without asking OneSignal to send a notification.',
     run: async () => {
       try {
-        const { data, error } = await getSupabaseClient().functions.invoke('onesignal-gateway', {
-          body: {
-            action: 'notify',
-            title: '__stakeys_diag__',
-            body: 'push probe',
-            tag: { key: 'owner_email', value: '__stakeys_diag_no_such_owner__' },
-          },
+        const res = await fetch(apiUrl('/api/onesignal/notify'), {
+          method: 'GET',
         });
-        if (error) return { status: 'fail', detail: error.message, hint: 'Check ONESIGNAL_APP_API_KEY and deploy onesignal-gateway in Supabase.' };
+        if (res.status === 405 && /POST/i.test(res.headers.get('Allow') || '')) {
+          return { status: 'pass', detail: 'Notify endpoint is deployed and accepts POST. No notification was sent.' };
+        }
+        const data: any = await res.json().catch(() => null);
         if (!data || typeof data !== 'object') {
           return {
             status: 'fail',
-            detail: 'Supabase OneSignal gateway returned no JSON.',
-            hint: 'Deploy onesignal-gateway to the configured Supabase project.',
+            detail: `Endpoint returned ${res.status} ${friendlyType(res)} — no JSON response.`,
+            hint: 'Deploy the /api/onesignal function so the no-send endpoint check can reach it.',
           };
         }
-        // OneSignal reports { id, recipients } or { errors:[...] }. An unknown
-        // segment legitimately returns 200 with 0 recipients, which still proves
-        // the server reached the provider with a valid key.
-        if (data.errors && data.errors.length) {
-          return {
-            status: 'fail',
-            detail: `OneSignal: ${JSON.stringify(data.errors).slice(0, 160)}`,
-            hint: 'Check that the OneSignal App API key is current and belongs to the configured App ID.',
-          };
-        }
-        return { status: 'pass', detail: 'Server reached OneSignal and accepted the message envelope.' };
+        return { status: 'fail', detail: `Endpoint returned ${res.status}; expected a method-not-allowed response.`, hint: 'Check that /api/onesignal/notify is deployed as a POST-only route.' };
       } catch (e) {
         return { status: 'fail', detail: err(e), hint: 'The request never reached the server.' };
       }

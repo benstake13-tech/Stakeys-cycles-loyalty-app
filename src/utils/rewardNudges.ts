@@ -47,7 +47,13 @@ function addMonths(date: Date, months: number): Date {
 
 /** When a collected voucher lapses (claimedAt + validity window). */
 export function voucherExpiry(voucher: CollectedVoucher): Date | null {
-  const claimed = toDate(voucher.claimedAt);
+  // Date-only values are calendar dates; JS otherwise treats them as UTC and
+  // can shift them to the prior local day in western timezones.
+  const raw = voucher.claimedAt;
+  const dateOnly = typeof raw === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw) : null;
+  const claimed = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : toDate(raw);
   if (!claimed) return null;
   return addMonths(claimed, VOUCHER_VALID_MONTHS);
 }

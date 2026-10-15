@@ -96,15 +96,18 @@ describe('EscooterDiagnosticTile — simulator', () => {
 });
 
 describe('EscooterDiagnosticTile — live session (fake host)', () => {
+  const chooseBrand = (brand = 'other') => fireEvent.change(screen.getByTestId('escooter-brand'), { target: { value: brand } });
+
   it('connects over BLE and renders parsed telemetry from a real notification', async () => {
     const { host, chars } = makeHost('Mi Scooter Pro 2');
     render(<EscooterDiagnosticTile bluetoothHost={host} />);
+    chooseBrand('xiaomi-ninebot');
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('escooter-connect'));
     });
 
-    expect(screen.getByTestId('escooter-device').textContent).toMatch(/Xiaomi \/ Ninebot/);
+    expect(screen.getByTestId('escooter-device').textContent).toBe('Mi Scooter Pro 2');
 
     const frame = XiaomiNinebotDriver.encodeStatus(sample({ errorCode: 21, batteryPercent: 64 }));
     await act(async () => {
@@ -118,6 +121,7 @@ describe('EscooterDiagnosticTile — live session (fake host)', () => {
   it('sends a real lock frame to the controller', async () => {
     const { host, chars } = makeHost('NB-1234');
     render(<EscooterDiagnosticTile bluetoothHost={host} />);
+    chooseBrand();
     await act(async () => {
       fireEvent.click(screen.getByTestId('escooter-connect'));
     });
@@ -133,6 +137,7 @@ describe('EscooterDiagnosticTile — live session (fake host)', () => {
     const original = (navigator as Navigator & { bluetooth?: unknown }).bluetooth;
     Object.defineProperty(navigator, 'bluetooth', { value: undefined, configurable: true });
     render(<EscooterDiagnosticTile />);
+    chooseBrand();
     await act(async () => {
       fireEvent.click(screen.getByTestId('escooter-connect'));
     });
@@ -141,5 +146,57 @@ describe('EscooterDiagnosticTile — live session (fake host)', () => {
     // of flushing a fixed number of ticks.
     expect(await screen.findByText(/Bluetooth is not available/)).toBeTruthy();
     Object.defineProperty(navigator, 'bluetooth', { value: original, configurable: true });
+  });
+
+  it('connects an unrecognized Windgoo/YouFS alias read-only without inventing scooter telemetry', async () => {
+    const notify = Object.assign(new FakeChar(), { properties: { notify: true } });
+    let requested: any;
+    const server = {
+      connected: true,
+      getPrimaryService: async () => ({ getCharacteristic: async () => notify }),
+      getPrimaryServices: async () => [{ getCharacteristic: async () => notify, getCharacteristics: async () => [notify] }],
+      disconnect() { this.connected = false; },
+    };
+    const host: BluetoothHost = {
+      requestDevice: async (options) => {
+        requested = options;
+        return { name: 'B3-42A1', gatt: { connected: true, connect: async () => server, disconnect: () => server.disconnect() }, addEventListener: () => {} };
+      },
+    };
+    render(<EscooterDiagnosticTile bluetoothHost={host} />);
+    chooseBrand('windgoo-youfs');
+    await act(async () => { fireEvent.click(screen.getByTestId('escooter-connect')); });
+
+    expect(requested.acceptAllDevices).toBe(true);
+    expect(screen.getByTestId('escooter-device').textContent).toBe('B3-42A1');
+    expect(screen.getByTestId('escooter-status').textContent).toMatch(/Raw data is shown until the exact YouFS controller protocol is identified/);
+    expect(screen.getByTestId('escooter-battery').textContent).toBe('—');
+    expect((screen.getByTestId('escooter-lock') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByTestId('escooter-headlight') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByTestId('escooter-brick').textContent).toContain('unsupported');
+    expect(screen.getByTestId('escooter-brick').textContent).not.toContain('soft-bricked');
+    expect(notify.written).toHaveLength(0);
+    await act(async () => { notify.emit(viewAt([0x01, 0x02, 0x03])); });
+    expect(screen.getByTestId('escooter-raw').textContent).toMatch(/01 02 03/);
+    expect(screen.getByTestId('escooter-gatt-profile').textContent).toContain('opened');
+    expect(screen.getByTestId('escooter-gatt-profile').textContent).toContain('01 02 03');
+  });
+
+  it('does not claim a Windgoo notification subscription when the platform rejects it', async () => {
+    const notify = Object.assign(new FakeChar(), { properties: { notify: true }, startNotifications: vi.fn(async () => { throw new Error('not supported'); }) });
+    const server = {
+      connected: true,
+      getPrimaryService: async () => ({ getCharacteristic: async () => notify }),
+      getPrimaryServices: async () => [{ getCharacteristic: async () => notify, getCharacteristics: async () => [notify] }],
+      disconnect() { this.connected = false; },
+    };
+    const host: BluetoothHost = {
+      requestDevice: async () => ({ name: 'YOUFS-A', gatt: { connected: true, connect: async () => server, disconnect: () => server.disconnect() }, addEventListener: () => {} }),
+    };
+    render(<EscooterDiagnosticTile bluetoothHost={host} />);
+    chooseBrand('windgoo-youfs');
+    await act(async () => { fireEvent.click(screen.getByTestId('escooter-connect')); });
+    expect(screen.getByTestId('escooter-status').textContent).toMatch(/notification channel\(s\) could not be opened/);
+    expect(screen.getByTestId('escooter-gatt-profile').textContent).toContain('failed');
   });
 });

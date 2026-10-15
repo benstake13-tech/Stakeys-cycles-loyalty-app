@@ -1,5 +1,6 @@
+import { getGeminiSettings } from "../_shared/geminiSettings.ts";
 // Deploy: supabase functions deploy growth-advisor
-// Secrets: GEMINI_API_KEY (or GOOGLE_API_KEY), SUPABASE_URL, SUPABASE_ANON_KEY
+// Secrets: GEMINI_API_KEY (existing), SUPABASE_URL, SUPABASE_ANON_KEY
 // Staff-only, on-demand Gemini advice. No key is ever sent to the browser.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -19,7 +20,7 @@ Deno.serve(async req => {
   if (!jwt) return reply({ error: 'Authentication required' }, 401);
   const url = Deno.env.get('SUPABASE_URL');
   const anon = Deno.env.get('SUPABASE_ANON_KEY');
-  const key = (Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY') || '').trim().replace(/^['"]|['"]$/g, '');
+  const { key, model, tier } = await getGeminiSettings(name => Deno.env.get(name));
   if (!url || !anon || !key) return reply({ error: 'Growth advisor not configured: check Supabase function secrets' }, 503);
   const db = createClient(url, anon, { global: { headers: { Authorization: `Bearer ${jwt}` } }, auth: { persistSession: false } });
   const { data: identity, error: authError } = await db.auth.getUser(jwt);
@@ -53,16 +54,15 @@ Deno.serve(async req => {
     JSON.stringify({ monthly: months, targets }),
   ].join('\n');
   try {
-    const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash-lite';
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.25, maxOutputTokens: 1300 } }),
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 1300 } }),
       signal: AbortSignal.timeout(20000),
     });
     if (!res.ok) {
       console.error('Gemini response status', res.status);
-      return reply({ error: res.status === 429 ? 'Gemini rate limit reached. Try again later.' : 'Gemini request failed.' }, 502);
+      return reply({ error: res.status === 429 ? 'Gemini rate limit reached. Try again later.' : res.status === 402 ? 'Gemini returned HTTP 402: the project linked to this key has no usable prepay credits. For Free Tier, use a key from a project marked Free Tier. Paid fallback is disabled.' : 'Gemini request failed.', ...(res.status === 402 ? { code: 'BILLING_REQUIRED' } : {}) }, 502);
     }
     const data = await res.json();
     const raw = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || '').join('') || '';
@@ -75,7 +75,7 @@ Deno.serve(async req => {
       expected_benefit: String(s.expected_benefit || '').slice(0, 300),
     })).filter((s: { title: string; reason: string }) => s.title && s.reason);
     if (!suggestions.length) return reply({ error: 'Gemini returned no usable suggestions' }, 502);
-    return reply({ headline: String(parsed.headline || 'Suggested growth opportunities').slice(0, 300), suggestions, model, generated_at: new Date().toISOString(), basis_month: current.month });
+    return reply({ headline: String(parsed.headline || 'Suggested growth opportunities').slice(0, 300), suggestions, model, tier, generated_at: new Date().toISOString(), basis_month: current.month });
   } catch (error) {
     console.error('Growth advisor failed', error);
     return reply({ error: 'Unable to generate recommendations right now' }, 502);

@@ -257,17 +257,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
   };
 
   return (
-    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
+    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* ===== LEFT: BRAND / WORKSHOP PANEL (desktop only) ===== */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden p-10 xl:p-14">
         <img
           src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
           alt="Stakey's cycle and scooter workshop"
           referrerPolicy="no-referrer"
-          className="absolute inset-0 w-full h-full object-cover object-center opacity-40 scale-105"
+          className="stakeys-auth-decoration absolute inset-0 w-full h-full object-cover object-center opacity-40 scale-105"
         />
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0b0f15] via-[#0b0f15]/80 to-emerald-950/60" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,_rgba(5,193,71,0.22),transparent_55%)]" />
+        <div className="stakeys-auth-decoration absolute inset-0 bg-gradient-to-br from-[#0b0f15] via-[#0b0f15]/80 to-emerald-950/60" />
+        <div className="stakeys-auth-decoration absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,_rgba(5,193,71,0.22),transparent_55%)]" />
         <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex items-center gap-3">
@@ -343,7 +343,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
       {/* ===== RIGHT: AUTH PANEL ===== */}
       <main className="relative flex flex-col justify-center items-center px-4 py-8 sm:py-12 overflow-hidden">
         {/* Mobile / tablet background */}
-        <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none lg:hidden">
+        <div className="stakeys-auth-decoration absolute inset-0 z-0 overflow-hidden pointer-events-none lg:hidden">
           <img
             src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
             alt="Stakey's cycle and scooter workshop"
@@ -351,7 +351,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
             className="w-full h-full object-cover object-center opacity-25 filter saturate-100 scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f15] via-[#0b0f15]/90 to-[#0b0f15]/70" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
+          <div className="stakeys-auth-decoration absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
         </div>
 
         <div className="w-full max-w-md z-10 relative">

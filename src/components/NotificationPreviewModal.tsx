@@ -95,7 +95,9 @@ export const NotificationPreviewModal: React.FC<NotificationPreviewModalProps> =
               <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-4 text-xs space-y-1.5">
                 <div className="flex items-center justify-between text-neutral-400">
                   <span>To: <strong className="text-white">{ownerConfig.ownerEmail}</strong></span>
-                  <span className="text-emerald-400 font-mono text-[11px]">Status: 250 OK (Email Delivered)</span>
+                  <span className={`font-mono text-[11px] ${customerEmailLog?.status === 'pending' ? 'text-amber-300' : 'text-emerald-400'}`}>
+                    {customerEmailLog?.status === 'pending' ? 'Status: Server booking trigger' : 'Status: Email Delivered'}
+                  </span>
                 </div>
                 <div className="text-neutral-400">
                   Subject: <span className="text-neutral-200 font-semibold">{ownerEmailLog?.subject || `⚡ NEW BOOKING: ${booking.customerName} - ${booking.serviceTitle}`}</span>

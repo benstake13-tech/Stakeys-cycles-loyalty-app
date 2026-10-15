@@ -575,9 +575,9 @@ export function isBookingDueForReminder(
 }
 
 /**
- * Dispatches Email notifications exclusively for a new booking:
- * - Customer Confirmation Email confirming request details and pending approval
- * - Workshop Staff Email alert with booking details and customer contacts
+ * Builds the email previews for a new booking. Actual booking emails are sent
+ * by the database's service_bookings INSERT webhook, so this client path must
+ * not call send-email as well (that produced a second set for every booking).
  */
 export async function dispatchBookingNotifications(
   booking: ServiceBooking,
@@ -588,11 +588,6 @@ export async function dispatchBookingNotifications(
   const ownerSubject = sos
     ? `🚨 [STAKEY'S WORKSHOP] SOS EMERGENCY #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`
     : `⚡ [STAKEY'S WORKSHOP] New Booking #${booking.id}: ${booking.serviceTitle} (${booking.customerName})`;
-  // High-importance headers so SOS mail is flagged in the workshop inbox.
-  const importantHeaders: Record<string, string> | undefined = sos
-    ? { 'Importance': 'high', 'X-Priority': '1', 'X-MSMail-Priority': 'High' }
-    : undefined;
-
   // 1. Workshop Owner/Staff Email Log
   const emailLog: BookingNotificationLog = {
     id: `notif-email-owner-${Date.now()}-1`,
@@ -603,7 +598,7 @@ export async function dispatchBookingNotifications(
     subject: ownerSubject,
     content: generateBookingEmailHtml(booking, config),
     timestamp: now,
-    status: 'delivered',
+    status: 'pending',
   };
 
   // 2. Customer Confirmation Email Log
@@ -616,79 +611,14 @@ export async function dispatchBookingNotifications(
     subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
     content: generateCustomerBookingEmailHtml(booking, config),
     timestamp: now,
-    status: 'delivered',
+    status: 'pending',
   };
-
-  // Live Email Gateway: Forward to Supabase Edge Function.
-  // The two recipients are gated INDEPENDENTLY: `emailAlertsEnabled` is the
-  // workshop's own alert preference and must never suppress the customer's
-  // confirmation, or a customer gets no receipt because staff muted their inbox.
-  const failures: string[] = [];
-  const ownerAlertsEnabled = Boolean(config.ownerEmail) && config.emailAlertsEnabled;
-  const ownerAlreadySent = !shouldSendBookingEmail(booking.id, 'booking_confirmation');
-  const ownerReason = !config.ownerEmail
-    ? 'no workshop notification recipient is set'
-    : 'email alerts are turned off in workshop settings';
-  if (!ownerAlertsEnabled) {
-    failures.push(`Workshop booking alert not sent: ${ownerReason}.`);
-    console.warn(`[STAKEYS EMAIL ENGINE] ⚠️ Skipped workshop alert — ${ownerReason}.`);
-  }
-
-  try {
-    const supabase = getSupabaseClient();
-
-    if (ownerAlertsEnabled && !ownerAlreadySent) {
-      const ownerSend = await supabase.functions.invoke('send-email', {
-        body: {
-          from: 'noreply@stakeyscycles.co.uk',
-          to: config.ownerEmail,
-          subject: ownerSubject,
-          html: generateBookingEmailHtml(booking, config),
-          ...(importantHeaders ? { headers: importantHeaders } : {}),
-        },
-      });
-      if (ownerSend.error) {
-        failures.push(`Workshop booking alert failed: ${ownerSend.error.message}`);
-        console.error(`[STAKEYS EMAIL ENGINE] ❌ Workshop alert email failed: ${ownerSend.error.message}`);
-      } else {
-        console.log(`[STAKEYS EMAIL ENGINE] ✅ Booking alert email sent to workshop (${config.ownerEmail})`);
-      }
-    } else if (ownerAlertsEnabled && ownerAlreadySent) {
-      console.log(`[STAKEYS EMAIL ENGINE] ↺ Skipped duplicate confirmation for booking #${booking.id}.`);
-    }
-
-    // The customer confirmation is a receipt for a booking they just made, so
-    // it is attempted whenever we have an address — never gated on the
-    // workshop's own alert toggle. It keeps its OWN dedup key so a suppressed
-    // workshop alert cannot release the customer's guard and double-send.
-    if (booking.customerEmail && shouldSendBookingEmail(booking.id, 'booking_confirmation', 'customer')) {
-      const customerSend = await supabase.functions.invoke('send-email', {
-        body: {
-          from: 'noreply@stakeyscycles.co.uk',
-          to: booking.customerEmail,
-          subject: `📋 Repair Request Received: ${booking.serviceTitle} (#${booking.id}) - Stakey's Cycles`,
-          html: generateCustomerBookingEmailHtml(booking, config),
-        },
-      });
-      if (customerSend.error) {
-        failures.push(`Customer confirmation failed: ${customerSend.error.message}`);
-        console.error(`[STAKEYS EMAIL ENGINE] ❌ Customer confirmation email failed: ${customerSend.error.message}`);
-      } else {
-        console.log(`[STAKEYS EMAIL ENGINE] ✅ Confirmation email sent to customer (${booking.customerEmail})`);
-      }
-    } else {
-      failures.push('Customer confirmation not sent: the booking has no customer email address.');
-    }
-  } catch (err) {
-    failures.push(`Booking emails failed: ${(err as Error).message || String(err)}`);
-    console.error('[EMAIL ENGINE] Failed to dispatch via Edge Function:', err);
-  }
 
   return {
     emailLog,
     customerEmailLog,
     timestamp: now.toISOString(),
-    failures,
+    failures: booking.customerEmail ? [] : ['Customer confirmation not sent: the booking has no customer email address.'],
   };
 }
 

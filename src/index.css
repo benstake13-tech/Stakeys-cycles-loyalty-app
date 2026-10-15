@@ -1659,6 +1659,9 @@
   position: fixed; inset: 0;
   background: linear-gradient(180deg,rgba(0,10,6,.86),rgba(0,6,4,.96)),url('/images/hero_workshop_craftsmanship_1790159761910.jpg') center/cover;
 }
+.seasonal-theme-active .stakeys-premium-staff::before {
+  background: linear-gradient(180deg,rgba(0,10,6,.3),rgba(0,6,4,.52));
+}
 .stakeys-premium-staff .stakeys-brand-header {
   border: 0; border-radius: 0; padding: 8px 0 16px; background: transparent;
   box-shadow: none; backdrop-filter: none;
@@ -1741,6 +1744,7 @@
 /* Customer companion app: the same black glass and emerald identity as staff. */
 .stakeys-premium-customer {color:#f2fff6;color-scheme:dark;isolation:isolate;padding-bottom:calc(90px + env(safe-area-inset-bottom));}
 .stakeys-premium-customer::before {content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(0,10,6,.85),rgba(0,6,4,.96)),url('/images/hero_workshop_craftsmanship_1790159761910.jpg') center/cover;}
+.seasonal-theme-active .stakeys-premium-customer::before {background:linear-gradient(180deg,rgba(0,10,6,.3),rgba(0,6,4,.52));}
 .stakeys-customer-brandbar {display:flex;align-items:center;gap:12px;padding:8px 0 4px;}
 .stakeys-customer-brandbar>div {display:flex;flex-direction:column;gap:5px;flex:1;}
 .stakeys-customer-brandbar>div>span {font-size:12px;letter-spacing:.12em;font-weight:800;color:#27f994;}
@@ -1804,3 +1808,16 @@ main:has(>.stakeys-customer-login) {padding:0!important;max-width:none!important
 .site-editorial-photo:hover .site-editorial-photo__caption svg { transform:translateX(7px); }
 @media(max-width:720px) { .site-editorial-heading { display:block; } .site-editorial-heading p { margin-top:.9rem; } .site-editorial-grid { grid-template-columns:1fr; grid-template-rows:auto; min-height:0; } .site-editorial-photo,.site-editorial-photo--lead { min-height:340px; grid-row:auto; } }
 @media(prefers-reduced-motion:reduce) { .site-editorial-photo img,.site-editorial-photo__caption svg { transition:none; } }
+
+/* One background owner across every route, including authentication/recovery. */
+.stakeys-theme-shell {min-height:100svh;isolation:isolate;position:relative;}
+.stakeys-theme-ui {position:relative;z-index:1;min-height:100svh;}
+.stakeys-theme-shell > .theme-world-background {z-index:0;}
+.seasonal-theme-active .stakeys-auth-screen,
+.seasonal-theme-active .stakeys-auth-screen main,
+.seasonal-theme-active .stakeys-theme-ui > div,
+.seasonal-theme-active .stakeys-theme-ui .min-h-screen {background-color:transparent!important;background-image:none!important;}
+.seasonal-theme-active .stakeys-auth-decoration {display:none!important;}
+.seasonal-theme-active .stakeys-premium-staff::before,
+.seasonal-theme-active .stakeys-premium-customer::before {background:none!important;}
+.seasonal-theme-active .staff-unlock-backdrop {background:rgba(0,12,8,.28);backdrop-filter:none;}

@@ -99,6 +99,7 @@ describe('WebsiteContentManagerTab usability', () => {
   it('picks a single website section with the tile picker', () => {
     render(<WebsiteContentManagerTab />);
     const picker = screen.getByTestId('cms-section-picker');
+    expect(picker.className).not.toMatch(/\bsticky\b|\bz-\d+\b/);
     expect(within(picker).getByTestId('cms-section-all').getAttribute('aria-pressed')).toBe('true');
 
     fireEvent.click(within(picker).getByTestId('cms-section-faqs'));

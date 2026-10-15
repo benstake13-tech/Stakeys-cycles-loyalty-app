@@ -189,8 +189,11 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false, prefill = n
   const configured = isBikeVisionConfigured();
   const capturedCount = SELL_ANGLES.filter((a) => photos[a.id]).length;
 
-  const orderedPhotos = useMemo(
-    () => SELL_ANGLES.map((a) => photos[a.id]).filter(Boolean) as SellAnglePhoto[],
+  const orderedPhotos = useMemo<SellAnglePhoto[]>(
+    () => [
+      ...SELL_ANGLES.map((a) => photos[a.id]).filter((p): p is SellAnglePhoto => p !== undefined),
+      ...Object.values(photos).filter((p): p is SellAnglePhoto => p !== undefined && !SELL_ANGLES.some(a => a.id === p.angle)),
+    ],
     [photos]
   );
 
@@ -205,7 +208,7 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false, prefill = n
       toast.error('Please choose an image file.');
       return;
     }
-    const angle = SELL_ANGLES.find((a) => a.id === targetAngle.current) || SELL_ANGLES[0];
+    const angle = SELL_ANGLES.find((a) => a.id === targetAngle.current) || { id: targetAngle.current, label: targetAngle.current.replace('detail-', '') };
     const compressed = await compressImageFile(file);
     setPhotos((prev) => ({ ...prev, [angle.id]: { angle: angle.id, label: angle.label, dataUrl: compressed.dataUrl } }));
     setResult(null);
@@ -441,6 +444,14 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false, prefill = n
         )}
       </div>
 
+      {result?.photoRequests?.length > 0 && <section className="rounded-2xl border border-amber-500/30 p-4 space-y-3">
+        <h3 className="font-bold text-amber-300">Photos needed to complete the specification</h3>
+        {result.photoRequests.map((request: any) => <div key={request.systemId} className="text-xs">
+          <strong>{request.area}</strong><p>{request.instruction}</p>
+          <button type="button" disabled={analyzing} className="text-emerald-300 underline py-2" onClick={() => { targetAngle.current = `detail-${request.systemId}`; fileRef.current?.click(); }}>Add or retake detail photo</button>
+        </div>)}
+        <p className="text-xs text-neutral-400">Stock parts remain unverified until an exact model-year manufacturer specification is checked. Tyre pressure, leaks and internal faults need physical testing.</p>
+      </section>}
       {/* AI result + instant offer */}
       {result && (
         <div className="rounded-2xl border border-emerald-500/30 bg-gradient-to-b from-emerald-950/20 to-transparent p-5 space-y-4 animate-fade-in">

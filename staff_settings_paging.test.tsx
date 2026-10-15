@@ -204,10 +204,17 @@ describe('staff Settings tab paging', () => {
     // The launcher collapses to a "Back to tools" control.
     expect(screen.queryByTestId('staff-tool-launcher')).toBeNull();
     expect(screen.getByTestId('staff-back-to-tools')).toBeTruthy();
+    expect(screen.getByTestId('staff-tool-page')).toBeTruthy();
+    expect(screen.queryByTestId('staff-home-header')).toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: 'Bookings' })).toBeTruthy();
+    expect(screen.getByTestId('ride-stage').getAttribute('data-ride-state')).toBe('entering');
     expect(isViewShown('bookings')).toBe(true);
 
     fireEvent.click(screen.getByTestId('staff-back-to-tools'));
     expect(screen.getByTestId('staff-tool-launcher')).toBeTruthy();
+    expect(screen.queryByTestId('staff-tool-page')).toBeNull();
+    expect(screen.getByTestId('staff-home-header')).toBeTruthy();
+    expect(screen.getByTestId('ride-stage').getAttribute('data-ride-state')).toBe('exiting');
   });
 });
 

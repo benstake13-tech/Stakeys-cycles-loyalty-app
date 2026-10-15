@@ -11,8 +11,13 @@ import { isStaffSurface } from '../config/surface';
  * the panels above it.
  */
 export const PremiumBackdrop: React.FC = () => {
-  const { theme } = useShop();
+  const { theme, seasonalTheme } = useShop();
   const isDark = theme !== 'light';
+
+  // Let the full-screen seasonal artwork provide the page background while a
+  // seasonal theme is active. The regular backdrop returns automatically when
+  // the theme is cleared.
+  if (seasonalTheme && seasonalTheme !== 'none') return null;
 
   return (
     <div className={`${isDark ? 'os-backdrop' : 'os-backdrop light'}${isStaffSurface ? ' os-backdrop-charcoal' : ''}`} aria-hidden="true">

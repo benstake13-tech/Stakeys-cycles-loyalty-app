@@ -65,8 +65,17 @@ keystore.properties
 .externalNativeBuild
 .cxx/
 
-# Google Services (e.g. APIs or Firebase)
-# google-services.json
+# Firebase client configuration: supply one file per Android flavor, or one
+# shared file that registers both application IDs. Keep local config out of git.
+app/google-services.json
+app/src/staff/google-services.json
+app/src/customer/google-services.json
+
+# Private FCM/Firebase service account credentials belong in the OneSignal
+# dashboard only and must never be committed or packaged.
+*service-account*.json
+*firebase-adminsdk*.json
+*fcm-credentials*.json
 
 # Freeline
 freeline.py

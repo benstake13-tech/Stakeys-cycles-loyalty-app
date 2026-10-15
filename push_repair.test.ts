@@ -10,6 +10,7 @@ function makeDeps(overrides: Partial<PushRepairDeps> = {}, cfg?: Partial<PushRep
       ...cfg,
     }),
     initSdk: async () => true,
+    getRuntimeDiagnostic: async () => ({ client: 'android-native', appId: 'app-123', initialized: true }),
     getPermission: async () => 'granted',
     requestPermission: async () => 'granted',
     getSubscriptionId: async () => 'sub-abcdef123456',
@@ -18,7 +19,6 @@ function makeDeps(overrides: Partial<PushRepairDeps> = {}, cfg?: Partial<PushRep
     getConfiguredAppId: () => 'app-123',
     linkUser: vi.fn(async () => undefined),
     registerEmail: vi.fn(async () => undefined),
-    sendTestPush: async () => ({ ok: true, via: 'server', envelope: { id: 'msg-1', recipients: 1 } }),
     ...overrides,
   };
 }
@@ -32,15 +32,16 @@ describe('runPushRepair — diagnostics', () => {
     expect(steps.find((s) => s.id === 'sdk-loaded')?.status).toBe('pass');
     expect(steps.find((s) => s.id === 'permission')?.status).toBe('pass');
     expect(steps.find((s) => s.id === 'subscription')?.status).toBe('pass');
-    expect(steps.find((s) => s.id === 'dispatch')?.status).toBe('pass');
+    expect(steps.find((s) => s.id === 'dispatch')?.status).toBe('warn');
+    expect(steps.find((s) => s.id === 'dispatch')?.detail).toMatch(/not sent/i);
     expect(steps.some((s) => s.status === 'fail')).toBe(false);
   });
 
-  it('flags a missing OneSignal App API key with the Supabase secret name', async () => {
+  it('flags a missing REST key with the Vercel env name to set', async () => {
     const steps = await runPushRepair(makeDeps({}, { serverPush: false, restKeyEnv: null }), CTX);
     const cfg = steps.find((s) => s.id === 'server-config');
     expect(cfg?.status).toBe('fail');
-    expect(cfg?.hint).toContain('ONESIGNAL_APP_API_KEY');
+    expect(cfg?.hint).toContain('ONESIGNAL_REST_API_KEY');
   });
 
   it('flags an unresolved app id', async () => {
@@ -58,6 +59,17 @@ describe('runPushRepair — diagnostics', () => {
   it('warns rather than fails when permission is merely unrequested', async () => {
     const steps = await runPushRepair(makeDeps({ getPermission: async () => 'default' }), CTX);
     expect(steps.find((s) => s.id === 'permission')?.status).toBe('warn');
+  });
+
+  it('does not treat a successful browser SDK check as a native Android pass', async () => {
+    const steps = await runPushRepair(makeDeps({
+      getRuntimeDiagnostic: async () => ({ client: 'web', appId: 'web-app', initialized: true }),
+      initSdk: async () => true,
+    }), CTX, { repair: false });
+    const sdk = steps.find((s) => s.id === 'sdk-loaded');
+    expect(sdk?.status).toBe('warn');
+    expect(sdk?.label).toMatch(/Android native/i);
+    expect(sdk?.detail).toMatch(/web push client/i);
   });
 });
 
@@ -116,7 +128,9 @@ describe('runPushRepair — device opt-in & app id', () => {
   });
 
   it('reports the configured App ID in the SDK step', async () => {
-    const steps = await runPushRepair(makeDeps({ getConfiguredAppId: () => 'abcd1234-efgh' }), CTX);
+    const steps = await runPushRepair(makeDeps({
+      getRuntimeDiagnostic: async () => ({ client: 'android-native', appId: 'abcd1234-efgh', initialized: true }),
+    }), CTX);
     expect(steps.find((s) => s.id === 'sdk-loaded')?.detail).toContain('abcd1234');
   });
 });
@@ -137,14 +151,25 @@ describe('runPushRepair — repairs', () => {
     expect(steps.find((s) => s.id === 'permission')?.status).toBe('pass');
   });
 
-  it('links the user and registers the owner email as fixed steps', async () => {
+  it('links the user and registers the owner email in the web push flow', async () => {
     const linkUser = vi.fn(async () => undefined);
     const registerEmail = vi.fn(async () => undefined);
-    const steps = await runPushRepair(makeDeps({ linkUser, registerEmail }), CTX, { repair: true });
+    const steps = await runPushRepair(makeDeps({
+      linkUser,
+      registerEmail,
+      getRuntimeDiagnostic: async () => ({ client: 'web', appId: 'web-app', initialized: true }),
+    }), CTX, { repair: true });
     expect(linkUser).toHaveBeenCalledWith('uid-12345678', expect.objectContaining({ membership: '124' }));
     expect(registerEmail).toHaveBeenCalledWith('owner@x.co');
     expect(steps.find((s) => s.id === 'identity')?.status).toBe('fixed');
     expect(steps.find((s) => s.id === 'email')?.status).toBe('fixed');
+  });
+
+  it('does not attach an email subscription as part of native Android push repair', async () => {
+    const registerEmail = vi.fn(async () => undefined);
+    const steps = await runPushRepair(makeDeps({ registerEmail }), CTX, { repair: true });
+    expect(registerEmail).not.toHaveBeenCalled();
+    expect(steps.find((s) => s.id === 'email')?.detail).toMatch(/not used for native Android push/i);
   });
 
   it('does not mutate anything in check-only mode', async () => {
@@ -162,43 +187,20 @@ describe('runPushRepair — repairs', () => {
   });
 });
 
-describe('runPushRepair — dispatch probe', () => {
-  it('warns when OneSignal says nothing is subscribed', async () => {
-    const steps = await runPushRepair(
-      makeDeps({
-        sendTestPush: async () => ({ ok: false, via: 'server', envelope: { id: '', errors: ['All included players are not subscribed'] } }),
-      }),
-      CTX,
-      { repair: true }
-    );
+describe('runPushRepair — safe delivery step', () => {
+  it('never dispatches remotely, including during repair mode', async () => {
+    const steps = await runPushRepair(makeDeps(), CTX, { repair: true });
     const dispatch = steps.find((s) => s.id === 'dispatch');
     expect(dispatch?.status).toBe('warn');
-    expect(dispatch?.hint).toMatch(/phone|Allow/i);
+    expect(dispatch?.detail).toMatch(/not sent/i);
+    expect(dispatch?.hint).toMatch(/Android subscriptions linked to the signed-in staff account/i);
+    expect(dispatch?.hint).toMatch(/owner_email/i);
   });
 
-  it('fails on a hard OneSignal error', async () => {
-    const steps = await runPushRepair(
-      makeDeps({ sendTestPush: async () => ({ ok: false, via: 'server', envelope: { errors: ['Invalid app_id'] } }) }),
-      CTX,
-      { repair: true }
-    );
-    expect(steps.find((s) => s.id === 'dispatch')?.status).toBe('fail');
-  });
-
-  it('never sends a test push during a read-only check', async () => {
-    const sendTestPush = vi.fn(async () => ({ ok: true, via: 'server' as const }));
-    const steps = await runPushRepair(makeDeps({ sendTestPush }), CTX, { repair: false });
-    expect(sendTestPush).not.toHaveBeenCalled();
-    const dispatch = steps.find((s) => s.id === 'dispatch');
-    expect(dispatch?.status).toBe('warn');
-    expect(dispatch?.detail).toMatch(/check/i);
-  });
-
-  it('skips the dispatch probe when server push is off', async () => {
-    const sendTestPush = vi.fn(async () => ({ ok: true, via: 'server' as const }));
-    const steps = await runPushRepair(makeDeps({ sendTestPush }, { serverPush: false }), CTX, { repair: true });
-    expect(sendTestPush).not.toHaveBeenCalled();
+  it('keeps the delivery step as a warning when server push is not configured', async () => {
+    const steps = await runPushRepair(makeDeps({}, { serverPush: false }), CTX, { repair: true });
     expect(steps.find((s) => s.id === 'dispatch')?.status).toBe('warn');
+    expect(steps.find((s) => s.id === 'dispatch')?.detail).toMatch(/fix the server configuration/i);
   });
 });
 

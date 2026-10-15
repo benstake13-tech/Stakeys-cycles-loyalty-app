@@ -40,7 +40,7 @@ export interface ScooterDiagnosticReport {
   brick: BrickReport;
   /** 0..100 — share of non-info checks that passed. */
   score: number;
-  verdict: 'healthy' | 'attention' | 'faulty';
+  verdict: 'healthy' | 'attention' | 'faulty' | 'unsupported';
 }
 
 export interface DiagnosticInput {
@@ -72,6 +72,7 @@ export function buildDiagnosticReport(input: DiagnosticInput): ScooterDiagnostic
     { esc: versionFor(input.versions, 'esc'), bms: versionFor(input.versions, 'bms'), ble: versionFor(input.versions, 'ble') }
   );
   const brick = evaluateBrick({
+    protocolSupported: input.protocolFamily !== 'Generic UART',
     advertised: input.advertised,
     gattConnected: input.gattConnected,
     statusReadable: input.telemetry.voltage !== undefined && input.telemetry.voltage! > 0,
@@ -137,14 +138,22 @@ export function buildDiagnosticReport(input: DiagnosticInput): ScooterDiagnostic
   checks.push({
     id: 'brick',
     label: 'Brick signature',
-    status: brick.verdict === 'healthy' ? 'pass' : brick.verdict === 'suspicious' ? 'warn' : 'fail',
+    status: brick.verdict === 'unsupported' ? 'info' : brick.verdict === 'healthy' ? 'pass' : brick.verdict === 'suspicious' ? 'warn' : 'fail',
     detail: `${brick.verdict} — ${brick.recommendation}`,
   });
 
+  if (input.protocolFamily === 'Generic UART') {
+    for (const check of checks) {
+      if (['versions', 'faults', 'battery', 'temperature', 'firmware-stock'].includes(check.id)) {
+        check.status = 'info';
+        check.detail = 'Not assessed: this controller protocol is not supported by the app.';
+      }
+    }
+  }
   const graded = checks.filter((c) => c.status !== 'info');
   const passed = graded.filter((c) => c.status === 'pass').length;
   const score = graded.length ? Math.round((passed / graded.length) * 100) : 0;
-  const verdict: ScooterDiagnosticReport['verdict'] = graded.some((c) => c.status === 'fail')
+  const verdict: ScooterDiagnosticReport['verdict'] = input.protocolFamily === 'Generic UART' ? 'unsupported' : graded.some((c) => c.status === 'fail')
     ? 'faulty'
     : graded.some((c) => c.status === 'warn')
       ? 'attention'

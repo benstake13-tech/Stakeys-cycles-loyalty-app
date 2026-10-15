@@ -11,7 +11,7 @@ import { withPushTimeout } from './pushTimeout';
  *
  * Dependency-injected so the flow is testable without a live OneSignal SDK.
  */
-import type { PushPermission } from './pushNotifications';
+import type { PushPermission, PushRuntimeDiagnostic } from './pushNotifications';
 
 export type PushRepairStatus = 'pass' | 'warn' | 'fail' | 'fixed';
 
@@ -42,6 +42,7 @@ export interface PushRepairServerConfig {
 export interface PushRepairDeps {
   getServerConfig: () => Promise<PushRepairServerConfig>;
   initSdk: () => Promise<boolean>;
+  getRuntimeDiagnostic: () => Promise<PushRuntimeDiagnostic>;
   getPermission: () => Promise<PushPermission>;
   requestPermission: () => Promise<PushPermission>;
   getSubscriptionId: () => Promise<string | null>;
@@ -50,11 +51,6 @@ export interface PushRepairDeps {
   getConfiguredAppId: () => string;
   linkUser: (userId: string, tags?: Record<string, string | number>) => Promise<void>;
   registerEmail: (email: string) => Promise<void>;
-  sendTestPush: () => Promise<{
-    ok: boolean;
-    via: string;
-    envelope?: { id?: string; recipients?: number; errors?: string[] } | null;
-  }>;
 }
 
 export interface PushRepairContext {
@@ -65,7 +61,9 @@ export interface PushRepairContext {
 }
 
 const DEFAULT_REST_KEY_NAMES = [
-  'ONESIGNAL_APP_API_KEY',
+  'ONESIGNAL_REST_API_KEY',
+  'ONESIGNAL_API_KEY',
+  'VITE_ONESIGNAL_REST_API_KEY',
 ];
 
 async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
@@ -95,7 +93,7 @@ function permissionStep(perm: PushPermission, repaired: boolean): PushRepairStep
       ...base,
       status: 'fail',
       detail: 'Notifications are blocked for this site in the browser.',
-      hint: 'Open the browser site settings (padlock icon) and allow notifications, then reload the app.',
+      hint: 'Open this app or site’s notification settings and allow notifications, then reload.',
     };
   }
   if (perm === 'unsupported') {
@@ -134,12 +132,11 @@ function permissionStep(perm: PushPermission, repaired: boolean): PushRepairStep
 /** Which step repairs which part of the chain, for a single-step "Fix" button. */
 export const PUSH_STEP_FIX_ACTION: Record<string, string> = {
   'server-config': 'Re-check server config',
-  'sdk-loaded': 'Reload & re-initialise',
+  'sdk-loaded': 'Re-check SDK status',
   permission: 'Request permission',
   subscription: 'Opt this device in',
   identity: 'Re-link this user',
   email: 'Re-attach email',
-  dispatch: 'Re-send test push',
 };
 
 export async function runPushRepair(
@@ -173,7 +170,7 @@ export async function runPushRepair(
     { label: 'App ID (env)', value: mask(serverAppId), ok: Boolean(serverAppId) },
     { label: 'serverPush', value: String(serverPush), ok: serverPush },
     { label: 'REST key env', value: restKeyEnv || 'not found', ok: Boolean(restKeyEnv) },
-    { label: 'Endpoint', value: 'Supabase onesignal-gateway', ok: !cfgError },
+    { label: 'Endpoint', value: '/api/onesignal/config', ok: !cfgError },
   ];
 
   if (cfgError) {
@@ -181,8 +178,8 @@ export async function runPushRepair(
       id: 'server-config',
       label: 'Server push config',
       status: 'fail',
-      detail: `Could not read Supabase onesignal-gateway (${cfgError}).`,
-      hint: 'Deploy the onesignal-gateway Supabase Edge Function and verify the project URL and function availability.',
+      detail: `Could not read /api/onesignal/config (${cfgError}).`,
+      hint: 'The host may not be deploying the api/onesignal functions. Check the Vercel project branch and redeploy.',
       facts: serverFacts,
     });
   } else if (!serverAppId) {
@@ -190,8 +187,8 @@ export async function runPushRepair(
       id: 'server-config',
       label: 'Server push config',
       status: 'fail',
-      detail: 'The app ID was not returned by Supabase onesignal-gateway.',
-      hint: 'Set ONESIGNAL_APP_ID in Supabase Edge Function secrets and VITE_ONESIGNAL_APP_ID in the app build configuration.',
+      detail: 'The app ID was not returned by /api/onesignal/config.',
+      hint: 'Set VITE_ONESIGNAL_APP_ID (or ONESIGNAL_APP_ID) in the deployment, then redeploy.',
       facts: serverFacts,
     });
   } else if (!serverPush) {
@@ -200,8 +197,8 @@ export async function runPushRepair(
       id: 'server-config',
       label: 'Server push config',
       status: 'fail',
-      detail: 'App ID resolved but serverPush=false — Supabase cannot see the OneSignal App API key.',
-      hint: `Add ${names} under Supabase Edge Function secrets, then deploy onesignal-gateway.`,
+      detail: 'App ID resolved but serverPush=false — the server cannot see the REST key.',
+      hint: `Add the REST key under one of: ${names}. In Vercel set it for all environments, then Redeploy.`,
       facts: serverFacts,
     });
   } else {
@@ -214,24 +211,35 @@ export async function runPushRepair(
     });
   }
 
-  // 2. SDK loaded + which App ID it is using.
-  const sdkOk = await safe(() => deps.initSdk(), false);
-  const appId = deps.getConfiguredAppId();
+  // 2. Verify the actual client. A browser SDK pass is not proof that native
+  //    Android OneSignal initialized from ApplicationClass.
+  const runtime = await safe(
+    () => deps.getRuntimeDiagnostic(),
+    { client: 'unknown', appId: null, initialized: false } as PushRuntimeDiagnostic
+  );
+  const androidNative = runtime.client === 'android-native';
+  const sdkOk = androidNative ? runtime.initialized : await safe(() => deps.initSdk(), false);
+  const appId = androidNative ? runtime.appId : deps.getConfiguredAppId();
   steps.push({
     id: 'sdk-loaded',
-    label: 'OneSignal SDK loaded',
-    status: sdkOk ? 'pass' : 'fail',
-    detail: sdkOk
-      ? `The v16 web SDK initialised${appId ? ` with App ID ${appId.slice(0, 8)}…` : ''}.`
-      : 'The OneSignal SDK did not initialise.',
-    hint: sdkOk
-      ? undefined
-      : appId
-      ? `Check that App ID ${appId.slice(0, 8)}… is a valid OneSignal app, then reload.`
-      : 'Set the App ID in the Configure Push section below, then reload.',
+    label: androidNative ? 'Android native SDK startup' : 'Android native client check',
+    status: androidNative ? (sdkOk ? 'pass' : 'fail') : 'warn',
+    detail: androidNative
+      ? sdkOk
+        ? `ApplicationClass initialized the native OneSignal SDK${appId ? ` with App ID ${appId.slice(0, 8)}…` : ''}.`
+        : 'This Android app did not report OneSignal initialized by ApplicationClass.'
+      : runtime.client === 'web'
+        ? 'This is the web push client. A browser SDK result does not test native Android push.'
+        : 'Could not verify that this client is the native Android app.',
+    hint: androidNative && !sdkOk
+      ? 'Check ApplicationClass registration, the native App ID resource, and the installed APK, then reopen the Android app.'
+      : !androidNative
+        ? 'Open this screen inside the Stakeys Cycles Android APK to check native push.'
+        : undefined,
     facts: [
-      { label: 'Initialised', value: String(sdkOk), ok: sdkOk },
-      { label: 'App ID in use', value: mask(appId), ok: Boolean(appId) },
+      { label: 'Client', value: runtime.client, ok: androidNative },
+      { label: 'ApplicationClass initialized', value: androidNative ? String(runtime.initialized) : 'not verified', ok: androidNative && runtime.initialized },
+      { label: androidNative ? 'Native Android App ID' : 'Web App ID', value: mask(runtime.appId), ok: androidNative && Boolean(runtime.appId) },
     ],
   });
 
@@ -344,8 +352,16 @@ export async function runPushRepair(
     });
   }
 
-  // 6. Owner email subscription (repairable).
-  if (ctx.ownerEmail) {
+  // 6. Email subscriptions are a web channel, not part of native Android push.
+  if (androidNative) {
+    steps.push({
+      id: 'email',
+      label: 'Email channel (web only)',
+      status: 'pass',
+      detail: 'Not used for native Android push; no email subscription was changed.',
+      facts: [{ label: 'Android push channel', value: 'not applicable', ok: true }],
+    });
+  } else if (ctx.ownerEmail) {
     if (canRepair('email') && sdkOk) {
       await safe(() => deps.registerEmail(ctx.ownerEmail as string), undefined);
       steps.push({
@@ -375,77 +391,21 @@ export async function runPushRepair(
     });
   }
 
-  // 7. End-to-end dispatch probe. This is the one step that actually SENDS a
-  //    message, so it only runs when this pass is allowed to perform the
-  //    dispatch repair — a read-only check must never fire a push.
-  if (!serverPush) {
-    steps.push({
-      id: 'dispatch',
-      label: 'Test push dispatch',
-      status: 'warn',
-      detail: 'Skipped — server push is not configured yet.',
-      hint: 'Fix the server push config above, then re-run.',
-      facts: [{ label: 'Reached OneSignal', value: 'no (skipped)', ok: false }],
-    });
-  } else if (!canRepair('dispatch')) {
-    steps.push({
-      id: 'dispatch',
-      label: 'Test push dispatch',
-      status: 'warn',
-      detail: 'Not sent — a test push is only dispatched during a repair, not a read-only check.',
-      hint: 'Press “Repair & Configure Push” (or “Fix” on this step) to send a real test push to the admin devices.',
-      facts: [{ label: 'Reached OneSignal', value: 'no (check-only)', ok: false }],
-    });
-  } else {
-    const res = await safe(
-      () => deps.sendTestPush(),
-      { ok: false, via: 'none', envelope: null } as Awaited<ReturnType<PushRepairDeps['sendTestPush']>>
-    );
-    const errors = res.envelope?.errors || [];
-    const recipients = res.envelope?.recipients;
-    const dispatchFacts = [
-      { label: 'Transport', value: res.via, ok: res.via === 'server' },
-      { label: 'OneSignal id', value: mask(res.envelope?.id ?? null), ok: Boolean(res.envelope?.id) },
-      { label: 'Recipients', value: recipients === undefined ? 'n/a' : String(recipients), ok: (recipients ?? 0) > 0 },
-      { label: 'Errors', value: errors.length ? errors.join('; ') : 'none', ok: errors.length === 0 },
-    ];
-    if (res.ok) {
-      steps.push({
-        id: 'dispatch',
-        label: 'Test push dispatch',
-        status: 'pass',
-        detail: `OneSignal accepted and delivered to ${recipients ?? 0} device${(recipients ?? 0) === 1 ? '' : 's'}.`,
-        facts: dispatchFacts,
-      });
-    } else if (errors.some((e) => /not subscribed/i.test(e))) {
-      steps.push({
-        id: 'dispatch',
-        label: 'Test push dispatch',
-        status: 'warn',
-        detail: 'The server reached OneSignal, but no device is subscribed yet.',
-        hint: 'Open the staff app on a phone, tap “Enable on This Device” and Allow, then re-run.',
-        facts: dispatchFacts,
-      });
-    } else if (errors.length) {
-      steps.push({
-        id: 'dispatch',
-        label: 'Test push dispatch',
-        status: 'fail',
-        detail: `OneSignal error: ${errors.join('; ')}`,
-        hint: 'Make sure ONESIGNAL_APP_ID and ONESIGNAL_APP_API_KEY belong to the same OneSignal app.',
-        facts: dispatchFacts,
-      });
-    } else {
-      steps.push({
-        id: 'dispatch',
-        label: 'Test push dispatch',
-        status: 'fail',
-        detail: 'Push dispatch did not return a usable response.',
-        hint: 'Deploy the onesignal-gateway Supabase Edge Function and set ONESIGNAL_APP_API_KEY in Supabase secrets.',
-        facts: dispatchFacts,
-      });
-    }
-  }
+  // Live delivery is intentionally not part of this diagnostic flow. A test
+  // must target the authenticated staff account's Android subscriptions only.
+  steps.push({
+    id: 'dispatch',
+    label: 'Live notification test',
+    status: 'warn',
+    detail: serverPush
+      ? 'Not sent. Server configuration is ready, but delivery has not been tested.'
+      : 'Not sent. Fix the server configuration before testing delivery.',
+    hint: 'Use Test My Android Devices to send only to Android subscriptions linked to the signed-in staff account. It does not target owner_email or a broad segment. Setup checks never send a notification.',
+    facts: [
+      { label: 'Server push configured', value: String(serverPush), ok: serverPush },
+      { label: 'Remote notification', value: 'not sent', ok: false },
+    ],
+  });
 
   return steps;
 }
