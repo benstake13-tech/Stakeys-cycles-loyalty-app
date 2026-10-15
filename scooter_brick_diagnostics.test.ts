@@ -7,6 +7,11 @@ import { buildDiagnosticReport, runDiagnosticSweep, type ScooterSessionLike } fr
 // ---------------------------------------------------------------------------
 
 describe('brick detector', () => {
+  it('does not diagnose an unsupported silent controller as bricked', () => {
+    const r = evaluateBrick({ protocolSupported: false, advertised: true, gattConnected: true, statusReadable: false, versionsRead: 0, errorCode: null, escVersion: null });
+    expect(r.verdict).toBe('unsupported');
+    expect(r.recommendation).toContain('Missing data does not establish a firmware fault');
+  });
   it('is unresponsive when the device never advertises', () => {
     const r = evaluateBrick({
       advertised: false,

@@ -22,7 +22,7 @@ type GeminiRequest = {
     thinkingConfig?: unknown;
   };
 };
-export const generateGemini = async (request: GeminiRequest): Promise<{ text: string }> => {
+export const generateGemini = async (request: GeminiRequest): Promise<{ text: string; model?: string }> => {
   if (!isGeminiGatewayConfigured()) throw Error('Gemini gateway unavailable');
   const { abortSignal, httpOptions, thinkingConfig, ...config } = request.config || {};
   const controller = new AbortController();
@@ -41,12 +41,14 @@ export const generateGemini = async (request: GeminiRequest): Promise<{ text: st
     if (response instanceof Response) {
       try { detail = await response.clone().json(); } catch { /* non-JSON gateway response */ }
     }
-    const code = detail.code || (detail.error?.toLowerCase().includes('key is not configured') ? 'NOT_CONFIGURED' : '');
+    const code = detail.code || (detail.error === 'GEMINI_API_KEY is not configured' ? 'NOT_CONFIGURED' : '');
     const messages: Record<string, string> = {
       NOT_CONFIGURED: 'The assistant needs GEMINI_API_KEY in Supabase Edge Function secrets.',
       KEY_REJECTED: 'Google rejected the assistant API key. Check the Gemini key and its API restrictions in Supabase.',
       RATE_LIMITED: 'The assistant has reached its Gemini quota. Please try again later.',
-      MODEL_UNAVAILABLE: 'The configured Gemini model is unavailable. Update GEMINI_MODEL in Supabase function secrets.',
+      MODEL_UNAVAILABLE: 'The latest Gemini Flash model is unavailable for this Google API project.',
+      SERVICE_BUSY: 'Gemini is temporarily busy. Please try again shortly.',
+      BILLING_REQUIRED: 'Gemini returned HTTP 402: Google says the project linked to this key has no usable prepay credits. For Free Tier, use an AI Studio key from a project marked Free Tier. Paid fallback is disabled.',
     };
     if (messages[code]) throw Error(messages[code]);
     if (response instanceof Response && response.status === 404) throw Error('The gemini-gateway function is not deployed in Supabase.');
@@ -56,7 +58,7 @@ export const generateGemini = async (request: GeminiRequest): Promise<{ text: st
   }
   if (data?.error) throw Error(data.error);
   if (typeof data?.text !== 'string') throw Error('Invalid Gemini response');
-  return { text: data.text };
+  return { text: data.text, ...(typeof data.model === 'string' ? { model: data.model } : {}) };
   } finally {
     clearTimeout(timer);
     abortSignal?.removeEventListener('abort', abort);

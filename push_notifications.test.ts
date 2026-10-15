@@ -3,8 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // The util reads VITE_ONESIGNAL_APP_ID and caches init state at module load, so
 // each test gets a fresh module instance.
 const APP_ID = 'test-app-id';
-const { mockInvoke } = vi.hoisted(() => ({ mockInvoke: vi.fn() }));
-vi.mock('./src/lib/supabase', () => ({ supabase: { functions: { invoke: mockInvoke } } }));
 
 /**
  * Installs a fake `OneSignalDeferred` queue that immediately hands the live SDK
@@ -44,10 +42,11 @@ function fakeSdk(overrides: Record<string, any> = {}) {
 }
 
 beforeEach(() => {
-  mockInvoke.mockReset();
-  mockInvoke.mockImplementation(async (_name: string, { body }: any) => body.action === 'config'
-    ? { data: { appId: APP_ID, androidAppId: APP_ID, serverPush: true, keySource: 'Supabase Edge Function secret' }, error: null }
-    : { data: { id: 'msg-1', recipients: 1 }, error: null });
+  // Default: server push configured, so sendPushToUser exercises the fetch path.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => ({ ok: true, json: async () => ({ appId: APP_ID, serverPush: true }) }))
+  );
   (window as any).__oneSignalHeadInit = true;
   // jsdom has no Notification API; the util guards on it for browser support.
   vi.stubGlobal('Notification', { permission: 'default' });
@@ -128,31 +127,34 @@ describe('pushNotifications (OneSignal)', () => {
   it('sendPushToUser posts the target profile to the backend when server push is configured', async () => {
     const { sendPushToUser } = await load();
     await sendPushToUser('uid-9', 'Title', 'Body', 'https://x.test');
-    const call = mockInvoke.mock.calls.find((c: any[]) => c[0] === 'onesignal-gateway' && c[1].body.action === 'notify');
+    const call = (fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('/api/onesignal/notify'));
     expect(call).toBeTruthy();
-    const body = call![1].body;
+    const body = JSON.parse(call[1].body);
     expect(body).toMatchObject({ title: 'Title', body: 'Body', externalUserId: 'uid-9' });
   });
 
   it('sendPushToUser targets a tag when no profile is given', async () => {
     const { sendPushToUser } = await load();
     await sendPushToUser(undefined, 'T', 'B', undefined, { tag: { key: 'owner_email', value: 'a@b.test' } });
-    const call = mockInvoke.mock.calls.find((c: any[]) => c[0] === 'onesignal-gateway' && c[1].body.action === 'notify');
-    expect(call![1].body.tag).toEqual({ key: 'owner_email', value: 'a@b.test' });
+    const call = (fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('/api/onesignal/notify'));
+    expect(JSON.parse(call[1].body).tag).toEqual({ key: 'owner_email', value: 'a@b.test' });
   });
 
   it('sendPushToUser falls back to a segment when no profile or tag is given', async () => {
     const { sendPushToUser } = await load();
     await sendPushToUser(undefined, 'T', 'B', undefined, { segment: 'staff' });
-    const call = mockInvoke.mock.calls.find((c: any[]) => c[0] === 'onesignal-gateway' && c[1].body.action === 'notify');
-    expect(call![1].body.segment).toBe('staff');
+    const call = (fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('/api/onesignal/notify'));
+    expect(JSON.parse(call[1].body).segment).toBe('staff');
   });
 
   it('sendPushToUser reports ok:false when OneSignal says nothing is subscribed', async () => {
     const { sendPushToUser } = await load();
-    mockInvoke.mockImplementation(async (_name: string, { body }: any) => body.action === 'config'
-      ? { data: { appId: APP_ID, serverPush: true }, error: null }
-      : { data: { id: '', errors: ['All included players are not subscribed'] }, error: null });
+    (fetch as any).mockImplementation(async (url: string) => {
+      if (String(url).includes('/api/onesignal/config')) {
+        return { ok: true, json: async () => ({ appId: APP_ID, serverPush: true }) };
+      }
+      return { ok: true, json: async () => ({ id: '', errors: ['All included players are not subscribed'] }) };
+    });
     const res = await sendPushToUser('uid-9', 'T', 'B');
     expect(res.ok).toBe(false);
     expect(res.via).toBe('server');
@@ -161,9 +163,12 @@ describe('pushNotifications (OneSignal)', () => {
 
   it('sendPushToUser reports ok:true when OneSignal accepts and delivers', async () => {
     const { sendPushToUser } = await load();
-    mockInvoke.mockImplementation(async (_name: string, { body }: any) => body.action === 'config'
-      ? { data: { appId: APP_ID, serverPush: true }, error: null }
-      : { data: { id: 'msg-1', recipients: 1 }, error: null });
+    (fetch as any).mockImplementation(async (url: string) => {
+      if (String(url).includes('/api/onesignal/config')) {
+        return { ok: true, json: async () => ({ appId: APP_ID, serverPush: true }) };
+      }
+      return { ok: true, json: async () => ({ id: 'msg-1', recipients: 1 }) };
+    });
     const res = await sendPushToUser('uid-9', 'T', 'B');
     expect(res.ok).toBe(true);
     expect(res.envelope?.recipients).toBe(1);
@@ -178,6 +183,27 @@ describe('pushNotifications (OneSignal)', () => {
     expect(second).toBe(true);
   });
 
+  it('reports Android native startup from the Capacitor bridge, not from Web Push', async () => {
+    const bridge = {
+      getStatus: vi.fn(async () => ({ initialized: true, appId: APP_ID, permission: true, subscriptionId: 'native-sub-1', optedIn: true })),
+      initialize: vi.fn(async () => {}),
+    };
+    vi.doMock('@capacitor/core', () => ({
+      Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' },
+      registerPlugin: () => bridge,
+    }));
+    try {
+      const { getPushRuntimeDiagnostic, initOneSignal } = await load();
+      expect(await initOneSignal()).toBe(true);
+      expect(bridge.initialize).toHaveBeenCalledWith({ appId: APP_ID });
+      expect(await getPushRuntimeDiagnostic()).toEqual({ client: 'android-native', appId: APP_ID, initialized: true });
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('@capacitor/core');
+      vi.resetModules();
+    }
+  });
+
   it('adminPushTarget addresses the owner_email tag group at the admin inbox', async () => {
     const { adminPushTarget, ADMIN_NOTIFICATION_EMAIL } = await load();
     expect(ADMIN_NOTIFICATION_EMAIL).toBe('stakeyscycle95@gmail.com');
@@ -187,8 +213,8 @@ describe('pushNotifications (OneSignal)', () => {
   it('an admin-targeted push is sent as a tag, never a broadcast segment', async () => {
     const { sendPushToUser, adminPushTarget } = await load();
     await sendPushToUser(undefined, 'T', 'B', undefined, adminPushTarget());
-    const call = mockInvoke.mock.calls.find((c: any[]) => c[0] === 'onesignal-gateway' && c[1].body.action === 'notify');
-    const body = call![1].body;
+    const call = (fetch as any).mock.calls.find((c: any[]) => String(c[0]).includes('/api/onesignal/notify'));
+    const body = JSON.parse(call[1].body);
     expect(body.tag).toEqual({ key: 'owner_email', value: 'stakeyscycle95@gmail.com' });
     expect(body.segment).toBeUndefined();
     expect(body.externalUserId).toBeUndefined();
@@ -201,6 +227,7 @@ describe('push timeout regressions', () => {
   installSdk(fakeSdk({Notifications:{requestPermission:()=>new Promise(()=>{})}}));
   const {requestPushPermission}=await load();
   const pending=requestPushPermission();
+  for (let i = 0; i < 20 && vi.getTimerCount() === 0; i++) await Promise.resolve();
   await vi.advanceTimersByTimeAsync(8100);
   expect(await pending).toBe('timeout');
  });
@@ -210,6 +237,7 @@ describe('push timeout regressions', () => {
   window.OneSignalDeferred=callbacks;
   const {requestPushPermission}=await load();
   const pending=requestPushPermission();
+  for (let i = 0; i < 20 && vi.getTimerCount() === 0; i++) await Promise.resolve();
   await vi.advanceTimersByTimeAsync(8100);
   expect(await pending).toBe('timeout');
   const sdk=fakeSdk();

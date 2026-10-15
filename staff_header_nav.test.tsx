@@ -39,6 +39,7 @@ vi.mock('./src/utils/pushNotifications', () => ({
   linkUser: vi.fn(async () => {}),
   unlinkUser: vi.fn(async () => {}),
   registerEmailSubscription: vi.fn(),
+  consumeNativeNotificationOpenUrl: vi.fn(async () => null),
   ADMIN_NOTIFICATION_EMAIL: 'a@b.c',
 }));
 

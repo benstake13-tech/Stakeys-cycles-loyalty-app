@@ -11,7 +11,7 @@
  * with the correct recovery — an ST-Link/wired flash, not another BLE attempt.
  */
 
-export type BrickVerdict = 'healthy' | 'suspicious' | 'soft-bricked' | 'unresponsive';
+export type BrickVerdict = 'healthy' | 'suspicious' | 'soft-bricked' | 'unresponsive' | 'unsupported';
 
 export interface BrickEvidence {
   label: string;
@@ -28,6 +28,7 @@ export interface BrickReport {
 }
 
 export interface BrickObservation {
+  protocolSupported?: boolean;
   /** The device showed up in a BLE scan. */
   advertised: boolean;
   /** GATT connected successfully. */
@@ -59,6 +60,13 @@ export const FIRMWARE_FAULT_CODES: Record<number, string> = {
  * brick; a device that answers but reports a firmware-error code is next.
  */
 export function evaluateBrick(obs: BrickObservation): BrickReport {
+  if (obs.protocolSupported === false) {
+    return {
+      verdict: 'unsupported', score: 0,
+      evidence: [{ label: 'Controller protocol', ok: false, detail: 'The app has no verified status or firmware decoder for this controller.' }],
+      recommendation: 'Controller health cannot be assessed with this protocol. Missing data does not establish a firmware fault. Use the manufacturer app to check operation; do not flash firmware based on this result.',
+    };
+  }
   const firmwareFault = obs.errorCode !== null && FIRMWARE_FAULT_CODES[obs.errorCode] !== undefined;
 
   if (!obs.advertised) {

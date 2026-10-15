@@ -58,6 +58,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   const fileRef = useRef(null);
   // Which slot the shared hidden file input should fill next.
   const targetSlot = useRef('full');
+  const analysisSequence = useRef(0);
   const persistBike = addBike || addCustomerBike;
 
   // Up to three shots: the full side-on view (required) plus optional close-ups
@@ -74,6 +75,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   const configured = isBikeVisionConfigured();
 
   const reset = useCallback(() => {
+    analysisSequence.current += 1;
     setShots({ full: null, brand: null, model: null });
     setNotes('');
     setResult(null);
@@ -90,12 +92,12 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   };
 
   const runAnalysis = useCallback(async (current, currentNotes) => {
-    const images = ['full', 'brand', 'model']
-      .map((key) => current[key])
+    const images = Object.values(current)
       .filter(Boolean)
       .map((shot) => ({ data: shot.dataUrl.split(',').pop(), mimeType: shot.mime }));
     const text = typeof currentNotes === 'string' ? currentNotes.trim() : '';
     if (!images.length && !text) return;
+    const sequence = ++analysisSequence.current;
     setAnalyzing(true);
     setError('');
     setErrorInfo(null);
@@ -103,16 +105,15 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     try {
       // diagnoseFault never throws for an unavailable service — it returns a
       // structured fallback built from the notes, so intake never blocks.
-      const analysis = await diagnoseFault({ images, userNotes: text });
-      setResult(analysis);
+      const analysis = await diagnoseFault({ images, userNotes: images.length ? `${text}\nPhoto order: ${Object.entries(current).filter(([, shot]) => shot).map(([key]) => key).join(', ')}` : text });
+      if (sequence === analysisSequence.current) setResult(analysis);
     } catch (err) {
       // Defensive: only a truly unexpected error reaches here.
       const info = classifyVisionError(err);
-      setErrorInfo(info);
-      setError(info.message);
+      if (sequence === analysisSequence.current) { setErrorInfo(info); setError(info.message); }
     } finally {
       // Always release the spinner, even on failure, so Re-analyse is tappable.
-      setAnalyzing(false);
+      if (sequence === analysisSequence.current) setAnalyzing(false);
     }
   }, []);
 
@@ -177,7 +178,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         id: `ai-spec-${index}`,
         category: spec.category,
         componentName: spec.componentName,
-        stockOEM: 'Factory / unknown',
+        stockOEM: spec.stockOEM || 'Manufacturer reference required',
         currentPart: spec.currentPart,
         isUpgraded: false,
         condition: spec.condition,
@@ -205,6 +206,9 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         aiIdentification: result,
         notVisible: result.notVisible || [],
         coverage: result.coverage,
+        photoRequests: result.photoRequests || [],
+        stockVerification: result.stockVerification,
+        workshopChecks: result.workshopChecks || [],
         // Structured diagnostic intake (multilingual notes + fallback-safe faults).
         inputLanguageDetected: result.inputLanguageDetected,
         userNotesTranslated: result.userNotesTranslated,
@@ -228,8 +232,8 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
           : isElectric
           ? 'AI: Electric'
           : undefined,
-        healthStatus: hasSeriousProblem ? 'due_service' : 'healthy',
-        stockSpecsScraped: true,
+        healthStatus: hasSeriousProblem || result.usedFallback || (result.coverage || 0) < 1 ? 'due_service' : 'healthy',
+        stockSpecsScraped: false,
         scrapedData,
       });
 
@@ -412,6 +416,15 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
               }}
             />
 
+            {result?.photoRequests?.length > 0 && <div className="rounded-2xl border border-amber-500/30 p-3 space-y-3">
+              <h4 className="font-bold text-amber-300">More detail needed</h4>
+              <p className="text-xs text-neutral-400">Unknown specifications stay unconfirmed. Add a close-up to reanalyse all supplied photos.</p>
+              {result.photoRequests.map(request => <div key={request.systemId} className="text-xs">
+                <strong>{request.area}</strong><p>{request.instruction}</p>
+                <button type="button" disabled={analyzing} className="text-emerald-300 underline py-2" onClick={() => openPicker(request.systemId)}>{shots[request.systemId] ? 'Retake' : 'Add'} {request.area} photo</button>
+              </div>)}
+              <p className="text-xs text-amber-200">Stock comparison pending: confirm exact model year and trim against a manufacturer reference. Photos alone do not confirm a puncture or internal damage.</p>
+            </div>}
             {/* Free-text intake: works with or without a photo, any language. */}
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/50 p-3">
               <label htmlFor="ai-bike-notes" className="flex items-center gap-2 text-[11px] font-bold text-neutral-300">
@@ -704,7 +717,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-[11px] text-emerald-300">No obvious problems spotted — the bike looks sound from this photo.</p>
+                <p className="mt-2 text-[11px] text-emerald-300">No obvious damage identified in these photos. Mechanical condition still needs a workshop check.</p>
               )}
             </div>
 

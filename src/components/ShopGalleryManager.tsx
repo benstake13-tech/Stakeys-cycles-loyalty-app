@@ -1,3 +1,4 @@
+import { getWebsiteContent, updateWebsiteContent } from '../context/WebsiteContentStore';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
@@ -7,7 +8,7 @@ type Folder = typeof FOLDERS[number];
 type Photo = { name: string; url: string; path: string };
 
 export function ShopGalleryManager() {
-  const [folder, setFolder] = useState<Folder>(FOLDERS[0]);
+  const [folder, setFolder] = useState<Folder>('gallery/workshop');
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -42,6 +43,7 @@ export function ShopGalleryManager() {
     if (!supabase?.storage?.from) { setError('Photo storage is unavailable. Check the Supabase connection.'); return; }
     setBusy(true); setError(''); setMessage('');
     try {
+      const uploaded: Photo[] = [];
       for (const file of Array.from(files)) {
         if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'].includes(file.type)) throw new Error(`${file.name}: unsupported image format`);
         if (file.size > 10 * 1024 * 1024) throw new Error(`${file.name}: image exceeds 10 MB`);
@@ -49,10 +51,27 @@ export function ShopGalleryManager() {
         const path = `${folder}/${crypto.randomUUID()}.${extension}`;
         const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type, upsert: false });
         if (uploadError) throw uploadError;
+        uploaded.push({ path, name: file.name, url: supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl });
       }
-      setMessage('Photos uploaded successfully.');
+      if (folder.startsWith('gallery/')) {
+        const current = getWebsiteContent();
+        await updateWebsiteContent({ galleryImages: [...current.galleryImages, ...uploaded.map(photo => ({ id: photo.path, url: photo.url }))] });
+        setMessage('Photos uploaded and published to the website gallery.');
+      } else setMessage('Photos uploaded to storage. Add them to a product or publish them to the gallery.');
       await refresh();
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    } catch (e) { setError(`${e instanceof Error ? e.message : String(e)} Uploaded files remain in storage; use Publish to gallery after fixing the error.`); }
+    finally { setBusy(false); }
+  };
+
+  const publishPhoto = async (photo: Photo) => {
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const current = getWebsiteContent();
+      if (!current.galleryImages.some(image => image.url === photo.url)) {
+        await updateWebsiteContent({ galleryImages: [...current.galleryImages, { id: photo.path, url: photo.url }] });
+      }
+      setMessage('Photo published to the website gallery.');
+    } catch (error) { setError(error instanceof Error ? error.message : 'Publishing failed.'); }
     finally { setBusy(false); }
   };
 
@@ -60,10 +79,17 @@ export function ShopGalleryManager() {
     if (!window.confirm(`Permanently delete ${photo.name}?`)) return;
     if (!supabase?.storage?.from) { setError('Photo storage is unavailable. Check the Supabase connection.'); return; }
     setBusy(true); setError('');
-    const { error: deleteError } = await supabase.storage.from(BUCKET).remove([photo.path]);
-    if (deleteError) setError(deleteError.message);
-    else { setMessage('Photo deleted.'); await refresh(); }
-    setBusy(false);
+    try {
+      const current = getWebsiteContent();
+      if (current.galleryImages.some(image => image.url === photo.url)) {
+        await updateWebsiteContent({ galleryImages: current.galleryImages.filter(image => image.url !== photo.url) });
+      }
+      const { error: deleteError } = await supabase.storage.from(BUCKET).remove([photo.path]);
+      if (deleteError) throw deleteError;
+      setMessage('Photo removed from the website and storage.');
+      await refresh();
+    } catch (error) { setError(error instanceof Error ? error.message : 'Could not delete photo.'); }
+    finally { setBusy(false); }
   };
 
   return <section className="rounded-2xl border border-emerald-800 bg-neutral-950 p-5 space-y-4">
@@ -78,7 +104,7 @@ export function ShopGalleryManager() {
     {error && <p role="alert" className="text-red-400">{error}</p>}
     {message && <p role="status" className="text-emerald-400">{message}</p>}
     <button type="button" disabled={busy} className="text-emerald-400 underline" onClick={() => void refresh()}>Refresh photos</button>
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{photos.map(photo => <div key={photo.path} className="rounded-lg bg-neutral-900 overflow-hidden"><img src={photo.url} alt={photo.name} loading="lazy" className="w-full h-32 object-cover" /><div className="p-2 space-y-2"><a className="block text-xs text-emerald-400 underline truncate" href={photo.url} target="_blank" rel="noreferrer">Open photo</a><button type="button" disabled={busy} className="text-xs text-red-400 underline" onClick={() => void remove(photo)}>Delete</button></div></div>)}</div>
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{photos.map(photo => <div key={photo.path} className="rounded-lg bg-neutral-900 overflow-hidden"><img src={photo.url} alt={photo.name} loading="lazy" className="w-full h-32 object-cover" /><div className="p-2 space-y-2"><a className="block text-xs text-emerald-400 underline truncate" href={photo.url} target="_blank" rel="noreferrer">Open photo</a><button type="button" disabled={busy} className="block text-xs text-emerald-300 underline" onClick={() => void publishPhoto(photo)}>Publish to gallery</button><button type="button" disabled={busy} className="text-xs text-red-400 underline" onClick={() => void remove(photo)}>Delete</button></div></div>)}</div>
     {photos.length === 0 && !error && <p className="text-neutral-500 text-sm">No photos in this collection yet.</p>}
   </section>;
 }

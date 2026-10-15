@@ -1,7 +1,8 @@
 /** Platform-aware OneSignal bootstrap with bounded SDK operations. */
 
+import { apiUrl } from './apiBase';
 import { withPushTimeout } from './pushTimeout';
-import { supabase } from '../lib/supabase';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 export type PushPermission = 'granted' | 'denied' | 'default' | 'unsupported' | 'not_configured' | 'timeout';
 
@@ -23,47 +24,82 @@ interface OneSignalRuntimeConfig {
 const envAppId = (import.meta as any).env?.VITE_ONESIGNAL_APP_ID as string | undefined;
 
 type NativePush = {
+  getDeliveryDiagnostics(): Promise<NativePushDeliveryDiagnostics>;
+  getPendingNotificationOpen(): Promise<{ url?: string }>;
   initialize(args: { appId: string }): Promise<void>;
   login(args: { externalId: string }): Promise<void>;
   logout(): Promise<void>;
   requestPermission(): Promise<{ granted: boolean }>;
-  getStatus(): Promise<{ initialized: boolean; permission?: boolean; subscriptionId?: string; optedIn?: boolean }>;
+  getStatus(): Promise<{ initialized: boolean; appId?: string; permission?: boolean; subscriptionId?: string; optedIn?: boolean }>;
   optIn(): Promise<void>;
   addTags(args: { tags: Record<string, string> }): Promise<void>;
 };
-let nativePushPromise: Promise<NativePush | null> | null = null;
-function nativePush(): Promise<NativePush | null> {
-  if (!nativePushPromise) nativePushPromise = (async () => {
-    try {
-      const { Capacitor, registerPlugin } = await import('@capacitor/core');
-      if (!Capacitor.isNativePlatform()) return null;
-      const plugin = registerPlugin<NativePush>('NativeOneSignal');
-      return new Proxy(plugin, {
-        get(target, property) {
-          // A thenable proxy would be assimilated by Promise resolution.
-          if (property === 'then') return undefined;
-          const method = target[property as keyof NativePush];
-          return (...args: any[]) => withPushTimeout(
-            (method as any).apply(target, args), property === 'requestPermission' ? 30000 : 8000
-          );
-        },
-      });
-    } catch { return null; }
-  })();
-  return nativePushPromise;
+let nativePushInstance: NativePush | null | undefined;
+export interface NativePushDeliveryDiagnostics {
+  notificationsEnabled: boolean;
+  hasPushToken: boolean;
+  interruptionFilter: number;
+  channels: Array<{ name: string; id: string; importance: number }>;
+  lastMessageId: string;
+  receivedAt: number;
+  lastMessageInTray: boolean;
+}
+export async function getNativePushDeliveryDiagnostics(): Promise<NativePushDeliveryDiagnostics> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') throw new Error('Open the Staff Android APK to check phone receipt.');
+  const native = await readyNativePush();
+  if (!native) throw new Error('Native push bridge is unavailable.');
+  return native.getDeliveryDiagnostics();
+}
+export async function consumeNativeNotificationOpenUrl(): Promise<string | null> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return null;
+  const native = await readyNativePush();
+  if (!native) return null;
+  const result = await native.getPendingNotificationOpen();
+  return typeof result?.url === 'string' && result.url.trim() ? result.url : null;
+}
+function nativePush(): NativePush | null {
+  if (nativePushInstance !== undefined) return nativePushInstance;
+  try {
+    if (!Capacitor.isNativePlatform()) {
+      nativePushInstance = null;
+      return null;
+    }
+    const plugin = registerPlugin<NativePush>('NativeOneSignal');
+    nativePushInstance = new Proxy(plugin, {
+      get(target, property) {
+        // A thenable proxy would be assimilated by Promise resolution.
+        if (property === 'then') return undefined;
+        const method = target[property as keyof NativePush];
+        return (...args: any[]) => withPushTimeout(
+          (method as any).apply(target, args), property === 'requestPermission' ? 30000 : 8000
+        );
+      },
+    });
+    return nativePushInstance;
+  } catch {
+    nativePushInstance = null;
+    return null;
+  }
 }
 let nativeReady: Promise<NativePush | null> | null = null;
 async function initializeNativePush(): Promise<NativePush | null> {
-  const native = await nativePush();
+  const native = nativePush();
   if (!native) return null;
+  // Android's ApplicationClass has already initialized OneSignal before the
+  // Activity starts. Reuse that native state and its bundled App ID without
+  // waiting for browser/server runtime configuration.
+  try {
+    const status = await native.getStatus();
+    if (status.initialized && status.appId) {
+      await native.initialize({ appId: status.appId });
+      return native;
+    }
+  } catch { /* fall through to the configured-ID validation below */ }
   // Android and Web Push may be separate OneSignal apps. Never silently
   // register an Android device against the website's Web Push App ID.
-  const config = await getRuntimeConfig();
-  // OneSignal can serve web and Android from the same app. Use a separate
-  // Android App ID when configured; otherwise reuse the configured app ID.
-  const androidAppId = String((import.meta as any).env?.VITE_ONESIGNAL_ANDROID_APP_ID || config.androidAppId || config.appId || '').trim();
+  const androidAppId = String((import.meta as any).env?.VITE_ONESIGNAL_ANDROID_APP_ID || (await getRuntimeConfig()).androidAppId || '').trim();
   if (!androidAppId) {
-      console.warn('[OneSignal] No OneSignal App ID is configured for native Android push');
+    console.warn('[OneSignal] Set VITE_ONESIGNAL_ANDROID_APP_ID for native Android push');
     return null;
   }
   try { await native.initialize({ appId: androidAppId }); return native; }
@@ -78,6 +114,68 @@ async function readyNativePush(): Promise<NativePush | null> {
   return nativeReady;
 }
 
+export type PushRuntimeClient = 'android-native' | 'other-native' | 'web' | 'unknown';
+export interface PushRuntimeDiagnostic {
+  client: PushRuntimeClient;
+  appId: string | null;
+  initialized: boolean;
+}
+
+/** Reports which push SDK is actually active; Android status comes from the
+ * native bridge and ApplicationClass, never from a successful web SDK check. */
+export async function getPushRuntimeDiagnostic(): Promise<PushRuntimeDiagnostic> {
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const native = nativePush();
+      if (!native) return { client: Capacitor.getPlatform() === 'android' ? 'android-native' : 'other-native', appId: null, initialized: false };
+      const status = await native.getStatus();
+      return {
+        client: Capacitor.getPlatform() === 'android' ? 'android-native' : 'other-native',
+        appId: status.appId || null,
+        initialized: Boolean(status.initialized),
+      };
+    }
+    const config = await getRuntimeConfig();
+    return {
+      client: 'web',
+      appId: getConfiguredAppId() || config.appId,
+      initialized: Boolean(typeof window !== 'undefined' && window.__oneSignalHeadInit),
+    };
+  } catch {
+    return { client: 'unknown', appId: null, initialized: false };
+  }
+}
+
+/** Read the single test target exclusively from the native Android bridge. */
+export async function getNativePushTestTarget(): Promise<{ appId: string; subscriptionId: string }> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+    throw new Error('Open the Staff Android APK to test native push.');
+  }
+  const native = nativePush();
+  if (!native) throw new Error('Native OneSignal bridge is unavailable.');
+  const status = await native.getStatus();
+  if (!status.initialized || !status.appId) throw new Error('Native OneSignal has not initialized.');
+  if (!status.permission) throw new Error('Tap Enable on This Device and allow Android notifications first.');
+  if (!status.optedIn) throw new Error('This native Android subscription is not opted in.');
+  if (!status.subscriptionId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(status.subscriptionId)) {
+    throw new Error('Native subscription registration is pending. Enable notifications, wait a few seconds and retry.');
+  }
+  return { appId: status.appId, subscriptionId: status.subscriptionId };
+}
+
+/** Native test diagnostics may target every Android subscription linked to the
+ * signed-in staff account, even when this particular phone has not opted in. */
+export async function getNativeAndroidAppId(): Promise<string> {
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') {
+    throw new Error('Open the Staff Android APK to test native push.');
+  }
+  const native = nativePush();
+  if (!native) throw new Error('Native OneSignal bridge is unavailable.');
+  const status = await native.getStatus();
+  if (!status.initialized || !status.appId) throw new Error('Native OneSignal has not initialized.');
+  return status.appId;
+}
+
 let runtimeConfig: OneSignalRuntimeConfig | null = null;
 let initPromise: Promise<boolean> | null = null;
 
@@ -88,15 +186,17 @@ function browserReady(): boolean {
 async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   if (runtimeConfig) return runtimeConfig;
   try {
-    const { data, error } = await withPushTimeout(supabase.functions.invoke('onesignal-gateway', { body: { action: 'config' } }));
-    if (error) throw error;
+    const data = (await withPushTimeout(fetch(apiUrl('/api/onesignal/config')).then(res => {
+      if (!res.ok) throw new Error('Push configuration unavailable');
+      return res.json();
+    }))) as Partial<OneSignalRuntimeConfig> & { appId?: string | null };
     // A static host without the serverless function rewrites unknown paths to
     // index.html, so a non-JSON body (or missing appId field) must not be
     // treated as a configured backend.
     if (data && typeof data === 'object' && 'appId' in data) {
       runtimeConfig = {
         appId: data.appId ?? null,
-        androidAppId: data.androidAppId ?? data.appId ?? null,
+        androidAppId: data.androidAppId ?? null,
         serverPush: Boolean(data.serverPush),
       };
     } else {
@@ -112,19 +212,6 @@ async function getRuntimeConfig(): Promise<OneSignalRuntimeConfig> {
   runtimeConfig = resolved;
   if (!resolved.appId && envAppId) resolved.appId = envAppId;
   return resolved;
-}
-
-/** Safe server configuration probe; the Edge Function never returns its secret. */
-export async function getOneSignalServerConfig(): Promise<OneSignalRuntimeConfig & { keySource?: string | null }> {
-  const { data, error } = await withPushTimeout(supabase.functions.invoke('onesignal-gateway', { body: { action: 'config' } }));
-  if (error) throw error;
-  if (!data || typeof data !== 'object' || !('appId' in data)) throw new Error('OneSignal Supabase gateway returned invalid configuration.');
-  return {
-    appId: data.appId ?? null,
-    androidAppId: data.androidAppId ?? null,
-    serverPush: Boolean(data.serverPush),
-    keySource: data.keySource ?? null,
-  };
 }
 
 let sdkInitialization: Promise<void> | null = null;
@@ -206,7 +293,7 @@ async function withOneSignal<T>(fn: (oneSignal: any) => Promise<T> | T): Promise
 export async function initOneSignal(): Promise<boolean> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
-    if (await nativePush()) return Boolean(await readyNativePush());
+    if (nativePush()) return Boolean(await readyNativePush());
     if (!browserReady()) return false;
     const cfg = await getRuntimeConfig();
     if (!cfg.appId && !readAppIdOverride()) return false;
@@ -219,7 +306,7 @@ export async function initOneSignal(): Promise<boolean> {
 }
 
 export async function getPushPermission(): Promise<PushPermission> {
-  if (await nativePush()) {
+  if (nativePush()) {
     const native = await readyNativePush();
     if (!native) return 'not_configured';
     try { return (await native.getStatus()).permission ? 'granted' : 'default'; }
@@ -242,7 +329,7 @@ export async function getPushPermission(): Promise<PushPermission> {
  * Requests OS/browser permission. Registration and delivery require separate checks.
  */
 export async function requestPushPermission(): Promise<PushPermission> {
-  if (await nativePush()) {
+  if (nativePush()) {
     const native = await readyNativePush();
     if (!native) return 'not_configured';
     try { return (await native.requestPermission()).granted ? 'granted' : 'denied'; }
@@ -271,7 +358,7 @@ export async function requestPushPermission(): Promise<PushPermission> {
 export async function linkUser(userId: string, tags?: Record<string, string | number>) {
   const configured = await initOneSignal();
   if (!configured) return;
-  const native = await nativePush();
+  const native = nativePush();
   if (native) {
     await native.login({ externalId: userId });
     if (tags) {
@@ -314,7 +401,7 @@ export async function unlinkUser() {
  * call repeatedly; the SDK de-duplicates.
  */
 export async function registerEmailSubscription(email: string) {
-  if (await nativePush()) return; // email subscriptions use the web SDK only
+  if (nativePush()) return; // email subscriptions use the web SDK only
   const clean = String(email || '').trim();
   if (!clean) return;
   await withOneSignal(async (os) => {
@@ -327,7 +414,7 @@ export async function registerEmailSubscription(email: string) {
 }
 
 export async function getSubscriptionId(): Promise<string | null> {
-  if (await nativePush()) {
+  if (nativePush()) {
     const native = await readyNativePush();
     return native ? (await native.getStatus()).subscriptionId || null : null;
   }
@@ -337,7 +424,7 @@ export async function getSubscriptionId(): Promise<string | null> {
 
 /** Whether this device's push subscription is opted in (null when unknown). */
 export async function isPushSubscribed(): Promise<boolean | null> {
-  if (await nativePush()) {
+  if (nativePush()) {
     const native = await readyNativePush();
     return native ? (await native.getStatus()).optedIn ?? null : null;
   }
@@ -351,7 +438,7 @@ export async function isPushSubscribed(): Promise<boolean | null> {
  * start receiving pushes again. Returns the subscription id afterwards.
  */
 export async function optInPushSubscription(): Promise<string | null> {
-  if (await nativePush()) {
+  if (nativePush()) {
     const native = await readyNativePush();
     if (!native) return null;
     await native.optIn();
@@ -442,9 +529,10 @@ export async function sendPushToUser(
 
   if (cfg.serverPush) {
     try {
-      const { data, error } = await withPushTimeout(supabase.functions.invoke('onesignal-gateway', {
-        body: {
-          action: 'notify',
+      const res = await fetch(apiUrl('/api/onesignal/notify'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title,
           body,
           url,
@@ -452,14 +540,17 @@ export async function sendPushToUser(
           ...(!userId && target?.tag ? { tag: target.tag } : {}),
           ...(!userId && !target?.tag && target?.email ? { email: target.email } : {}),
           ...(!userId && !target?.tag && !target?.email && target?.segment ? { segment: target.segment } : {}),
-        },
-      }));
-      if (error) throw error;
+        }),
+      });
+      // The function returns OneSignal's JSON envelope. A static host with no
+      // serverless function rewrites this path to index.html, so require a JSON
+      // body before trusting the 200 (otherwise we'd report a false success).
+      const data = await res.json().catch(() => null);
       if (data && typeof data === 'object') {
         const errors = Array.isArray((data as any).errors) ? (data as any).errors : [];
         // OneSignal answers 200 with `errors:["All included players are not
         // subscribed"]` when nothing is opted in — that is NOT a delivery.
-        const ok = errors.length === 0 && !(data as any).error;
+        const ok = res.ok && errors.length === 0;
         return { ok, via: 'server', envelope: data as any };
       }
     } catch {

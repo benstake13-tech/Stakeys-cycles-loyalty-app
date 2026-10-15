@@ -64,7 +64,8 @@ npx capacitor-assets generate --android --ios \
 
 ## Android
 
-Requirements: JDK 21, Android SDK (platform 34, build-tools 34.0.0). Point
+Requirements: JDK 21, Android SDK (platform 34, build-tools 34.0.0), and
+Android API 23+ for OneSignal. Point
 `android/local.properties` at the SDK (`sdk.dir=...`) or set `ANDROID_HOME`.
 
 ```bash
@@ -83,6 +84,36 @@ Permissions are declared in `android/app/src/main/AndroidManifest.xml`:
 `BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT` (API 31+, `neverForLocation`), the legacy
 `BLUETOOTH`/`BLUETOOTH_ADMIN`/`ACCESS_FINE_LOCATION` pair (API Ōēż 30), `CAMERA`
 for QR scanning, and `POST_NOTIFICATIONS` for OneSignal push.
+
+### Android OneSignal / Firebase Cloud Messaging
+
+`ApplicationClass` initializes the shared public OneSignal App ID from the
+native Android resources before Capacitor creates an Activity. The Capacitor
+plugin only reuses that initialized SDK. The notification permission prompt
+stays in the app's existing flow.
+
+FCM configuration must be created in the owner's Firebase project; do not make
+placeholder files. Register both Android apps using their exact package IDs:
+
+- `uk.co.stakeyscycles.staff`
+- `uk.co.stakeyscycles.customer`
+
+Download a Firebase Android client config for each app and place them locally
+at `android/app/src/staff/google-services.json` and
+`android/app/src/customer/google-services.json`. Alternatively, a single
+`android/app/google-services.json` may be used if it contains both registered
+Android clients. These Firebase client config files are git-ignored. The
+Google Services Gradle plugin is enabled only when a shared config or both
+flavor configs are present; without them, debug builds may compile but FCM
+delivery is not configured.
+
+For delivery, enable Firebase Cloud Messaging HTTP v1 and provide OneSignal
+with a Firebase service-account JSON credential that has the required FCM
+permissions. Upload that private credential in the OneSignal dashboard's
+Android platform configuration. Never place the service-account JSON, its
+private key, or a legacy FCM server key in source control, Android resources,
+the web bundle, or an APK. The OneSignal App ID in the Android resources is
+public client configuration; the OneSignal REST API key is server-only.
 
 ## Release signing
 

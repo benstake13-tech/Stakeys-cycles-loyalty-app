@@ -1,3 +1,4 @@
+import { announceMilestone, pendingMilestones } from '../utils/milestoneAnimations';
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import {
@@ -3456,10 +3457,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newBike: CustomerBike = {
       ...bikeData,
       id: `bike-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      addedAt: new Date().toISOString().split('T')[0],
+      addedAt: new Date().toISOString(),
       healthStatus: bikeData.healthStatus || 'healthy',
     };
 
+    pendingMilestones.add(`bike_added:${userId}:${newBike.id}`);
     // Single source of truth: optimistically update local state, then persist to Supabase.
     setUsers((prev) =>
       prev.map((u) => (u.uid === userId ? { ...u, bikes: [newBike, ...(u.bikes || [])] } : u))
@@ -3470,8 +3472,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     }
 
-    insertCustomerBikeToDb(newBike, userId).then((ok) => {
-      if (ok) return;
+    await insertCustomerBikeToDb(newBike, userId).then((ok) => {
+      pendingMilestones.delete(`bike_added:${userId}:${newBike.id}`);
+      if (ok) {
+        if (currentUser && notificationPreferences.bike_added?.visual) announceMilestone({ id: `bike_added:${userId}:${newBike.id}`, scope: currentUser.uid, kind: 'garage' });
+        return;
+      }
       // The optimistic bike would vanish on the next profile refresh (e.g. an
       // RLS-blocked insert), so roll it back, reconcile with the database truth
       // (non-destructively) and tell the rider instead of failing silently.
@@ -3486,9 +3492,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       refreshCustomerGarageForStaff(userId).catch(() => {});
       toast.error("Couldn't save that bike to the garage — please try again.");
-    }).catch((e) =>
-      console.warn('[DB SYNC] Error inserting bike in DB:', e)
-    );
+      throw new Error('Bike could not be saved. Please retry.');
+    }).finally(() => pendingMilestones.delete(`bike_added:${userId}:${newBike.id}`));
 
     return newBike;
   };
@@ -3717,7 +3722,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ],
     };
 
-    // Immediately dispatch email alerts to BOTH customer and owner confirming receipt and pending approval
+    // Keep branded email previews in the booking log. The database INSERT
+    // webhook is the single sender for the customer receipt and workshop alert.
     const { emailLog, customerEmailLog, failures } = await dispatchBookingNotifications(provisionalBooking, ownerConfig);
 
     const completedBooking: ServiceBooking = {
@@ -3821,7 +3827,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               serialNumber: data.bikeDetails?.serialNumber || undefined,
               frameSizeOrNotes: data.bikeDetails?.frameSize || undefined,
               colour: 'Workshop Recorded',
-              addedAt: new Date().toISOString().split('T')[0],
+              addedAt: new Date().toISOString(),
               lastServiceDate: data.preferredDate || new Date().toISOString().split('T')[0],
               lastServiceTitle: data.serviceTitle,
               healthStatus: 'in_workshop',

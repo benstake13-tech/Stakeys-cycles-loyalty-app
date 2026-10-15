@@ -200,7 +200,7 @@ describe('AiBikeIdentifier — text-only intake & graceful fallback', () => {
 
     await waitFor(() => expect(hoisted.diagnoseFault).toHaveBeenCalled());
     const payload = hoisted.diagnoseFault.mock.calls.at(-1)![0];
-    expect(payload.userNotes).toBe('rear wheel wobbles');
+    expect(payload.userNotes).toBe('rear wheel wobbles\nPhoto order: full');
     expect(payload.images).toHaveLength(1);
   });
 });

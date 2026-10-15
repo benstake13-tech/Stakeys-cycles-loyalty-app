@@ -1,3 +1,4 @@
+import { MilestoneOverlay } from './components/MilestoneOverlay';
 import React, { useEffect, useState } from 'react';
 import {
   User,
@@ -37,7 +38,7 @@ import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
 import { Toaster } from 'react-hot-toast';
-import { initOneSignal, linkUser, unlinkUser, registerEmailSubscription, ADMIN_NOTIFICATION_EMAIL } from './utils/pushNotifications';
+import { consumeNativeNotificationOpenUrl, initOneSignal, linkUser, unlinkUser, registerEmailSubscription, ADMIN_NOTIFICATION_EMAIL } from './utils/pushNotifications';
 import { parseBookingDeepLink } from './utils/bookingNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
 
@@ -56,6 +57,7 @@ const StaffPortal: React.LazyExoticComponent<React.ComponentType<StaffPortalProp
 
 function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
+  const seasonalThemeClass = seasonalTheme && seasonalTheme !== 'none' ? ' seasonal-theme-active' : '';
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   // Logged-out visitors land on the public marketing website, not the login form.
@@ -78,6 +80,28 @@ function AppContent() {
     const target = parseBookingDeepLink(window.location.search);
     if (target.bookingId) setFocusBookingId(target.bookingId);
     if (target.staff) setStaffDeepLinkRequested(true);
+  }, []);
+
+  // Native OneSignal taps are intercepted in Android so a booking link opens
+  // this installed staff app directly instead of launching the browser.
+  useEffect(() => {
+    const routeNativePush = (url: unknown) => {
+      if (typeof url !== 'string') return;
+      try {
+        const target = parseBookingDeepLink(new URL(url, window.location.href).search);
+        if (!target.staff) return;
+        if (target.bookingId) setFocusBookingId(target.bookingId);
+        setStaffDeepLinkRequested(true);
+      } catch { /* ignore malformed notification URLs */ }
+    };
+    const onNativePushOpen = (event: Event) => {
+      routeNativePush((event as CustomEvent<string>).detail);
+      // Clear the persisted cold-start value after the live activity event wins.
+      void consumeNativeNotificationOpenUrl();
+    };
+    window.addEventListener('stakeys:notification-open', onNativePushOpen);
+    void consumeNativeNotificationOpenUrl().then(routeNativePush).catch(() => {});
+    return () => window.removeEventListener('stakeys:notification-open', onNativePushOpen);
   }, []);
 
   // Secure staff unlock modal (Supabase email + password, role verified server-side)
@@ -251,8 +275,8 @@ function AppContent() {
   // surface so the creator can be reviewed before it ships.
   if (isAvatarPreview) {
     return (
-      <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-        <ThemeStage theme={seasonalTheme} />
+      <div className={`min-h-screen${seasonalThemeClass} ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+
         <AvatarPreviewStage />
       </div>
     );
@@ -261,7 +285,7 @@ function AppContent() {
   if (isWebsiteSurface) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-        <ThemeStage theme={seasonalTheme} />
+
         <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -303,7 +327,7 @@ function AppContent() {
     if (isResetRoute) return <ResetPasswordScreen />;
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-        <ThemeStage theme={seasonalTheme} />
+
         <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <LoginScreen
             audience={APP_SURFACE === 'staff' ? 'staff' : isFullSurface ? 'both' : 'customer'}
@@ -358,7 +382,7 @@ function AppContent() {
     if (publicView === 'website') {
       return (
         <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-          <ThemeStage theme={seasonalTheme} />
+
           <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -395,9 +419,9 @@ function AppContent() {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+    <div className={`min-h-screen${seasonalThemeClass} ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* Seasonal characters ride across the background of every screen */}
-      <ThemeStage theme={seasonalTheme} />
+
 
       {/* Page content sits above the seasonal canvas (z-0) so the characters
           ride across the background of every screen, behind the UI. */}
@@ -603,7 +627,7 @@ function AppContent() {
 
       {/* Secure staff sign-in modal (full/staff surfaces only) */}
       {showStaffPinModal && showStaffEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 staff-unlock-backdrop bg-black/80 backdrop-blur-sm animate-fade-in">
           <form
             onSubmit={handleStaffUnlock}
             className={`w-full max-w-sm rounded-2xl border p-6 space-y-4 shadow-2xl animate-pop ${
@@ -700,9 +724,19 @@ function AppContent() {
   );
 }
 
+function ThemeSurface({ children }: { children: React.ReactNode }) {
+  const { seasonalTheme } = useShop();
+  const active = Boolean(seasonalTheme && seasonalTheme !== 'none');
+  return <div className={active ? 'stakeys-theme-shell seasonal-theme-active' : 'stakeys-theme-shell'}>
+    <ThemeStage theme={seasonalTheme} />
+    <div className="stakeys-theme-ui">{children}</div>
+  </div>;
+}
+
 export default function App() {
   return (
     <ShopProvider>
+      <ThemeSurface>
       <div className="min-h-screen flex flex-col">
         {/* Graphical swinging celebration banner for the active seasonal theme,
             on every surface and every screen (website, login, staff, customer). */}
@@ -711,6 +745,7 @@ export default function App() {
           <AppContent />
         </div>
       </div>
+      <MilestoneOverlay />
       <Toaster
         position="top-right"
         toastOptions={{
@@ -732,6 +767,7 @@ export default function App() {
           },
         }}
       />
+      </ThemeSurface>
     </ShopProvider>
   );
 }

@@ -15,6 +15,7 @@ describe('Gemini server key diagnostics',()=>{
   [{error:'GEMINI_API_KEY is not configured'},503,'GEMINI_API_KEY in Supabase'],
   [{code:'KEY_REJECTED'},502,'Google rejected'],
   [{code:'RATE_LIMITED'},502,'quota'],
+  [{code:'BILLING_REQUIRED'},502,'no usable prepay credits'],
   [{},404,'not deployed'],
   [{},401,'authenticate'],
  ])('explains gateway failure %j',async(body,status,message)=>{

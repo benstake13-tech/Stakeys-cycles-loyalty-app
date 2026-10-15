@@ -106,6 +106,16 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
     ],
   },
   {
+    name: 'gemini_runtime_settings',
+    primaryKey: 'id',
+    columns: [
+      { name: 'id', type: 'boolean', default: 'TRUE' },
+      { name: 'model', type: 'text', default: "'gemini-3.8-flash'" },
+      { name: 'tier', type: 'text', default: "'free'" },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
     name: 'tax_expenses',
     primaryKey: 'id',
     columns: [

@@ -358,10 +358,28 @@ export function weekdayShort(dateStr: string): string {
   return new Intl.DateTimeFormat('en-GB', { weekday: 'short' }).format(d);
 }
 
-/** "Today" / "Tomorrow" / "Wed" so the strip reads naturally. */
-export function dayLabel(dateStr: string, now: Date = new Date()): string {
-  const today = localDateKey(now);
-  const tomorrow = localDateKey(new Date(now.getTime() + 24 * 60 * 60 * 1000));
+function dateKeyInTimeZone(date: Date, timeZone?: string): string {
+  if (!timeZone) return localDateKey(date);
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+    const part = (type: string) => parts.find((item) => item.type === type)?.value || '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  } catch {
+    return localDateKey(date);
+  }
+}
+
+function nextDateKey(dateKey: string): string {
+  const date = new Date(`${dateKey}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return '';
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+/** "Today" / "Tomorrow" / "Wed" in the forecast location's timezone. */
+export function dayLabel(dateStr: string, now: Date = new Date(), timeZone?: string): string {
+  const today = dateKeyInTimeZone(now, timeZone);
+  const tomorrow = nextDateKey(today);
   if (dateStr === today) return 'Today';
   if (dateStr === tomorrow) return 'Tomorrow';
   return weekdayShort(dateStr);
