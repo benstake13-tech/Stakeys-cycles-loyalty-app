@@ -32,6 +32,9 @@ export interface SpecSystemDef {
  * to bottom, and the UI renders grouped by system in this order.
  */
 export const SPEC_SYSTEMS: SpecSystemDef[] = [
+  { id: 'geometry', label: 'Geometry & Manufacturer Data', category: 'Cockpit & Controls', components: [
+    { id: 'geometry', name: 'Geometry' }, { id: 'weight', name: 'Bike weight' }, { id: 'payload', name: 'System weight limits' }, { id: 'available-sizes', name: 'Available sizes' }, { id: 'integrated-accessories', name: 'Integrated accessories' },
+  ] },
   {
     id: 'frame',
     label: 'Frame & Structure',
@@ -90,6 +93,7 @@ export const SPEC_SYSTEMS: SpecSystemDef[] = [
       { id: 'shifters', name: 'Shifters' },
       { id: 'gears', name: 'Number of gears' },
       { id: 'gear-cables', name: 'Gear cables' },
+      { id: 'chainguide', name: 'Chainguide & bashguard' },
     ],
   },
   {

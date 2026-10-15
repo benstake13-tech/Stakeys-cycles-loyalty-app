@@ -186,6 +186,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
         systemId: spec.systemId || systemIdForItem(spec),
         componentId: spec.componentId,
         specValue: spec.specValue,
+        specDetails: spec.specDetails,
         brand: spec.brand,
         model: spec.model,
         visibility: spec.visibility,
@@ -660,6 +661,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                                   {spec.model && <span className="text-neutral-500">{spec.model}</span>}
                                 </div>
                               )}
+                              {spec.specDetails?.length > 0 && <details className="mt-2 text-[11px] text-neutral-300"><summary className="cursor-pointer text-emerald-300">Technical details ({spec.specDetails.filter(d => d.value).length}/{spec.specDetails.length} recorded)</summary><dl className="mt-2 space-y-1">{spec.specDetails.map(d => <div key={d.name} className="flex flex-wrap justify-between gap-x-3 border-b border-white/5 py-1"><dt>{d.name}</dt><dd className="text-neutral-400">{d.value || 'Not assessed'}{d.value && d.verification !== 'photo-supported' ? ' · needs verification' : ''}</dd></div>)}</dl></details>}
                               {typeof spec.confidence === 'number' && (
                                 <div className="mt-0.5 text-[9px] text-neutral-600">
                                   confidence {Math.round(spec.confidence * 100)}%

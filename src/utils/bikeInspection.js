@@ -1,3 +1,4 @@
+import { normaliseSpecificationDetails } from './bicycleInspectionChecklist';
 import { SPEC_SYSTEMS } from './bikeSpecTaxonomy';
 
 export const INSPECTION_PHOTOS = {
@@ -19,20 +20,21 @@ export function completeBikeInspection(result) {
     const found = provided.find(s => s.componentId === component.id && (!s.systemId || s.systemId === system.id))
       || provided.find(s => String(s.componentName).toLowerCase() === component.name.toLowerCase());
     const confidence = Math.max(0, Math.min(1, Number(found?.confidence) || 0));
-    const confirmed = found?.visibility === 'visible' && confidence >= .8 && Boolean(found.specValue || found.brand || found.model);
+    const confirmed = !['geometry', 'weight', 'payload', 'available-sizes'].includes(component.id) && found?.visibility === 'visible' && confidence >= .8 && Boolean(found.specValue || found.brand || found.model || found.specDetails?.some(d => d?.value));
     return { ...found, systemId: system.id, componentId: component.id, componentName: component.name, category: system.category,
       currentPart: found?.currentPart || 'Not identified', specValue: found?.specValue || '',
       brand: found?.brand || '', model: found?.model || '', condition: found?.condition || 'unknown',
       visibility: found?.visibility || 'assumed', confidence,
+      specDetails: normaliseSpecificationDetails(component.id, found?.specDetails, confirmed),
       verification: confirmed ? 'photo-supported' : 'needs-verification',
       stockComparison: 'not-verified', stockOEM: 'Manufacturer reference required',
       notes: found?.notes || 'Not assessed from the supplied photos.',
     };
   }));
-  const photoRequests = SPEC_SYSTEMS.filter(system => mainSpecs.some(s => s.systemId === system.id && s.verification === 'needs-verification'))
-    .filter(system => system.id !== 'electric' || result.type === 'ebike' || result.type === 'electric_scooter' || result.electricKit?.isElectric)
+  const photoRequests = SPEC_SYSTEMS.filter(system => mainSpecs.some(s => s.systemId === system.id && (s.verification === 'needs-verification' || s.specDetails.some(d => d.verification !== 'photo-supported'))))
+    .filter(system => system.id !== 'geometry' && (system.id !== 'electric' || result.type === 'ebike' || result.type === 'electric_scooter' || result.electricKit?.isElectric))
     .map(system => ({ systemId: system.id, area: system.label, instruction: INSPECTION_PHOTOS[system.id] || `Clear close-ups of ${system.label.toLowerCase()} and any part numbers`,
-      components: mainSpecs.filter(s => s.systemId === system.id && s.verification === 'needs-verification').map(s => s.componentName) }));
+      components: mainSpecs.filter(s => s.systemId === system.id && (s.verification === 'needs-verification' || s.specDetails.some(d => d.verification !== 'photo-supported'))).map(s => s.componentName) }));
   return { ...result, mainSpecs, photoRequests,
     notVisible: mainSpecs.filter(s => s.verification !== 'photo-supported').map(s => s.componentName),
     coverage: mainSpecs.filter(s => s.verification === 'photo-supported').length / mainSpecs.length,

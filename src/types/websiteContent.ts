@@ -7,6 +7,7 @@ export type WebsitePageId =
   | 'home'
   /* Primary destinations */
   | 'shop'
+  | 'marketplace'
   | 'repairs'
   | 'sell'
   | 'offers'

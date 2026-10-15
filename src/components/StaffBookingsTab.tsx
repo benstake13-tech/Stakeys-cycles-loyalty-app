@@ -32,6 +32,7 @@ import {
   Languages,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
+import { CustomerRepairReportView } from './CustomerRepairReportView';
 import { ServiceBooking, BookingStatus, VehicleCategory, RepairInvoice, ReminderChannel, ReminderRecipients, DEFAULT_REMINDER_SETTINGS, clampNumber } from '../types/bikeShop';
 import { NotificationPreviewModal } from './NotificationPreviewModal';
 import { StakeysLogo } from './StakeysLogo';
@@ -1432,6 +1433,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
               )}
 
               {/* Customer Notes */}
+              {b.bikeDetails?.repairAssessment && <CustomerRepairReportView report={b.bikeDetails.repairAssessment} allowPartsSearch/>}
               {b.notes && !b.translationPayload && (
                 <div className="text-xs text-neutral-300 bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 whitespace-pre-line leading-relaxed font-mono">
                   <span className="text-neutral-500 font-mono text-[10px] uppercase block mb-1">Customer / Diagnostic Notes</span>

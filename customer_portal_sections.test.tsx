@@ -43,6 +43,7 @@ vi.mock('./src/context/ShopContext', () => ({
 
 vi.mock('react-hot-toast', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('./src/components/weather/WeatherForecast', () => ({ WeatherForecast: () => null }));
+vi.mock('./src/components/MarketplacePanel', () => ({MarketplacePanel: () => <section data-testid="marketplace-panel"/>}));
 vi.mock('jsbarcode', () => ({ default: vi.fn() }));
 
 import { CustomerPortal } from './src/components/CustomerPortal';
@@ -53,7 +54,7 @@ describe('CustomerPortal new sections', () => {
   it('exposes the new launcher tiles', () => {
     render(<CustomerPortal />);
     const launcher = screen.getByTestId('customer-section-launcher');
-    for (const id of ['wallet', 'care', 'symptom', 'guides', 'tradein', 'wishlist']) {
+    for (const id of ['wallet', 'care', 'symptom', 'guides', 'tradein', 'wishlist', 'marketplace']) {
       expect(within(launcher).queryByTestId(`customer-tile-${id}`)).toBeTruthy();
     }
   });
@@ -62,6 +63,14 @@ describe('CustomerPortal new sections', () => {
     render(<CustomerPortal />);
     expect(screen.getByTestId('reward-nudges')).toBeTruthy();
     expect(screen.getByText(/Only 1 stamp to your £40 reward/i)).toBeTruthy();
+  });
+
+  it('opens the restored marketplace without replacing the shop trade-in flow', () => {
+    render(<CustomerPortal/>);
+    fireEvent.click(screen.getByTestId('customer-tile-marketplace'));
+    expect(screen.getByTestId('marketplace-panel')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('customer-tile-tradein'));
+    expect(screen.getByTestId('tradein-form')).toBeTruthy();
   });
 
   it('opens the Watchlist section from its tile', () => {

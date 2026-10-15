@@ -106,6 +106,7 @@ export interface BikeComponentSpec {
   componentId?: string;
   /** Measured dimension/size/spec, e.g. '700x32c', '11-34T', '160mm rotor'. */
   specValue?: string;
+  specDetails?: import('../utils/bicycleInspectionChecklist').SpecificationDetail[];
   /** Visible brand of the fitted part. */
   brand?: string;
   /** Visible model of the fitted part. */
@@ -162,6 +163,10 @@ export interface CustomerBike {
  * quick bookings keep working.
  */
 export interface BikeDetails {
+  brand?: string;
+  model?: string;
+  /** Customer photo intake, carried in the existing bike_details JSON column. */
+  repairAssessment?: import('../utils/customerRepairReport').CustomerRepairReport;
   /** Whether the bike left the factory as an e-bike or was converted afterwards. */
   ebikeStatus?: 'factory' | 'converted' | 'not_ebike' | 'unsure';
   /** Motor system when known (e.g. Bosch Performance Line, Bafang BBS02). */
