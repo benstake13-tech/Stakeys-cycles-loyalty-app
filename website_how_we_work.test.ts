@@ -6,7 +6,7 @@ describe('main website repair journey', () => {
     const steps = DEFAULT_WEBSITE_CONTENT.brandStory.howWeWorkSteps;
     expect(steps).toHaveLength(3);
     expect(steps.map(step => step.title)).toEqual([
-      'Tell us what’s wrong', 'Approve the estimate', 'We come and fix it',
+      'Tell us what’s wrong', 'Approve the price', 'We come to you',
     ]);
     expect(steps[2].body).toMatch(/at home or work/i);
   });

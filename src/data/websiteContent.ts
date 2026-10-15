@@ -159,8 +159,8 @@ export const DEFAULT_WEBSITE_CONTENT: WebsiteContent = {
     howWeWorkTitle: 'How we work',
     howWeWorkSteps: [
       { title: 'Tell us what’s wrong', body: 'Book online or call. Describe the problem and get the call-out estimate up front.' },
-      { title: 'Approve the estimate', body: 'Review the itemised price and confirm before any repair work begins.' },
-      { title: 'We come and fix it', body: 'A mobile mechanic repairs and checks your bike at home or work, with updates as the job progresses.' },
+      { title: 'Approve the price', body: 'Review the itemised estimate and confirm before any repair work begins.' },
+      { title: 'We come to you', body: 'A mobile mechanic repairs and checks your bike at home or work, with updates as the job progresses.' },
     ],
     qualityClaim:
       "We're out to show the big chains how it's done — proper work, fair prices and a face you know, from a workshop that answers its own phone.",
