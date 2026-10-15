@@ -12,6 +12,19 @@ type Listing = {
   condition: string; description: string; asking_price: number; images: string[]; status: string; created_at: string;
 };
 type LedgerRow = { id:string; listing_id:string; seller_id:string; gross_amount:number; commission_amount:number; seller_payable:number; payment_status:string; payout_status:string; payout_reference?:string|null; created_at:string; listing?:{title:string;make_model:string}[]|null };
+type BikePhoto = { area: string; file: File };
+const BIKE_PHOTO_GUIDE = [
+  { id:'main-side', title:'Full bike · drive side', hint:'Show the complete bike from the chain and gears side. This is the listing cover photo.', required:true },
+  { id:'other-side', title:'Full bike · opposite side', hint:'Show the complete bike from the side without the chain and gears.', required:true },
+  { id:'front-assembly', title:'Front wheel, fork & brake', hint:'Get close enough to show the tyre, wheel, fork and front brake clearly.', required:true },
+  { id:'rear-assembly', title:'Rear wheel, gears & brake', hint:'Show the rear tyre, brake, gears and hub or motor if visible.', required:true },
+  { id:'drive-system', title:'Drive system close-up', hint:'Show the chain, crank and gears, or the scooter/e-bike drive system.', required:true },
+  { id:'cockpit', title:'Handlebars & controls', hint:'Show the levers, grips, display, throttle and controls.', required:true },
+  { id:'brand-model', title:'Brand & model markings', hint:'Photograph the logo, model name, badges or frame decals. Keep the serial-number photo separate.', required:true },
+  { id:'wheels-tyres', title:'Wheels & tyre condition', hint:'Show tyre tread, sidewalls and any visible size markings.', required:false },
+  { id:'battery-motor', title:'Battery & motor (if fitted)', hint:'Show the battery, motor, charging port and display where fitted.', required:false },
+  { id:'wear-damage', title:'Wear or damage close-up', hint:'Photograph scratches, rust, damage, wear or any fault you want the buyer to see.', required:false },
+] as const;
 
 const money = (n: number) => new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
 const STATUS: Record<string,string> = { pending_approval: 'Awaiting review', active: 'Live', sold: 'Sold', cancelled: 'Archived', rejected: 'Needs changes' };
@@ -33,7 +46,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
   const [verifying, setVerifying] = useState(false);
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [payoutRefs, setPayoutRefs] = useState<Record<string,string>>({});
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<BikePhoto[]>([]);\n  const [captureArea, setCaptureArea] = useState<string>(BIKE_PHOTO_GUIDE[0].id);
   const [serialPhoto, setSerialPhoto] = useState<File | null>(null);
   const [frameSerial, setFrameSerial] = useState('');
   const [aiInspection, setAiInspection] = useState<Record<string, any> | null>(null);
@@ -90,12 +103,14 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
 
   const identifyBike = async () => {
     if (!native || !userId) { setAppNotice(true); return; }
-    if (files.length < 3) { toast.error('Add at least 3 clear photos; use up to 10 different angles for a stronger match.'); return; }
-    if (files.length > 10) { toast.error('Choose up to 10 photos.'); return; }
-    if (files.some(file => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024)) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
+    const missingRequiredViews = BIKE_PHOTO_GUIDE.filter(area => area.required && !files.some(photo => photo.area === area.id));
+    if (missingRequiredViews.length) { toast.error('Capture each required view: ' + missingRequiredViews.map(area => area.title).join(', ') + '.'); return; }
+    if (files.length > 10) { toast.error('Capture up to 10 guided photos.'); return; }
+    if (files.some(({file}) => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024)) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
     setAnalyzing(true); setAiInspection(null);
     try {
-      const parts = await Promise.all(files.map(async file => {
+      const orderedPhotos = files.slice().sort((a,b) => BIKE_PHOTO_GUIDE.findIndex(area => area.id === a.area) - BIKE_PHOTO_GUIDE.findIndex(area => area.id === b.area));
+      const parts = (await Promise.all(orderedPhotos.map(async ({area,file}) => {
         const bitmap = await createImageBitmap(file);
         const scale = Math.min(1, 1100 / Math.max(bitmap.width, bitmap.height));
         const canvas = document.createElement('canvas');
@@ -105,10 +120,11 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
         const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not prepare a photo.')), 'image/jpeg', 0.72));
         const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = '';
         for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
-        return { inlineData: { mimeType: 'image/jpeg', data: btoa(binary) } };
-      }));
+        const guide = BIKE_PHOTO_GUIDE.find(item => item.id === area);
+        return [{ text: 'Photo area: ' + (guide?.title || area) + '. Requested view: ' + (guide?.hint || '') }, { inlineData: { mimeType: 'image/jpeg', data: btoa(binary) } }];
+      }))).flat();
       const prompt = [
-        'Identify the bicycle, e-bike or scooter in these seller photos using only visible evidence. Never invent an exact model, year, component specification, condition, fault, frame serial number, ownership or stolen status.',
+        'Identify the bicycle, e-bike or scooter in these seller photos using only visible evidence. Each image is preceded by its named bike area and requested view; inspect that area closely, combine evidence across the labeled views, and report which areas are still unclear. Never invent an exact model, year, component specification, condition, fault, frame serial number, ownership or stolen status.',
         'Return one JSON object only with keys make, model, year, type, category, subcategory, colour, frameMaterial, overallCondition, wheelSizeAndSpecs, confidence, coverage, summary, suggestedTitle, suggestedDescription, mainSpecs, obviousProblems, faults, photoRequests, notVisible.',
         'category must be bicycle, ebike or escooter. For bicycle use subcategory commuter, hardtail_mtb, road or other. overallCondition must be new, excellent, good, fair or spares. confidence is 0 to 1 and coverage is 0 to 100.',
         'mainSpecs is a short array of objects containing componentName, category, currentPart, brand, model, specValue, condition, confidence, visibility, stockComparison, stockComparisonNote and specDetails. obviousProblems and faults must describe only clearly visible evidence. photoRequests lists helpful missing angles. notVisible lists facts the images cannot establish.',
@@ -145,20 +161,24 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     e.preventDefault();
     if (!native || !userId) { setAppNotice(true); return; }
     if (!aiInspection) { toast.error('Identify the bike from your photos before submitting.'); return; }
-    if (files.length < 1 || files.length > 10) { toast.error('Choose between 1 and 10 listing photos.'); return; }
+    const missingRequiredViews = BIKE_PHOTO_GUIDE.filter(area => area.required && !files.some(photo => photo.area === area.id));
+    if (missingRequiredViews.length) { toast.error('Complete all required guided bike photos before submitting.'); return; }
+    if (files.length > 10) { toast.error('Capture up to 10 guided listing photos.'); return; }
     if (!frameSerial.trim() || !serialPhoto) { toast.error('Enter the frame serial number and add a clear photo of it.'); return; }
-    if (files.some(file => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8*1024*1024) || !['image/jpeg','image/png','image/webp'].includes(serialPhoto.type) || serialPhoto.size > 8*1024*1024) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
+    if (files.some(({file}) => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8*1024*1024) || !['image/jpeg','image/png','image/webp'].includes(serialPhoto.type) || serialPhoto.size > 8*1024*1024) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
     const price = Number(form.asking_price);
     if (!Number.isFinite(price) || price <= 0 || price > 50000) { toast.error('Enter a valid asking price.'); return; }
     const identity = form.make_model.trim().split(/\s+/);
     if (identity.length < 2) { toast.error('Check and enter both the bike make and model.'); return; }
     const inspectionForListing = { ...aiInspection, make:identity[0], model:identity.slice(1).join(' ') };
+    const orderedPhotos = files.slice().sort((a,b) => BIKE_PHOTO_GUIDE.findIndex(area => area.id === a.area) - BIKE_PHOTO_GUIDE.findIndex(area => area.id === b.area));
     setBusy(true); const uploadedPaths:string[]=[]; let keepUploads=false;
     try {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user || auth.user.id !== userId || !auth.user.email_confirmed_at) throw new Error('Verify your email and sign in again before listing.');
       const id = crypto.randomUUID(), imagePaths:string[]=[];
-      for (const [i,file] of files.entries()) {
+      for (const [i,photo] of orderedPhotos.entries()) {
+        const {file}=photo;
         const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg', objectPath=userId+'/'+id+'/'+i+'.'+ext;
         const { error }=await supabase.storage.from('marketplace-images').upload(objectPath,file,{contentType:file.type,upsert:false});
         if(error) throw error; uploadedPaths.push(objectPath); imagePaths.push(objectPath);
@@ -249,13 +269,14 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     {!staff && loadError && <p role="alert" className="rounded-xl border border-amber-400/25 p-4 text-sm text-amber-200">{loadError}</p>}
     {staff && loadError && <p role="alert" className="text-sm text-amber-200">{loadError}</p>}
     {!staff && native && userId && showForm && <form onSubmit={submit} className="space-y-5 rounded-2xl border border-emerald-400/15 bg-neutral-900/90 p-4 sm:p-6" data-testid="marketplace-listing-form">
-      <div className="flex items-start gap-3"><div className="rounded-xl bg-emerald-400/10 p-3 text-emerald-300"><Sparkles className="h-6 w-6"/></div><div><h2 className="text-lg font-bold text-white">List your bike with AI</h2><p className="mt-1 text-sm leading-5 text-neutral-400">Capture up to 10 photos with your camera, one at a time. AI will identify the bike and prepare a draft for you to review.</p></div></div>
+      <div className="flex items-start gap-3"><div className="rounded-xl bg-emerald-400/10 p-3 text-emerald-300"><Sparkles className="h-6 w-6"/></div><div><h2 className="text-lg font-bold text-white">List your bike with AI</h2><p className="mt-1 text-sm leading-5 text-neutral-400">Take one camera photo for each guided area. Seven clear views are required; add up to three close-ups for a fuller Gemini assessment.</p></div></div>
       <section className="space-y-3 rounded-xl border border-white/10 bg-neutral-950/60 p-4" aria-label="AI bike identification">
-        <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">Step 1 · Photograph your ride</p><p className="mt-1 text-xs leading-5 text-neutral-500">Use your camera for side, front, rear, drivetrain, cockpit, wheels and any visible damage. The first photo becomes the listing cover.</p></div><span className="shrink-0 rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-200">{files.length}/10 photos</span></div>
-        <input data-testid="marketplace-bike-photos" type="file" accept="image/*" capture="environment" onChange={e=>{const captured=e.target.files?.[0];if(captured){if(files.length>=10){toast.error('You can capture up to 10 bike photos.');}else{setFiles([...files,captured]);setAiInspection(null);}}e.target.value='';}} className="block w-full text-xs text-neutral-400 file:mr-3 file:min-h-10 file:rounded-lg file:border-0 file:bg-emerald-400/15 file:px-3 file:text-emerald-200"/>
-        {files.length>0&&<div className="grid gap-2 sm:grid-cols-2">{files.map((file,index)=><div key={index} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border border-white/10 bg-neutral-900 px-3 py-2 text-xs"><span className="min-w-0 truncate text-neutral-300">{index===0?'Cover photo · ':('Photo '+(index+1)+' · ')}{file.name}</span><button type="button" onClick={()=>{setFiles(files.filter((_,photoIndex)=>photoIndex!==index));setAiInspection(null);}} className="shrink-0 rounded-md px-2 py-1 font-semibold text-emerald-200">Remove</button></div>)}</div>}
-        <button type="button" onClick={()=>void identifyBike()} disabled={analyzing||files.length<3} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 font-bold text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"><Sparkles className="h-4 w-4"/>{analyzing?'Identifying from your photos…':aiInspection?'Analyse photos again':'Identify bike and create listing'}</button>
-        <p className="text-[11px] leading-4 text-neutral-500">Choose at least 3 photos. All selected photos, up to 10, are analysed together. AI cannot verify ownership, safety or details hidden from view.</p>
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-semibold text-white">Step 1 · Photograph each area</p><p className="mt-1 text-xs leading-5 text-neutral-500">Tap a specific view to open the camera. The full drive-side view is always used as the listing cover. All labeled photos are sent together to Gemini.</p></div><span className="shrink-0 rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-200">{files.length}/10 photos</span></div>
+        <input id="marketplace-bike-photos" data-testid="marketplace-bike-photos" type="file" accept="image/*" capture="environment" onChange={e=>{const captured=e.target.files?.[0];if(captured){const photoArea=captureArea;setFiles(previous=>[...previous.filter(photo=>photo.area!==photoArea),{area:photoArea,file:captured}]);setAiInspection(null);const nextArea=BIKE_PHOTO_GUIDE.find(area=>area.id!==photoArea&&!files.some(photo=>photo.area===area.id));if(nextArea)setCaptureArea(nextArea.id);}e.target.value='';}} className="sr-only"/>
+        <div className="grid gap-2 sm:grid-cols-2">{BIKE_PHOTO_GUIDE.map((area,index)=>{const captured=files.find(photo=>photo.area===area.id);return <div key={area.id} className="rounded-lg border border-white/10 bg-neutral-900 p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-xs font-bold text-white">{index+1}. {area.title}{index===0&&<span className="ml-2 text-emerald-300">· Cover</span>}</p><p className="mt-1 text-[11px] leading-4 text-neutral-400">{area.hint}</p></div><span className="shrink-0 rounded-full bg-white/5 px-2 py-1 text-[10px] font-semibold text-neutral-400">{area.required?'Required':'Extra'}</span></div>{captured?<div className="mt-2 flex items-center justify-between gap-2 text-[11px]"><span className="min-w-0 truncate text-emerald-200">Captured · {captured.file.name}</span><button type="button" onClick={()=>{setFiles(previous=>previous.filter(photo=>photo.area!==area.id));setCaptureArea(area.id);setAiInspection(null);}} className="shrink-0 rounded-md px-2 py-1 font-semibold text-neutral-300">Retake</button><button type="button" aria-label={'Remove '+area.title} onClick={()=>{setFiles(previous=>previous.filter(photo=>photo.area!==area.id));setAiInspection(null);}} className="shrink-0 rounded-md px-2 py-1 font-semibold text-rose-200">Remove</button></div>:<button type="button" onClick={()=>{if(files.length>=10){toast.error('Remove an extra photo before capturing another.');return;}setCaptureArea(area.id);document.getElementById('marketplace-bike-photos')?.click();}} className="mt-2 inline-flex min-h-9 items-center rounded-lg border border-emerald-400/25 px-3 text-xs font-semibold text-emerald-200 hover:bg-emerald-400/10">Capture this view</button>}</div>;})}</div>
+        <div className="flex items-center justify-between gap-3 text-xs text-neutral-400"><span>{files.filter(photo=>BIKE_PHOTO_GUIDE.find(area=>area.id===photo.area)?.required).length}/7 required views captured</span><span>{Math.max(0,7-files.filter(photo=>BIKE_PHOTO_GUIDE.find(area=>area.id===photo.area)?.required).length)} still needed</span></div>
+        <button type="button" onClick={()=>void identifyBike()} disabled={analyzing||BIKE_PHOTO_GUIDE.some(area=>area.required&&!files.some(photo=>photo.area===area.id))} className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 font-bold text-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"><Sparkles className="h-4 w-4"/>{analyzing?'Identifying from the guided photos…':aiInspection?'Analyse photos again':'Identify bike and create listing'}</button>
+        <p className="text-[11px] leading-4 text-neutral-500">Required views cover both sides, front, rear, drive system, controls and brand/model markings. Add relevant extra close-ups. The private serial-number photo is collected separately and is not sent to Gemini.</p>
       </section>
       {aiInspection&&<section className="space-y-4 rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-4" data-testid="marketplace-ai-review">
         <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-emerald-200">Step 2 · Review the AI draft</p><p className="mt-1 text-xs leading-5 text-neutral-300">{aiInspection.summary||'Check the identified details against your bike and correct anything that is wrong.'}</p></div><span className="shrink-0 rounded-full border border-emerald-300/20 px-2.5 py-1 text-[11px] font-semibold text-emerald-100">{Math.round(Number(aiInspection.confidence||0)*100)}% match</span></div>
@@ -266,7 +287,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
         {Array.isArray(aiInspection.mainSpecs)&&aiInspection.mainSpecs.length>0&&<div className="rounded-lg border border-white/10 bg-black/20 p-3"><p className="mb-2 text-xs font-bold text-white">Visible component assessment</p><div className="space-y-1.5">{aiInspection.mainSpecs.slice(0,8).map((spec:any,index:number)=><p key={index} className="text-xs leading-5 text-neutral-300"><b>{spec.componentName||spec.category||'Component'}:</b> {spec.currentPart||spec.specValue||'Details unclear'}{spec.condition?' · '+spec.condition:''}</p>)}</div></div>}
         {Array.isArray(aiInspection.obviousProblems)&&aiInspection.obviousProblems.length>0&&<div className="rounded-lg border border-amber-400/20 bg-amber-950/20 p-3"><p className="mb-1 text-xs font-bold text-amber-100">Visible issues to check</p>{aiInspection.obviousProblems.slice(0,5).map((problem:any,index:number)=><p key={index} className="text-xs leading-5 text-amber-100/80">{problem.issue||problem.recommendation}</p>)}</div>}
         <label className="block text-xs font-semibold text-neutral-300">Frame serial number<input required maxLength={40} value={frameSerial} onChange={e=>setFrameSerial(e.target.value)} placeholder="Number stamped on the frame" className="mt-1.5 w-full rounded-lg border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white"/><span className="mt-1 block font-normal text-neutral-500">Checked privately against Bike Index and never shown in your public listing.</span></label>
-        <label className="block text-xs font-semibold text-neutral-300">Photo of frame serial number<input required type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setSerialPhoto(e.target.files?.[0]||null)} className="mt-1.5 block w-full text-xs text-neutral-400 file:mr-3 file:min-h-10 file:rounded-lg file:border-0 file:bg-emerald-400/15 file:px-3 file:text-emerald-200"/></label>
+        <label className="block text-xs font-semibold text-neutral-300">Photo of frame serial number<input required type="file" accept="image/*" capture="environment" onChange={e=>setSerialPhoto(e.target.files?.[0]||null)} className="mt-1.5 block w-full text-xs text-neutral-400 file:mr-3 file:min-h-10 file:rounded-lg file:border-0 file:bg-emerald-400/15 file:px-3 file:text-emerald-200"/></label>
         <div className="flex flex-col gap-3 rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs leading-5 text-amber-100/80"><span className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300"/>Review and correct the AI draft. Keep the serial number and private contact details out of the public description. The listing stays hidden until the shop approves it.</span><button disabled={busy||analyzing||!serialPhoto||!frameSerial.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl bg-emerald-400 px-5 py-2.5 font-bold text-neutral-950 disabled:opacity-60">{busy&&<LoaderCircle className="h-4 w-4 animate-spin"/>}{busy?'Submitting for review…':'Submit for shop review'}</button></div>
       </section>}
     </form>}
