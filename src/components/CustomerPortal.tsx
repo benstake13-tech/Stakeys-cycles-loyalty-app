@@ -28,7 +28,6 @@ import {
   CalendarClock,
   BookOpen,
   Heart,
-  Store,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useShop } from '../context/ShopContext';
@@ -55,7 +54,6 @@ import { SymptomChecker } from './SymptomChecker';
 import { CareGuides } from './CareGuides';
 import { TradeInRequestForm, SellBikePrefill } from './TradeInRequestForm';
 import { WishlistPanel } from './WishlistPanel';
-import { MarketplacePanel } from './MarketplacePanel';
 import { RewardNudges } from './RewardNudges';
 import { buildRewardNudges } from '../utils/rewardNudges';
 import { WeatherForecast } from './weather/WeatherForecast';
@@ -91,7 +89,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<
-    'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace'
+    'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist'
   >('garage');
 
   // Bicycle-inspired transition when opening a section from the tile launcher.
@@ -156,7 +154,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  type CustomerTab = 'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace';
+  type CustomerTab = 'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist';
 
   const customerTiles: { id: CustomerTab; label: string; icon: LucideIcon; tone: TabTone; badge?: number | string; hint: string }[] = [
     { id: 'garage', label: 'My Garage', icon: Bike, tone: 'emerald', badge: customerBikes.length, hint: 'Your registered bikes' },
@@ -173,7 +171,6 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     { id: 'care', label: 'Care Schedule', icon: CalendarClock, tone: 'emerald', hint: 'When each bike is next due a service' },
     { id: 'guides', label: 'How-To Guides', icon: BookOpen, tone: 'emerald', hint: 'Short care and maintenance guides' },
     { id: 'tradein', label: 'Sell Your Bike', icon: RefreshCw, tone: 'amber', hint: '7 photos → AI offer for your old bike' },
-    { id: 'marketplace', label: 'Local Marketplace', icon: Store, tone: 'emerald', hint: 'Buy or list a bike, e-bike or e-scooter' },
     { id: 'wishlist', label: 'Watchlist', icon: Heart, tone: 'rose', hint: 'Items you want back in stock' },
     { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
     { id: 'refer', label: 'Refer a Friend', icon: Gift, tone: 'amber', hint: 'Share your code and earn rewards' },
@@ -906,7 +903,6 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
       {/* TAB: TRADE-IN / PART-EXCHANGE */}
       {activeTab === 'tradein' && <TradeInRequestForm prefill={sellBikePrefill} />}
-      {activeTab === 'marketplace' && <MarketplacePanel />}
 
       {/* TAB: WISHLIST / NOTIFY ME */}
       {activeTab === 'wishlist' && <WishlistPanel />}

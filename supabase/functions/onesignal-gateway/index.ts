@@ -1,3 +1,5 @@
+import { buildNativeAccountTestMessage, buildNativeTestMessage } from "./nativeTest.ts";
+
 // Keeps the OneSignal App API key in Supabase Edge Function secrets and uses
 // OneSignal's current REST endpoint/authentication scheme.
 const cors = {
@@ -11,6 +13,16 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const DEFAULT_APP_ID = '7f67ab94-3c85-4702-9cd8-d158cf294593';
 const OWNER_EMAIL = Deno.env.get('ADMIN_NOTIFICATION_EMAIL') || 'stakeyscycle95@gmail.com';
 
+// OneSignal can return errors as an object even with HTTP 200. Keep its reason
+// readable by older APKs, whose error renderer only understands string arrays.
+function providerErrorMessage(errors: unknown, apiKey: string): string {
+  if (!errors) return '';
+  const redact = (value: unknown) => typeof value === 'string' ? value.replaceAll(apiKey, '[redacted]') : value;
+  const serialize = (value: unknown) => typeof value === 'string' ? String(redact(value)) : JSON.stringify(value, (key, entry) =>
+    /authorization|api.?key|token|secret|password|private_key/i.test(key) ? '[redacted]' : redact(entry));
+  return (Array.isArray(errors) ? errors.map(serialize).join('; ') : serialize(errors)).slice(0, 1600);
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -22,12 +34,9 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: 'Invalid JSON body' }, 400); }
 
   if (body.action === 'config') return json({ appId, androidAppId, serverPush: Boolean(apiKey), keySource: apiKey ? 'Supabase Edge Function secret' : null });
-  if (body.action !== 'notify') return json({ error: 'Unknown OneSignal action' }, 404);
+  if (!['notify', 'test-native', 'test-native-account'].includes(String(body.action))) return json({ error: 'Unknown OneSignal action' }, 404);
   if (!apiKey) return json({ error: 'OneSignal server key is not configured in Supabase', code: 'NOT_CONFIGURED' }, 503);
 
-  // Resolve caller role from Supabase. Staff may send to any identified user,
-  // tags, or segments; ordinary callers can only alert the fixed workshop inbox
-  // or target their own external id.
   const authHeader = req.headers.get('Authorization') || '';
   const bearer = authHeader.match(/^Bearer\s+(.+)$/i)?.[1] || '';
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
@@ -47,6 +56,50 @@ Deno.serve(async (req) => {
     } catch (error) { console.error('OneSignal caller verification failed:', error); }
   }
 
+  if (body.action === 'test-native' || body.action === 'test-native-account') {
+    if (!callerId) return json({ error: 'Sign in to test native push', code: 'AUTH_REQUIRED' }, 401);
+    if (!isStaff) return json({ error: 'Staff access required', code: 'STAFF_REQUIRED' }, 403);
+    let testMessage;
+    const accountTest = body.action === 'test-native-account';
+    try {
+      testMessage = accountTest
+        ? buildNativeAccountTestMessage(body, androidAppId, callerId)
+        : buildNativeTestMessage(body, androidAppId);
+    }
+    catch (error) { return json({ error: (error as Error).message, code: 'INVALID_NATIVE_TARGET' }, 400); }
+    try {
+      const upstream = await fetch('https://api.onesignal.com/notifications', {
+        method: 'POST',
+        headers: { Authorization: `Key ${apiKey}`, 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify(testMessage),
+        signal: AbortSignal.timeout(15000),
+      });
+      const result = await upstream.json().catch(() => ({}));
+      // Acceptance is not confirmation that the phone displayed the message.
+      const hasErrors = Array.isArray(result.errors) ? result.errors.length > 0 : Boolean(result.errors);
+      const accepted = upstream.ok && Boolean(result.id) && !hasErrors && result.recipients !== 0;
+      const providerReason = providerErrorMessage(result.errors, apiKey);
+      // Log only outcome metadata and redacted provider errors, never keys or FCM tokens.
+      console.log('Native push test outcome', JSON.stringify({
+        providerStatus: upstream.status,
+        accepted,
+        hasMessageId: Boolean(result.id),
+        recipients: typeof result.recipients === 'number' ? result.recipients : null,
+        errors: providerReason || null,
+      }));
+      return json({ id: typeof result.id === 'string' ? result.id : null,
+        ...(typeof result.recipients === 'number' ? { recipients: result.recipients } : {}),
+        ...(providerReason ? { errors: [providerReason] } : {}), accepted, ...(!accepted ? {
+        error: providerReason ? `OneSignal rejected the native test: ${providerReason}` : 'OneSignal returned no accepted message ID. Check this Android subscription in the OneSignal dashboard.',
+        code: 'NATIVE_TEST_REJECTED',
+      } : {}), platform: 'android-native', ...(accountTest
+        ? { targetScope: 'signed-in-staff-android-devices' }
+        : { subscriptionId: body.subscriptionId }) }, upstream.status);
+    } catch {
+      return json({ error: 'Native push dispatch failed', code: 'UPSTREAM_ERROR' }, 502);
+    }
+  }
+
   const title = String(body.title || "Stakey's Cycles").slice(0, 120);
   const content = String(body.body || '').slice(0, 2000);
   if (!content.trim()) return json({ error: 'Notification body is required' }, 400);
@@ -56,6 +109,11 @@ Deno.serve(async (req) => {
     contents: { en: content },
     target_channel: 'push',
   };
+  if (appId === androidAppId) {
+    message.small_icon = 'ic_stat_stakeys';
+    message.android_accent_color = 'FF05C147';
+    message.android_channel_id = 'stakeys_cycles_updates';
+  }
 
   const externalId = body.externalUserId ? String(body.externalUserId).slice(0, 200) : '';
   const tag = body.tag && typeof body.tag === 'object' ? body.tag as { key?: unknown; value?: unknown } : null;
@@ -92,7 +150,7 @@ Deno.serve(async (req) => {
     try {
       const candidate = new URL(body.url);
       if (candidate.origin === new URL(siteUrl).origin) clickUrl = candidate.toString();
-    } catch { /* use the known site origin */ }
+    } catch {}
   }
   if (message.target_channel === 'push') message.url = clickUrl;
 

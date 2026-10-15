@@ -291,6 +291,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     ride.rideIn();
     setStaffTab('bookings');
     setShowTools(false);
+    if (typeof window !== 'undefined' && window.scrollY > 0) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
   }, [focusBookingId]);
 
   // Bell deep links. Local because they only ever originate inside the staff
@@ -664,12 +667,18 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     ride.rideIn();
     setStaffTab(id);
     setShowTools(false);
+    if (typeof window !== 'undefined' && window.scrollY > 0) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
   };
 
   /** Leave a tool and pedal back to the launcher. */
   const closeStaffTool = () => {
     ride.rideBack();
     setShowTools(true);
+    if (typeof window !== 'undefined' && window.scrollY > 0) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
   };
 
   /**
@@ -704,7 +713,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   return (
     <div className="stakeys-premium-staff relative font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="relative z-10 space-y-5">
-      <header className="stakeys-brand-header" aria-label="Stakeys Cycles staff workspace">
+      {showTools && <>
+      <header className="stakeys-brand-header" aria-label="Stakeys Cycles staff workspace" data-testid="staff-home-header">
         <div className="stakeys-brand-identity">
           <StakeysLogo className="w-16 h-16 sm:w-20 sm:h-20" />
           <div>
@@ -777,6 +787,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </div>
         </div>
       )}
+      </>}
 
       {/* 2. METRIC RAIL — headline KPIs, each a shortcut into its tool */}
       {showTools && (
@@ -846,7 +857,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         )}
       </div>
       ) : (
-        <div className="surface-panel flex flex-wrap items-center gap-3 p-3">
+        <section className="surface-panel flex flex-col gap-4 p-4 sm:p-6" data-testid="staff-tool-page" aria-labelledby="staff-tool-page-title">
+          <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => closeStaffTool()}
@@ -856,22 +868,20 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             <LayoutGrid className="w-4 h-4 text-emerald-400" />
             <span>Back to tools</span>
           </button>
+          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">Staff workspace</span>
+          </div>
           {activeTile && (
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center text-[#00FF66]">
-                <activeTile.icon className="h-5 w-5" strokeWidth={1.65} />
+            <div className="flex min-w-0 items-center gap-3 border-t border-white/10 pt-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 text-[#00FF66]">
+                <activeTile.icon className="h-6 w-6" strokeWidth={1.65} />
               </span>
               <div className="min-w-0">
-                <div className="truncate font-display text-sm font-bold leading-tight text-white">
-                  {activeTile.label}
-                </div>
-                <div className="truncate text-[10px] uppercase tracking-[0.16em] text-neutral-500">
-                  {activeTile.hint}
-                </div>
+                <h1 id="staff-tool-page-title" className="font-display text-xl sm:text-2xl font-extrabold leading-tight text-white">{activeTile.label}</h1>
+                <p className="mt-1 text-xs sm:text-sm text-neutral-400">{activeTile.hint}</p>
               </div>
             </div>
           )}
-        </div>
+        </section>
       )}
 
       {/* 4. WORKSTATION VIEWS */}
@@ -970,7 +980,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           <SegmentedTabs
             tabs={settingsSections}
             active={settingsSection}
-            onChange={setSettingsSection}
+            onChange={(section) => { ride.rideIn(); setSettingsSection(section); }}
             ariaLabel="Settings sections"
           />
 
@@ -1088,7 +1098,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setStaffTab('bookings')}
+                      onClick={() => openStaffTab('bookings')}
                       className={`p-3 rounded-xl bg-neutral-950 border text-left transition-all cursor-pointer relative overflow-hidden ${
                         freshBookings.length > 0
                           ? 'border-amber-400/90 shadow-[0_0_18px_rgba(245,158,11,0.3)] hover:border-amber-300'
@@ -1114,7 +1124,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
                     <button
                       type="button"
-                      onClick={() => setStaffTab('staff_roster')}
+                      onClick={() => openStaffTab('staff_roster')}
                       className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
                     >
                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
@@ -1128,7 +1138,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
                     <button
                       type="button"
-                      onClick={() => setStaffTab('promotions')}
+                      onClick={() => openStaffTab('promotions')}
                       className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
                     >
                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
@@ -1142,7 +1152,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
                     <button
                       type="button"
-                      onClick={() => setStaffTab('customers')}
+                      onClick={() => openStaffTab('customers')}
                       className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
                     >
                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
@@ -1155,7 +1165,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
 
                     <button
                       type="button"
-                      onClick={() => setStaffTab('draws')}
+                      onClick={() => openStaffTab('draws')}
                       className="p-3 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-emerald-500/40 text-left transition-colors cursor-pointer"
                     >
                       <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
@@ -1181,7 +1191,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           onFocusHandled={() => setFocusMemberUid(null)}
           onSelectForScanner={(cust) => {
             handleSelectCustomer(cust);
-            setStaffTab('customers');
+            openStaffTab('customers');
           }}
         />
       ))}
@@ -1767,7 +1777,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         onClose={() => setIsScannerOpen(false)}
         onCustomerScanned={(customer, balance) => {
           handleSelectCustomer(customer);
-          setStaffTab('customers');
+          openStaffTab('customers');
           const balances = balance
             ? ` — ${balance.stamps}/10 stamps · ${balance.tickets} ticket${balance.tickets === 1 ? '' : 's'} · ${balance.points} point${balance.points === 1 ? '' : 's'}`
             : '';

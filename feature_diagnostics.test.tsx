@@ -20,6 +20,8 @@ vi.mock('./src/utils/pushNotifications', () => ({
   isPushSubscribed: vi.fn(async () => true),
   optInPushSubscription: vi.fn(async () => 'sub-1'),
   getConfiguredAppId: vi.fn(() => 'app-id'),
+  getPushRuntimeDiagnostic: vi.fn(async () => ({ client: 'web' })),
+  getNativePushDeliveryDiagnostics: vi.fn(async () => ({ notificationsEnabled: true, hasPushToken: true, interruptionFilter: 1, lastMessageId: null, receivedAt: Date.now(), lastMessageInTray: false, channels: [] })),
   setConfiguredAppId: vi.fn(() => true),
   linkUser: vi.fn(async () => {}),
   registerEmailSubscription: vi.fn(async () => {}),
@@ -115,6 +117,39 @@ describe('StaffDiagnosticsTab', () => {
     for (const area of Object.keys(AREA_LABELS)) {
       expect(container.querySelector(`[data-testid="test-repair-${area}"]`)).toBeTruthy();
     }
+  });
+
+  it('shows dedicated Gemini and Supabase bucket test and repair sections', () => {
+    const { getByTestId, getByText } = render(<StaffDiagnosticsTab />);
+    expect(getByTestId('gemini-repair-panel')).toBeTruthy();
+    expect(getByTestId('gemini-model-settings')).toBeTruthy();
+    expect(getByTestId('save-gemini-settings')).toBeTruthy();
+    expect(getByTestId('test-gemini-gateway')).toBeTruthy();
+    expect(getByTestId('storage-bucket-repair-panel')).toBeTruthy();
+    expect(getByTestId('test-storage-bucket')).toBeTruthy();
+    expect(getByTestId('repair-storage-bucket')).toBeTruthy();
+    expect(getByText('Supabase Bucket Test & Repair')).toBeTruthy();
+  });
+
+  it('organizes checks into navigable sections and offers free or paid model choices', () => {
+    const { getByRole, getByTestId } = render(<StaffDiagnosticsTab />);
+    expect(getByTestId('test-bench-overview')).toBeTruthy();
+    fireEvent.click(getByRole('button', { name: 'AI & Storage' }));
+    expect(getByTestId('gemini-repair-panel').hasAttribute('hidden')).toBe(false);
+    const selects = getByTestId('gemini-model-settings').querySelectorAll('select');
+    expect(selects[0].querySelector('option[value="gemini-3.8-flash"]')).toBeTruthy();
+    expect(selects[1].querySelector('option[value="free"]')).toBeTruthy();
+    expect(selects[1].querySelector('option[value="paid"]')).toBeTruthy();
+    fireEvent.change(selects[1], { target: { value: 'paid' } });
+    expect(selects[0].querySelector('option[value="gemini-4-argon"]')).toBeTruthy();
+  });
+
+  it('opens the focused shop-gallery bucket setup and repair SQL', () => {
+    const { getByTestId, container } = render(<StaffDiagnosticsTab />);
+    fireEvent.click(getByTestId('repair-storage-bucket'));
+    expect(container.textContent).toContain('Shop & Gallery Storage — setup / repair');
+    expect(container.textContent).toContain("VALUES ('shop-gallery', 'shop-gallery', true");
+    expect(container.textContent).toContain('shop_gallery_staff_insert');
   });
 
   it('runs an area on demand and shows pass results', async () => {

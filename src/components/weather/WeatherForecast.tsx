@@ -379,7 +379,7 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
             <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-4">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.2em] text-white/80">
-                  {dayLabel(active.date)}
+                  {dayLabel(active.date, new Date(), report?.timezone)}
                 </div>
                 <div className="flex items-end gap-2">
                   <span className="text-4xl font-black text-white leading-none">
@@ -484,7 +484,7 @@ export const WeatherForecast: React.FC<WeatherForecastProps> = ({
                 <WeatherScene kind={day.kind} isDay className="absolute inset-0 h-full w-full" animate={isActive} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute left-2 top-1.5 text-[10px] font-black uppercase tracking-wider text-white/90">
-                  {dayLabel(day.date)}
+                  {dayLabel(day.date, new Date(), report?.timezone)}
                 </div>
                 {i === bestIndex && (
                   <span className="absolute right-1.5 top-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-neutral-950" title="Best riding day">

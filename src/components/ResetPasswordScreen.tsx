@@ -56,7 +56,7 @@ export const ResetPasswordScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0b0f15] text-neutral-100 flex items-center justify-center p-4 font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 flex items-center justify-center p-4 font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5">
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-2xl bg-neutral-950 border border-emerald-500/40 shadow-lg">

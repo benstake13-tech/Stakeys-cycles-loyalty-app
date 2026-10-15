@@ -1,3 +1,4 @@
+import { completeBikeInspection } from '../utils/bikeInspection';
 import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
 import { Type } from '@google/genai';
 import { resolveGeminiModel } from "./geminiModel";
@@ -21,10 +22,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** The taxonomy rendered as a part-by-part checklist for the prompt. */
 export const taxonomyChecklist = SPEC_SYSTEMS.map(
-  (system) => `- ${system.label}: ${system.components.map((c) => c.name).join(", ")}`
+  (system) => `- ${system.label} [${system.id}]: ${system.components.map((c) => `${c.name} [${c.id}]`).join(", ")}`
 ).join("\n");
 
 const BIKE_IDENTIFICATION_PROMPT = `You are Stakey's Cycles' master mechanic and bike identification engine.
+Do not call a part stock, upgraded, original or aftermarket based on appearance alone. Distinguish fitted observations from manufacturer specifications. Do not invent a model year, trim, source URL, dimension or part number.
+A deflated tyre is an observation, not proof of a puncture. Leak tests, torque, internal damage, bearing play and brake effectiveness require workshop checks. Use condition "unknown" when obscured or unassessed. Additional photos are labelled by the component area.
 Study the photo(s) of the bicycle or scooter carefully and return a precise, structured assessment.
 You may receive more than one photo: a full side-on shot, a close-up of the brand/head badge, and a
 close-up of the model name/decal. Use the close-ups to pin down make and model; use the full shot for
@@ -47,7 +50,7 @@ For each entry provide: "systemId" (use the exact system id you are working with
 bucket: Drivetrain, Brakes, Suspension / Fork, Wheels & Tires, Cockpit & Controls, or
 Electrical / Battery), "currentPart" (what is fitted, with any visible brand), "specValue" (the
 measured dimension/size/spec, e.g. "700x32c", "11-34T", "160mm rotor", "622-25"), "brand", "model",
-"condition" (excellent | good | worn | needs_attention), "visibility"
+"condition" (unknown | excellent | good | worn | needs_attention), "visibility"
 (visible | partial | assumed), "confidence" (0 to 1) and "notes".
 
 Also return:
@@ -57,7 +60,7 @@ Also return:
 
 Other required fields:
 - "type" must be exactly one of: "cycle", "ebike", "electric_scooter", "cargo".
-- Determine the bike's positioning: what kind of riding it is built for, whether the fit/setup suits the rider visible in the shot, and estimate the frame size and wheel size from proportions.
+- Determine the bike's positioning: what kind of riding it is built for, whether the fit/setup suits the rider visible in the shot, and only report frame size or wheel dimensions when legible on a label or supplied as a measurement.
 - Read the wheels and tyres closely: report the wheel size (e.g. "700c", "27.5in", "26in", "20in"), the exact tyre size printed on the sidewall (imperial like "26x1.95" or ETRTO/ISO like "622-25"), and the valve type (Presta = thin threaded with a locknut; Schrader = car-type; Woods/Dunlop = older/utility). If not legible, leave the field empty — do not guess.
 - Look for the frame serial number, usually stamped under the bottom bracket shell or on the rear dropout, and report it exactly if legible.
 - Look specifically for an electric conversion kit or factory e-system: motor (brand, hub/mid-drive, approx watts), battery (brand, location, volts), controller and wiring. Flag if it looks like an aftermarket conversion rather than a factory e-bike.
@@ -157,7 +160,7 @@ const BIKE_RESPONSE_SCHEMA = {
           specValue: { type: Type.STRING, description: "Measured dimension/size/spec, e.g. '700x32c', '11-34T', '160mm rotor'" },
           brand: { type: Type.STRING },
           model: { type: Type.STRING },
-          condition: { type: Type.STRING, description: "One of: excellent, good, worn, needs_attention" },
+          condition: { type: Type.STRING, description: "One of: unknown, excellent, good, worn, needs_attention" },
           visibility: { type: Type.STRING, description: "One of: visible, partial, assumed, not_visible" },
           confidence: { type: Type.NUMBER, description: "0 to 1 confidence in this component" },
           notes: { type: Type.STRING },
@@ -298,7 +301,7 @@ export async function identifyBikeFromImage(images, mimeType = "image/jpeg", use
 
       const text = response.text;
       if (!text) throw new Error("The AI returned an empty response. Please try another photo.");
-      return JSON.parse(text);
+      return completeBikeInspection(JSON.parse(text));
     } catch (err) {
       const info = classifyVisionError(err, { configured: true, timedOut });
       lastError = info;
@@ -357,7 +360,7 @@ export function getFallbackDiagnostic(userNotes = "") {
     make: "Unknown / To Be Inspected",
     model: "Unknown / To Be Inspected",
     wheelSizeAndSpecs: "Standard / Requires Workshop Measurement",
-    overallCondition: "Fair",
+    overallCondition: "Unknown",
     faults: [
       {
         component: "General Intake",
@@ -399,7 +402,7 @@ export async function diagnoseFault({ images = [], userNotes = "" } = {}) {
   const hasImages = (Array.isArray(images) ? images : [images]).filter(Boolean).length > 0;
   if (!hasImages || !isBikeVisionConfigured()) {
     return {
-      ...getFallbackDiagnostic(userNotes),
+      ...completeBikeInspection(getFallbackDiagnostic(userNotes)),
       usedFallback: true,
       fallbackReason: hasImages ? "not-configured" : "no-images",
     };
@@ -409,7 +412,7 @@ export async function diagnoseFault({ images = [], userNotes = "" } = {}) {
     return { ...diagnostic, usedFallback: false, fallbackReason: null };
   } catch (err) {
     const info = classifyVisionError(err);
-    return { ...getFallbackDiagnostic(userNotes), usedFallback: true, fallbackReason: info.kind || "error" };
+    return { ...completeBikeInspection(getFallbackDiagnostic(userNotes)), usedFallback: true, fallbackReason: info.kind || "error" };
   }
 }
 

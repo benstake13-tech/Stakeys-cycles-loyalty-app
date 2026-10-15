@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="onesignal_app_id" translatable="false">7f67ab94-3c85-4702-9cd8-d158cf294593</string>
+    <drawable name="onesignal_notification_icon">@drawable/ic_stat_stakeys</drawable>
+    <color name="onesignal_notification_accent_color">#05C147</color>
+</resources>

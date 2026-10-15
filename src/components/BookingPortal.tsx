@@ -71,7 +71,7 @@ import {
   BookingPhrases,
 } from '../utils/bookingTranslator';
 import { translateBookingNotesWithOriginal, isTranslationConfigured } from '../api/translationService';
-import confetti from 'canvas-confetti';
+import { BookingConfirmationAnimation } from './BookingConfirmationAnimation';
 
 interface BookingPortalProps {
   initialBikeId?: string;
@@ -726,16 +726,6 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
 
       setSubmittedBooking(newBooking);
 
-      try {
-        confetti({
-          particleCount: 90,
-          spread: 80,
-          origin: { y: 0.3 },
-          colors: ['#05C147', '#10b981', '#34d399', '#ffffff'],
-        });
-      } catch {
-        // ignore
-      }
     } catch (err: any) {
       setFormError(err.message || 'Failed to submit booking. Please try again.');
     } finally {
@@ -777,9 +767,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
       >
         <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-10 shadow-2xl relative overflow-hidden">
           <div className="text-center space-y-3 pb-6 border-b border-neutral-800">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mx-auto">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
+            <BookingConfirmationAnimation key={submittedBooking.id} bookingId={String(submittedBooking.id)} />
 
             <div className="text-xs text-neutral-400 font-mono">
               {t.referenceLabel} #{submittedBooking.id} <span aria-hidden="true" className="text-neutral-600">·</span> {t.confirmationSentTo} {submittedBooking.customerEmail}

@@ -77,23 +77,17 @@ beforeEach(() => {
 });
 
 describe('booking email de-duplication', () => {
-  it('sends exactly one workshop alert and one customer confirmation for a booking', async () => {
-    await dispatchBookingNotifications(booking, config);
+  it('leaves booking emails to the database webhook and returns honest pending previews', async () => {
+    const result = await dispatchBookingNotifications(booking, config);
 
-    expect(hoisted.invokes).toHaveLength(2);
-    expect(hoisted.invokes.map((i) => i.body.to).sort()).toEqual(['sam@example.com', 'workshop@stakeyscycles.co.uk']);
+    expect(hoisted.invokes).toHaveLength(0);
+    expect(result.emailLog.status).toBe('pending');
+    expect(result.customerEmailLog.status).toBe('pending');
+    expect(result.emailLog.recipient).toBe(config.ownerEmail);
+    expect(result.customerEmailLog.recipient).toBe(booking.customerEmail);
   });
 
-  it('never re-sends the confirmation when the same booking is dispatched again', async () => {
-    await dispatchBookingNotifications(booking, config);
-    await dispatchBookingNotifications(booking, config);
-    await dispatchBookingNotifications(booking, config);
-
-    // Still only the two original sends — the repeats are suppressed.
-    expect(hoisted.invokes).toHaveLength(2);
-  });
-
-  it('still sends the separate lifecycle emails (approval, decline) once each', async () => {
+  it('still sends separate lifecycle emails (approval, decline) once each', async () => {
     await dispatchBookingNotifications(booking, config);
     await dispatchBookingApprovalNotification({ ...booking, approvalStatus: 'approved' }, 'Bring the key', config);
     await dispatchBookingApprovalNotification({ ...booking, approvalStatus: 'approved' }, 'Bring the key', config);
@@ -103,8 +97,8 @@ describe('booking email de-duplication', () => {
     const subjects = hoisted.invokes.map((i) => i.body.subject as string);
     const count = (needle: string) => subjects.filter((s) => s.includes(needle)).length;
 
-    expect(count('Repair Request Received')).toBe(1); // customer confirmation
-    expect(count("New Booking #bk-4242")).toBe(1); // workshop alert
+    expect(count('Repair Request Received')).toBe(0); // initial booking email is database-triggered
+    expect(count("New Booking #bk-4242")).toBe(0); // initial workshop alert is database-triggered
     expect(count('APPROVED')).toBe(1); // approval (duplicate suppressed)
     expect(count('could not be approved')).toBe(1); // decline
     // Reminders default to push, so no reminder email is sent.
@@ -124,50 +118,42 @@ describe('booking email de-duplication', () => {
       notes:
         'Bike: Trek FX 1\nSerial: WTU123456\n\nReported Symptoms (1):\n• [Brakes] Squeaky / rubbing\n\nAccess / drop-off notes: Side gate, code 4455\n\nPreferred contact: Email',
     };
-    await dispatchBookingNotifications(detailed, config);
+    const result = await dispatchBookingNotifications(detailed, config);
 
-    const ownerEmail = hoisted.invokes.find((i) => i.body.to === 'workshop@stakeyscycles.co.uk');
-    expect(ownerEmail).toBeTruthy();
-    expect(ownerEmail!.body.html).toContain('Full Booking Detail');
-    expect(ownerEmail!.body.html).toContain('Access / drop-off notes: Side gate, code 4455');
-    expect(ownerEmail!.body.html).toContain('Preferred contact: Email');
+    expect(result.emailLog.content).toContain('Full Booking Detail');
+    expect(result.emailLog.content).toContain('Access / drop-off notes: Side gate, code 4455');
+    expect(result.emailLog.content).toContain('Preferred contact: Email');
   });
 
   it('escapes HTML in customer notes so the workshop email cannot be injected', async () => {
-    await dispatchBookingNotifications(
+    const result = await dispatchBookingNotifications(
       { ...booking, notes: 'Suspicious <script>alert(1)</script> text' },
       config
     );
-    const ownerEmail = hoisted.invokes.find((i) => i.body.to === 'workshop@stakeyscycles.co.uk');
-    expect(ownerEmail!.body.html).not.toContain('<script>alert(1)</script>');
-    expect(ownerEmail!.body.html).toContain('&lt;script&gt;');
+    expect(result.emailLog.content).not.toContain('<script>alert(1)</script>');
+    expect(result.emailLog.content).toContain('&lt;script&gt;');
   });
 
-  it('still confirms the customer when workshop alerts are switched off', async () => {
-    // The workshop muting its own inbox must never rob the customer of a receipt.
+  it('does not send a second copy when workshop alerts are switched off', async () => {
     const mutedConfig: OwnerNotificationConfig = { ...config, emailAlertsEnabled: false };
     const { failures } = await dispatchBookingNotifications(booking, mutedConfig);
 
-    const recipients = hoisted.invokes.map((i) => i.body.to);
-    expect(recipients).toContain('sam@example.com');
-    expect(recipients).not.toContain('workshop@stakeyscycles.co.uk');
-    expect((failures || []).some((f) => f.includes('Workshop booking alert not sent'))).toBe(true);
+    expect(hoisted.invokes).toHaveLength(0);
+    expect(failures).toEqual([]);
   });
 
-  it('still confirms the customer when no workshop recipient is configured', async () => {
+  it('does not send a second customer copy when no workshop recipient is configured', async () => {
     const noOwnerConfig: OwnerNotificationConfig = { ...config, ownerEmail: '' };
     await dispatchBookingNotifications(booking, noOwnerConfig);
 
-    const recipients = hoisted.invokes.map((i) => i.body.to);
-    expect(recipients).toEqual(['sam@example.com']);
+    expect(hoisted.invokes).toHaveLength(0);
   });
 
-  it('reports a failure when the booking has no customer email to confirm', async () => {
+  it('reports a missing customer address for the database confirmation', async () => {
     const { failures } = await dispatchBookingNotifications({ ...booking, customerEmail: '' }, config);
 
     expect((failures || []).some((f) => f.includes('no customer email address'))).toBe(true);
-    // The workshop alert is unaffected and still goes out.
-    expect(hoisted.invokes.map((i) => i.body.to)).toContain('workshop@stakeyscycles.co.uk');
+    expect(hoisted.invokes).toHaveLength(0);
   });
 
   it('dispatches the 24h reminder as a push to the customer and owner-email devices', async () => {

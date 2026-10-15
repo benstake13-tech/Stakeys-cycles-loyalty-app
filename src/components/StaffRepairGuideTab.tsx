@@ -1,5 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { ExternalLink, Maximize2, Minimize2, RefreshCw } from 'lucide-react';
+import { generateGemini } from '../api/geminiGateway';
+
+// The same-origin guide reuses the app's authenticated Supabase gateway.
+// Expose a request function, never a Gemini credential.
+if (typeof window !== 'undefined') {
+  (window as unknown as { __STAKEYS_GENERATE_GEMINI__?: typeof generateGemini }).__STAKEYS_GENERATE_GEMINI__ = generateGemini;
+}
 
 /**
  * The Stakeys Cycles Workshop Repair & Training Guide — a self-contained React

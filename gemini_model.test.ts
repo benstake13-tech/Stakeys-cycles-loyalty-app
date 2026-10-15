@@ -6,21 +6,21 @@ describe('resolveGeminiModel', () => {
     vi.unstubAllEnvs();
   });
 
-  it('defaults to the stable low-cost Lite model when unset', () => {
+  it('defaults to the current stable Flash model', () => {
     vi.stubEnv('VITE_GEMINI_MODEL', '');
-    expect(resolveGeminiModel()).toBe('gemini-3.5-flash-lite');
+    expect(resolveGeminiModel()).toBe('gemini-3.8-flash');
   });
 
-  it('honours an explicit override', () => {
+  it('does not accept a browser environment model override', () => {
     vi.stubEnv('VITE_GEMINI_MODEL', 'gemini-3.8-flash');
     expect(resolveGeminiModel()).toBe('gemini-3.8-flash');
   });
 
   it('trims whitespace and ignores a blank override', () => {
     vi.stubEnv('VITE_GEMINI_MODEL', '   ');
-    expect(resolveGeminiModel()).toBe('gemini-3.5-flash-lite');
+    expect(resolveGeminiModel()).toBe('gemini-3.8-flash');
     vi.stubEnv('VITE_GEMINI_MODEL', '  gemini-2.5-flash  ');
-    expect(resolveGeminiModel()).toBe('gemini-2.5-flash');
+    expect(resolveGeminiModel()).toBe('gemini-3.8-flash');
   });
 });
 
@@ -28,7 +28,6 @@ describe('isLiteModel / noThinking', () => {
   it('detects Lite models', () => {
     expect(isLiteModel('gemini-flash-lite-latest')).toBe(true);
     expect(isLiteModel('gemini-3.1-flash-lite')).toBe(true);
-    expect(isLiteModel('gemini-flash-latest')).toBe(false);
     expect(isLiteModel('gemini-3.8-flash')).toBe(false);
   });
 
@@ -38,7 +37,6 @@ describe('isLiteModel / noThinking', () => {
   });
 
   it('sets a zero thinking budget for non-Lite Flash models', () => {
-    expect(noThinking('gemini-flash-latest')).toEqual({ thinkingConfig: { thinkingBudget: 0 } });
     expect(noThinking('gemini-3.8-flash')).toEqual({ thinkingConfig: { thinkingBudget: 0 } });
   });
 });

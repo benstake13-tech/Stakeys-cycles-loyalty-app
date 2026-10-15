@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import {
   FlaskConical,
   Play,
@@ -15,7 +16,6 @@ import {
   Bell,
   BellRing,
   Volume2,
-  Smartphone,
   Copy,
   Check,
   Wrench,
@@ -23,11 +23,17 @@ import {
   Award,
   ShieldCheck,
   UserCog,
+  Sparkles,
+  KeyRound,
+  Settings2,
+  Layers3,
+  LogIn,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
+import { apiUrl } from '../utils/apiBase';
+import { supabase } from '../lib/supabase';
 import { dispatchTestEmail } from '../utils/notificationService';
 import {
-  sendPushToUser,
   initOneSignal,
   getPushPermission,
   requestPushPermission,
@@ -35,17 +41,22 @@ import {
   isPushSubscribed,
   optInPushSubscription,
   getConfiguredAppId,
+  getPushRuntimeDiagnostic,
+  getNativePushDeliveryDiagnostics,
+  NativePushDeliveryDiagnostics,
   setConfiguredAppId,
   linkUser,
   registerEmailSubscription,
-  adminPushTarget,
-  getOneSignalServerConfig,
 } from '../utils/pushNotifications';
 import { runPushRepair, PushRepairStep, PushRepairStatus, PUSH_STEP_FIX_ACTION } from '../utils/pushRepair';
+import { sendNativeAndroidTestPush, NativePushTestResult } from '../utils/nativePushTest';
 import { fetchAuthHealth, provisionMemberLogin, AuthHealth } from '../utils/authHealth';
 import { generateRepairSqlForTables, generateProfileBalanceProbeSql } from '../utils/schemaSync';
 import { getStoredSupabaseUrl } from '../supabase';
-import { RepairTarget, resolveRepairTarget } from '../utils/repairTargets';
+import { GeminiDiagnosticReport, runGeminiDiagnostics } from '../api/geminiDiagnostics';
+import { GEMINI_MODELS, resolveGeminiModel, GeminiTier } from '../api/geminiModel';
+import { runShopGalleryStorageDiagnostics, SHOP_GALLERY_REPAIR_SQL, StorageDiagnosticReport } from '../api/storageDiagnostics';
+import { RepairTarget, resolveRepairTarget, oneSignalDashboardUrl } from '../utils/repairTargets';
 import {
   AREA_LABELS,
   FEATURE_TESTS,
@@ -108,6 +119,7 @@ const STATUS_META: Record<
 };
 
 type Toast = { kind: 'ok' | 'err' | 'warn'; text: string } | null;
+type BenchSection = 'overview' | 'ai' | 'notifications' | 'account' | 'features';
 
 const PUSH_STEP_META: Record<
   PushRepairStatus,
@@ -173,6 +185,11 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [fixSql, setFixSql] = useState<{ title: string; sql: string } | null>(null);
   const [pushSteps, setPushSteps] = useState<PushRepairStep[]>([]);
   const [pushBusy, setPushBusy] = useState<'check' | 'repair' | 'device' | string | null>(null);
+  const [nativePushTest, setNativePushTest] = useState<NativePushTestResult | null>(null);
+  const [nativePushError, setNativePushError] = useState<string | null>(null);
+  const [nativePushReceived, setNativePushReceived] = useState(false);
+  const [phonePushDiagnostics, setPhonePushDiagnostics] = useState<NativePushDeliveryDiagnostics | null>(null);
+  const [phonePushError, setPhonePushError] = useState<string | null>(null);
   const [appIdDraft, setAppIdDraft] = useState<string>(() => getConfiguredAppId());
   // Member sign-in repair (the "customers can't sign in" class of outage).
   const [authHealth, setAuthHealth] = useState<AuthHealth | null>(null);
@@ -180,8 +197,119 @@ export const StaffDiagnosticsTab: React.FC = () => {
   const [repairEmail, setRepairEmail] = useState('');
   const [repairPassword, setRepairPassword] = useState('');
   const [repairUserId, setRepairUserId] = useState('');
+  const [geminiReport, setGeminiReport] = useState<GeminiDiagnosticReport | null>(null);
+  const [geminiBusy, setGeminiBusy] = useState(false);
+  const [geminiCommandCopied, setGeminiCommandCopied] = useState(false);
+  const [storageReport, setStorageReport] = useState<StorageDiagnosticReport | null>(null);
+  const [storageBusy, setStorageBusy] = useState(false);
+  const [activeSection, setActiveSection] = useState<BenchSection>('overview');
+  const [geminiModel, setGeminiModel] = useState(resolveGeminiModel());
+  const [geminiTier, setGeminiTier] = useState<GeminiTier>('free');
+  const [geminiSettingsLoaded, setGeminiSettingsLoaded] = useState(false);
+  const [geminiSettingsSaving, setGeminiSettingsSaving] = useState(false);
+  const [savedGeminiSettings, setSavedGeminiSettings] = useState({ model: resolveGeminiModel(), tier: 'free' as GeminiTier });
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const { data, error }: any = await supabase?.from('gemini_runtime_settings').select('model,tier').eq('id', true).maybeSingle();
+        if (!alive) return;
+        if (!error && data) {
+          const model = GEMINI_MODELS.some(option => option.id === data.model) ? data.model : resolveGeminiModel();
+          const tier: GeminiTier = data.tier === 'paid' ? 'paid' : 'free';
+          setGeminiModel(model);
+          setGeminiTier(tier);
+          setSavedGeminiSettings({ model, tier });
+        }
+        setGeminiSettingsLoaded(true);
+      } catch {
+        if (alive) setGeminiSettingsLoaded(true);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const handleGeminiSettingsSave = async () => {
+    if (!supabase) {
+      flash({ kind: 'err', text: 'Supabase is not configured.' });
+      return;
+    }
+    setGeminiSettingsSaving(true);
+    try {
+      const { data, error } = await supabase.from('gemini_runtime_settings')
+        .update({ model: geminiModel, tier: geminiTier, updated_at: new Date().toISOString() })
+        .eq('id', true).select('model,tier').maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error('No shared Gemini setting row was updated. Apply the Gemini settings migration first.');
+      const saved = { model: String(data.model), tier: data.tier === 'paid' ? 'paid' as const : 'free' as const };
+      setSavedGeminiSettings(saved);
+      setGeminiModel(saved.model);
+      setGeminiTier(saved.tier);
+      flash({ kind: 'ok', text: `Gemini settings saved for all AI features: ${saved.model} · ${saved.tier} tier preference.` });
+    } catch (error: any) {
+      flash({ kind: 'err', text: error?.message || 'Could not save Gemini settings. Check staff access and apply the migration.' });
+    } finally {
+      setGeminiSettingsSaving(false);
+    }
+  };
 
   const summary = useMemo(() => summarize(results), [results]);
+
+  const handleGeminiCheck = async () => {
+    setGeminiBusy(true);
+    setGeminiReport(null);
+    try {
+      const report = await runGeminiDiagnostics();
+      setGeminiReport(report);
+      flash(report.passed
+        ? { kind: 'ok', text: 'Gemini is working through the Supabase gateway.' }
+        : { kind: 'err', text: 'Gemini check found the failing stage below.' });
+    } catch (error: any) {
+      flash({ kind: 'err', text: error?.message || 'Gemini diagnostics could not complete.' });
+    } finally {
+      setGeminiBusy(false);
+    }
+  };
+
+  const copyGeminiDeployCommand = async () => {
+    try {
+      await navigator.clipboard.writeText('supabase functions deploy gemini-gateway');
+      setGeminiCommandCopied(true);
+      setTimeout(() => setGeminiCommandCopied(false), 2500);
+    } catch {
+      flash({ kind: 'err', text: 'Could not copy the deploy command.' });
+    }
+  };
+
+  const geminiProjectRef = (() => {
+    try { return new URL(getStoredSupabaseUrl()).hostname.split('.')[0]; }
+    catch { return ''; }
+  })();
+  const geminiSecretsUrl = geminiProjectRef
+    ? `https://supabase.com/dashboard/project/${geminiProjectRef}/functions/secrets`
+    : 'https://supabase.com/dashboard';
+
+  const handleStorageCheck = async () => {
+    setStorageBusy(true);
+    setStorageReport(null);
+    try {
+      const report = await runShopGalleryStorageDiagnostics(supabase?.storage as any);
+      setStorageReport(report);
+      flash(report.passed
+        ? { kind: 'ok', text: 'Shop/gallery bucket, staff upload, public read, and cleanup all passed.' }
+        : { kind: 'err', text: 'Storage check found a failing bucket step below.' });
+    } catch (error: any) {
+      flash({ kind: 'err', text: error?.message || 'Storage diagnostics could not complete.' });
+    } finally {
+      setStorageBusy(false);
+    }
+  };
+
+  const openStorageRepair = () => setFixSql({
+    title: 'Shop & Gallery Storage — setup / repair',
+    sql: SHOP_GALLERY_REPAIR_SQL,
+  });
 
   const flash = (t: Toast) => {
     setToast(t);
@@ -250,9 +378,9 @@ export const StaffDiagnosticsTab: React.FC = () => {
       return;
     }
     if (target.service === 'onesignal') {
-      // Run the in-app push repair, then let the operator open the dashboard for
-      // the server-side settings the browser cannot change.
-      await handlePushRepair();
+      // Check the steps without sending a remote test notification, then open
+      // the dashboard for settings the app cannot change.
+      await handlePushCheck();
       if (target.openUrl) window.open(target.openUrl, '_blank', 'noopener');
       return;
     }
@@ -290,34 +418,6 @@ export const StaffDiagnosticsTab: React.FC = () => {
     }
   };
 
-  const handleTestPush = async () => {
-    setBusy('push');
-    try {
-      const res = await sendPushToUser(
-        undefined,
-        "Stakey's Cycles — Test Push",
-        'Push notifications are working on this device.',
-        undefined,
-        adminPushTarget()
-      );
-      if (res.ok) {
-        flash({ kind: 'ok', text: `Test push sent (via ${res.via}).` });
-      } else {
-        const err = res.envelope?.errors?.join('; ');
-        flash({
-          kind: 'err',
-          text: err
-            ? `Push not delivered — ${err}.`
-            : 'Push not delivered — OneSignal may not be configured.',
-        });
-      }
-    } catch (e: any) {
-      flash({ kind: 'err', text: e?.message || 'Push test failed.' });
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const handleRequestPush = async () => {
     setBusy('perm');
     try {
@@ -335,14 +435,23 @@ export const StaffDiagnosticsTab: React.FC = () => {
   /** Shared dependency bundle for the push repair runner. */
   const pushRepairDeps = {
     getServerConfig: async () => {
-      const data = await getOneSignalServerConfig();
+      const runtime = await getPushRuntimeDiagnostic();
+      if (runtime.client === 'android-native') {
+        const { data, error } = await supabase.functions.invoke('onesignal-gateway', { body: { action: 'config' }, signal: AbortSignal.timeout(15000) });
+        if (error) throw new Error('Native push gateway configuration could not be checked.');
+        return { appId: data?.androidAppId ?? null, serverPush: Boolean(data?.serverPush), restKeyEnv: data?.keySource ?? null, restKeyEnvNames: ['ONESIGNAL_APP_API_KEY', 'ONESIGNAL_REST_API_KEY'] };
+      }
+      const res = await fetch(apiUrl('/api/onesignal/config'));
+      const data = await res.json();
       return {
         appId: data?.appId ?? null,
         serverPush: Boolean(data?.serverPush),
-        restKeyEnv: data?.keySource ?? null,
+        restKeyEnv: data?.restKeyEnv ?? null,
+        restKeyEnvNames: data?.restKeyEnvNames,
       };
     },
     initSdk: initOneSignal,
+    getRuntimeDiagnostic: getPushRuntimeDiagnostic,
     getPermission: getPushPermission,
     requestPermission: requestPushPermission,
     getSubscriptionId,
@@ -351,14 +460,6 @@ export const StaffDiagnosticsTab: React.FC = () => {
     getConfiguredAppId,
     linkUser,
     registerEmail: registerEmailSubscription,
-    sendTestPush: () =>
-      sendPushToUser(
-        undefined,
-        "Stakey's Cycles — Push Repair",
-        'Push notifications are working on this device.',
-        undefined,
-        adminPushTarget()
-      ),
   };
 
   const pushRepairContext = {
@@ -386,26 +487,31 @@ export const StaffDiagnosticsTab: React.FC = () => {
     }
   };
 
-  const handlePushRepair = async () => {
-    setPushBusy('repair');
+  const handleNativePushTest = async () => {
+    setPushBusy('native-test');
+    setNativePushTest(null);
+    setNativePushError(null);
+    setNativePushReceived(false);
     try {
-      const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: true });
-      setPushSteps(steps);
-      const failed = steps.filter((s) => s.status === 'fail');
-      const fixed = steps.filter((s) => s.status === 'fixed').length;
-      if (failed.length) {
-        flash({
-          kind: 'err',
-          text: `Repaired ${fixed} step${fixed === 1 ? '' : 's'}; ${failed.length} still need attention (see below).`,
-        });
-      } else {
-        flash({ kind: 'ok', text: `Push repaired — ${fixed} step${fixed === 1 ? '' : 's'} applied.` });
-      }
-    } catch (e: any) {
-      flash({ kind: 'err', text: e?.message || 'Push repair failed.' });
+      const result = await sendNativeAndroidTestPush();
+      setNativePushTest(result);
+      flash({ kind: 'ok', text: 'OneSignal accepted the test for Android devices linked to this staff account. Check the tray on each phone.' });
+    } catch (error: any) {
+      const message = error?.message || 'Native push test failed.';
+      setNativePushError(message);
+      flash({ kind: 'err', text: message });
     } finally {
       setPushBusy(null);
     }
+  };
+
+  const handlePhonePushCheck = async () => {
+    setPushBusy('phone-receipt');
+    setPhonePushError(null);
+    setPhonePushDiagnostics(null);
+    try { setPhonePushDiagnostics(await getNativePushDeliveryDiagnostics()); }
+    catch (error: any) { setPhonePushError(error?.message || 'Phone receipt check failed.'); }
+    finally { setPushBusy(null); }
   };
 
   /**
@@ -414,6 +520,13 @@ export const StaffDiagnosticsTab: React.FC = () => {
    * side-effect runs — a precise "fix just this" action.
    */
   const handleFixStep = async (stepId: string) => {
+    if (['permission', 'subscription', 'identity', 'email'].includes(stepId)) {
+      const runtime = await getPushRuntimeDiagnostic();
+      if (runtime.client !== 'android-native') {
+        flash({ kind: 'warn', text: 'Open this test bench inside the Stakeys Cycles Android APK to fix native push on a device.' });
+        return;
+      }
+    }
     setPushBusy(stepId);
     try {
       const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: true, only: stepId });
@@ -495,6 +608,11 @@ export const StaffDiagnosticsTab: React.FC = () => {
    * appear in the step list.
    */
   const handleEnableDevice = async () => {
+    const runtime = await getPushRuntimeDiagnostic();
+    if (runtime.client !== 'android-native') {
+      flash({ kind: 'warn', text: 'Open this test bench inside the Stakeys Cycles Android APK to enable native Android push.' });
+      return;
+    }
     setPushBusy('device');
     try {
       const perm = await requestPushPermission();
@@ -511,8 +629,12 @@ export const StaffDiagnosticsTab: React.FC = () => {
       }
       const subscriptionId = await optInPushSubscription();
       flash(subscriptionId
-        ? { kind: 'ok', text: 'Device registered. Use Test Push to check delivery.' }
+        ? { kind: 'ok', text: 'This device is registered. The step results below have been refreshed.' }
         : { kind: 'err', text: 'Permission allowed. Device registration is still pending — check your connection and try again.' });
+      if (subscriptionId) {
+        const steps = await runPushRepair(pushRepairDeps, pushRepairContext, { repair: false });
+        setPushSteps(steps);
+      }
 
     } catch (e: any) {
       flash({ kind: 'err', text: e?.message || 'Could not enable push on this device.' });
@@ -737,8 +859,191 @@ export const StaffDiagnosticsTab: React.FC = () => {
         )}
       </div>
 
+      <nav aria-label="Test bench sections" className="grid grid-cols-2 md:grid-cols-5 gap-2 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-2">
+        {([
+          ['overview', 'Overview', FlaskConical],
+          ['ai', 'AI & Storage', Sparkles],
+          ['notifications', 'Notifications', Bell],
+          ['account', 'Sign-in', LogIn],
+          ['features', 'App features', Layers3],
+        ] as const).map(([id, label, Icon]) => (
+          <button key={id} type="button" onClick={() => setActiveSection(id)} aria-current={activeSection === id ? 'page' : undefined}
+            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-bold transition-colors ${activeSection === id ? 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/30' : 'text-neutral-400 hover:bg-neutral-800 hover:text-white'}`}>
+            <Icon className="h-4 w-4" />{label}
+          </button>
+        ))}
+      </nav>
+
+      {activeSection === 'overview' && (
+        <div className="grid gap-3 sm:grid-cols-3" data-testid="test-bench-overview">
+          {[
+            ['AI & Storage', 'Choose a shared Gemini model and tier preference, test the gateway, and repair the shop image bucket.'],
+            ['Notifications', 'Check OneSignal setup, native Android delivery, and notification channels.'],
+            ['Sign-in & App features', 'Repair staff access and run focused checks for individual app areas.'],
+          ].map(([title, detail]) => <div key={title} className="surface-panel !rounded-2xl p-4"><p className="text-sm font-black text-white">{title}</p><p className="mt-1 text-xs leading-relaxed text-neutral-400">{detail}</p></div>)}
+        </div>
+      )}
+
+      {/* Gemini gateway test and repair */}
+      <div hidden={activeSection !== 'ai'} className="surface-panel !rounded-3xl p-6 shadow-xl" data-testid="gemini-repair-panel">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-xl border border-violet-500/30 bg-violet-500/10 p-2 text-violet-300">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="flex items-center gap-2 text-base font-black text-white">Gemini Test &amp; Repair</h3>
+              <p className="mt-1 max-w-2xl text-xs text-neutral-400">
+                Checks the app connection, deployed Supabase gateway, server-side key presence, then makes one tiny live request to the latest Flash model. It never displays or copies the key.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleGeminiCheck}
+              disabled={geminiBusy}
+              data-testid="test-gemini-gateway"
+              className="inline-flex items-center gap-2 rounded-xl bg-violet-500/15 px-4 py-2.5 text-sm font-bold text-violet-100 border border-violet-500/40 hover:bg-violet-500/25 disabled:opacity-60"
+            >
+              {geminiBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {geminiBusy ? 'Checking Gemini…' : 'Run Gemini Check'}
+            </button>
+            <a
+              href={geminiSecretsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-xs font-bold text-neutral-200 hover:bg-neutral-700"
+            >
+              <KeyRound className="h-4 w-4" /> Supabase Secrets <ExternalLink className="h-3 w-3" />
+            </a>
+            <a
+              href="https://aistudio.google.com/app/apikey"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-xs font-bold text-neutral-200 hover:bg-neutral-700"
+            >
+              Google AI Studio <ExternalLink className="h-3 w-3" />
+            </a>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 rounded-2xl border border-violet-500/25 bg-violet-500/5 p-4 md:grid-cols-[1fr_1fr_auto] md:items-end" data-testid="gemini-model-settings">
+          <label className="block text-xs font-bold text-neutral-300">Gemini model
+            <select value={geminiModel} onChange={event => setGeminiModel(event.target.value)} disabled={!geminiSettingsLoaded || geminiSettingsSaving}
+              className="mt-1.5 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-white">
+              {GEMINI_MODELS.filter(option => geminiTier === 'paid' || option.free).map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs font-bold text-neutral-300">Intended API tier
+            <select value={geminiTier} onChange={event => {
+              const tier = event.target.value as GeminiTier;
+              setGeminiTier(tier);
+              if (tier === 'free' && !GEMINI_MODELS.find(option => option.id === geminiModel)?.free) setGeminiModel(resolveGeminiModel());
+            }} disabled={!geminiSettingsLoaded || geminiSettingsSaving}
+              className="mt-1.5 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2.5 text-sm text-white">
+              <option value="free">Free tier · no paid-only models</option>
+              <option value="paid">Paid tier · paid-only models allowed</option>
+            </select>
+          </label>
+          <button type="button" onClick={() => void handleGeminiSettingsSave()} disabled={!geminiSettingsLoaded || geminiSettingsSaving || (savedGeminiSettings.model === geminiModel && savedGeminiSettings.tier === geminiTier)}
+            data-testid="save-gemini-settings" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-black text-white hover:bg-violet-400 disabled:cursor-not-allowed disabled:opacity-50">
+            {geminiSettingsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Settings2 className="h-4 w-4" />}{geminiSettingsSaving ? 'Saving…' : 'Save shared setting'}
+          </button>
+          <p className="text-[11px] leading-relaxed text-neutral-400 md:col-span-3">This setting is shared by Gemini features. “Free” limits the app to models Google lists for free-tier access. The actual billing tier is controlled by the Google project attached to the server-side API key; choosing Paid here does not enable billing in Google Cloud. Check Google AI Studio before using paid-only models.</p>
+        </div>
+
+        {geminiReport && (
+          <div className="mt-5 space-y-2.5" data-testid="gemini-diagnostic-results">
+            <p className="text-xs font-bold text-neutral-300">Server selection: <span className="font-mono text-violet-200">{geminiReport.model}</span><span className="ml-2 rounded-full border border-violet-500/30 px-2 py-0.5 text-[10px] uppercase text-violet-200">{geminiReport.tier} tier preference</span></p>
+            {geminiReport.steps.map((step, index) => {
+              const good = step.status === 'pass';
+              const skipped = step.status === 'skipped';
+              return (
+                <div key={step.id} data-testid={`gemini-step-${step.id}`} className={`rounded-xl border p-3 ${good ? 'border-emerald-500/30 bg-emerald-500/5' : skipped ? 'border-neutral-700 bg-neutral-800/30' : 'border-rose-500/35 bg-rose-500/5'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-[10px] font-black uppercase tracking-wider ${good ? 'text-emerald-300' : skipped ? 'text-neutral-400' : 'text-rose-300'}`}>Step {index + 1}</span>
+                    <span className="text-sm font-bold text-white">{step.label}</span>
+                    <span className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${good ? 'border-emerald-500/30 text-emerald-200' : skipped ? 'border-neutral-600 text-neutral-300' : 'border-rose-500/30 text-rose-200'}`}>
+                      {good ? 'Working' : skipped ? 'Skipped' : 'Needs repair'}
+                    </span>
+                  </div>
+                  <p className="mt-1 break-words text-xs text-neutral-300">{step.detail}</p>
+                  {step.repair && <p className="mt-1.5 flex items-start gap-1.5 text-[11px] text-amber-200"><Wrench className="mt-0.5 h-3.5 w-3.5 shrink-0" />{step.repair}</p>}
+                </div>
+              );
+            })}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <button type="button" onClick={copyGeminiDeployCommand} className="rounded-lg border border-neutral-700 px-3 py-2 text-xs font-bold text-neutral-200 hover:bg-neutral-800">
+                {geminiCommandCopied ? 'Deploy command copied' : 'Copy gateway deploy command'}
+              </button>
+              <code className="text-[11px] text-neutral-500">supabase functions deploy gemini-gateway</code>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Supabase Storage bucket test and repair */}
+      <div hidden={activeSection !== 'ai'} className="surface-panel !rounded-3xl p-6 shadow-xl" data-testid="storage-bucket-repair-panel">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 rounded-xl border border-sky-500/30 bg-sky-500/10 p-2 text-sky-300">
+              <Database className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-white">Supabase Bucket Test &amp; Repair</h3>
+              <p className="mt-1 max-w-2xl text-xs text-neutral-400">
+                Checks the shop-gallery bucket, staff upload permission, public image delivery, and removes its temporary test image. Repair SQL is safe to re-run and restores the bucket and its intended policies.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleStorageCheck}
+              disabled={storageBusy}
+              data-testid="test-storage-bucket"
+              className="inline-flex items-center gap-2 rounded-xl bg-sky-500/15 px-4 py-2.5 text-sm font-bold text-sky-100 border border-sky-500/40 hover:bg-sky-500/25 disabled:opacity-60"
+            >
+              {storageBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {storageBusy ? 'Checking bucket…' : 'Test shop-gallery bucket'}
+            </button>
+            <button
+              type="button"
+              onClick={openStorageRepair}
+              data-testid="repair-storage-bucket"
+              className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2.5 text-xs font-bold text-neutral-200 hover:bg-neutral-700"
+            >
+              <Wrench className="h-4 w-4" /> Setup / repair SQL
+            </button>
+          </div>
+        </div>
+        {storageReport && (
+          <div className="mt-5 space-y-2" data-testid="storage-bucket-results">
+            {storageReport.steps.map((step, index) => (
+              <div key={step.id} data-testid={`storage-step-${step.id}`} className={`rounded-xl border p-3 ${step.status === 'pass' ? 'border-emerald-500/30 bg-emerald-500/5' : step.status === 'skipped' ? 'border-neutral-700 bg-neutral-800/30' : 'border-rose-500/35 bg-rose-500/5'}`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-neutral-400">Step {index + 1}</span>
+                  <span className="text-sm font-bold text-white">{step.label}</span>
+                  <span className={`ml-auto rounded-full border px-2 py-0.5 text-[10px] font-black uppercase ${step.status === 'pass' ? 'border-emerald-500/30 text-emerald-200' : step.status === 'skipped' ? 'border-neutral-600 text-neutral-300' : 'border-rose-500/30 text-rose-200'}`}>
+                    {step.status === 'pass' ? 'Working' : step.status === 'skipped' ? 'Skipped' : 'Needs repair'}
+                  </span>
+                </div>
+                <p className="mt-1 break-words text-xs text-neutral-300">{step.detail}</p>
+              </div>
+            ))}
+            {!storageReport.passed && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
+                <p className="mr-auto text-xs text-amber-100">Use the repair SQL, then rerun the bucket test.</p>
+                <button type="button" onClick={openStorageRepair} className="rounded-lg border border-sky-500/40 px-3 py-2 text-xs font-bold text-sky-100 hover:bg-sky-500/10">Open repair SQL</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* OneSignal push repair */}
-      <div className="surface-panel !rounded-3xl p-6 shadow-xl">
+      <div hidden={activeSection !== 'notifications'} className="surface-panel !rounded-3xl p-6 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-500/40 flex items-center justify-center shrink-0">
@@ -746,13 +1051,12 @@ export const StaffDiagnosticsTab: React.FC = () => {
             </div>
             <div>
               <h3 className="text-base font-black text-white flex items-center gap-2">
-                Repair &amp; Configure Push Notifications
+                OneSignal Step-by-Step Test Bench
               </h3>
               <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl">
-                Runs one ordered pass over the whole push chain — server config, the OneSignal SDK, this
-                device's permission, subscription and opt-in, your sign-in identity, and a live test dispatch.
-                It fixes what the browser can (permission, device opt-in, sign-in, email) and flags the exact
-                setting to change for the rest. Use the App ID box to correct or rotate the app without a code change.
+                Check the setup in order, then fix one highlighted step at a time. Checks are read-only; device
+                permission and subscription change only when you choose those actions. Enable notifications on each
+                phone, then the test sends to Android devices signed in to this same staff account.
               </p>
             </div>
           </div>
@@ -768,31 +1072,40 @@ export const StaffDiagnosticsTab: React.FC = () => {
             </button>
             <button
               type="button"
+              onClick={handleNativePushTest}
+              disabled={pushBusy !== null}
+              data-testid="test-native-android-push"
+              className="px-4 py-2.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 disabled:opacity-60 border border-sky-500/40 text-sky-200 text-sm font-bold flex items-center gap-2"
+            >
+              {pushBusy === 'native-test' ? <Loader2 className="w-4 h-4 animate-spin" /> : <BellRing className="w-4 h-4" />}
+              <span>Test My Android Devices</span>
+            </button>
+            <button
+              type="button"
               onClick={handlePushCheck}
               disabled={pushBusy !== null}
               className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 disabled:opacity-60 text-neutral-200 text-sm font-bold flex items-center gap-2 border border-neutral-700 cursor-pointer"
             >
               {pushBusy === 'check' ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              <span>Check Push</span>
+              <span>Check each step</span>
             </button>
             <button
               type="button"
-              onClick={handlePushRepair}
-              disabled={pushBusy !== null}
-              className="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-60 disabled:cursor-wait text-neutral-950 text-sm font-black flex items-center gap-2 shadow-md shadow-sky-500/20 cursor-pointer"
+              onClick={() => window.open(oneSignalDashboardUrl(appIdDraft || getConfiguredAppId()), '_blank', 'noopener')}
+              className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-sm font-bold flex items-center gap-2 border border-neutral-700 cursor-pointer"
             >
-              {pushBusy === 'repair' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wrench className="w-4 h-4" />}
-              <span>{pushBusy === 'repair' ? 'Repairing…' : 'Repair & Configure Push'}</span>
+              <ExternalLink className="w-4 h-4" />
+              <span>Open OneSignal settings</span>
             </button>
           </div>
         </div>
 
         {/* App ID configuration */}
-        <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
+        {!Capacitor.isNativePlatform() && <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
           <div className="flex flex-col sm:flex-row sm:items-end gap-3">
             <label className="flex-1 min-w-0">
               <span className="block text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-1.5">
-                OneSignal App ID
+                Web OneSignal App ID override
               </span>
               <input
                 type="text"
@@ -812,16 +1125,59 @@ export const StaffDiagnosticsTab: React.FC = () => {
             </button>
           </div>
           <p className="text-[11px] text-neutral-500 mt-2">
-            Saved to this browser and applied on the next reload. Leave it blank to fall back to the
-            built-in default. The server-to-server REST key stays on the deployment only.
+            This override applies to the browser SDK after reload. The Android APK uses its built-in App ID.
+            Leave this blank to use the configured default. The REST key stays on the server.
           </p>
-        </div>
+        </div>}
 
+        {nativePushError && (
+          <div role="alert" className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 p-4 space-y-2 text-sm text-red-100" data-testid="native-push-test-error">
+            <p className="font-bold">Native push test failed — no successful send confirmed</p>
+            <p className="break-words">{nativePushError}</p>
+            <p className="text-xs text-red-200">This error stays here until you retry. Share it to diagnose the failure; a working server key or SDK startup alone does not confirm delivery.</p>
+          </div>
+        )}
+        {nativePushTest && (
+          <div className="mt-4 rounded-2xl border border-sky-500/30 bg-sky-500/5 p-4 space-y-2 text-sm text-sky-100" data-testid="native-push-test-result">
+            <p>{nativePushReceived ? 'Receipt confirmed by you on an Android device.' : 'Accepted by OneSignal. Check the tray on your signed-in Android phones; receipt is still pending.'}</p>
+            <p className="text-xs">Target: Android devices linked to this signed-in staff account{nativePushTest.recipients === null ? '' : ` · ${nativePushTest.recipients} accepted`}</p>
+            <p className="text-xs break-all">OneSignal message: {nativePushTest.messageId}</p>
+            {!nativePushReceived && <button type="button" onClick={() => setNativePushReceived(true)} className="pressable rounded-xl border border-emerald-500/40 px-3 py-2 text-emerald-200">I received it on an Android device</button>}
+          </div>
+        )}
+        {Capacitor.isNativePlatform() && (
+          <div className="mt-4 rounded-2xl border border-emerald-500/30 p-4 space-y-2 text-sm">
+            <button type="button" onClick={handlePhonePushCheck} disabled={Boolean(pushBusy)} className="pressable rounded-xl border border-emerald-500/40 px-3 py-2 text-emerald-200">Check Android receipt and channels</button>
+            <p className="text-xs text-slate-400">Reads this phone only. Does not send another notification.</p>
+            {phonePushError && <p role="alert">{phonePushError}</p>}
+            {phonePushDiagnostics && <div data-testid="phone-push-diagnostics" className="space-y-1 break-words">
+              <p>Android notifications: {phonePushDiagnostics.notificationsEnabled ? 'Enabled' : 'BLOCKED'}</p>
+              <p>FCM token: {phonePushDiagnostics.hasPushToken ? 'Registered' : 'MISSING'}</p>
+              <p>Do Not Disturb: {phonePushDiagnostics.interruptionFilter === 1 ? 'Off' : phonePushDiagnostics.interruptionFilter === 0 ? 'Unknown' : 'On / filtered'}</p>
+              <p>{!nativePushTest ? 'No current test to match. Receipt recording begins with this APK.' : phonePushDiagnostics.lastMessageId === nativePushTest.messageId ? 'This test reached the Android OneSignal receiver.' : 'This test has not been recorded by the Android receiver.'}</p>
+              {phonePushDiagnostics.lastMessageId && <p className="text-xs">Last received message: {phonePushDiagnostics.lastMessageId} · {new Date(phonePushDiagnostics.receivedAt).toLocaleString()}</p>}
+              <p>Last received notification in tray: {phonePushDiagnostics.lastMessageInTray ? 'Yes' : 'No'}</p>
+              {phonePushDiagnostics.channels.map(channel => <p key={channel.id}>Channel {channel.name}: {channel.importance === 0 ? 'BLOCKED' : channel.importance < 3 ? 'Silent / low importance' : 'Alerts enabled'}</p>)}
+              {!phonePushDiagnostics.channels.length && <p>No notification channels have been created yet.</p>}
+            </div>}
+          </div>
+        )}
         {pushSteps.length > 0 && (
           <div className="mt-5 space-y-2.5" data-testid="push-steps">
-            {pushSteps.map((step) => {
+            {pushSteps.map((rawStep, index) => {
+              const step: PushRepairStep = rawStep.id === 'dispatch' && nativePushTest ? {
+                ...rawStep,
+                status: nativePushReceived ? 'pass' : 'warn',
+                detail: nativePushReceived ? 'Native Android notification received (confirmed by you).' : 'Native test accepted; Android-device receipt is pending.',
+                hint: nativePushReceived ? undefined : 'Check the notification tray on your Android phones signed in to this staff account, then confirm receipt.',
+                facts: [
+                  { label: 'Target', value: 'Signed-in staff Android devices', ok: true },
+                  ...(nativePushTest.recipients === null ? [] : [{ label: 'Accepted recipients', value: String(nativePushTest.recipients), ok: true }]),
+                  { label: 'OneSignal message ID', value: nativePushTest.messageId, ok: true },
+                ],
+              } : rawStep;
               const meta = PUSH_STEP_META[step.status];
-              const canFix = step.status !== 'pass' && step.status !== 'fixed';
+              const canFix = step.status !== 'pass' && step.status !== 'fixed' && step.id !== 'dispatch';
               return (
                 <div key={step.id} data-testid={`push-step-${step.id}`} className={`rounded-2xl border p-3.5 ${meta.ring}`}>
                   <div className="flex items-start gap-3">
@@ -829,12 +1185,21 @@ export const StaffDiagnosticsTab: React.FC = () => {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-neutral-500">Step {index + 1}</span>
                           <span className="text-sm font-bold text-white">{step.label}</span>
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${meta.chip}`}>
                             {meta.label}
                           </span>
                         </div>
-                        <button
+                        {step.id === 'dispatch' ? (
+                          <span className="shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-200">
+                            {nativePushReceived ? 'Receipt confirmed' : nativePushTest ? 'Accepted · awaiting receipt' : 'No remote test sent'}
+                          </span>
+                        ) : step.status === 'pass' || step.status === 'fixed' ? (
+                          <span className="shrink-0 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-2.5 py-1.5 text-[11px] font-bold text-emerald-200">
+                            Step complete
+                          </span>
+                        ) : <button
                           type="button"
                           onClick={() => handleFixStep(step.id)}
                           disabled={pushBusy !== null}
@@ -851,7 +1216,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
                             <Wrench className="w-3 h-3" />
                           )}
                           <span>{PUSH_STEP_FIX_ACTION[step.id] ?? 'Fix this step'}</span>
-                        </button>
+                        </button>}
                       </div>
                       <p className="text-xs text-neutral-300 mt-1 break-words">{step.detail}</p>
                       {step.facts && step.facts.length > 0 && (
@@ -887,7 +1252,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       </div>
 
       {/* Member sign-in repair */}
-      <div className="surface-panel !rounded-3xl p-6 shadow-xl" data-testid="auth-repair-panel">
+      <div hidden={activeSection !== 'account'} className="surface-panel !rounded-3xl p-6 shadow-xl" data-testid="auth-repair-panel">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="mt-0.5 p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
@@ -983,7 +1348,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       </div>
 
       {/* Notification channel quick tests */}
-      <div className="surface-panel !rounded-3xl p-6 shadow-xl">
+      <div hidden={activeSection !== 'notifications'} className="surface-panel !rounded-3xl p-6 shadow-xl">
         <div className="flex items-center gap-2 text-white font-bold text-sm mb-4">
           <Bell className="w-4 h-4 text-emerald-400" />
           Notification & Alert Tests
@@ -996,13 +1361,6 @@ export const StaffDiagnosticsTab: React.FC = () => {
             onClick={handleTestEmail}
             busy={busy === 'email'}
             disabled={!ownerConfig.ownerEmail}
-          />
-          <TestButton
-            icon={<Smartphone className="w-4 h-4" />}
-            title="Send Test Push"
-            subtitle="OneSignal device push"
-            onClick={handleTestPush}
-            busy={busy === 'push'}
           />
           <TestButton
             icon={<Bell className="w-4 h-4" />}
@@ -1045,6 +1403,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
       </div>
 
       {/* Every catalogue test, grouped by area, each with one Test & Repair action */}
+      <div hidden={activeSection !== 'features'} className="space-y-4" data-testid="feature-test-section">
       {AREA_ORDER.filter((area) => {
         if (!failuresOnly) return true;
         const areaResults = results.filter((r) => r.area === area);
@@ -1131,6 +1490,7 @@ export const StaffDiagnosticsTab: React.FC = () => {
           </div>
         );
       })}
+      </div>
 
       {/* Toast */}
       {toast && (

@@ -37,7 +37,7 @@ describe('EscooterDiagnosticTile — firmware panels (simulator)', () => {
     });
     expect(saved.length).toBe(1);
     expect(saved[0].name).toMatch(/stakeys-backup-/);
-    expect(screen.getByTestId('escooter-firmware-msg').textContent).toMatch(/Backup saved/);
+    expect(screen.getByTestId('escooter-firmware-msg').textContent).toMatch(/Diagnostic snapshot saved/);
   });
 
   it('blocks a manual download until backed up and risk accepted, then saves the file', async () => {

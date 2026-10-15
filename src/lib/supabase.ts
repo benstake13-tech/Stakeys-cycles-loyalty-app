@@ -3,14 +3,15 @@
  * Implements a singleton Supabase client using environment variables with debug console logging for network requests.
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from '../config/supabaseDefaults';
 
 export const SUPABASE_URL: string =
   (import.meta as any).env?.VITE_SUPABASE_URL || 
-  'https://lhojocpygcnkxvkrcuxh.supabase.co';
+  DEFAULT_SUPABASE_URL;
 
 export const SUPABASE_ANON_KEY: string =
   (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || 
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxob2pvY3B5Z2Nua3h2a3JjdXhoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAyNzU2MTYsImV4cCI6MjEwNTg1MTYxNn0.RuSrHufSCEd3bwOzF3kYD5MKx9gI1TKK9apF3HWJeZ8';
+  DEFAULT_SUPABASE_ANON_KEY;
 
 let instance: SupabaseClient | null = null;
 

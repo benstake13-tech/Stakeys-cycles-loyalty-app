@@ -1,3 +1,4 @@
+import toast from 'react-hot-toast';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Scan,
@@ -490,7 +491,8 @@ export const CounterSaleTab: React.FC = () => {
           const products = webContent.products.map((p) =>
             soldByProduct[p.id] ? { ...p, stock: Math.max(0, p.stock - soldByProduct[p.id]) } : p
           );
-          updateWebsiteContent({ products });
+          try { await updateWebsiteContent({ products }); }
+          catch (error) { toast.error('Sale recorded, but website stock could not be published. Reconcile stock before taking further online orders.'); }
         }
       }
       if (res.success && sale.discountCode) {

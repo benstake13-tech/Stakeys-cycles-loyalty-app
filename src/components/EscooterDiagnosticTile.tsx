@@ -24,11 +24,13 @@ import {
 import {
   createEmptyTelemetry,
   ScooterBleSession,
+  SCOOTER_CONNECT_BRANDS,
   detectDriver,
   errorTextFor,
   type BluetoothHost,
   type ScooterDriver,
   type ScooterFamily,
+  type ScooterConnectBrand,
   type ScooterTelemetry,
   type VersionReading,
 } from '../utils/scooterProtocols';
@@ -97,6 +99,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
   const [isDemoMode, setIsDemoMode] = useState(startInDemo);
   const [status, setStatus] = useState<string>('');
   const [family, setFamily] = useState<ScooterFamily | 'Disconnected'>('Disconnected');
+  const [selectedBrand, setSelectedBrand] = useState<ScooterConnectBrand | ''>('');
 
   // Firmware / backup / brick / diagnostics state.
   const deps = useMemo(() => firmwareDeps ?? defaultFirmwareDeps(), [firmwareDeps]);
@@ -159,6 +162,10 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
   }, [isDemoMode, teardown]);
 
   const connect = useCallback(async () => {
+    if (!selectedBrand) {
+      setStatus('Choose the scooter brand first so the correct discovery method can be used.');
+      return;
+    }
     setIsScanning(true);
     setStatus('Requesting device…');
     const resolved = host ?? (await resolveBluetoothHost());
@@ -173,19 +180,20 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
         onDisconnect: () => {
           setTelemetry(createEmptyTelemetry());
           setFamily('Disconnected');
-          setStatus('Device disconnected.');
+          setStatus('Scooter disconnected. No live controller session is active.');
         },
       });
       sessionRef.current = session;
-      const connectedFamily = await session.connect();
+      const connectedFamily = await session.connect(selectedBrand);
+      if (!session.connected) throw new Error('Scooter disconnected before setup finished.');
       setFamily(connectedFamily);
       setTelemetry((prev) => ({
         ...prev,
         connected: true,
         protocolFamily: connectedFamily,
-        deviceName: session.activeDriver.label,
+        deviceName: session.deviceName || session.activeDriver.label,
       }));
-      setStatus(`Connected via ${session.activeDriver.label}.`);
+      setStatus(session.connectionNote || `Connected via ${session.activeDriver.label}.`);
     } catch (err) {
       setStatus(err instanceof Error ? `Connection failed: ${err.message}` : 'Connection failed.');
       setTelemetry(createEmptyTelemetry());
@@ -193,7 +201,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
     } finally {
       setIsScanning(false);
     }
-  }, [host]);
+  }, [host, selectedBrand]);
 
   const disconnect = useCallback(() => {
     teardown();
@@ -229,7 +237,8 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
     else setStatus('This protocol has no headlight command.');
   }, [telemetry.headlightOn, isDemoMode]);
 
-  const driver: ScooterDriver = detectDriver(telemetry.deviceName, []);
+  const driver: ScooterDriver = sessionRef.current?.activeDriver ?? detectDriver(telemetry.deviceName, []);
+  const unsupportedProtocol = !isDemoMode && family === 'Generic UART';
 
   const catalogueEntry = useMemo(() => findFirmwareEntry(model), [model]);
   const comparisons: FirmwareComparison[] = useMemo(
@@ -241,10 +250,11 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
       }),
     [catalogueEntry, versions]
   );
-  const gate = canFlash({ connected: telemetry.connected, backupTaken, riskAccepted });
+  const gate = canFlash({ connected: telemetry.connected && !unsupportedProtocol, backupTaken, riskAccepted });
   const brick = useMemo(
     () =>
       evaluateBrick({
+        protocolSupported: !unsupportedProtocol,
         advertised: telemetry.connected,
         gattConnected: telemetry.connected,
         statusReadable: telemetry.voltage > 0,
@@ -252,7 +262,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
         errorCode: telemetry.errorCode,
         escVersion: versions.find((v) => v.target === 'esc')?.version ?? null,
       }),
-    [telemetry, versions]
+    [telemetry, versions, unsupportedProtocol]
   );
 
   const readVersions = useCallback(async () => {
@@ -286,7 +296,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
         protocolFamily: family,
         model: model || driver.label,
         versions,
-        telemetry: {
+        telemetry: unsupportedProtocol ? { rawHexRx: telemetry.rawHexRx } : {
           batteryPercent: telemetry.batteryPercent,
           voltage: telemetry.voltage,
           controllerTempC: telemetry.controllerTempC,
@@ -297,13 +307,13 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
         catalogueId: catalogueEntry?.id ?? null,
       });
       setBackupTaken(true);
-      setFirmwareMsg(`Backup saved: ${res.filename} (sha256 ${res.sha256.slice(0, 12)}…).`);
+      setFirmwareMsg(`Diagnostic snapshot saved: ${res.filename} (sha256 ${res.sha256.slice(0, 12)}…). This is not a firmware image backup.`);
     } catch (err) {
       setFirmwareMsg(err instanceof Error ? `Backup failed: ${err.message}` : 'Backup failed.');
     } finally {
       setBusy('');
     }
-  }, [deps, telemetry, family, model, versions, catalogueEntry, driver.label]);
+  }, [deps, telemetry, family, model, versions, catalogueEntry, driver.label, unsupportedProtocol]);
 
   const flashTargets = useMemo(() => {
     const stock = catalogueEntry?.stock ?? {};
@@ -315,6 +325,10 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
   const runDownload = useCallback(
     async (target: 'esc' | 'bms' | 'ble', file: FirmwareFile) => {
       setFirmwareMsg('');
+      if (unsupportedProtocol) {
+        setFirmwareMsg('Firmware downloads are unavailable for an unidentified controller protocol.');
+        return;
+      }
       if (!riskAccepted) {
         setFirmwareMsg('Tick the flashing warning before downloading a firmware file.');
         return;
@@ -328,7 +342,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
       );
       setBusy('');
     },
-    [deps, riskAccepted, backupTaken, telemetry.connected, telemetry.deviceName, isDemoMode, driver.label]
+    [deps, riskAccepted, backupTaken, telemetry.connected, telemetry.deviceName, isDemoMode, driver.label, unsupportedProtocol]
   );
 
   const downloadManual = useCallback(async () => {
@@ -387,7 +401,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
       );
       setReport(result);
       setVersions(result.versions);
-      setFirmwareMsg(`Sweep complete — ${result.verdict} (${result.score}/100).`);
+      setFirmwareMsg(result.verdict === 'unsupported' ? 'Sweep complete — controller protocol unsupported; health not assessed.' : `Sweep complete — ${result.verdict} (${result.score}/100).`);
     } catch (err) {
       setFirmwareMsg(err instanceof Error ? `Sweep failed: ${err.message}` : 'Sweep failed.');
     } finally {
@@ -402,6 +416,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
     suspicious: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
     'soft-bricked': 'border-rose-500/40 bg-rose-500/10 text-rose-300',
     unresponsive: 'border-neutral-600 bg-neutral-800/40 text-neutral-300',
+    unsupported: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
   };
 
   return (
@@ -440,6 +455,21 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
         </div>
 
         <div className="mt-6 pt-6 border-t border-neutral-800 flex flex-wrap items-center gap-3">
+          {!telemetry.connected && !isDemoMode && (
+            <label className="min-w-[220px] text-[10px] font-black uppercase tracking-wider text-neutral-400">
+              Scooter brand · choose before scan
+              <select
+                value={selectedBrand}
+                onChange={(event) => setSelectedBrand(event.target.value as ScooterConnectBrand | '')}
+                disabled={isScanning}
+                data-testid="escooter-brand"
+                className="mt-1 block w-full rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-xs font-bold normal-case tracking-normal text-white"
+              >
+                <option value="">Choose a brand…</option>
+                {SCOOTER_CONNECT_BRANDS.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
+              </select>
+            </label>
+          )}
           {telemetry.connected && !isDemoMode ? (
             <button
               type="button"
@@ -452,7 +482,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
             <button
               type="button"
               onClick={connect}
-              disabled={isScanning || isDemoMode}
+              disabled={isScanning || isDemoMode || !selectedBrand}
               data-testid="escooter-connect"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-black text-xs uppercase tracking-wide cursor-pointer"
             >
@@ -472,8 +502,14 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
             Simulator mode (no hardware)
           </label>
 
-          {status && <span className="text-[11px] text-neutral-500 font-mono">{status}</span>}
+          {status && <span data-testid="escooter-status" className="text-[11px] text-neutral-500 font-mono">{status}</span>}
         </div>
+        {!telemetry.connected && !isDemoMode && selectedBrand && (
+          <p className="mt-3 text-[11px] leading-relaxed text-neutral-500" data-testid="escooter-brand-guidance">
+            {SCOOTER_CONNECT_BRANDS.find((profile) => profile.id === selectedBrand)?.note}
+            {selectedBrand === 'windgoo-youfs' && ' Power on the scooter and press its Bluetooth/pair button if fitted.'}
+          </p>
+        )}
       </div>
 
       {/* Fault banner */}
@@ -517,8 +553,8 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
           <div>
             <h4 className="font-display text-lg font-black text-white tracking-tight">Firmware, backup &amp; flashing</h4>
             <p className="text-[11px] text-neutral-400 leading-relaxed">
-              Read the firmware versions, compare them to stock, back up what is on the machine, then download the
-              stock file to this device to flash with the vendor tool. The bench never writes flash itself.
+              Read supported firmware versions, compare them to stock, save a diagnostic snapshot, then download the
+              stock file to this device to flash with the vendor tool. A diagnostic snapshot is not a firmware image backup. The bench never writes flash itself.
             </p>
           </div>
         </div>
@@ -539,7 +575,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
             <button
               type="button"
               onClick={readVersions}
-              disabled={busy === 'versions'}
+              disabled={busy === 'versions' || unsupportedProtocol}
               data-testid="escooter-read-versions"
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-neutral-950 font-black text-xs uppercase tracking-wide cursor-pointer"
             >
@@ -575,9 +611,9 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
 
         {/* Backup — always required */}
         <div className="rounded-2xl border border-emerald-700/40 bg-emerald-950/20 p-4 space-y-2">
-          <div className="text-xs font-black uppercase tracking-wide text-emerald-300">Step 1 — back up first (always)</div>
+          <div className="text-xs font-black uppercase tracking-wide text-emerald-300">Step 1 — save diagnostic snapshot</div>
           <p className="text-[11px] text-emerald-200/80 leading-relaxed">
-            A backup of the current versions and telemetry is saved to this device before any flashing is offered.
+            Save the available versions and telemetry to this device. This JSON snapshot does not contain firmware and cannot restore a controller.
           </p>
           <button
             type="button"
@@ -587,7 +623,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-neutral-950 font-black text-xs uppercase tracking-wide cursor-pointer"
           >
             {busy === 'backup' ? <Loader2 className="w-4 h-4 animate-spin" /> : <HardDriveDownload className="w-4 h-4" />}
-            {backupTaken ? 'Backup saved — take again' : 'Take backup'}
+            {backupTaken ? 'Snapshot saved — take again' : 'Save diagnostic snapshot'}
           </button>
         </div>
 
@@ -672,7 +708,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
           {report && (
             <div data-testid="escooter-report" className="space-y-2">
               <div className={`inline-flex px-3 py-1 rounded-full text-[11px] font-black uppercase border ${verdictTone[report.verdict]}`}>
-                {report.verdict} · {report.score}/100
+                {report.verdict === 'unsupported' ? 'Protocol unsupported · health not assessed' : `${report.verdict} · ${report.score}/100`}
               </div>
               <ul className="space-y-1">
                 {report.checks.map((c) => (
@@ -691,18 +727,23 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
 
       {/* Telemetry gauges */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <MetricGauge label="Battery" icon={<BatteryCharging className="w-4 h-4" />} value={`${telemetry.batteryPercent}%`} accent="text-emerald-400" testid="escooter-battery" />
+        <MetricGauge label="Battery" icon={<BatteryCharging className="w-4 h-4" />} value={unsupportedProtocol ? '—' : `${telemetry.batteryPercent}%`} accent="text-emerald-400" testid="escooter-battery" />
         <MetricGauge label="Voltage" icon={<Zap className="w-4 h-4" />} value={telemetry.voltage ? `${telemetry.voltage} V` : '—'} accent="text-sky-400" testid="escooter-voltage" />
-        <MetricGauge label="Speed" icon={<Gauge className="w-4 h-4" />} value={`${telemetry.speedKmh} km/h`} accent="text-amber-400" testid="escooter-speed" />
+        <MetricGauge label="Speed" icon={<Gauge className="w-4 h-4" />} value={unsupportedProtocol ? '—' : `${telemetry.speedKmh} km/h`} accent="text-amber-400" testid="escooter-speed" />
         <MetricGauge label="Controller" icon={<Cpu className="w-4 h-4" />} value={telemetry.controllerTempC ? `${telemetry.controllerTempC} °C` : '—'} accent="text-fuchsia-400" testid="escooter-temp" />
       </div>
 
+      {unsupportedProtocol && (
+        <p className="text-xs text-amber-300" data-testid="escooter-unsupported">
+          Bluetooth is connected. This controller protocol is not supported yet: battery, speed, fault checks, firmware versions, lock and lights are unavailable. No data received does not mean the scooter is damaged.
+        </p>
+      )}
       {/* Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <button
           type="button"
           onClick={toggleLock}
-          disabled={!telemetry.connected}
+          disabled={!telemetry.connected || (!isDemoMode && !driver.buildLockCommand)}
           data-testid="escooter-lock"
           className={`inline-flex items-center justify-center gap-2 py-3 rounded-2xl border font-bold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
             telemetry.isLocked
@@ -717,7 +758,7 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
         <button
           type="button"
           onClick={toggleHeadlight}
-          disabled={!telemetry.connected}
+          disabled={!telemetry.connected || (!isDemoMode && !driver.buildHeadlightCommand)}
           data-testid="escooter-headlight"
           className={`inline-flex items-center justify-center gap-2 py-3 rounded-2xl border font-bold text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
             telemetry.headlightOn
@@ -736,13 +777,33 @@ export const EscooterDiagnosticTile: React.FC<EscooterDiagnosticTileProps> = ({
           <BluetoothOff className="w-3.5 h-3.5" /> Raw HEX bus readout
         </div>
         <code className="text-[12px] font-mono text-emerald-400/90 break-all block" data-testid="escooter-raw">
-          {telemetry.rawHexRx || '00 00 00 00 00 00 00 00'}
+          {telemetry.rawHexRx || 'Waiting for scooter data — no bytes received.'}
         </code>
         <div className="mt-2 text-[11px] text-neutral-500 font-mono">
           Driver: {driver.label}
         </div>
       </div>
 
+      {!isDemoMode && sessionRef.current && (
+        <div className="rounded-2xl border border-amber-500/30 p-4 space-y-3" data-testid="escooter-gatt-profile">
+          <h4 className="font-bold text-sm">BLE connection evidence</h4>
+          <p className="text-xs text-neutral-400">Records the selected device’s advertising data, Bluetooth channels, connection timing and incoming packets. Export remains available after an unexpected disconnect.</p>
+          <details>
+            <summary className="cursor-pointer text-xs text-amber-300">Show Bluetooth profile</summary>
+            <pre className="mt-2 whitespace-pre-wrap break-all text-[10px] text-neutral-400">{JSON.stringify(sessionRef.current.diagnosticCapture(), null, 2)}</pre>
+          </details>
+          <button type="button" className="text-xs font-bold text-emerald-300" data-testid="escooter-export-ble" onClick={() => {
+            const capture = sessionRef.current?.diagnosticCapture();
+            if (!capture) return;
+            try {
+              deps.saver.save(new Blob([JSON.stringify(capture, null, 2)], { type: 'application/json' }), 'stakeys-ble-connection.json');
+              setStatus('BLE connection report exported. Share this JSON to investigate the controller protocol.');
+            } catch {
+              setStatus('Report export failed. Open Show Bluetooth profile to view the connection evidence.');
+            }
+          }}>Export BLE connection report</button>
+        </div>
+      )}
       {/* Safety notice — this writes to real hardware */}
       <div className="rounded-2xl border border-amber-500/40 bg-amber-950/20 p-4 flex items-start gap-3 text-xs text-amber-200/90">
         <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />

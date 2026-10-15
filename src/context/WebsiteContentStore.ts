@@ -3,19 +3,8 @@ import { DEFAULT_WEBSITE_CONTENT } from '../data/websiteContent';
 import { supabase } from '../lib/supabase';
 import { WebsiteContent } from '../types/websiteContent';
 
-/**
- * Reactive, SSR-safe website-content store.
- *
- * Staff edits persist per-device in localStorage so the public Website tab
- * always reflects what staff published in the staff station. The store is a
- * module singleton (no provider needed); `useWebsiteContent` subscribes via
- * `useSyncExternalStore` so every edit instantly re-renders the preview.
- *
- * Live Supabase persistence is only attempted when the `app_settings`
- * table already has a `website_content_json` column — anon credentials cannot
- * run DDL,so we never create it. If the column exists,we upsert it on save
- * so edits follow staff across devices; otherwise we stay local-only.
- */
+/** Shared website content. A publication is acknowledged only after the server
+ * returns the saved document; local storage is a read cache, not publication. */
 const STORAGE_KEY = 'stakeys.website_content.v3';
 
 /**
@@ -144,55 +133,47 @@ function save(candidate: WebsiteContent): void {
   notify();
 }
 
-export function updateWebsiteContent(patch: Partial<WebsiteContent>): void {
+export async function updateWebsiteContent(patch: Partial<WebsiteContent>): Promise<void> {
   const next = clone(getWebsiteContent());
   Object.assign(next, patch);
   next.updatedAt = new Date().toISOString();
+  await persistToSupabase(next);
   save(next);
-  void persistToSupabase(next);
 }
 
-export function resetWebsiteContent(): void {
+export async function resetWebsiteContent(): Promise<void> {
   const fresh = clone(DEFAULT_WEBSITE_CONTENT);
+  await persistToSupabase(fresh);
   save(fresh);
-  void persistToSupabase(fresh);
 }
 
-let columnProbeState: 'unknown' | 'absent' | 'present' = 'unknown';
-async function persistToSupabase(content: WebsiteContent): Promise<boolean> {
-  if (typeof window === 'undefined') return false;
-  try {
-    // Probe once whether app_settings already carries a website_content_json
-    // column. Anon credentials cannot run DDL,so we never create it — if the
-    // column is absent we simply stay local-only and try again next session.
-
-    if (columnProbeState === 'absent') return false;
-    if (columnProbeState === 'unknown') {
-      const probe = await supabase
-        .from('app_settings')
-        .select('website_content_json')
-        .eq('id', 1)
-        .maybeSingle();
-      if (probe.error) {
-        columnProbeState = 'absent';
-        return false;
-      }
-      columnProbeState = 'present';
-    }
-    const { error } = await supabase
-      .from('app_settings')
-      .update({ website_content_json: content })
-      .eq('id', 1);
-    return !error;
-  } catch (err) {
-    console.error('[WEBSITE CONTENT] Supabase persistence skipped:', err);
-    return false;
+async function persistToSupabase(content: WebsiteContent): Promise<void> {
+  const { data, error } = await supabase.from('app_settings')
+    .update({ website_content_json: content }).eq('id', 1)
+    .select('website_content_json').single();
+  if (error) throw new Error(`Website was not published: ${error.message}. Check website_content_json and staff permissions.`);
+  if (!data?.website_content_json || JSON.stringify(data.website_content_json) === '{}') {
+    throw new Error('Website was not published: no saved content was returned. Check the settings row and staff permissions.');
   }
 }
 
+let syncTimer: ReturnType<typeof setInterval> | undefined;
+function refreshVisible() { if (typeof document !== 'undefined' && !document.hidden) void syncFromSupabase(); }
 function subscribeWebsiteContent(onChange: () => void): () => void {
   listeners.add(onChange);
-  return () => listeners.delete(onChange);
+  if (listeners.size === 1 && typeof window !== 'undefined') {
+    syncTimer = setInterval(refreshVisible, 30000);
+    window.addEventListener('focus', refreshVisible);
+    window.addEventListener('storage', refreshVisible);
+  }
+  return () => {
+    listeners.delete(onChange);
+    if (!listeners.size && typeof window !== 'undefined') {
+      clearInterval(syncTimer);
+      window.removeEventListener('focus', refreshVisible);
+      window.removeEventListener('storage', refreshVisible);
+    }
+  };
 }
 
 export function useWebsiteContent(): WebsiteContent {
