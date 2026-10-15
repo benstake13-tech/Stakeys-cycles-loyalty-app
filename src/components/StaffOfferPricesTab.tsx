@@ -217,7 +217,8 @@ export const StaffOfferPricesTab: React.FC = () => {
             </label>
             <label className="space-y-1.5">
               <span className="text-xs font-semibold text-neutral-400">Base offer £ (good condition)</span>
-              <input value={draft.basePrice} onChange={(e) => setDraft({ ...draft, basePrice: e.target.value })} inputMode="numeric" placeholder="180"
+              <input value={draft.basePrice} onChange={(e) => setDraft({ ...draft, basePrice: e.target.value,
+                conditions: { ...draft.conditions, good: { ...draft.conditions.good, price: e.target.value } } })} inputMode="numeric" placeholder="180"
                 className="w-full surface-panel text-neutral-200 text-sm p-3 focus:border-emerald-500/50 outline-none" />
             </label>
             <label className="space-y-1.5">

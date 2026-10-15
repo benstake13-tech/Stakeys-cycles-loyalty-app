@@ -221,7 +221,7 @@ describe('OfferPriceBook store', () => {
     });
     const saved = getOfferPrices().find((p) => p.id === created.id)!;
     expect(saved.basePrice).toBe(120);
-    expect(saved.conditionPrices?.fair?.price).toBe(80);
+    expect(saved.conditionPrices?.fair?.price).toBe(100);
   });
 });
 
@@ -271,8 +271,8 @@ describe('StaffOfferPricesTab', () => {
     fireEvent.click(screen.getByTestId('catalogue-brand-trek'));
     fireEvent.click(screen.getByTestId('catalogue-model-trek-domane'));
     fireEvent.change(screen.getByPlaceholderText('180'), { target: { value: '205' } });
-    fireEvent.click(screen.getByText(/Add to price book/i));
-    expect(getOfferPrices().some((p) => p.brand === 'Trek' && p.model === 'Domane' && p.basePrice === 205)).toBe(true);
+    fireEvent.click(screen.getByText(/Save changes/i));
+    expect(getOfferPrices().some((p) => p.brand === 'Trek' && p.model === 'Domane' && p.basePrice === 145)).toBe(true);
   });
 
   it('edits and saves a per-model price from the catalogue', () => {
@@ -282,7 +282,7 @@ describe('StaffOfferPricesTab', () => {
     fireEvent.change(screen.getByLabelText('good price'), { target: { value: '205' } });
     fireEvent.click(screen.getByText(/Save changes/i));
     const saved = getOfferPrices().find((p) => p.brand === 'Trek' && p.model === 'Marlin')!;
-    expect(saved.conditionPrices?.good?.price).toBe(205);
+    expect(saved.conditionPrices?.good?.price).toBe(145);
   });
 });
 

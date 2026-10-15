@@ -81,13 +81,13 @@ describe('generateSchemaSyncSql', () => {
   const sql = generateSchemaSyncSql();
 
   it('creates tables idempotently', () => {
-    EXPECTED_SCHEMA.forEach((t) => {
+    EXPECTED_SCHEMA.filter((t) => !t.securityManaged).forEach((t) => {
       expect(sql).toContain(`CREATE TABLE IF NOT EXISTS public.${t.name}`);
     });
   });
 
   it('adds every non-key column with IF NOT EXISTS', () => {
-    EXPECTED_SCHEMA.forEach((t) => {
+    EXPECTED_SCHEMA.filter((t) => !t.securityManaged).forEach((t) => {
       t.columns
         .filter((c) => c.name !== t.primaryKey)
         .forEach((c) => {
@@ -95,6 +95,13 @@ describe('generateSchemaSyncSql', () => {
             `ALTER TABLE public.${t.name} ADD COLUMN IF NOT EXISTS ${c.name}`
           );
         });
+    });
+  });
+
+  it('keeps marketplace policy tables under their dedicated migrations', () => {
+    EXPECTED_SCHEMA.filter((t) => t.securityManaged).forEach((t) => {
+      expect(sql).not.toContain(`CREATE TABLE IF NOT EXISTS public.${t.name}`);
+      expect(sql).not.toContain(`'Allow all on ${t.name}'`);
     });
   });
 

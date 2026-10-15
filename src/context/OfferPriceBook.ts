@@ -155,19 +155,40 @@ function normalize(entry: OfferPriceEntry): OfferPriceEntry | null {
       ? goodPrice
       : NaN;
   if (!Number.isFinite(basePrice)) return null;
+  // Keep the approved workshop budget and £10–£20 condition ladder intact,
+  // including legacy/server rows and staff edits made on older app versions.
+  const good = Math.min(145, Math.max(30, Math.round(goodPrice >= 0 ? goodPrice : basePrice)));
+  const bounded = (value: number | undefined, fallback: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, Math.round(Number.isFinite(value) ? value! : fallback)));
+  const poor = bounded(conditionPrices?.poor?.price, good - 30, 10, good - 20);
+  const fair = bounded(conditionPrices?.fair?.price, good - 15, poor + 10, good - 10);
+  const excellent = bounded(conditionPrices?.excellent?.price, good + 15, good + 10, 160);
+  const conditionMax = (condition: CustomerCondition, price: number) => {
+    const maxPrice = conditionPrices?.[condition]?.maxPrice;
+    return Number.isFinite(maxPrice) ? Math.min(160, Math.max(price, Math.round(maxPrice!))) : undefined;
+  };
+  const safeConditions: OfferPriceEntry['conditionPrices'] = {
+    poor: { price: poor, maxPrice: conditionMax('poor', poor) },
+    fair: { price: fair, maxPrice: conditionMax('fair', fair) },
+    good: { price: good, maxPrice: conditionMax('good', good) },
+    excellent: { price: excellent, maxPrice: conditionMax('excellent', excellent) },
+  };
   return {
     ...entry,
     brand: String(entry.brand || '').trim(),
     model: String(entry.model || '').trim(),
-    basePrice: Math.round(basePrice),
-    minPrice: Number.isFinite(Number(entry.minPrice)) ? Math.round(Number(entry.minPrice)) : undefined,
-    maxPrice: Number.isFinite(Number(entry.maxPrice)) ? Math.round(Number(entry.maxPrice)) : undefined,
-    conditionPrices,
+    basePrice: good,
+    minPrice: Number.isFinite(Number(entry.minPrice)) ? Math.min(160, Math.max(10, Math.round(Number(entry.minPrice)))) : undefined,
+    maxPrice: Number.isFinite(Number(entry.maxPrice)) ? Math.min(160, Math.max(10, Math.round(Number(entry.maxPrice)))) : undefined,
+    conditionPrices: safeConditions,
     updatedAt: entry.updatedAt || new Date().toISOString(),
   };
 }
 
-const modelKey = (brand: string, model: string) => `${brand}${model}`.toLowerCase().replace(/[^a-z0-9]/g, '');
+// Preserve plus suffixes: Trek Verve and Verve+ (and FX / FX+) are separate
+// catalogue families and must not collapse into one price row.
+const modelKey = (brand: string, model: string) => `${brand}${model}`.toLowerCase()
+  .replace(/\+/g, 'plus').replace(/[^a-z0-9]/g, '');
 const sameConditionPrices = (
   left: OfferPriceEntry['conditionPrices'],
   right: OfferPriceEntry['conditionPrices']
@@ -211,7 +232,7 @@ function suggestedGoodPrice(profile: BikeBrandProfile, rawModel: string, categor
 
 function allCatalogueSeeds(): OfferPriceEntry[] {
   const updatedAt = new Date().toISOString();
-  return BIKE_BRAND_PROFILES.filter(profile => !UNKNOWN_BRAND_NAMES.includes(profile.name))
+  const catalogue = BIKE_BRAND_PROFILES.filter(profile => !UNKNOWN_BRAND_NAMES.includes(profile.name))
     .flatMap(profile => modelsForBrand(profile.name)
       .filter(raw => !/^other\b|don.?t know/i.test(raw))
       .map(raw => {
@@ -222,9 +243,9 @@ function allCatalogueSeeds(): OfferPriceEntry[] {
           : suggestedGoodPrice(profile, raw, category);
         const trekkingEntry = DEFAULT_ENTRIES.find(entry => entry.brand.toLowerCase() === profile.name.toLowerCase()
           && modelKey(entry.brand, entry.model) === modelKey(profile.name, model));
-        const goodPrice = trekkingEntry?.basePrice ?? good ?? 65;
+        const goodPrice = Math.min(145, Math.max(30, trekkingEntry?.basePrice ?? good ?? 65));
         const poorPrice = Math.max(10, goodPrice - 30);
-        return {
+        const seed: OfferPriceEntry = {
           id: trekkingEntry?.id ?? `seed-${modelKey(profile.name, model)}`,
           brand: profile.name,
           model,
@@ -239,7 +260,13 @@ function allCatalogueSeeds(): OfferPriceEntry[] {
           notes: `Indicative model-family offer. Check the exact year, specification, condition${category === 'ebike' ? ', battery health and charger' : ''} before confirming.`,
           updatedAt,
         };
+        return normalize(seed) ?? seed;
       }));
+  const catalogueKeys = new Set(catalogue.map(entry => modelKey(entry.brand, entry.model)));
+  const legacyModels = DEFAULT_ENTRIES
+    .filter(entry => entry.brand && entry.model && !catalogueKeys.has(modelKey(entry.brand, entry.model)))
+    .map(entry => normalize({ ...entry, updatedAt }) ?? { ...entry, updatedAt });
+  return [...catalogue, ...legacyModels];
 }
 
 /** Apply the approved budget ladder to existing and newly seeded catalogue rows. */
