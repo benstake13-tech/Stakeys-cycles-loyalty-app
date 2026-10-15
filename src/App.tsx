@@ -1,3 +1,6 @@
+import { Capacitor } from '@capacitor/core';
+import { AppRequiredScreen } from './components/AppRequiredScreen';
+import { requiresInstalledApp } from './utils/appAccess';
 import { MilestoneOverlay } from './components/MilestoneOverlay';
 import React, { useEffect, useState } from 'react';
 import {
@@ -273,6 +276,14 @@ function AppContent() {
   // Session-only avatar preview: `?avatar=1` shows the real avatar system
   // without a login and without touching any profile. Available on every
   // surface so the creator can be reviewed before it ships.
+  const nativeApp = Capacitor.isNativePlatform();
+  if (!nativeApp && (APP_SURFACE === 'staff' || APP_SURFACE === 'customer') && isResetRoute) {
+    return <ResetPasswordScreen />;
+  }
+  if (requiresInstalledApp(APP_SURFACE, nativeApp, window.location.pathname)) {
+    return <AppRequiredScreen audience={APP_SURFACE === 'staff' ? 'staff' : 'customer'} />;
+  }
+
   if (isAvatarPreview) {
     return (
       <div className={`min-h-screen${seasonalThemeClass} ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>

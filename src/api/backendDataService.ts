@@ -601,6 +601,10 @@ export async function insertServiceBookingToDb(
       const col = named && named in payload ? named : OPTIONAL_KEYS.find((k) => k in payload);
       // Only shed optional columns we added; never loop forever on the core row.
       if (col && isSchemaError(error) && col in payload) {
+        if (col === 'bike_details' && booking.bikeDetails?.repairAssessment) {
+          console.error('[SUPABASE NET ERROR] Photo report cannot be saved: bike_details is missing.');
+          return false;
+        }
         console.warn(`[SUPABASE NET] service_bookings is missing "${col}" — retrying without it.`);
         delete payload[col];
         continue;

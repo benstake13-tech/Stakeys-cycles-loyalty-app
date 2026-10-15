@@ -2,9 +2,12 @@ import React from 'react';
 import { render, screen, within, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => hoisted.native } }));
+
 // App pulls in the whole app; mock the heavy children so this test exercises
 // only the header navigation wiring.
 const hoisted = vi.hoisted(() => ({
+  native: true,
   user: { uid: 'u1', displayName: 'Rider One', membershipNumber: 'STK-1', role: 'customer' } as
     | { uid: string; displayName: string; membershipNumber: string; role: string }
     | null,
@@ -32,6 +35,7 @@ vi.mock('./src/components/ThemeToggle', () => ({ ThemeToggle: () => null }));
 vi.mock('./src/components/StakeysLogo', () => ({ StakeysLogo: () => null }));
 vi.mock('./src/components/DeliverablesViewer', () => ({ DeliverablesViewer: () => <div data-testid="deliverables" /> }));
 vi.mock('./src/components/AvatarPreviewStage', () => ({ AvatarPreviewStage: () => null }));
+vi.mock('./src/components/ResetPasswordScreen', () => ({ ResetPasswordScreen: () => <div data-testid="reset-password" /> }));
 vi.mock('./src/components/LoginScreen', () => ({ LoginScreen: () => <div data-testid="login" /> }));
 vi.mock('react-hot-toast', () => ({ Toaster: () => null }));
 vi.mock('./src/utils/pushNotifications', () => ({
@@ -49,6 +53,8 @@ import { isWebsiteSurface } from './src/config/surface';
 beforeEach(() => {
   cleanup();
   localStorage.clear();
+  hoisted.native = true;
+  window.history.replaceState({}, '', '/');
   hoisted.user = { uid: 'u1', displayName: 'Rider One', membershipNumber: 'STK-1', role: 'customer' };
 });
 
@@ -73,5 +79,35 @@ describe('staff header navigation', () => {
       return;
     }
     expect(staffTab).toBeTruthy();
+  });
+});
+
+// Browser landing pages must replace the app, including existing web sessions.
+describe('browser app blanket', () => {
+  it('keeps recovery links limited to password reset even with an existing session', () => {
+    hoisted.native = false;
+    window.history.replaceState({}, '', '/reset-password');
+    render(<App />);
+    if (!isWebsiteSurface) {
+      expect(screen.getByTestId('reset-password')).toBeTruthy();
+      expect(screen.queryByRole('tab')).toBeNull();
+      expect(screen.queryByTestId('customer-portal')).toBeNull();
+    }
+  });
+  it('replaces authenticated app navigation in a browser', () => {
+    hoisted.native = false;
+    render(<App />);
+    if (isWebsiteSurface) {
+      expect(screen.getByTestId('website')).toBeTruthy();
+    } else {
+      expect(screen.getByText(/This web address does not provide account access/)).toBeTruthy();
+      expect(screen.queryByRole('tab')).toBeNull();
+      expect(screen.queryByTestId('login')).toBeNull();
+    }
+  });
+  it('preserves the APK login screen', () => {
+    hoisted.user = null;
+    render(<App />);
+    if (!isWebsiteSurface) expect(screen.getByTestId('login')).toBeTruthy();
   });
 });

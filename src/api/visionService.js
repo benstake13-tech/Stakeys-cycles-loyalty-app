@@ -1,3 +1,4 @@
+import { DETAILED_SPEC_CHECKLIST, EXTENDED_FAULT_CHECKLIST } from '../utils/bicycleInspectionChecklist';
 import { completeBikeInspection } from '../utils/bikeInspection';
 import { generateGemini, isGeminiGatewayConfigured } from './geminiGateway';
 import { Type } from '@google/genai';
@@ -44,6 +45,13 @@ Never invent a specific measurement you cannot see: leave "specValue"/brand/mode
 
 Checklist:
 ${taxonomyChecklist}
+
+ADDITIONAL TECHNICAL FIELDS (retain the entire existing sweep):
+${DETAILED_SPEC_CHECKLIST}
+Return known, legible technical values in mainSpecs[].specDetails as {name, value}, using the exact field labels above. Omit unreadable values; local code fills unknowns. Existing specValue remains a concise overview. Geometry, weight, payload, clearances, internal dimensions, engagement, chemistry, charge time and available sizes require an exact checked manufacturer reference or physical measurement; never infer them from a side-on photograph. Do not claim reference verification without supplied source evidence.
+
+ADDITIONAL FAULT SWEEP:
+${EXTENDED_FAULT_CHECKLIST}
 
 For each entry provide: "systemId" (use the exact system id you are working within), "componentId"
 (use the exact component id from the checklist), "componentName", "category" (keep the broad legacy
@@ -157,6 +165,7 @@ const BIKE_RESPONSE_SCHEMA = {
           },
           componentName: { type: Type.STRING },
           currentPart: { type: Type.STRING, description: "What is fitted, with any visible brand" },
+          specDetails: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, value: { type: Type.STRING } }, required: ["name", "value"] } },
           specValue: { type: Type.STRING, description: "Measured dimension/size/spec, e.g. '700x32c', '11-34T', '160mm rotor'" },
           brand: { type: Type.STRING },
           model: { type: Type.STRING },

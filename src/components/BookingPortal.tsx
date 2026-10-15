@@ -72,6 +72,9 @@ import {
 } from '../utils/bookingTranslator';
 import { translateBookingNotesWithOriginal, isTranslationConfigured } from '../api/translationService';
 import { BookingConfirmationAnimation } from './BookingConfirmationAnimation';
+import { CustomerRepairAssistant } from './CustomerRepairAssistant';
+import { formatRepairReport, type CustomerRepairReport } from '../utils/customerRepairReport';
+import { isCustomerSurface, isFullSurface } from '../config/surface';
 
 interface BookingPortalProps {
   initialBikeId?: string;
@@ -153,9 +156,12 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
 
   // Structured Problem Checklist State (Choose all that apply)
   const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>(
-    initialIssueIds && initialIssueIds.length > 0 ? initialIssueIds : ['brakes-squeaky']
+    initialIssueIds && initialIssueIds.length > 0 ? initialIssueIds : isCustomerSurface ? [] : ['brakes-squeaky']
   );
   const [problemNotes, setProblemNotes] = useState<string>(initialOtherNotes || '');
+  const [repairReport, setRepairReport] = useState<CustomerRepairReport | null>(null);
+  const [repairBusy, setRepairBusy] = useState(false);
+  const [repairPhotosPending, setRepairPhotosPending] = useState(false);
   const [problemSelectionMode, setProblemSelectionMode] = useState<'checklist' | 'packages'>('checklist');
 
   // Selected Friendly Problem / Service
@@ -311,7 +317,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
   const bikeStepComplete = Boolean(bikeIdentity.brand && resolvedModelName);
   const issuesStepComplete = problemSelectionMode === 'packages'
     ? Boolean(selectedProblemId)
-    : selectedIssueIds.length > 0 || problemNotes.trim().length > 0;
+    : selectedIssueIds.length > 0 || problemNotes.trim().length > 0 || Boolean(repairReport);
   const scheduleStepComplete = Boolean(
     serviceType === 'home_visit'
       ? homeAddress.trim() && homeVisitTime
@@ -430,6 +436,10 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    if (!isSos && (repairBusy || repairPhotosPending)) {
+      setFormError(repairBusy ? 'Please wait for the photo review, or cancel it and attach your photos without AI.' : 'Please review your photos or choose “Attach for staff without AI” before submitting.');
+      return;
+    }
 
     if (!customerName.trim()) {
       setFormError('Please enter your full name.');
@@ -477,10 +487,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
     }
 
     if (
-      !(isSos && sosMode === 'express') &&
+      !isSos &&
       problemSelectionMode === 'checklist' &&
       selectedIssueIds.length === 0 &&
-      !problemNotes.trim()
+      !problemNotes.trim() &&
+      !repairReport
     ) {
       setFormError('Please select at least one problem symptom or describe your issue.');
       return;
@@ -650,6 +661,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
         voucherNote,
         discountNote,
         referralNote,
+        !isSos && repairReport ? formatRepairReport(repairReport) : '',
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -695,7 +707,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
         membershipNumber: currentUser?.membershipNumber,
         vehicleCategory: effectiveCategory,
         vehicleModel: formattedVehicleName,
-        bikeDetails,
+        bikeDetails: !isSos && repairReport ? { ...bikeDetails, repairAssessment: repairReport } : bikeDetails,
         serviceId: expressSos ? 'sos-emergency' : computedService.serviceId,
         serviceTitle: expressSos
           ? `SOS Emergency Repair — ${expressSosTileFor(sosTile)?.tag || 'Breakdown'}`
@@ -1458,6 +1470,17 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             </div>
           </div>
 
+          {(isCustomerSurface || isFullSurface) && !isSos && <div hidden={!openSteps.issues}><CustomerRepairAssistant
+            bike={`${bikeIdentity.brand} ${resolveModel(bikeIdentity)} ${bikeIdentity.year}`.trim()}
+            symptoms={selectedIssueIds.map(id => ALL_BIKE_ISSUES_MAP.get(id)?.label || id)}
+            notes={problemNotes}
+            value={repairReport}
+            onChange={setRepairReport}
+            onBusyChange={setRepairBusy}
+            onPendingChange={setRepairPhotosPending}
+            knownSafetyConcern={selectedIssueIds.some(id => ['brakes-weak', 'brakes-pull-handlebar', 'brakes-fluid-leak', 'frame-loose-handlebars', 'gears-chain-stuck', 'wheels-broken-spoke'].includes(id))}
+            disabled={isSubmitting}
+          /></div>}
           {openSteps.issues && (
           <>
           {/* Mode 1: Multi-Select Issues Checklist */}

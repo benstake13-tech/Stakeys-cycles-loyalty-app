@@ -3732,6 +3732,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notificationFailures: failures,
     };
 
+    // A photo report must reach the workshop before we claim it was submitted.
+    // Keep the form and its photos intact if the database rejects the booking.
+    if (data.bikeDetails?.repairAssessment && !(await insertServiceBookingToDb(completedBooking))) {
+      throw new Error('We could not send your booking and photo report to the workshop. Your photos are still here; please retry.');
+    }
+
     setBookings((prev) => [completedBooking, ...prev]);
     knownBookingIdsRef.current.add(completedBooking.id);
     setLatestDispatchedBooking(completedBooking);
@@ -3739,7 +3745,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Remote Database Mutation: INSERT directly into service_bookings table.
     // If this fails the booking exists only on this device — surface it rather
     // than letting the job silently disappear from the staff app.
-    insertServiceBookingToDb(completedBooking)
+    if (!data.bikeDetails?.repairAssessment) insertServiceBookingToDb(completedBooking)
       .then((ok) => {
         if (!ok) {
           console.error('[DB SYNC] Booking insert was rejected; it will not appear on other devices.');
@@ -3831,7 +3837,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               lastServiceDate: data.preferredDate || new Date().toISOString().split('T')[0],
               lastServiceTitle: data.serviceTitle,
               healthStatus: 'in_workshop',
-              bikeDetails: data.bikeDetails,
+              // Intake photos belong to this private booking, not the garage
+              // identity that may be reused for listings or other bookings.
+              bikeDetails: data.bikeDetails ? { ...data.bikeDetails, repairAssessment: undefined } : undefined,
             };
 
             const updated = {
