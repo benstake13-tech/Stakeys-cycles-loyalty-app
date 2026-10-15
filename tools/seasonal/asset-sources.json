@@ -1,0 +1,101 @@
+{
+  "goblin.glb": {
+    "title": "Goblin Animations",
+    "author": "codywellman",
+    "source": "https://sketchfab.com/3d-models/goblin-animations-b9705b05dd6c47b29ec943bc096cbf3a",
+    "authorUrl": "https://sketchfab.com/codywellman",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "redistribution": "Permitted with attribution, licence link and indication of changes",
+    "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+  },
+  "santa.glb": {
+    "title": "hatch santa",
+    "author": "nitwit.friends",
+    "source": "https://sketchfab.com/3d-models/hatch-santa-435ed878c3654ef9af1bf2b8b3d34f4f",
+    "authorUrl": "https://sketchfab.com/nitwit.friends",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "redistribution": "Permitted with attribution, licence link and indication of changes",
+    "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+  },
+  "leprechaun.glb": {
+    "title": "Cartoon Leprechaun",
+    "author": "thejohnsimone",
+    "source": "https://sketchfab.com/3d-models/cartoon-leprechaun-36eed62484c14e2aa4d8ee068dc51291",
+    "authorUrl": "https://sketchfab.com/thejohnsimone",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "redistribution": "Permitted with attribution, licence link and indication of changes",
+    "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions. Mesh simplified from 724k triangles for mobile use."
+  },
+  "rabbit.glb": {
+    "title": "Rabbit Rigged",
+    "author": "FourthGreen",
+    "source": "https://sketchfab.com/3d-models/rabbit-rigged-e7213589744d436b9d96e2dbb31198a5",
+    "authorUrl": "https://sketchfab.com/FourthGreen",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "redistribution": "Permitted with attribution, licence link and indication of changes",
+    "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+  },
+  "fox.glb": {
+    "title": "Fox",
+    "author": "Alexei Ostapenko",
+    "source": "https://sketchfab.com/3d-models/fox-4e37c303f8a241aaa2511bd9f3019273",
+    "authorUrl": "https://sketchfab.com/alexanders823",
+    "license": "CC-BY-4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "redistribution": "Permitted with attribution, licence link and indication of changes",
+    "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+  },
+  "witch-cottage.glb": {
+    "title": "Witch Cottage",
+    "author": "Grab3D",
+    "source": "https://grab3d.com/models/buildings/witch-cottage/",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://grab3d.com/dl/witch-cottage/LICENSE.txt",
+    "redistribution": "Permitted, including commercial modification and redistribution",
+    "changes": "Workshop sign, lighting, placement and seasonal snow added."
+  },
+  "ground-color.jpg": {
+    "author": "Poly Haven",
+    "source": "https://polyhaven.com/a/forest_leaves_04",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "redistribution": "Permitted, including commercial modification and redistribution",
+    "changes": "Resized and locally packaged."
+  },
+  "ground-normal.jpg": {
+    "author": "Poly Haven",
+    "source": "https://polyhaven.com/a/forest_leaves_04",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "redistribution": "Permitted, including commercial modification and redistribution",
+    "changes": "Resized and locally packaged."
+  },
+  "ground-rough.jpg": {
+    "author": "Poly Haven",
+    "source": "https://polyhaven.com/a/forest_leaves_04",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "redistribution": "Permitted, including commercial modification and redistribution",
+    "changes": "Resized and locally packaged."
+  },
+  "bark-color.jpg": {
+    "author": "Poly Haven",
+    "source": "https://polyhaven.com/a/bark_brown_02",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "redistribution": "Permitted, including commercial modification and redistribution",
+    "changes": "Resized and locally packaged."
+  },
+  "bark-normal.jpg": {
+    "author": "Poly Haven",
+    "source": "https://polyhaven.com/a/bark_brown_02",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "redistribution": "Permitted, including commercial modification and redistribution",
+    "changes": "Resized and locally packaged."
+  }
+}

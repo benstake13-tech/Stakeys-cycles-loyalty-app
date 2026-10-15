@@ -1,0 +1,10 @@
+import {build} from 'esbuild';
+import {readFileSync,readdirSync,writeFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
+await build({entryPoints:['tools/seasonal/scene.js'],outfile:'public/theme-assets/premium-world.js',bundle:true,format:'esm',minify:true,legalComments:'eof'});
+writeFileSync('public/theme-assets/premium-world.js',readFileSync('public/theme-assets/premium-world.js','utf8').replace(/[ \t]+$/gm,''));
+const hash=b=>createHash('sha256').update(b).digest('hex');
+const sources=JSON.parse(readFileSync('tools/seasonal/asset-sources.json','utf8'));
+const files=readdirSync('public/theme-assets').filter(n=>n!=='asset-manifest.json').sort().map(name=>{const bytes=readFileSync('public/theme-assets/'+name);return {name,bytes:bytes.length,sha256:hash(bytes),...(sources[name]||{})}});
+writeFileSync('public/theme-assets/asset-manifest.json',JSON.stringify({schema:1,rendererSourceSha256:hash(readFileSync('tools/seasonal/scene.js')),files},null,2)+'\n');
+if(process.argv.includes('--preview'))await build({entryPoints:['tools/seasonal/scene.js'],outfile:'preview/seasonal/preview-engine.js',bundle:true,format:'iife',globalName:'PremiumWorld',minify:true,legalComments:'eof'});

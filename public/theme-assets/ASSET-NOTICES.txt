@@ -1,0 +1,83 @@
+Stakey’s Halloween Woodland
+
+Surface textures: Forest Leaves 04 and Bark Brown 02, Poly Haven
+https://polyhaven.com/a/forest_leaves_04
+https://polyhaven.com/a/bark_brown_02
+CC0 1.0 Universal.
+
+Renderer: Three.js 0.180.0 — MIT
+The MIT License
+
+Copyright © 2010-2025 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+
+Goblin Animations (model, textures, rig and animations)
+https://sketchfab.com/3d-models/goblin-animations-b9705b05dd6c47b29ec943bc096cbf3a
+Animation: codywellman — https://sketchfab.com/codywellman
+Concept: Youssef Zamani — https://artstation.com/usefzamani
+3D model: Victor-Emmanuel Pancrazi — https://artstation.com/babichon
+Rig: Thomas Vialetto — https://artstation.com/tvialetto
+Creative Commons Attribution 4.0 International (CC BY 4.0)
+https://creativecommons.org/licenses/by/4.0/
+Commercial use, adaptation and redistribution permitted with attribution,
+licence link and indication of changes. No endorsement implied.
+Retrieved from the Objaverse mirror of this openly downloadable Sketchfab model:
+https://huggingface.co/datasets/allenai/objaverse
+Changes: normalized placement and scale; material tuning; additive skeletal
+reaction, gaze, eyelid and cloth movement layered over the original idle clip.
+
+Witch Cottage — Grab3D
+https://grab3d.com/models/buildings/witch-cottage/
+https://grab3d.com/dl/witch-cottage/LICENSE.txt
+CC0 1.0 Universal. Commercial use, modification and redistribution permitted.
+Changes: placement, lighting and Stakeys workshop sign added in the scene.
+
+Cloth ghost, bats, foliage, workshop sign and environment composition:
+Authored for Stakeys Cycles in this repository. Weighted skeletal cloth rig.
+The previous Polyy.AI scarecrow models are NOT included in this replacement.
+
+
+Additional character assets — CC BY 4.0
+https://creativecommons.org/licenses/by/4.0/
+Commercial adaptation and redistribution permitted with attribution and indication of changes.
+
+hatch santa by nitwit.friends
+https://sketchfab.com/3d-models/hatch-santa-435ed878c3654ef9af1bf2b8b3d34f4f
+https://sketchfab.com/nitwit.friends
+Licence: https://creativecommons.org/licenses/by/4.0/
+Changes: Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions.
+
+Cartoon Leprechaun by thejohnsimone
+https://sketchfab.com/3d-models/cartoon-leprechaun-36eed62484c14e2aa4d8ee068dc51291
+https://sketchfab.com/thejohnsimone
+Licence: https://creativecommons.org/licenses/by/4.0/
+Changes: Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions. Mesh simplified from 724k triangles for mobile use.
+
+Rabbit Rigged by FourthGreen
+https://sketchfab.com/3d-models/rabbit-rigged-e7213589744d436b9d96e2dbb31198a5
+https://sketchfab.com/FourthGreen
+Licence: https://creativecommons.org/licenses/by/4.0/
+Changes: Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions.
+
+Fox by Alexei Ostapenko
+https://sketchfab.com/3d-models/fox-4e37c303f8a241aaa2511bd9f3019273
+https://sketchfab.com/alexanders823
+Licence: https://creativecommons.org/licenses/by/4.0/
+Changes: Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions.
