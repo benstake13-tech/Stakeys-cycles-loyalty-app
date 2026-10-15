@@ -1,19 +1,61 @@
-.stakeys-milestone-art{width:100%;height:180px;overflow:visible;color:#05d76b}
-.milestone-cyclist{opacity:0;transform:translate(20px,40px)}
-.milestone-result{transform-origin:210px 115px}
-.is-playing .milestone-cyclist{animation:stakeys-ride 2.2s ease-in-out both}
-.is-playing .milestone-wheel{animation:stakeys-wheel .6s linear 4}
-.is-playing .milestone-leg{animation:stakeys-pedal .35s ease-in-out 6 alternate;transform-origin:201px 82px}
-.is-playing .milestone-result{animation:stakeys-reveal 3.6s cubic-bezier(.2,.8,.2,1) both}
-[data-variant=garage] .milestone-result{transform-origin:210px 180px}
-[data-variant=listing] .milestone-result{rotate:-8deg}
-@keyframes stakeys-ride{0%{opacity:0;transform:translate(-90px,40px)}15%{opacity:1}65%{opacity:1;transform:translate(35px,40px)}100%{opacity:0;transform:translate(120px,40px) scale(.6)}}
-@keyframes stakeys-wheel{to{transform:rotate(360deg)}}
-@keyframes stakeys-pedal{to{transform:rotate(15deg)}}
-@keyframes stakeys-reveal{0%,44%{opacity:0;transform:scale(.15)}65%{opacity:1;transform:scale(1.08)}78%,100%{opacity:1;transform:scale(1)}}
-.stakeys-milestone-overlay{position:fixed;inset:0;z-index:10000;pointer-events:none;display:flex;justify-content:center;align-items:flex-start;padding: max(72px,env(safe-area-inset-top)) 16px 16px}
-.stakeys-milestone-message{position:relative;width:min(360px,90vw);text-align:center;color:var(--text-primary,#f3f4f6);filter:drop-shadow(0 2px 8px #0008)}
-.stakeys-milestone-message h3{font-size:19px;font-weight:800;margin:0}
-.stakeys-milestone-message p{font-size:13px;margin:6px 16px;line-height:1.5}
-.stakeys-milestone-message button{pointer-events:auto;position:absolute;right:0;top:0;border-radius:50%;border:1px solid #05c14780;background:#10251edd;color:white;width:30px;height:30px}
-@media(prefers-reduced-motion:reduce){.is-playing .milestone-cyclist{display:none}.is-playing .milestone-result,.is-playing .milestone-wheel,.is-playing .milestone-leg{animation:none}}
+.stakeys-milestone-overlay {
+  position:fixed; inset:0; z-index:10000; pointer-events:none;
+  display:flex; justify-content:center; align-items:flex-start;
+  padding:max(72px,calc(env(safe-area-inset-top) + 18px)) 16px 16px;
+}
+.stakeys-milestone-message {
+  position:relative; width:min(384px,calc(100vw - 32px)); min-width:0;
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif; text-align:center; color:#f3fff7;
+  animation:stakeys-notice-life 4200ms cubic-bezier(.22,.7,.3,1) both;
+}
+.stakeys-milestone-art {
+  display:block; width:100%; height:auto; aspect-ratio:2; overflow:hidden;
+  margin:0 auto -16px; pointer-events:none; filter:drop-shadow(0 5px 10px rgba(0,15,7,.16));
+}
+.stakeys-milestone-copy {
+  position:relative; isolation:isolate; pointer-events:auto; overflow:hidden;
+  border:1px solid rgba(141,210,166,.28); border-radius:22px;
+  padding:20px 26px 24px; color:#effff4;
+  background:linear-gradient(125deg,rgba(22,44,32,.94),rgba(4,16,10,.96));
+  backdrop-filter:blur(20px) saturate(1.3); -webkit-backdrop-filter:blur(20px) saturate(1.3);
+  box-shadow:0 20px 55px -24px rgba(0,0,0,.9),inset 0 1px 0 rgba(220,255,230,.09);
+}
+.stakeys-milestone-copy::before {
+  content:''; position:absolute; z-index:-1; pointer-events:none; inset:0;
+  background:radial-gradient(ellipse at 50% 0,rgba(88,224,144,.09),transparent 65%);
+}
+.stakeys-milestone-eyebrow {
+  display:flex; align-items:center; justify-content:center; gap:6px;
+  margin:0 28px 9px; color:#91c4a2; font-size:8px; font-weight:650; letter-spacing:.15em; line-height:1.5; text-transform:uppercase;
+}
+.stakeys-milestone-eyebrow > span { width:4px; height:4px; border-radius:50%; background:#53e694; box-shadow:0 0 7px #53e69466; }
+.stakeys-milestone-message h3 {
+  margin:0; color:#f3fff6; font-size:19px; font-weight:750; letter-spacing:-.035em; line-height:1.3; text-wrap:balance; overflow-wrap:anywhere;
+}
+.stakeys-milestone-message p {
+  margin:8px 0 0; color:#b2c7b8; font-size:12px; font-weight:400; line-height:1.6; overflow-wrap:anywhere; text-wrap:pretty;
+}
+.stakeys-milestone-copy > button {
+  display:grid; place-items:center; position:absolute; right:4px; top:4px;
+  width:40px; height:40px; padding:0; border:0; border-radius:50%;
+  background:transparent; color:#a7cbb4; cursor:pointer; -webkit-tap-highlight-color:transparent;
+}
+.stakeys-milestone-copy > button:hover { background:rgba(132,219,165,.1); color:#e0ffeb; }
+.stakeys-milestone-copy > button:focus-visible { outline:2px solid #75e9a4; outline-offset:-5px; }
+.stakeys-milestone-timer { position:absolute; bottom:0; left:24px; right:24px; height:2px; overflow:hidden; background:rgba(128,206,153,.09); }
+.stakeys-milestone-timer > span { display:block; width:100%; height:100%; background:linear-gradient(90deg,#31855a,#8af0b2); transform-origin:left; animation:stakeys-notice-time 4200ms linear both; }
+@keyframes stakeys-notice-life {
+  0%{opacity:0;transform:translateY(-10px) scale(.97)}
+  7%,91%{opacity:1;transform:translateY(0) scale(1)}
+  100%{opacity:0;transform:translateY(-7px) scale(.985)}
+}
+@keyframes stakeys-notice-time { from{transform:scaleX(1)} to{transform:scaleX(0)} }
+@media(max-width:360px) {
+  .stakeys-milestone-copy { padding:18px 20px 22px; border-radius:19px; }
+  .stakeys-milestone-message h3 { font-size:17px; }
+  .stakeys-milestone-message p { font-size:11px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .stakeys-milestone-message,.stakeys-milestone-timer > span { animation:none !important; transform:none; opacity:1; }
+  .stakeys-milestone-timer { display:none; }
+}
