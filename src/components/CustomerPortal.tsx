@@ -40,7 +40,6 @@ import { TileGrid } from './tiles/TileGrid';
 import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
 
-import { StakeysLogo } from './StakeysLogo';
 import { StampCard } from './StampCard';
 import { BookingPortal } from './BookingPortal';
 import { WeeklyPrizeWheel } from './WeeklyPrizeWheel';
@@ -60,7 +59,6 @@ import { RewardNudges } from './RewardNudges';
 import { buildRewardNudges } from '../utils/rewardNudges';
 import { WeatherForecast } from './weather/WeatherForecast';
 import { VehicleCategory, CustomerBike, ServiceBooking } from '../types/bikeShop';
-import { FaceAvatar } from './FaceAvatar';
 import { AvatarEditorModal } from './AvatarEditorModal';
 import { BIKE_CATEGORY_OPTIONS } from '../data/bikeCatalog';
 import {
@@ -88,6 +86,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
     updateCustomerAvatar,
     updateCustomerBikeIdentity,
     scratchCard,
+    seasonalTheme,
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<
@@ -268,95 +267,15 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
   return (
     <div className="stakeys-premium-customer space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
-      <header className="stakeys-customer-brandbar surface-panel !rounded-2xl px-4 py-3 flex items-center gap-3 border border-emerald-400/20">
-        <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-1"><StakeysLogo className="w-11 h-12" /></div>
-        <div className="min-w-0 flex-1">
-          <span className="block font-display font-black tracking-[0.12em] text-white">STAKEY'S <span className="text-emerald-400">CYCLES</span></span>
-          <small className="block text-xs text-neutral-400">Your ride. Your rewards.</small>
-        </div>
-        <button type="button" aria-label="Edit your avatar" title="Customise your avatar" onClick={() => setIsAvatarEditorOpen(true)} className="stakeys-customer-avatar shrink-0 rounded-full border border-emerald-400/40 p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"><FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={36} /></button>
-      </header>
-      {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
-      <MembershipPassCard user={currentUser} />
-
-      {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
-      <div className="stakeys-customer-welcome surface-panel relative overflow-hidden !rounded-3xl">
-        <span className="hero-sheen" aria-hidden="true" />
-        {/* Background Workshop Image Asset */}
-        <div className="absolute inset-0 z-0">
-          <img
-            src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
-            alt="Stakey's cycle and scooter workshop"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover object-center opacity-40 filter saturate-75"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#05070a] via-[#05070a]/88 to-[#05070a]/30" />
-          <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-emerald-400/40 to-transparent" />
-        </div>
-
-        {/* Content Box */}
-        <div className="relative z-10 p-6 sm:p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex flex-row items-center gap-6 max-w-xl">
-            {/* Avatar & Edit Overlay */}
-            <div className="relative group shrink-0">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden border-2 border-emerald-400/40 shadow-[0_0_30px_-6px_rgba(5,193,71,0.6)] ring-1 ring-white/10">
-                <FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={96} className="w-full h-full object-cover" />
-              </div>
-              <button
-                onClick={() => setIsAvatarEditorOpen(true)}
-                className="absolute inset-0 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all cursor-pointer backdrop-blur-[2px]"
-              >
-                <Sparkles className="w-5 h-5 text-emerald-400 mb-1" />
-                <span className="text-[9px] font-bold uppercase tracking-wider text-emerald-100">Edit Avatar</span>
-              </button>
-            </div>
-
-            <div>
-              {/* Unboxed Zero-Pill Metadata */}
-              <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
-                <span className="text-emerald-400 font-semibold tracking-wider uppercase">
-                  Member ID {currentUser.membershipNumber}
-                </span>
-                <span aria-hidden="true" className="text-neutral-600">·</span>
-                <span>Workshop</span>
-                <span aria-hidden="true" className="text-neutral-600">·</span>
-                <span>Workshop Certified</span>
-              </div>
-
-              <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
-                Welcome back, <span className="text-gradient">{currentUser.displayName}</span>
-              </h1>
-              <p className="text-sm text-neutral-300 mt-2 leading-relaxed">
-                Your registered bikes, scheduled workshop repairs, and digital loyalty pass in one place.
-              </p>
-            </div>
-          </div>
-
-          {/* Clean Tabular Figures Metrics Panel */}
-          <div className="glass flex items-center gap-4 px-5 py-3.5 !rounded-2xl shrink-0">
-            <div className="text-left">
-              <div className="font-display figure text-2xl font-bold text-white">
-                {customerBikes.length}
-              </div>
-              <div className="text-[11px] text-neutral-400 font-medium">Garage Bikes</div>
-            </div>
-            <div className="h-8 w-px bg-white/10" />
-            <div className="text-left">
-              <div className="font-display figure text-2xl font-bold text-[#05C147]">
-                {currentUser.stamps || 0}<span className="text-xs text-neutral-500 font-normal">/10</span>
-              </div>
-              <div className="text-[11px] text-neutral-400 font-medium">Visit Stamps</div>
-            </div>
-            <div className="h-8 w-px bg-white/10" />
-            <div className="text-left">
-              <div className="font-display figure text-2xl font-bold text-white">
-                {customerBookings.length}
-              </div>
-              <div className="text-[11px] text-neutral-400 font-medium">Bookings</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <MembershipPassCard
+        user={currentUser}
+        seasonalTheme={seasonalTheme}
+        garageCount={customerBikes.length}
+        bookingCount={customerBookings.length}
+        onEditAvatar={() => setIsAvatarEditorOpen(true)}
+        onOpenGarage={() => setActiveTab('garage')}
+        onOpenBookings={() => setActiveTab('bookings')}
+      />
 
       {/* Full Stamps Alert Callout */}
       {(currentUser.stamps || 0) >= 10 && (
