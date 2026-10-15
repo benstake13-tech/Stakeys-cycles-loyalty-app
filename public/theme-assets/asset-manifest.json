@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "rendererSourceSha256": "a986874e8b9970d76fd7508de54734c39b80b2d80758d64553eb2b3e28433496",
+  "files": [
+    {
+      "name": "ASSET-NOTICES.txt",
+      "bytes": 4202,
+      "sha256": "5ae40c711d74848375ab38aec2cfe45ccc5d25d6d6e6da2d1409c09d446a695b"
+    },
+    {
+      "name": "bark-color.jpg",
+      "bytes": 659592,
+      "sha256": "920fa0bed0c9d78c1d530e99795113afd532d7db746de440f4a85d7c83ed0f1a",
+      "author": "Poly Haven",
+      "source": "https://polyhaven.com/a/bark_brown_02",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://polyhaven.com/license",
+      "redistribution": "Permitted, including commercial modification and redistribution",
+      "changes": "Resized and locally packaged."
+    },
+    {
+      "name": "bark-normal.jpg",
+      "bytes": 1015623,
+      "sha256": "0d5e691e8ad8bcd093a3587887fda2a6b4a948b5708a4f256f7919584c6eb857",
+      "author": "Poly Haven",
+      "source": "https://polyhaven.com/a/bark_brown_02",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://polyhaven.com/license",
+      "redistribution": "Permitted, including commercial modification and redistribution",
+      "changes": "Resized and locally packaged."
+    },
+    {
+      "name": "fox.glb",
+      "bytes": 1133208,
+      "sha256": "e3eea6eb6201e7ce8fb366fb6159f0fa6402c0d1f1556022076af5c640850ed9",
+      "title": "Fox",
+      "author": "Alexei Ostapenko",
+      "source": "https://sketchfab.com/3d-models/fox-4e37c303f8a241aaa2511bd9f3019273",
+      "authorUrl": "https://sketchfab.com/alexanders823",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "redistribution": "Permitted with attribution, licence link and indication of changes",
+      "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+    },
+    {
+      "name": "goblin.glb",
+      "bytes": 1104496,
+      "sha256": "957b02d333f0752c1f05bd1a2dac3165766ff978204c3d457b6c369aa754fa88",
+      "title": "Goblin Animations",
+      "author": "codywellman",
+      "source": "https://sketchfab.com/3d-models/goblin-animations-b9705b05dd6c47b29ec943bc096cbf3a",
+      "authorUrl": "https://sketchfab.com/codywellman",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "redistribution": "Permitted with attribution, licence link and indication of changes",
+      "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+    },
+    {
+      "name": "ground-color.jpg",
+      "bytes": 423500,
+      "sha256": "a898e6ef0668a40faaf1bcbc6b024f6ef437ec424a10fa47aa6d35d013c9dade",
+      "author": "Poly Haven",
+      "source": "https://polyhaven.com/a/forest_leaves_04",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://polyhaven.com/license",
+      "redistribution": "Permitted, including commercial modification and redistribution",
+      "changes": "Resized and locally packaged."
+    },
+    {
+      "name": "ground-normal.jpg",
+      "bytes": 581919,
+      "sha256": "6b7c4086fc28b7b1f11f4d04aedcc27772ce3bb894cfc00835b4637092c1bb0c",
+      "author": "Poly Haven",
+      "source": "https://polyhaven.com/a/forest_leaves_04",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://polyhaven.com/license",
+      "redistribution": "Permitted, including commercial modification and redistribution",
+      "changes": "Resized and locally packaged."
+    },
+    {
+      "name": "ground-rough.jpg",
+      "bytes": 333423,
+      "sha256": "7b13e55c0ea6526542a3897cb7635556fbf7298022a48c138aef77aab2763d76",
+      "author": "Poly Haven",
+      "source": "https://polyhaven.com/a/forest_leaves_04",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://polyhaven.com/license",
+      "redistribution": "Permitted, including commercial modification and redistribution",
+      "changes": "Resized and locally packaged."
+    },
+    {
+      "name": "leprechaun.glb",
+      "bytes": 4626932,
+      "sha256": "00e7e8deb63d9783b95d44c338eedbd5c1ba7733a10b7f3676e55a78f5f212d4",
+      "title": "Cartoon Leprechaun",
+      "author": "thejohnsimone",
+      "source": "https://sketchfab.com/3d-models/cartoon-leprechaun-36eed62484c14e2aa4d8ee068dc51291",
+      "authorUrl": "https://sketchfab.com/thejohnsimone",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "redistribution": "Permitted with attribution, licence link and indication of changes",
+      "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions. Mesh simplified from 724k triangles for mobile use."
+    },
+    {
+      "name": "premium-world.js",
+      "bytes": 648485,
+      "sha256": "3a1b2d534237e03ea4ba6d71afb80ab97b56cb063966a3a44f5544641e054b6e"
+    },
+    {
+      "name": "rabbit.glb",
+      "bytes": 163232,
+      "sha256": "1cb31ba3cb14e129878f143b56e5245b9bf9b6ee992eabd22fb6a31159798a6c",
+      "title": "Rabbit Rigged",
+      "author": "FourthGreen",
+      "source": "https://sketchfab.com/3d-models/rabbit-rigged-e7213589744d436b9d96e2dbb31198a5",
+      "authorUrl": "https://sketchfab.com/FourthGreen",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "redistribution": "Permitted with attribution, licence link and indication of changes",
+      "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+    },
+    {
+      "name": "santa.glb",
+      "bytes": 1040652,
+      "sha256": "6b9f98bbba5a81f1030615672dd35717e7d9f81b98ae1d98a5fde8cf257f712d",
+      "title": "hatch santa",
+      "author": "nitwit.friends",
+      "source": "https://sketchfab.com/3d-models/hatch-santa-435ed878c3654ef9af1bf2b8b3d34f4f",
+      "authorUrl": "https://sketchfab.com/nitwit.friends",
+      "license": "CC-BY-4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+      "redistribution": "Permitted with attribution, licence link and indication of changes",
+      "changes": "Locally packaged, textures optimized, placement and materials adjusted; additive skeletal reactions."
+    },
+    {
+      "name": "witch-cottage.glb",
+      "bytes": 1970420,
+      "sha256": "eb1baa5444e921da81f47bae309ee5e5c5ef1276a44e0f59039be0039659d73d",
+      "title": "Witch Cottage",
+      "author": "Grab3D",
+      "source": "https://grab3d.com/models/buildings/witch-cottage/",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://grab3d.com/dl/witch-cottage/LICENSE.txt",
+      "redistribution": "Permitted, including commercial modification and redistribution",
+      "changes": "Workshop sign, lighting, placement and seasonal snow added."
+    }
+  ]
+}
