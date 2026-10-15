@@ -1821,3 +1821,9 @@ main:has(>.stakeys-customer-login) {padding:0!important;max-width:none!important
 .seasonal-theme-active .stakeys-premium-staff::before,
 .seasonal-theme-active .stakeys-premium-customer::before {background:none!important;}
 .seasonal-theme-active .staff-unlock-backdrop {background:rgba(0,12,8,.28);backdrop-filter:none;}
+
+/* Seasonal art owns the backdrop; product and gallery photos remain content. */
+.stakeys-auth-screen.seasonal-theme-active {background:transparent!important;}
+.seasonal-theme-active .site-canvas {background:transparent!important;}
+.seasonal-theme-active .site-canvas::after,
+.seasonal-theme-active .site-aurora {display:none!important;}

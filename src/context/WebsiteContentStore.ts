@@ -54,15 +54,19 @@ function normalizeContent(content: WebsiteContent): WebsiteContent {
 }
 
 let isSyncing = false;
+let publishRevision = 0;
+let publicationInFlight = false;
 export async function syncFromSupabase(): Promise<void> {
-  if (isSyncing || typeof window === 'undefined') return;
+  if (isSyncing || publicationInFlight || typeof window === 'undefined') return;
   isSyncing = true;
+  const revision = publishRevision;
   try {
     const { data, error } = await supabase
       .from('app_settings')
       .select('website_content_json')
       .eq('id', 1)
       .maybeSingle();
+    if (revision !== publishRevision) return;
     if (!error && data && data.website_content_json) {
       const parsed = data.website_content_json as any;
       const merged = { ...clone(DEFAULT_WEBSITE_CONTENT), ...parsed };
@@ -71,7 +75,7 @@ export async function syncFromSupabase(): Promise<void> {
       });
       merged.shopDisclaimers = merged.shopDisclaimers ?? clone(DEFAULT_WEBSITE_CONTENT).shopDisclaimers;
       merged.siteAnnouncements = merged.siteAnnouncements ?? clone(DEFAULT_WEBSITE_CONTENT).siteAnnouncements;
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch { /* Remote publication remains authoritative if the cache is full. */ }
       cached = normalizeContent(merged);
       notify();
       console.log('[WEBSITE CONTENT] Successfully synchronized with Supabase.');
@@ -133,21 +137,21 @@ function save(candidate: WebsiteContent): void {
   notify();
 }
 
-export async function updateWebsiteContent(patch: Partial<WebsiteContent>): Promise<void> {
+export async function updateWebsiteContent(patch: Partial<WebsiteContent>): Promise<WebsiteContent> {
   const next = clone(getWebsiteContent());
   Object.assign(next, patch);
   next.updatedAt = new Date().toISOString();
-  await persistToSupabase(next);
-  save(next);
+  publishRevision++; publicationInFlight = true;
+  try { const published = await persistToSupabase(next); save(published); return published; } finally { publicationInFlight = false; }
 }
 
 export async function resetWebsiteContent(): Promise<void> {
   const fresh = clone(DEFAULT_WEBSITE_CONTENT);
-  await persistToSupabase(fresh);
-  save(fresh);
+  publishRevision++; publicationInFlight = true;
+  try { save(await persistToSupabase(fresh)); } finally { publicationInFlight = false; }
 }
 
-async function persistToSupabase(content: WebsiteContent): Promise<void> {
+async function persistToSupabase(content: WebsiteContent): Promise<WebsiteContent> {
   const { data, error } = await supabase.from('app_settings')
     .update({ website_content_json: content }).eq('id', 1)
     .select('website_content_json').single();
@@ -155,6 +159,9 @@ async function persistToSupabase(content: WebsiteContent): Promise<void> {
   if (!data?.website_content_json || JSON.stringify(data.website_content_json) === '{}') {
     throw new Error('Website was not published: no saved content was returned. Check the settings row and staff permissions.');
   }
+  const canonical = (value: unknown) => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+  if (canonical(data.website_content_json) !== canonical(content)) throw new Error('Website was not published: the saved document did not match your draft. Your edits are still available to retry.');
+  return normalizeContent(data.website_content_json as WebsiteContent);
 }
 
 let syncTimer: ReturnType<typeof setInterval> | undefined;

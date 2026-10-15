@@ -38,8 +38,9 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackToWebsite, audience = 'customer' }) => {
-  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, resetPassword, addCustomerBike } = useShop();
+  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, resetPassword, addCustomerBike, seasonalTheme } = useShop();
 
+  const themeActive = Boolean(seasonalTheme && seasonalTheme !== 'none');
   const [mode, setMode] = useState<'signin' | 'register' | 'staff'>(audience === 'staff' ? 'staff' : 'signin');
   const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
@@ -257,15 +258,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
   };
 
   return (
-    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
+    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} ${themeActive ? 'seasonal-theme-active' : ''} stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* ===== LEFT: BRAND / WORKSHOP PANEL (desktop only) ===== */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden p-10 xl:p-14">
-        <img
+        {!themeActive && <img
           src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
           alt="Stakey's cycle and scooter workshop"
           referrerPolicy="no-referrer"
           className="stakeys-auth-decoration absolute inset-0 w-full h-full object-cover object-center opacity-40 scale-105"
-        />
+        />}
         <div className="stakeys-auth-decoration absolute inset-0 bg-gradient-to-br from-[#0b0f15] via-[#0b0f15]/80 to-emerald-950/60" />
         <div className="stakeys-auth-decoration absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,_rgba(5,193,71,0.22),transparent_55%)]" />
         <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -335,15 +336,15 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Secure &amp; encrypted
           </span>
           <span className="flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Workshop certified
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Workshop support
           </span>
         </div>
       </aside>
 
       {/* ===== RIGHT: AUTH PANEL ===== */}
-      <main className="relative flex flex-col justify-center items-center px-4 py-8 sm:py-12 overflow-hidden">
+      <main style={themeActive ? { background: 'transparent' } : undefined} className="relative flex flex-col justify-center items-center px-4 py-8 sm:py-12 overflow-hidden">
         {/* Mobile / tablet background */}
-        <div className="stakeys-auth-decoration absolute inset-0 z-0 overflow-hidden pointer-events-none lg:hidden">
+        {!themeActive && <div className="stakeys-auth-decoration absolute inset-0 z-0 overflow-hidden pointer-events-none lg:hidden">
           <img
             src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
             alt="Stakey's cycle and scooter workshop"
@@ -352,7 +353,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f15] via-[#0b0f15]/90 to-[#0b0f15]/70" />
           <div className="stakeys-auth-decoration absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
-        </div>
+        </div>}
 
         <div className="w-full max-w-md z-10 relative">
           <div className="flex items-center justify-between mb-3">

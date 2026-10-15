@@ -1,3 +1,4 @@
+import { uploadWebsiteImage } from '../api/websiteImageUpload';
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   ArrowDown,
@@ -276,6 +277,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showPreview, setShowPreview] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(true);
+  const [uploadCount, setUploadCount] = useState(0);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState('');
   const [savedSink, setSavedSink] = useState(0);
@@ -343,13 +345,14 @@ export const WebsiteContentManagerTab: React.FC = () => {
   };
 
   const save = async () => {
-    if (hasErrors || publishing) return;
+    if (hasErrors || publishing || uploadCount > 0) return;
     setPublishing(true); setPublishError('');
     // Publishing a brand-new item should hand staff its QR label straight away.
     const publishedIds = new Set(content.products.map((p) => p.id));
     const newlyAdded = draft.products.filter((p) => !publishedIds.has(p.id) && (p.name.trim() || p.price > 0));
     try {
-      await updateWebsiteContent(draft);
+      const published = await updateWebsiteContent(draft);
+      if (published) setDraft(published);
       setSavedSink((n) => n + 1);
       if (newlyAdded.length > 0) setQrProduct(newlyAdded[0]);
     } catch (error) { setPublishError(error instanceof Error ? error.message : 'Publishing failed. Your draft is still here.'); }
@@ -608,7 +611,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
             <button
               type="button"
               onClick={save}
-              disabled={publishing || !dirty || hasErrors}
+              disabled={publishing || uploadCount > 0 || !dirty || hasErrors}
               className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
@@ -1167,17 +1170,17 @@ export const WebsiteContentManagerTab: React.FC = () => {
                     <span>Upload</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            if (typeof reader.result === 'string') setProductField(index, 'image', reader.result);
-                          };
-                          reader.readAsDataURL(file);
-                        }
+                        if (!file) return;
+                        const productId = product.id;
+                        setUploadCount(n => n + 1); setPublishError('');
+                        void uploadWebsiteImage(file).then(url => setDraft(previous => ({ ...previous, products: previous.products.map(row => row.id === productId ? { ...row, image: url } : row) })))
+                          .catch(error => setPublishError(error instanceof Error ? error.message : 'The image could not be uploaded.'))
+                          .finally(() => setUploadCount(n => n - 1));
+                        e.target.value = '';
                       }}
                     />
                   </label>
@@ -1212,6 +1215,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
 
       {/* ---- Gallery ---- */}
       {publishError && <p role="alert" className="rounded-xl border border-rose-500/40 p-4 text-rose-300">{publishError}</p>}
+      {uploadCount > 0 && <p role="status">Uploading {uploadCount} image{uploadCount === 1 ? '' : 's'}… Please wait before publishing.</p>}
       {publishing && <p role="status">Publishing…</p>}
       {editorTab === 'gallery' && (
         <SectionCard
@@ -1247,17 +1251,18 @@ export const WebsiteContentManagerTab: React.FC = () => {
                     <span>Upload</span>
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onloadend = () => {
-                            if (typeof reader.result === 'string') setGalleryUrl(index, reader.result);
-                          };
-                          reader.readAsDataURL(file);
-                        }
+                        if (!file) return;
+                        const imageId = image.id;
+                        setUploadCount(n => n + 1); setPublishError('');
+                        void uploadWebsiteImage(file).then(url => {
+                          setDraft(previous => ({ ...previous, galleryImages: previous.galleryImages.map(row => row.id === imageId ? { ...row, url } : row) }));
+                        }).catch(error => setPublishError(error instanceof Error ? error.message : 'The image could not be uploaded.'))
+                          .finally(() => setUploadCount(n => n - 1));
+                        e.target.value = '';
                       }}
                     />
                   </label>
@@ -1283,7 +1288,7 @@ export const WebsiteContentManagerTab: React.FC = () => {
         <button
           type="button"
           onClick={save}
-          disabled={publishing || !dirty || hasErrors}
+          disabled={publishing || uploadCount > 0 || !dirty || hasErrors}
           className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-5 py-2.5 text-neutral-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-500/25 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Save className="w-4 h-4" /> Publish Changes

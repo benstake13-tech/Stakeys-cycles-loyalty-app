@@ -106,6 +106,9 @@ export interface BikeComponentSpec {
   componentId?: string;
   /** Measured dimension/size/spec, e.g. '700x32c', '11-34T', '160mm rotor'. */
   specValue?: string;
+  stockComparison?: string;
+  stockComparisonNote?: string;
+  stockReference?: { part: string; url: string; year?: string };
   specDetails?: import('../utils/bicycleInspectionChecklist').SpecificationDetail[];
   /** Visible brand of the fitted part. */
   brand?: string;
