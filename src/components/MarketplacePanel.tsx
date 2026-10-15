@@ -1,10 +1,11 @@
 import { announceMilestone } from '../utils/milestoneAnimations';
 import { Capacitor } from '@capacitor/core';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Bike, CheckCircle2, CircleAlert, Clock3, ImagePlus, LoaderCircle, MapPin, RefreshCw, ShieldCheck, Store, X } from 'lucide-react';
+import { Bike, CheckCircle2, CircleAlert, Clock3, ImagePlus, LoaderCircle, MapPin, RefreshCw, ShieldCheck, Sparkles, Store, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useShop } from '../context/ShopContext';
+import { generateGemini } from '../api/geminiGateway';
 
 type Listing = {
   id: string; seller_id?: string; title: string; category: 'bicycle'|'ebike'|'escooter'; make_model: string;
@@ -33,7 +34,11 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [payoutRefs, setPayoutRefs] = useState<Record<string,string>>({});
   const [files, setFiles] = useState<File[]>([]);
-  const [form, setForm] = useState({ title:'', category:'bicycle', make_model:'', condition:'good', description:'', asking_price:'' });
+  const [serialPhoto, setSerialPhoto] = useState<File | null>(null);
+  const [frameSerial, setFrameSerial] = useState('');
+  const [aiInspection, setAiInspection] = useState<Record<string, any> | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [form, setForm] = useState({ title:'', category:'bicycle', subcategory:'other', make_model:'', condition:'good', description:'', asking_price:'' });
   const userId = currentUser?.uid;
 
   const load = useCallback(async () => {
@@ -83,33 +88,101 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     }).catch((error:any) => toast.error(error?.message || 'Could not verify the payment yet. Refresh to try again.')).finally(() => setVerifying(false));
   }, [staff]);
 
+  const identifyBike = async () => {
+    if (!native || !userId) { setAppNotice(true); return; }
+    if (files.length < 3) { toast.error('Add at least 3 clear photos; use up to 10 different angles for a stronger match.'); return; }
+    if (files.length > 10) { toast.error('Choose up to 10 photos.'); return; }
+    if (files.some(file => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024)) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
+    setAnalyzing(true); setAiInspection(null);
+    try {
+      const parts = await Promise.all(files.map(async file => {
+        const bitmap = await createImageBitmap(file);
+        const scale = Math.min(1, 1100 / Math.max(bitmap.width, bitmap.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+        const context = canvas.getContext('2d'); if (!context) throw new Error('Could not prepare the photos on this device.');
+        context.drawImage(bitmap, 0, 0, canvas.width, canvas.height); bitmap.close();
+        const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Could not prepare a photo.')), 'image/jpeg', 0.72));
+        const bytes = new Uint8Array(await blob.arrayBuffer()); let binary = '';
+        for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+        return { inlineData: { mimeType: 'image/jpeg', data: btoa(binary) } };
+      }));
+      const prompt = [
+        'Identify the bicycle, e-bike or scooter in these seller photos using only visible evidence. Never invent an exact model, year, component specification, condition, fault, frame serial number, ownership or stolen status.',
+        'Return one JSON object only with keys make, model, year, type, category, subcategory, colour, frameMaterial, overallCondition, wheelSizeAndSpecs, confidence, coverage, summary, suggestedTitle, suggestedDescription, mainSpecs, obviousProblems, faults, photoRequests, notVisible.',
+        'category must be bicycle, ebike or escooter. For bicycle use subcategory commuter, hardtail_mtb, road or other. overallCondition must be new, excellent, good, fair or spares. confidence is 0 to 1 and coverage is 0 to 100.',
+        'mainSpecs is a short array of objects containing componentName, category, currentPart, brand, model, specValue, condition, confidence, visibility, stockComparison, stockComparisonNote and specDetails. obviousProblems and faults must describe only clearly visible evidence. photoRequests lists helpful missing angles. notVisible lists facts the images cannot establish.',
+        'Keep the suggested description factual and concise. Do not include serial numbers or private contact details. Do not claim ownership or safety has been verified.'
+      ].join(' ');
+      const reply = await generateGemini({ contents: [{ role:'user', parts:[{ text:prompt }, ...parts] }], config:{ responseMimeType:'application/json', maxOutputTokens:1800, temperature:0.2 } });
+      const result = JSON.parse(reply.text.replace(new RegExp(String.fromCharCode(96).repeat(3) + '(?:json)?','gi'),'').trim());
+      const make = String(result.make || '').trim().slice(0,100), model = String(result.model || '').trim().slice(0,140);
+      if (!make || !model || /unknown|unidentified|not sure/i.test(make + ' ' + model)) throw new Error('The photos did not identify a reliable make and model. Add clearer angles and try again.');
+      const category = ['bicycle','ebike','escooter'].includes(result.category) ? result.category : 'bicycle';
+      const conditions = ['new','excellent','good','fair','spares'];
+      const inspection = {
+        make, model, year: typeof result.year === 'number' || typeof result.year === 'string' ? result.year : null,
+        type:String(result.type || category).slice(0,40), colour:String(result.colour || '').slice(0,80) || null,
+        frameMaterial:String(result.frameMaterial || '').slice(0,100) || null,
+        overallCondition:conditions.includes(result.overallCondition) ? result.overallCondition : 'good',
+        wheelSizeAndSpecs:String(result.wheelSizeAndSpecs || '').slice(0,160) || null,
+        confidence:Math.max(0,Math.min(1,Number(result.confidence) || 0)), coverage:Math.max(0,Math.min(100,Number(result.coverage) || 0)),
+        summary:String(result.summary || '').slice(0,800), hasVisualData:true, usedFallback:false,
+        mainSpecs:Array.isArray(result.mainSpecs) ? result.mainSpecs.slice(0,25) : [],
+        obviousProblems:Array.isArray(result.obviousProblems) ? result.obviousProblems.slice(0,20) : [],
+        faults:Array.isArray(result.faults) ? result.faults.slice(0,20) : [],
+        photoRequests:Array.isArray(result.photoRequests) ? result.photoRequests.slice(0,10) : [],
+        notVisible:Array.isArray(result.notVisible) ? result.notVisible.slice(0,20) : [],
+      };
+      setAiInspection(inspection);
+      setForm(previous => ({ ...previous, title:String(result.suggestedTitle || make + ' ' + model).slice(0,120), category, subcategory:['commuter','hardtail_mtb','road','other'].includes(result.subcategory) ? result.subcategory : 'other', make_model:make + ' ' + model, condition:inspection.overallCondition, description:String(result.suggestedDescription || inspection.summary || '').slice(0,2000) }));
+      toast.success('Bike identified. Check the suggested details and correct them before listing.');
+    } catch (error:any) { toast.error(error?.message || 'The AI could not identify the bike. Try clearer photos.'); }
+    finally { setAnalyzing(false); }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!native || !userId) { setAppNotice(true); return; }
-    if (files.length > 5) { toast.error('Choose up to 5 photos.'); return; }
-    if (files.some(f => !['image/jpeg','image/png','image/webp'].includes(f.type) || f.size > 8*1024*1024)) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
+    if (!aiInspection) { toast.error('Identify the bike from your photos before submitting.'); return; }
+    if (files.length < 1 || files.length > 10) { toast.error('Choose between 1 and 10 listing photos.'); return; }
+    if (!frameSerial.trim() || !serialPhoto) { toast.error('Enter the frame serial number and add a clear photo of it.'); return; }
+    if (files.some(file => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 8*1024*1024) || !['image/jpeg','image/png','image/webp'].includes(serialPhoto.type) || serialPhoto.size > 8*1024*1024) { toast.error('Use JPG, PNG or WebP photos under 8 MB each.'); return; }
     const price = Number(form.asking_price);
-    if (!Number.isFinite(price) || price <= 0) { toast.error('Enter a valid asking price.'); return; }
-    setBusy(true);
+    if (!Number.isFinite(price) || price <= 0 || price > 50000) { toast.error('Enter a valid asking price.'); return; }
+    const identity = form.make_model.trim().split(/\s+/);
+    if (identity.length < 2) { toast.error('Check and enter both the bike make and model.'); return; }
+    const inspectionForListing = { ...aiInspection, make:identity[0], model:identity.slice(1).join(' ') };
+    setBusy(true); const uploadedPaths:string[]=[]; let keepUploads=false;
     try {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user || auth.user.id !== userId || !auth.user.email_confirmed_at) throw new Error('Verify your email and sign in again before listing.');
-      const id = crypto.randomUUID();
-      const imageUrls: string[] = [];
+      const id = crypto.randomUUID(), imagePaths:string[]=[];
       for (const [i,file] of files.entries()) {
-        const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
-        const path = `${userId}/${id}/${i}.${ext}`;
-        const { error } = await supabase.storage.from('marketplace-images').upload(path,file,{contentType:file.type,upsert:false});
-        if (error) throw error;
-        imageUrls.push(path);
+        const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg', objectPath=userId+'/'+id+'/'+i+'.'+ext;
+        const { error }=await supabase.storage.from('marketplace-images').upload(objectPath,file,{contentType:file.type,upsert:false});
+        if(error) throw error; uploadedPaths.push(objectPath); imagePaths.push(objectPath);
       }
-      const { error } = await supabase.from('marketplace_listings').insert({ id, seller_id:userId, ...form, asking_price:Math.round(price*100)/100, images:imageUrls, status:'pending_approval' });
-      if (error) throw error;
-      toast.success('Listing sent for review. It will appear publicly after approval.');
-      announceMilestone({ id: `marketplace-submitted:${id}`, scope: userId, kind: 'listing', title: 'Listing submitted', detail: 'The team will review it before it goes live.' });
-      setForm({title:'',category:'bicycle',make_model:'',condition:'good',description:'',asking_price:''}); setFiles([]); setShowForm(false); await load();
-    } catch (err:any) { toast.error(err?.message || 'Could not submit the listing.'); }
-    finally { setBusy(false); }
+      const serialExt=serialPhoto.type==='image/png'?'png':serialPhoto.type==='image/webp'?'webp':'jpg', serialPath=userId+'/'+id+'/serial-number.'+serialExt;
+      const { error:serialError }=await supabase.storage.from('marketplace-images').upload(serialPath,serialPhoto,{contentType:serialPhoto.type,upsert:false});
+      if(serialError) throw serialError; uploadedPaths.push(serialPath);
+      const listing={id,seller_id:userId,title:form.title.trim(),category:form.category,subcategory:form.category==='bicycle'?form.subcategory:null,make_model:form.make_model.trim(),condition:form.condition,description:form.description.trim(),asking_price:Math.round(price*100)/100,images:imagePaths,ai_inspection:inspectionForListing};
+      const {data,error}=await supabase.functions.invoke('marketplace-listings',{body:{action:'create',listing,frame_serial_number:frameSerial.trim(),serial_number_photo_path:serialPath}});
+      if(error) {
+        const response=(error as any).context;
+        if(response instanceof Response) { const detail=await response.clone().json().catch(()=>null); if(detail?.message||detail?.error) throw new Error(detail.message||detail.error); }
+        throw error;
+      }
+      if(!data?.listing_id) throw new Error(data?.error||'The listing could not be verified.');
+      keepUploads=true;
+      toast.success('Listing sent for review. It will appear publicly after shop approval.');
+      announceMilestone({id:'marketplace-submitted:'+id,scope:userId,kind:'listing',title:'Listing submitted',detail:'The team will review it and its AI photo assessment before it goes live.'});
+      setForm({title:'',category:'bicycle',subcategory:'other',make_model:'',condition:'good',description:'',asking_price:''});
+      setFiles([]); setSerialPhoto(null); setFrameSerial(''); setAiInspection(null); setShowForm(false); await load();
+    } catch(error:any) {
+      if(!keepUploads&&uploadedPaths.length) await supabase.storage.from('marketplace-images').remove(uploadedPaths);
+      toast.error(error?.message||'Could not submit the listing.');
+    } finally { setBusy(false); }
   };
 
   const moderate = async (item: Listing, status: 'active'|'rejected'|'sold'|'pending_approval') => {
@@ -177,13 +250,17 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     {staff && loadError && <p role="alert" className="text-sm text-amber-200">{loadError}</p>}
     {!staff && native && userId && showForm && <form onSubmit={submit} className="grid gap-4 rounded-2xl border border-white/10 bg-neutral-900/80 p-5 sm:grid-cols-2" data-testid="marketplace-listing-form">
       <label className="text-xs font-semibold text-neutral-300">Listing title<input required maxLength={120} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. Trek hybrid bike, medium" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-400/60"/></label>
-      <label className="text-xs font-semibold text-neutral-300">Make and model<input required maxLength={120} value={form.make_model} onChange={e=>setForm({...form,make_model:e.target.value})} placeholder="Brand and model" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-400/60"/></label>
+      <label className="text-xs font-semibold text-neutral-300">Make and model<input required maxLength={120} value={form.make_model} onChange={e=>{const value=e.target.value;setForm({...form,make_model:value});if(aiInspection){const parts=value.trim().split(/\s+/);setAiInspection({...aiInspection,make:parts[0]||'',model:parts.slice(1).join(' ')||aiInspection.model});}}} placeholder="Brand and model" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-400/60"/></label>
       <label className="text-xs font-semibold text-neutral-300">Type<select value={form.category} onChange={e=>setForm({...form,category:e.target.value})} className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white"><option value="bicycle">Bicycle</option><option value="ebike">E-bike</option><option value="escooter">E-scooter</option></select></label>
       <label className="text-xs font-semibold text-neutral-300">Condition<select value={form.condition} onChange={e=>setForm({...form,condition:e.target.value})} className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white"><option value="new">New</option><option value="excellent">Excellent</option><option value="good">Good</option><option value="fair">Fair</option><option value="spares">For spares or repair</option></select></label>
       <label className="text-xs font-semibold text-neutral-300">Asking price (£)<input required type="number" min="1" max="50000" step="0.01" inputMode="decimal" value={form.asking_price} onChange={e=>setForm({...form,asking_price:e.target.value})} placeholder="0.00" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-400/60"/></label>
-      <label className="text-xs font-semibold text-neutral-300">Photos (up to 5)<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>setFiles(Array.from(e.target.files||[]).slice(0,5))} className="mt-1.5 block w-full text-xs text-neutral-400 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-400/15 file:px-3 file:py-2 file:text-emerald-200"/><span className="mt-1 block font-normal text-neutral-500">Available to every signed-in, email-verified seller. Staff permission is not needed to upload photos.</span></label>
+      <label className="text-xs font-semibold text-neutral-300">Bike photos (up to 10)<input data-testid="marketplace-bike-photos" type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e=>{setFiles(Array.from(e.target.files||[]).slice(0,10));setAiInspection(null);}} className="mt-1.5 block w-full text-xs text-neutral-400 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-400/15 file:px-3 file:py-2 file:text-emerald-200"/><span className="mt-1 block font-normal text-neutral-500">{files.length}/10 selected. Add 3 or more angles; the AI analyses every photo. Available to signed-in, email-verified sellers.</span></label>
+      <div className="sm:col-span-2"><button type="button" onClick={()=>void identifyBike()} disabled={analyzing||files.length<3} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-400 px-4 font-bold text-neutral-950 disabled:opacity-50"><Sparkles className="h-4 w-4"/>{analyzing?'Identifying from photos…':aiInspection?'Analyse photos again':'Identify bike with AI'}</button></div>
+      {aiInspection&&<div className="sm:col-span-2 space-y-2 rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-4" data-testid="marketplace-ai-review"><div className="flex items-start justify-between gap-3"><b className="text-sm text-emerald-200">AI identification — review and correct before continuing</b><span className="shrink-0 text-xs text-emerald-100">{Math.round(Number(aiInspection.confidence||0)*100)}% match</span></div><p className="text-xs leading-5 text-neutral-300">{aiInspection.summary}</p>{Array.isArray(aiInspection.mainSpecs)&&<div className="space-y-1">{aiInspection.mainSpecs.slice(0,8).map((spec:any,index:number)=><p key={index} className="text-xs text-neutral-300"><b>{spec.componentName||spec.category||'Component'}:</b> {spec.currentPart||spec.specValue||'Details unclear'}</p>)}</div>}{Array.isArray(aiInspection.obviousProblems)&&aiInspection.obviousProblems.slice(0,5).map((item:any,index:number)=><p key={index} className="text-xs text-amber-200">Visible issue: {item.issue||item.recommendation}</p>)}</div>}
+      <label className="text-xs font-semibold text-neutral-300 sm:col-span-2">Frame serial number<input required maxLength={40} value={frameSerial} onChange={e=>setFrameSerial(e.target.value)} placeholder="Number stamped on the frame" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white"/><span className="mt-1 block font-normal text-neutral-500">Checked privately against Bike Index; never shown in your public listing.</span></label>
+      <label className="text-xs font-semibold text-neutral-300 sm:col-span-2">Photo of frame serial number<input required type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setSerialPhoto(e.target.files?.[0]||null)} className="mt-1.5 block w-full text-xs text-neutral-400 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-400/15 file:px-3 file:py-2 file:text-emerald-200"/></label>
       <label className="text-xs font-semibold text-neutral-300 sm:col-span-2">Description<textarea maxLength={2000} rows={4} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Size, service history, included accessories and any known faults" className="mt-1.5 w-full rounded-xl border border-white/10 bg-neutral-950 px-3 py-3 text-sm text-white outline-none focus:border-emerald-400/60"/></label>
-      <div className="sm:col-span-2 flex flex-col gap-3 rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs leading-5 text-amber-100/80"><span className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300"/>A listing is not live until the shop approves it. Do not include a frame serial number or private contact details in the description. Handover and payment terms are agreed before any sale.</span><button disabled={busy} className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl bg-emerald-400 px-5 py-2.5 font-bold text-neutral-950 disabled:opacity-60">{busy&&<LoaderCircle className="h-4 w-4 animate-spin"/>}Submit for review</button></div>
+      <div className="sm:col-span-2 flex flex-col gap-3 rounded-xl border border-amber-400/20 bg-amber-950/20 p-3 text-xs leading-5 text-amber-100/80"><span className="flex items-start gap-2"><CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300"/>A listing is not live until the shop approves it. Do not include a frame serial number or private contact details in the description. Handover and payment terms are agreed before any sale.</span><button disabled={busy||analyzing||!aiInspection||!serialPhoto||!frameSerial.trim()} className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl bg-emerald-400 px-5 py-2.5 font-bold text-neutral-950 disabled:opacity-60">{busy&&<LoaderCircle className="h-4 w-4 animate-spin"/>}{busy?'Submitting…':'Submit for shop review'}</button></div>
     </form>}
 
     <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-bold text-white">{staff?'Listings to review':'Available locally'}</h2><button onClick={()=>void load()} type="button" aria-label="Refresh listings" className="rounded-lg border border-white/10 p-2 text-neutral-400 hover:text-white"><RefreshCw className="h-4 w-4"/></button></div>
