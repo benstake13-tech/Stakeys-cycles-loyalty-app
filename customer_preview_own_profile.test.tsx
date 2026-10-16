@@ -49,13 +49,14 @@ describe('Customer Preview', () => {
 
   it('uses a tile launcher for its sections', () => {
     render(<CustomerPortal />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     const launcher = screen.getByTestId('customer-section-launcher');
     for (const id of ['garage', 'wheel', 'booking', 'repairs', 'bookings', 'stamps', 'weather', 'refer']) {
       expect(within(launcher).queryByTestId(`customer-tile-${id}`)).toBeTruthy();
     }
     // Selecting a tile switches the active section.
     fireEvent.click(within(launcher).getByTestId('customer-tile-stamps'));
-    expect(screen.getByTestId('customer-tile-stamps').getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByTestId('customer-tile-garage').getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Pass' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByTestId('customer-section-launcher')).toBeNull();
   });
 });

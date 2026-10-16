@@ -33,11 +33,6 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useShop } from '../context/ShopContext';
-import type { TabTone } from './SegmentedTabs';
-import type { LucideIcon } from 'lucide-react';
-import { TileButton } from './tiles/TileButton';
-import { TileGrid } from './tiles/TileGrid';
-import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
 
 import { StakeysLogo } from './StakeysLogo';
@@ -91,7 +86,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<
-    'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace'
+    'garage' | 'more' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace'
   >('garage');
 
   // Bicycle-inspired transition when opening a section from the tile launcher.
@@ -156,28 +151,6 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   );
 
 
-  type CustomerTab = 'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace';
-
-  const customerTiles: { id: CustomerTab; label: string; icon: LucideIcon; tone: TabTone; badge?: number | string; hint: string }[] = [
-    { id: 'garage', label: 'My Garage', icon: Bike, tone: 'emerald', badge: customerBikes.length, hint: 'Your registered bikes' },
-    { id: 'wheel', label: 'Prize Wheel', icon: Sparkles, tone: 'amber', hint: 'Spin the weekly prize wheel' },
-    ...(scratchCard?.enabled
-      ? [{ id: 'scratch' as CustomerTab, label: 'Scratch Card', icon: Gift, tone: 'amber' as TabTone, hint: 'Scratch to reveal a hidden prize' }]
-      : []),
-    { id: 'booking', label: 'Book Service', icon: Wrench, tone: 'emerald', hint: 'Book a workshop slot' },
-    { id: 'repairs', label: 'Repairs', icon: Activity, tone: 'emerald', badge: customerBookings.length, hint: 'Live repair progress tracker' },
-    { id: 'bookings', label: 'Bookings', icon: Calendar, tone: 'emerald', badge: customerBookings.length, hint: 'Your service bookings' },
-    { id: 'stamps', label: 'Loyalty Pass', icon: Award, tone: 'emerald', badge: `${currentUser.stamps || 0}/10`, hint: 'Your stamp card' },
-    { id: 'wallet', label: 'Rewards Wallet', icon: Wallet, tone: 'emerald', hint: 'All your vouchers, credits and points' },
-    { id: 'symptom', label: 'Symptom Checker', icon: Stethoscope, tone: 'sky', hint: 'Describe symptoms, then add a photo review to your booking' },
-    { id: 'care', label: 'Care Schedule', icon: CalendarClock, tone: 'emerald', hint: 'When each bike is next due a service' },
-    { id: 'guides', label: 'How-To Guides', icon: BookOpen, tone: 'emerald', hint: 'Short care and maintenance guides' },
-    { id: 'tradein', label: 'Sell Your Bike', icon: RefreshCw, tone: 'amber', hint: '7 photos → AI offer for your old bike' },
-    { id: 'marketplace', label: 'Marketplace', icon: Bike, tone: 'emerald', hint: 'Browse local rides or list yours for sale' },
-    { id: 'wishlist', label: 'Watchlist', icon: Heart, tone: 'rose', hint: 'Items you want back in stock' },
-    { id: 'weather', label: 'Riding Weather', icon: CloudRain, tone: 'sky', hint: 'Live 7-day riding forecast' },
-    { id: 'refer', label: 'Refer a Friend', icon: Gift, tone: 'amber', hint: 'Share your code and earn rewards' },
-  ];
 
   const handleStartBookingForBike = (bikeId: string) => {
     setSelectedBikeForBooking(bikeId);
@@ -276,6 +249,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         </div>
         <button type="button" aria-label="Edit your avatar" title="Customise your avatar" onClick={() => setIsAvatarEditorOpen(true)} className="stakeys-customer-avatar shrink-0 rounded-full border border-emerald-400/40 p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"><FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={36} /></button>
       </header>
+      {activeTab === 'garage' && <>
       {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
       <MembershipPassCard user={currentUser} />
 
@@ -385,48 +359,42 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         user={currentUser}
         onNavigate={(target) => setActiveTab(target === 'stamps' ? 'stamps' : target === 'wallet' ? 'wallet' : 'refer')}
       />
-
-      <section className="stakeys-customer-actions" aria-label="Customer quick actions">
-        <button type="button" onClick={() => {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);setActiveTab('booking');}}><Wrench size={26}/><strong>Book a repair</strong><small>Photos, symptoms and a workshop report</small></button>
-        <button type="button" onClick={() => setActiveTab('repairs')}><Activity size={26}/><strong>Track my repair</strong><small>See workshop progress</small></button>
-        <button type="button" onClick={() => setActiveTab('wallet')}><Gift size={26}/><strong>My rewards</strong><small>Vouchers &amp; points</small></button>
+      <section className="grid gap-3 sm:grid-cols-3" aria-label="Your latest activity">
+        <button type="button" onClick={() => setActiveTab('repairs')} className="surface-panel p-4 text-left">
+          <Activity className="mb-3 text-emerald-400" size={22}/><strong className="block text-sm text-white">Repair status</strong>
+          <span className="mt-1 block text-xs text-neutral-400">{customerBookings.filter(b => !['completed','cancelled'].includes(String(b.status))).length} active workshop job(s)</span>
+        </button>
+        <button type="button" onClick={() => setActiveTab('garage')} className="surface-panel p-4 text-left">
+          <Bike className="mb-3 text-emerald-400" size={22}/><strong className="block text-sm text-white">Recent garage</strong>
+          <span className="mt-1 block text-xs text-neutral-400">{customerBikes[0] ? `${customerBikes[0].brand} ${customerBikes[0].model}` : 'Add your first bike'}</span>
+        </button>
+        <button type="button" onClick={() => setActiveTab('wallet')} className="surface-panel p-4 text-left">
+          <Award className="mb-3 text-emerald-400" size={22}/><strong className="block text-sm text-white">Rewards balance</strong>
+          <span className="mt-1 block text-xs text-neutral-400">{currentUser.points || 0} points · {currentUser.stamps || 0}/10 stamps</span>
+        </button>
       </section>
-      {/* Primary section navigation — grouped launcher tiles */}
+      </>}
+
       <RideTransition state={ride.state}>
-      <div data-testid="customer-section-launcher">
-        <TileGroup label="Your Account">
-          <TileGrid>
-            {customerTiles.map((t) => (
-              <TileButton
-                key={t.id}
-                icon={t.icon}
-                label={t.label}
-                hint={t.hint}
-                tone={t.tone}
-                badge={t.badge}
-                active={activeTab === t.id}
-                onSelect={() => {
-                  ride.rideIn();
-                  // Entering Booking from the launcher starts a clean form; the
-                  // Symptom Checker seeds issues when it routes here instead.
-                  if (t.id === 'booking') {
-                    setSeedIssueIds(undefined);
-                    setSeedNotes(undefined);
-                    setSelectedBikeForBooking(undefined);
-                  }
-                  // Opening Sell Your Bike from the launcher starts blank; a garage
-                  // bike's "Sell this bike" button seeds it instead.
-                  if (t.id === 'tradein') {
-                    setSellBikePrefill(null);
-                  }
-                  setActiveTab(t.id);
-                }}
-                testId={`customer-tile-${t.id}`}
-              />
-            ))}
-          </TileGrid>
-        </TileGroup>
-      </div>
+      {activeTab === 'more' && (
+        <section className="space-y-4" data-testid="customer-section-launcher">
+          <div><h1 className="font-display text-2xl font-bold text-white">More</h1><p className="text-sm text-neutral-400">Everything for your bikes, rewards and local rides.</p></div>
+          {[
+            {title:'Garage & Services', items:[['My Garage','garage',Bike],['Care Schedule','care',CalendarClock],['Watchlist','wishlist',Heart],['Book & Track','bookings',Calendar],['Book Service','booking',Wrench],['Repair Tracker','repairs',Activity],['Symptom Checker','symptom',Stethoscope],['How-To Guides','guides',BookOpen]]},
+            {title:'Rewards & Offers', items:[['Loyalty Pass','stamps',Award],['Rewards Wallet','wallet',Wallet],['Prize Wheel','wheel',Sparkles],['Refer & Earn','refer',Gift]]},
+            {title:'Marketplace & Community', items:[['Sell Your Bike','tradein',RefreshCw],['Marketplace','marketplace',Bike]]},
+            {title:'Utilities & Local', items:[['Riding Weather','weather',CloudRain]]},
+          ].map(group => <details key={group.title} open className="surface-panel rounded-2xl p-4">
+            <summary className="cursor-pointer font-display font-bold text-white">{group.title}</summary>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">{group.items.map(item => {
+              const label = String(item[0]);
+              const id = item[1] as typeof activeTab;
+              const Icon = item[2] as React.ComponentType<{ size?: number; className?: string }>;
+              return <button key={id} data-testid={`customer-tile-${id}`} aria-pressed={activeTab === id} type="button" onClick={() => { ride.rideIn(); setActiveTab(id); }} className="rounded-xl border border-white/10 bg-black/20 p-3 text-left text-xs font-semibold text-neutral-200 hover:border-emerald-400/50"><Icon size={18} className="mb-2 text-emerald-400"/>{label}</button>;
+            })}</div>
+          </details>)}
+        </section>
+      )}
 
       {/* TAB 1: MY REGISTERED BIKES (GARAGE) */}
       {activeTab === 'marketplace' && <MarketplacePanel />}
@@ -1102,8 +1070,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       />
 
       <nav className="stakeys-customer-bottom-nav" aria-label="Customer primary navigation">
-        {([{label:'Home',icon:Home,target:'garage'},{label:'Book',icon:Calendar,target:'booking'},{label:'Repairs',icon:Wrench,target:'repairs'},{label:'Pass',icon:Award,target:'stamps'},{label:'More',icon:MoreHorizontal,target:null}] as const).map(item => <button key={item.label} type="button" aria-current={activeTab === item.target ? 'page' : undefined} onClick={() => {
-          if (item.target === null) { document.querySelector('[data-testid="customer-section-launcher"]')?.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+        {([{label:'Home',icon:Home,target:'garage'},{label:'Book',icon:Calendar,target:'booking'},{label:'Repairs',icon:Wrench,target:'repairs'},{label:'Pass',icon:Award,target:'stamps'},{label:'More',icon:MoreHorizontal,target:'more'}] as const).map(item => <button key={item.label} type="button" aria-current={activeTab === item.target ? 'page' : undefined} onClick={() => {
           if(item.target === 'booking') {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);}
           ride.rideIn();setActiveTab(item.target);
         }}><item.icon size={22} strokeWidth={1.7}/><span>{item.label}</span></button>)}

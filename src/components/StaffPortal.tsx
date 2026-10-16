@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StaffStockTab } from './staff/StaffStockTab';
+import { MacOSDock, type DockTabId } from './staff/MacOSDock';
 import { Home, Package, MoreHorizontal } from 'lucide-react';
 import { StakeysLogo } from './StakeysLogo';
 import confetti from 'canvas-confetti';
@@ -1790,12 +1791,16 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         }}
       />
 
-      <nav className="stakeys-bottom-nav" aria-label="Staff primary navigation">
-        {([{label:'Home', icon:Home, target:null}, {label:'Till', icon:ShoppingCart, target:'till'}, {label:'Jobs', icon:Wrench, target:'bookings'}, {label:'Stock', icon:Package, target:'stock'}, {label:'More', icon:MoreHorizontal, target:'settings'}] as const).map(item => {
-          const selected = item.target === null ? showTools : !showTools && staffTab === item.target;
-          return <button key={item.label} type="button" aria-current={selected ? 'page' : undefined} onClick={() => item.target === null ? closeStaffTool() : openStaffTab(item.target)}><item.icon size={22} strokeWidth={1.65} /><span>{item.label}</span></button>;
-        })}
-      </nav>
+      <MacOSDock
+        activeTab={showTools ? 'home' : staffTab === 'backend' ? 'sync' : staffTab === 'till' ? 'till' : staffTab === 'repair_guide' || staffTab === 'bookings' ? 'workshop' : staffTab === 'stock' ? 'stock' : staffTab === 'promotions' || staffTab === 'discount_codes' ? 'sales' : 'more'}
+        onSelectTab={(id: DockTabId) => {
+          if (id === 'home' || id === 'more') return closeStaffTool();
+          const target = ({ sync: 'backend', till: 'till', workshop: 'repair_guide', stock: 'stock', sales: 'promotions' } as const)[id];
+          openStaffTab(target);
+        }}
+        moreApps={[{id:'customers',label:'Customers'},{id:'bookings',label:'Bookings'},{id:'discount_codes',label:'Discounts'},{id:'staff_roster',label:'Staff'},{id:'website_cms',label:'Website'},{id:'settings',label:'Settings'}]}
+        onSelectApp={(id) => openStaffTab(id as StaffTabId)}
+      />
 
       {/* Repair App Bridge — the full diagnostics / SQL hand-off modal. */}
       {isBridgeRepairOpen && (

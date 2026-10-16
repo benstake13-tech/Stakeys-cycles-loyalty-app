@@ -62,7 +62,9 @@ export const EditBikeModal: React.FC<EditBikeModalProps> = ({
         colour: value.colour.trim() || undefined,
         serialNumber: value.serialNumber.trim() || undefined,
         frameSizeOrNotes: value.frameSize.trim() || undefined,
-        bikeDetails: toBikeDetails(value),
+        bikeDetails: { ...bike.bikeDetails, ...toBikeDetails(value),
+          purchasePriceGbp: value.purchasePriceGbp?.trim() ? Number(value.purchasePriceGbp) : undefined,
+          repairBudgetGbp: value.repairBudgetGbp?.trim() ? Number(value.repairBudgetGbp) : undefined },
       });
       if (ok) onClose();
     } catch {
