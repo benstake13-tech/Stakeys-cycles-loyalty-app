@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, within, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => hoisted.native } }));
@@ -28,6 +28,7 @@ vi.mock('./src/context/ShopContext', () => ({
   }),
 }));
 
+vi.mock('./src/components/StaffPortal', () => ({ StaffPortal: ({ onOpenSurface }: any) => <div data-testid="staff-portal"><button onClick={() => onOpenSurface('customer')}>Open customer preview</button></div> }));
 vi.mock('./src/components/CustomerPortal', () => ({ CustomerPortal: () => <div data-testid="customer-portal" /> }));
 vi.mock('./src/components/WebsiteReplica', () => ({ WebsiteReplica: () => <div data-testid="website" /> }));
 vi.mock('./src/components/ShopAssistant', () => ({ ShopAssistant: () => null }));
@@ -51,7 +52,7 @@ vi.mock('./src/utils/pushNotifications', () => ({
 }));
 
 import App from './src/App';
-import { isWebsiteSurface } from './src/config/surface';
+import { isWebsiteSurface, isStaffSurface, isFullSurface } from './src/config/surface';
 
 beforeEach(() => {
   cleanup();
@@ -71,18 +72,20 @@ describe('staff header navigation', () => {
     expect(screen.queryByText(/Staff Station/i)).toBeNull();
   });
 
-  it('still shows staff tools to a signed-in staff user', () => {
+  it('uses the staff drawer and dock instead of a second app-level menu, preserving preview access', async () => {
     hoisted.user = { uid: 's1', displayName: 'Sam Staff', membershipNumber: '001', role: 'staff' };
     render(<App />);
-    // The website surface ships a public-only shell (guest booking + marketing
-    // site) with no tabbed nav at all, so it must never surface a staff door;
-    // the Staff Terminal tab only exists on surfaces that render the nav.
-    const staffTab = screen.queryByRole('tab', { name: /Staff Terminal/i });
-    if (isWebsiteSurface) {
-      expect(staffTab).toBeNull();
-      return;
+    if (isWebsiteSurface) return;
+    if (isStaffSurface || isFullSurface) {
+      expect(await screen.findByTestId('staff-portal')).toBeTruthy();
+      expect(screen.queryByRole('tablist', { name: 'Primary navigation' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Sign Out' })).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Open customer preview' }));
+      expect(screen.getByTestId('customer-portal')).toBeTruthy();
+    } else {
+      expect(screen.getByRole('tab', { name: /Staff Terminal/i })).toBeTruthy();
     }
-    expect(staffTab).toBeTruthy();
   });
 });
 
