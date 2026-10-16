@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Bell, Command, Scan, Search, ShieldCheck, Wifi } from 'lucide-react';
 
 export interface CommandBarProps {
@@ -12,8 +12,8 @@ export interface CommandBarProps {
   pushState: 'idle' | 'working' | 'granted' | 'blocked';
   onEnablePush: () => void;
   onScan: () => void;
-  /** Live filter for the tool launcher. */
-  onQuickFind: (query: string) => void;
+  /** Open the shared searchable app drawer. */
+  onOpenApps: () => void;
 }
 
 const fmtClock = (d: Date) =>
@@ -24,8 +24,7 @@ const fmtDay = (d: Date) =>
 
 /**
  * The staff command bar: brand identity, a live clock, the operator badge,
- * station status chips and a tool search field. Sits at the top of the staff
- * surface as the "control deck" the rest of the launcher reads from.
+ * station status chips and access to the searchable app drawer.
  */
 export const CommandBar: React.FC<CommandBarProps> = ({
   operatorName,
@@ -36,27 +35,13 @@ export const CommandBar: React.FC<CommandBarProps> = ({
   pushState,
   onEnablePush,
   onScan,
-  onQuickFind,
+  onOpenApps,
 }) => {
   const [now, setNow] = useState(() => new Date());
-  const [query, setQuery] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000 * 20);
     return () => window.clearInterval(id);
-  }, []);
-
-  // ⌘K / Ctrl-K focuses the search field — a small "real app" affordance.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const pushLabel =
@@ -116,24 +101,10 @@ export const CommandBar: React.FC<CommandBarProps> = ({
 
         {/* Row 2 — search + quick actions */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <label className="group relative flex flex-1 items-center">
-            <Search className="pointer-events-none absolute left-3.5 h-4 w-4 text-neutral-500 transition-colors group-focus-within:text-emerald-400" />
-            <input
-              ref={searchRef}
-              type="text"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                onQuickFind(e.target.value);
-              }}
-              placeholder="Search tools — till, bookings, members, repair guide…"
-              aria-label="Search staff tools"
-              className="w-full rounded-xl border border-white/10 bg-[#0d1310]/70 py-2.5 pl-10 pr-16 text-sm text-white placeholder:text-neutral-500 outline-none transition-colors focus:border-[#00FF66]/60"
-            />
-            <kbd className="pointer-events-none absolute right-3 hidden select-none items-center gap-0.5 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400 sm:flex">
-              ⌘K
-            </kbd>
-          </label>
+          <button type="button" onClick={onOpenApps} aria-label="Open staff apps" aria-haspopup="dialog"
+            className="flex flex-1 items-center gap-3 rounded-xl border border-white/10 bg-[#0d1310]/70 px-4 py-3 text-left text-sm text-neutral-300 hover:border-emerald-400/50">
+            <Search size={18} aria-hidden="true" /><span>Find an app…</span>
+          </button>
 
           <div className="flex items-center gap-2">
             <button

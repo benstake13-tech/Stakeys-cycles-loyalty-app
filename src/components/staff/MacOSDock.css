@@ -1,5 +1,4 @@
 /* Viewport-mounted navigation: modal overlays (z-50) stay above the dock. */
-.staff-has-dock { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
 .stakeys-macos-dock {
   position: fixed; z-index: 40; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%); width: min(calc(100% - 20px), 540px); box-sizing: border-box;
@@ -12,7 +11,7 @@
 .stakeys-dock-items { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; align-items: end; }
 .stakeys-dock-slot { position: relative; min-width: 0; }
 .stakeys-dock-slot > button { width: 100%; height: 54px; border: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 14px; position: relative; -webkit-tap-highlight-color: transparent; }
-.stakeys-dock-icon { width: 46px; height: 46px; max-width: 100%; border-radius: 14px; display: flex; align-items: center; justify-content: center; transform-origin: center bottom; transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms; color: #caffdf; border: 1px solid #ddffed30; background: linear-gradient(145deg, #274b3b, #10281d); box-shadow: inset 0 1px 1px #fff3, 0 4px 10px #0005; }
+.stakeys-dock-icon { width: 46px; height: 46px; max-width: 100%; border-radius: 14px; display: flex; align-items: center; justify-content: center; transform-origin: center bottom; transform: translateY(var(--dock-lift, 0px)) scale(var(--dock-scale, 1)); transition: transform 120ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms; color: #caffdf; border: 1px solid #ddffed30; background: linear-gradient(145deg, #274b3b, #10281d); box-shadow: inset 0 1px 1px #fff3, 0 4px 10px #0005; }
 .stakeys-dock-icon svg { width: 26px; height: 26px; overflow: visible; }
 .stakeys-dock-icon--sync { background: linear-gradient(145deg, #25674f, #112c25); }
 .stakeys-dock-icon--till { background: linear-gradient(145deg, #1fa96e, #065d3c); color: #fff; }
@@ -29,17 +28,9 @@
 .stakeys-dock-slot[data-highlight-distance="0"] .stakeys-dock-tooltip { opacity: 1; visibility: visible; }
 .stakeys-dock-slot:first-child .stakeys-dock-tooltip { left: 0; transform: none; }
 .stakeys-dock-slot:last-child .stakeys-dock-tooltip { right: 0; left: auto; transform: none; }
-.stakeys-dock-drawer { position: absolute; bottom: calc(100% + 18px); right: 0; width: min(400px, calc(100vw - 20px)); max-height: min(60dvh, 520px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 18px; border: 1px solid #a7ffcc40; border-radius: 22px; background: linear-gradient(145deg, #1a3028f5, #07100cf7); backdrop-filter: blur(30px); box-shadow: inset 0 1px #fff2, 0 20px 50px #0009; }
-.stakeys-dock-drawer-heading { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
-.stakeys-dock-drawer-heading span { font-size: 9px; letter-spacing: .18em; color: #6df5ab; }
-.stakeys-dock-drawer-heading strong { font-size: 19px; font-weight: 650; }
-.stakeys-dock-app-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-.stakeys-dock-app-grid button { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 8px 3px; border-radius: 13px; border: 1px solid transparent; background: transparent; color: #f1fff7; font-size: 10px; cursor: pointer; overflow-wrap: anywhere; }
-.stakeys-dock-app-grid button:hover, .stakeys-dock-app-grid button:focus-visible { border-color: #80fcb06b; background: #b8ffce0d; outline: 2px solid transparent; }
-.stakeys-dock-app-symbol { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #c1ffd130; border-radius: 12px; background: linear-gradient(135deg, #285942, #133225); color: #91ffb7; font-size: 12px; font-weight: 750; box-shadow: inset 0 1px #fff2, 0 4px 10px #0003; }
 @media (hover: hover) and (pointer: fine) and (min-width: 640px) {
-  .stakeys-dock-slot[data-highlight-distance="0"] .stakeys-dock-icon { transform: translateY(-8px) scale(1.35); box-shadow: inset 0 1px #fff4, 0 10px 20px #0006; }
-  .stakeys-dock-slot[data-highlight-distance="1"] .stakeys-dock-icon { transform: translateY(-3px) scale(1.12); }
+  .stakeys-dock-slot[data-highlight-distance="0"] .stakeys-dock-icon { transform: translateY(var(--dock-lift, -10px)) scale(var(--dock-scale, 1.55)); box-shadow: inset 0 1px #fff4, 0 10px 20px #0006; }
+  .stakeys-dock-slot[data-highlight-distance="1"] .stakeys-dock-icon { transform: translateY(var(--dock-lift, -5px)) scale(var(--dock-scale, 1.25)); }
 }
 @media (max-width: 420px) {
   .stakeys-macos-dock { padding: 6px 5px 11px; border-radius: 20px; }

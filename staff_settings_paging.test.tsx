@@ -59,6 +59,7 @@ vi.mock('./src/components/WheelEditorModal', () => ({ WheelEditorModal: () => nu
 vi.mock('./src/components/weather/WeatherForecast', () => ({ WeatherForecast: () => null }));
 vi.mock('./src/api/firebaseService', () => ({ canCustomerReceiveStampToday: () => true }));
 
+import { openStaffApp, openStaffDrawer } from './test/helpers/staffNavigation';
 import { StaffPortal } from './src/components/StaffPortal';
 
 beforeEach(() => {
@@ -69,7 +70,7 @@ beforeEach(() => {
 function openSettings() {
   render(<StaffPortal />);
   // The launcher is a grid of tiles; Settings is the last admin tile.
-  fireEvent.click(screen.getByTestId('staff-tile-settings'));
+  openStaffApp('Settings');
   return screen.getByRole('tablist', { name: 'Settings sections' });
 }
 
@@ -86,27 +87,16 @@ function isViewShown(id: string): boolean {
 }
 
 describe('staff Settings tab paging', () => {
-  it('exposes one launcher tile per tool and hides the settings-only tools', () => {
-    render(<StaffPortal />);
-    const launcher = screen.getByTestId('staff-tool-launcher');
-
-    // The tools that live only inside Settings have no launcher tile.
-    for (const gone of ['Assistant', 'Test Bench', 'Performance', 'Financials', 'Staff Station']) {
-      expect(within(launcher).queryByText(gone)).toBeNull();
-    }
-
-    // Workspace groups replaced the old Operations/Admin headings.
-    expect(within(launcher).getByText('01 / FRONT DESK')).toBeTruthy();
-    expect(within(launcher).getByText('02 / WORKSHOP')).toBeTruthy();
-    expect(within(launcher).getByText('05 / MANAGEMENT')).toBeTruthy();
-    // Status pills use live data, and BLE Scan does not falsely claim a device
-    // is connected before the technician pairs one.
-    expect(within(launcher).getByText('0 Alerts')).toBeTruthy();
-    expect(within(launcher).getByText('0 Members')).toBeTruthy();
-    expect(within(launcher).getByText('BLE Scan')).toBeTruthy();
-    for (const tool of ['till', 'bookings', 'customers', 'draws', 'staff_roster', 'weather',
-      'website_cms', 'promotions', 'discount_codes', 'referrals', 'logs', 'backend', 'settings']) {
-      expect(within(launcher).queryByTestId(`staff-tile-${tool}`)).toBeTruthy();
+  it('removes all Home tiles and keeps every tool accessible through the app drawer', () => {
+    const { container } = render(<StaffPortal />);
+    expect(screen.getByTestId('staff-home')).toBeTruthy();
+    expect(container.querySelector('[data-testid^="staff-tile-"]')).toBeNull();
+    expect(container.querySelector('.stakeys-quick-grid')).toBeNull();
+    expect(screen.queryByTestId('staff-metric-rail')).toBeNull();
+    const drawer = openStaffDrawer();
+    for (const label of ['Home', 'Till', 'Bookings', 'Members', 'Prize Hub', 'Team', 'Riding Weather',
+      'Website', 'Google Business', 'Promotions', 'Discount Codes', 'Referrals', 'Audit Logs', 'Backend', 'Settings', 'Targets & KPIs', 'Accounts']) {
+      expect(within(drawer).getByRole('button', { name: label })).toBeTruthy();
     }
   });
 
@@ -188,7 +178,7 @@ describe('staff Settings tab paging', () => {
     expect(document.querySelector('[data-staff-view="bookings"]')).toBeTruthy();
     expect(isViewShown('till')).toBe(true);
     expect(isViewShown('bookings')).toBe(false);
-    fireEvent.click(screen.getByTestId('staff-tile-bookings'));
+    openStaffApp('Bookings');
     expect(isViewShown('bookings')).toBe(true);
     expect(isViewShown('till')).toBe(false);
     // Nothing was unmounted.
@@ -197,12 +187,12 @@ describe('staff Settings tab paging', () => {
 
   it('opens a tool from the launcher and returns via "Back to tools"', () => {
     render(<StaffPortal />);
-    expect(screen.getByTestId('staff-tool-launcher')).toBeTruthy();
+    expect(screen.getByTestId('staff-home')).toBeTruthy();
     expect(screen.queryByTestId('staff-back-to-tools')).toBeNull();
 
-    fireEvent.click(screen.getByTestId('staff-tile-bookings'));
+    openStaffApp('Bookings');
     // The launcher collapses to a "Back to tools" control.
-    expect(screen.queryByTestId('staff-tool-launcher')).toBeNull();
+    expect(screen.queryByTestId('staff-home')).toBeNull();
     expect(screen.getByTestId('staff-back-to-tools')).toBeTruthy();
     expect(screen.getByTestId('staff-tool-page')).toBeTruthy();
     expect(screen.queryByTestId('staff-home-header')).toBeNull();
@@ -211,7 +201,7 @@ describe('staff Settings tab paging', () => {
     expect(isViewShown('bookings')).toBe(true);
 
     fireEvent.click(screen.getByTestId('staff-back-to-tools'));
-    expect(screen.getByTestId('staff-tool-launcher')).toBeTruthy();
+    expect(screen.getByTestId('staff-home')).toBeTruthy();
     expect(screen.queryByTestId('staff-tool-page')).toBeNull();
     expect(screen.getByTestId('staff-home-header')).toBeTruthy();
     expect(screen.getByTestId('ride-stage').getAttribute('data-ride-state')).toBe('exiting');
@@ -229,7 +219,7 @@ describe('staff app primary navigation', () => {
     fireEvent.click(within(nav).getByRole('button', { name: 'Workshop Tools' }));
     expect(document.querySelector('[data-staff-view="repair_guide"]')?.getAttribute('aria-hidden')).toBe('false');
     fireEvent.click(within(nav).getByRole('button', { name: 'Home' }));
-    expect(screen.getByTestId('staff-tool-launcher')).toBeTruthy();
+    expect(screen.getByTestId('staff-home')).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Home' }).getAttribute('aria-current')).toBe('page');
   });
 });
@@ -244,10 +234,23 @@ describe('persistent staff dock integration', () => {
     fireEvent.click(within(dock).getByRole('button', { name: 'Till' }));
     fireEvent.click(within(dock).getByRole('button', { name: 'More Apps' }));
     expect(isViewShown('till')).toBe(true);
-    expect(screen.queryByTestId('staff-tool-launcher')).toBeNull();
-    const drawer = screen.getByRole('region', { name: 'More apps drawer' });
+    expect(screen.queryByTestId('staff-home')).toBeNull();
+    const drawer = screen.getByRole('dialog', { name: 'All apps' });
     fireEvent.click(within(drawer).getByRole('button', { name: 'Settings' }));
     expect(isViewShown('settings')).toBe(true);
-    expect(screen.queryByRole('region', { name: 'More apps drawer' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'All apps' })).toBeNull();
+  });
+});
+
+
+describe('retained management tools', () => {
+  it('opens relocated growth targets and accounts directly from the app drawer', () => {
+    render(<StaffPortal />);
+    openStaffApp('Targets & KPIs');
+    expect(isPaneShown('performance')).toBe(true);
+    expect(screen.getByTestId('staff-growth-targets').closest('[data-settings-pane]')?.getAttribute('aria-hidden')).toBe('false');
+    openStaffApp('Accounts');
+    expect(isPaneShown('financials')).toBe(true);
+    expect(isPaneShown('performance')).toBe(false);
   });
 });
