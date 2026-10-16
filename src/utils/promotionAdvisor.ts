@@ -6,6 +6,7 @@ import {
   ServiceBooking,
   SaleTransaction,
 } from '../types/bikeShop';
+import { CAMPAIGN_GOALS } from './promotionLogistics';
 import { suggestWindows, SuggestedWindow, toDateOnly, parseDate, daysBetween, addDays } from './promotionPlanner';
 import { seasonalDemand } from './seasonalDemand';
 import type { WeatherReport } from './weatherService';
@@ -177,6 +178,7 @@ export interface AdvisorAction extends Partial<StrategyActionDetails> {
   endDate: string;
   audience?: DiscountAudience;
   confidence: number;
+  provenance?: 'ai' | 'rules';
 }
 
 export interface AdvisorResult {
@@ -197,7 +199,7 @@ export function recommendPromotion(brief: PromotionBrief, _today: Date = new Dat
   const actions: AdvisorAction[] = [];
   const add = (raw: Record<string, unknown>, categories: VehicleCategory[] = ['cycle']) => {
     const assessed = assessStrategyAction(raw, strategy);
-    if (assessed) actions.push({title: String(raw.title), rationale: String(raw.rationale), categories, startDate, endDate, audience: 'member', confidence: 0.4, ...assessed});
+    if (assessed) actions.push({title: String(raw.title), rationale: String(raw.rationale), categories, startDate, endDate, audience: raw.objective === 'growth' ? 'public' : 'member', confidence: 0.4, provenance:'rules', ...assessed});
   };
   const segment = strategy.segments.find(s => s.maxSpendGbp !== null);
   const service = segment && strategy.services.filter(s => (s.scope === 'scooter') === (segment.category === 'electric_scooter') && s.priceGbp <= segment.maxSpendGbp!).sort((a,b) => a.priceGbp - b.priceGbp)[0];
@@ -211,7 +213,11 @@ export function recommendPromotion(brief: PromotionBrief, _today: Date = new Dat
     rationale: event ? event.relevance : 'Discuss the rider’s next journey and prioritise a small useful maintenance job after assessment.',
     evidence: [event ? `${event.date}: ${event.source}` : strategy.weather.summary],
     successMetric: 'Record enquiries, accepted quotes and the revenue from completed jobs.'});
-  if (brief.bestCampaign) add({title: 'Review a previously redeemed campaign', rationale: `Code ${brief.bestCampaign.code} recorded ${brief.bestCampaign.timesUsed} uses. Review its actual costs and customer fit before reusing the idea.`, successMetric: 'Compare accepted quotes and net revenue, not redemptions alone.'});
+  add({objective:'retention', title:'Invite riders back for a useful check', rationale:'Review completed work and invite customers to discuss a relevant follow-up; use recorded history, not an assumed fault.', successMetric:'Compare repeat paid visits with the prior equal-length period; do not infer causality.'});
+  add({objective:'growth', title:'Help a new rider get started', rationale:'Offer a clear assessment and written quote to new customers. Explain the workshop service and ask how they found the shop.', successMetric:'Record new-customer enquiries, accepted quotes, completed paid jobs and acquisition spend.'});
+  const product = strategy.products?.slice().sort((a,b) => b.stock - a.stock)[0];
+  if (product) add({objective:'stock', productId:product.id, title:`Find the right home for ${product.title}`, rationale:'This item has recorded stock. Check fit and the customer’s purchase budget; stock age and sales velocity are not known.', successMetric:'Track units sold, remaining stock and contribution after costs.'}, []);
+  if (brief.bestCampaign) add({objective:'retention', title: 'Review a previously redeemed campaign', rationale: `Code ${brief.bestCampaign.code} recorded ${brief.bestCampaign.timesUsed} uses. Review its actual costs and customer fit before reusing the idea.`, successMetric: 'Compare accepted quotes and net revenue, not redemptions alone.'});
   return { headline: brief.demandForecast.signals.length ? 'Weather-led campaign briefs — check customer budgets and job costs before approval.' : 'Practical campaign briefs — check customer budgets and job costs before approval.', actions, source: 'offline', notes: 'Rules-based ideas, not AI predictions. No campaign has been published.' };
 }
 
@@ -219,6 +225,7 @@ export function recommendPromotion(brief: PromotionBrief, _today: Date = new Dat
 export function briefToPrompt(brief: PromotionBrief): string {
   const lines: string[] = [];
   lines.push(`Today: ${brief.today}`);
+  lines.push(`Business objectives: ${Object.values(CAMPAIGN_GOALS).join('; ')}. Balance all four; missing operational data must remain explicit.`);
   lines.push(
     `Live campaigns: ${
       brief.liveCampaigns.length

@@ -7,6 +7,7 @@ const hoisted = vi.hoisted(() => ({
   advisePromotion: vi.fn(),
 }));
 
+vi.mock('./src/context/WebsiteContentStore', () => ({useWebsiteContent: () => ({products:[],priceList:[{id:'check',scope:'bike',item:'Small check',group:'Workshop',price:'£12',unitPrice:12}]})}));
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => hoisted.shop }));
 vi.mock('./src/api/promotionAdvisorService', () => ({
   isPromotionAdvisorConfigured: () => true,
@@ -130,4 +131,49 @@ describe('PromotionsPlanner', () => {
     fireEvent.click(signals.children[0] as HTMLElement);
     expect((screen.getByTestId('planner-title') as HTMLInputElement).value.length).toBeGreaterThan(0);
   });
+  it('keeps targeting, requires logistics review and publishes a quote-led campaign', async () => {
+    const startDate = new Date(Date.now() + 86400000).toISOString().slice(0,10);
+    const endDate = new Date(Date.now() + 7 * 86400000).toISOString().slice(0,10);
+    hoisted.advisePromotion.mockResolvedValue({headline:'Useful workshop work',source:'ai',actions:[{
+      title:'Small check',rationale:'Budget fit',discountPercentage:10,categories:['cycle'],startDate,endDate,confidence:0.4,
+      objective:'workshop',serviceId:'check',segmentId:'cycle:commuter:up-to-50',audience:'member',audienceDescription:'Budget commuter riders',offerPriceGbp:10.8,spendCeilingGbp:12,requiresQuote:true,
+    }]});
+    render(<PromotionsPlanner/>);
+    fireEvent.click(screen.getByTestId('promo-advisor-run'));
+    await waitFor(() => expect(screen.getByTestId('promo-advisor-apply-0')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('promo-advisor-apply-0'));
+    const create = screen.getByTestId('planner-create') as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    expect((screen.getByTestId('planner-cat-ebike') as HTMLButtonElement).disabled).toBe(true);
+    for (const [label,value] of [
+      ['Planned uptake limit','3'], ['Confirmed available slots for these dates','4'],
+      ['Full variable cost per redemption (£, excluding recoverable VAT)','4'],
+      ['VAT included in selling price (%)','0'], ['Fixed campaign spend (£, excluding recoverable VAT)','0'],
+      ['Minimum contribution per redemption (£)','2'],
+    ]) fireEvent.change(screen.getByLabelText(label),{target:{value}});
+    fireEvent.click(screen.getByLabelText(/I checked customer fit/));
+    expect(create.disabled).toBe(false);
+    // Date changes invalidate the previous staff confirmation.
+    fireEvent.change(screen.getByTestId('planner-end'),{target:{value:new Date(Date.now()+8*86400000).toISOString().slice(0,10)}});
+    expect(create.disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText(/I checked customer fit/));
+    fireEvent.click(create);
+    await waitFor(() => expect(hoisted.shop.addPromotion).toHaveBeenCalledTimes(1));
+    const saved = hoisted.shop.addPromotion.mock.calls[0][0];
+    expect(saved.discountPercentage).toBe(0);
+    expect(saved.discountAmount).toBe(0);
+    expect(saved.campaignBrief).toMatchObject({serviceId:'check',segmentId:'cycle:commuter:up-to-50',requiresQuote:true,audience:'member',uptakeLimit:3});
+    expect(saved.termsAndConditions.join(' ')).toMatch(/Budget commuter riders/);
+    expect(saved.termsAndConditions.join(' ')).toMatch(/no automatic discount/);
+  });
+
+  it('keeps the draft and reports a failed server save', async () => {
+    hoisted.shop.addPromotion.mockRejectedValueOnce(new Error('Promotion was not saved to the server.'));
+    render(<PromotionsPlanner/>);
+    fireEvent.change(screen.getByTestId('planner-title'),{target:{value:'Retry me'}});
+    fireEvent.click(screen.getByTestId('planner-create'));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toMatch(/not saved/));
+    expect((screen.getByTestId('planner-title') as HTMLInputElement).value).toBe('Retry me');
+  });
+
 });

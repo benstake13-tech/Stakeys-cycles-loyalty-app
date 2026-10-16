@@ -153,15 +153,16 @@ export function findDiscountCode(rawCode: string, codes: DiscountCode[]): Discou
  * percentage or a flat amount and are treated as an open (unassigned) code.
  */
 export function promotionToDiscountCode(promo: ShopPromotion): DiscountCode {
-  const isPercent = !!(promo.discountPercentage && promo.discountPercentage > 0);
+  const quoteOnly = !!promo.campaignBrief;
+  const isPercent = !quoteOnly && !!(promo.discountPercentage && promo.discountPercentage > 0);
   return {
     id: `promo-${promo.id}`,
     code: promo.code,
     title: promo.title,
     description: promo.subtitle,
     type: isPercent ? 'percent' : 'fixed',
-    value: isPercent ? promo.discountPercentage! : promo.discountAmount || 0,
-    status: promo.status === 'active' ? 'active' : promo.status === 'expired' ? 'expired' : 'disabled',
+    value: quoteOnly ? 0 : isPercent ? promo.discountPercentage! : promo.discountAmount || 0,
+    status: quoteOnly ? 'disabled' : promo.status === 'active' ? 'active' : promo.status === 'expired' ? 'expired' : 'disabled',
     createdAt: new Date(),
     expiresAt: promo.endDate ? new Date(promo.endDate) : undefined,
     timesUsed: 0,

@@ -42,6 +42,8 @@ const ADVISOR_SCHEMA = {
         type: Type.OBJECT,
         properties: {
           title: { type: Type.STRING },
+          objective: { type: Type.STRING, description: 'workshop, stock, retention or growth; cover all four goals' },
+          productId: { type: Type.STRING, description: 'Exact supplied in-stock product id for stock ideas; empty otherwise' },
           rationale: { type: Type.STRING, description: 'One short sentence' },
           segmentId: { type: Type.STRING, description: 'An exact supplied segment id, or quote-first when values are unknown' },
           serviceId: { type: Type.STRING, description: 'An exact supplied catalogue id, or empty for a quote-first idea' },
@@ -83,6 +85,7 @@ const toAction = (raw: any, brief: PromotionBrief): AdvisorAction | null => {
   if (!assessed) return null;
   const segment = brief.strategy.segments.find(s => s.id === assessed.segmentId);
   return ({
+  provenance: 'ai' as const,
   title: String(raw?.title || 'Campaign'),
   rationale: String(raw?.rationale || ''),
   categories: segment ? [segment.category] : (Array.isArray(raw?.categories) ? raw.categories : []).filter((c: any): c is VehicleCategory =>
@@ -134,14 +137,14 @@ export async function advisePromotion(brief: PromotionBrief): Promise<AdvisorRes
     const parsed = JSON.parse(text);
     const actions: AdvisorAction[] = (Array.isArray(parsed?.actions) ? parsed.actions : [])
       .map((raw: unknown) => toAction(raw, brief))
-      .filter((a: AdvisorAction | null): a is AdvisorAction => a !== null).slice(0, 3);
+      .filter((a: AdvisorAction | null): a is AdvisorAction => a !== null).slice(0, 4);
     if (!actions.length) return offline;
 
     const result: AdvisorResult = {
       headline: String(parsed?.headline || offline.headline),
-      actions,
+      actions: [...actions, ...offline.actions.filter(a => !actions.some(ai => ai.objective === a.objective))].slice(0, 8),
       source: 'ai',
-      notes: 'Every idea needs a total quote, cost check and staff approval. No campaign has been published.',
+      notes: 'Missing objectives are supplemented with rules-based briefs. Every idea needs a total quote, cost check and staff approval. No campaign has been published.',
     };
     if (cache.size >= 30) cache.delete(cache.keys().next().value!);
     cache.set(key, result);

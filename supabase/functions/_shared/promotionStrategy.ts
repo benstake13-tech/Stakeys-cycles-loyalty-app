@@ -9,7 +9,8 @@ Before suggesting anything, evaluate ALL of these checks:
 5. AFFORDABILITY: respect each segment's maxSpendGbp and any owner-declared repair budget. This is a conservative planning ceiling, not proof of willingness to pay. A bike bought for £30 must not receive a £50 repair promotion. Prefer a small useful job or a quote discussion; do not manufacture a cheaper unsafe repair. Unknown purchase prices mean quote-first, not an estimated bike value. Acquisition/offer-price books are NOT customer purchase prices.
 6. REAL PRICES & MARGINS: select a supplied serviceId and segmentId for any priced suggestion. Use the current catalogue price, never make one up or parse ambiguous price ranges. Discount 0–20% maximum. Numeric prices belong only in structured fields, never in titles or prose. Account for labour, parts, VAT where applicable and capacity; unknown costs mean margin unverified. Never promise a free job, loss leader, invented bundle or an all-in price when parts are excluded.
 7. TIMING & TARGET: dates must fit a supplied clear window in the planning month, on/after today. Explain the audience, evidence, useful benefit, delivery channel and one measurable goal. Recognise free community work separately from paid revenue. No guaranteed results or fabricated conversion estimates. No automatic campaign launches or customer messages.
-8. OUTPUT: propose 2–3 distinct, specific, useful ideas, including a budget-friendly option when budget bikes are recorded. If no service fits the ceiling, propose a quote-first assessment with no invented price. Mark missing data and what staff must check. Return no actions when there is no clear window. All outputs are campaign briefs for staff review; targeted discounts must not silently become category-wide discounts.`;
+8. BALANCED GOALS: cover workshop bookings, stock sales, repeat visits and new-customer growth. Set objective to workshop, stock, retention or growth. Stock ideas must use a supplied productId with positive stock; do not infer stock age or call it slow-moving without evidence. For stock use the supplied product price, not a repair spending ceiling. Never invent costs, spare slots, conversion rates or profit. Staff will enter operating limits and review the economics.
+9. OUTPUT: propose four distinct, specific, useful ideas, including a budget-friendly option when budget bikes are recorded. If no service fits the ceiling, propose a quote-first assessment with no invented price. Mark missing data and what staff must check. Return no actions when there is no clear window. All outputs are campaign briefs for staff review; targeted discounts must not silently become category-wide discounts.`;
 
 export type StrategyCategory = 'cycle' | 'ebike' | 'electric_scooter' | 'cargo';
 export const RIDING_STYLES = ['commuter', 'mountain', 'road', 'gravel', 'hybrid', 'kids', 'cargo', 'leisure', 'scooter', 'unknown'] as const;
@@ -25,6 +26,8 @@ export interface PromotionStrategy {
   weather: { basis: 'forecast' | 'seasonal'; location: string; coverage: string; summary: string };
   behaviour: { since: string; until: string; bookings: number; completedRepairs: number; declinedQuotes: number; completedSales: number; repeatCustomers: number; medianPaidRepairGbp: number | null; medianPaidSaleGbp: number | null };
   segments: StrategySegment[]; services: StrategyService[]; gaps: string[];
+  products?: {id: string; title: string; category: string; priceGbp: number; stock: number}[];
+  objectives?: ('workshop' | 'stock' | 'retention' | 'growth')[];
   staffNotes: string; targets: Record<string, unknown>;
 }
 
@@ -93,6 +96,7 @@ export function affordableSpend(value: unknown, budget: unknown, percent = 35): 
 }
 
 export interface StrategyActionDetails {
+  objective?: 'workshop' | 'stock' | 'retention' | 'growth'; productId?: string;
   segmentId: string; serviceId?: string; audienceDescription: string; offerPriceGbp?: number;
   spendCeilingGbp?: number; priceBasis: string; evidence: string[]; checks: string[];
   channel: string; successMetric: string; requiresQuote: boolean;
@@ -103,20 +107,26 @@ export function assessStrategyAction(raw: Record<string, unknown>, strategy: Pro
   const prose = [raw.title, raw.rationale, raw.reason, raw.audienceDescription, raw.channel, raw.successMetric, ...(Array.isArray(raw.evidence) ? raw.evidence : []), ...(Array.isArray(raw.checks) ? raw.checks : [])].join(' ');
   // Monetary promises in free text would bypass the structured price validation.
   if (/[£$€]|\b(?:GBP|pounds?|percent)\b|\d\s*%/i.test(prose)) return null;
+  const objective = ['workshop','stock','retention','growth'].includes(String(raw.objective)) ? raw.objective as 'workshop' | 'stock' | 'retention' | 'growth' : 'workshop';
+  const product = strategy.products?.find(p => p.id === raw.productId);
+  if (raw.productId && (!product || objective !== 'stock')) return null;
+  if (objective === 'stock' && (!product || product.stock <= 0)) return null;
+  if (product && raw.serviceId) return null;
   const segment = strategy.segments.find(s => s.id === raw.segmentId);
   const service = strategy.services.find(s => s.id === raw.serviceId);
   if (raw.serviceId && !service) return null;
   if (service && (!segment || segment.maxSpendGbp === null || (segment.category === 'electric_scooter') !== (service.scope === 'scooter'))) return null;
   const pct = typeof raw.discountPercentage === 'number' && Number.isFinite(raw.discountPercentage) ? Math.max(0, Math.min(20, raw.discountPercentage)) : 0;
-  const spend = service ? Math.round(service.priceGbp * (1 - pct / 100) * 100) / 100 : undefined;
-  if (spend !== undefined && spend > segment!.maxSpendGbp!) return null;
+  const cataloguePrice = product?.priceGbp ?? service?.priceGbp;
+  const spend = cataloguePrice !== undefined ? Math.round(cataloguePrice * (1 - pct / 100) * 100) / 100 : undefined;
+  if (service && spend !== undefined && spend > segment!.maxSpendGbp!) return null;
   const text = (v: unknown, max = 250) => typeof v === 'string' ? v.slice(0, max) : '';
   return {
-    segmentId: segment?.id || 'quote-first', serviceId: service?.id,
-    audienceDescription: segment ? `${segment.label} (${segment.count} recorded bikes)` : 'Customers whose bike value or repair budget needs confirming',
-    offerPriceGbp: spend, spendCeilingGbp: segment?.maxSpendGbp ?? undefined,
-    discountPercentage: service ? pct : 0, discountAmount: 0,
-    priceBasis: service ? `Catalogue labour estimate for ${service.title}; ${service.terms || 'confirm inclusions'}. Parts and total quote must fit the spending ceiling.` : 'Quote first — no price or discount is promised.',
+    objective, productId: product?.id, segmentId: product ? 'quote-first' : segment?.id || 'quote-first', serviceId: service?.id,
+    audienceDescription: product ? `Customers seeking ${product.title}; confirm suitability and purchase budget` : segment ? `${segment.label} (${segment.count} recorded bikes)` : 'Customers whose bike value or repair budget needs confirming',
+    offerPriceGbp: spend, spendCeilingGbp: product ? undefined : segment?.maxSpendGbp ?? undefined,
+    discountPercentage: service || product ? pct : 0, discountAmount: 0,
+    priceBasis: product ? `Catalogue item: ${product.title}; ${product.stock} recorded in stock. Confirm suitability, complete price and stock before accepting an order.` : service ? `Catalogue labour estimate for ${service.title}; ${service.terms || 'confirm inclusions'}. Parts and total quote must fit the spending ceiling.` : 'Quote first — no price or discount is promised.',
     evidence: (Array.isArray(raw.evidence) ? raw.evidence : []).slice(0, 4).map(x => text(x)),
     checks: ['Confirm the customer’s budget and total including parts.', 'Check labour time, costs and availability before publishing.', ...(Array.isArray(raw.checks) ? raw.checks.slice(0, 3).map(x => text(x)) : [])],
     channel: text(raw.channel) || 'In-store conversation',
