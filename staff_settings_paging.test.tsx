@@ -233,3 +233,21 @@ describe('staff app primary navigation', () => {
     expect(within(nav).getByRole('button', { name: 'Home' }).getAttribute('aria-current')).toBe('page');
   });
 });
+
+
+describe('persistent staff dock integration', () => {
+  it('keeps navigation visible on home and opens the drawer without losing the current tool', () => {
+    render(<StaffPortal />);
+    const dock = screen.getByRole('navigation', { name: 'Staff dock' });
+    expect(dock.closest('[data-testid="staff-page-container"]')).toBeNull();
+    expect(dock.parentElement).toBe(document.body);
+    fireEvent.click(within(dock).getByRole('button', { name: 'Till' }));
+    fireEvent.click(within(dock).getByRole('button', { name: 'More Apps' }));
+    expect(isViewShown('till')).toBe(true);
+    expect(screen.queryByTestId('staff-tool-launcher')).toBeNull();
+    const drawer = screen.getByRole('region', { name: 'More apps drawer' });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Settings' }));
+    expect(isViewShown('settings')).toBe(true);
+    expect(screen.queryByRole('region', { name: 'More apps drawer' })).toBeNull();
+  });
+});

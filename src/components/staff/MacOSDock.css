@@ -1,0 +1,53 @@
+/* Viewport-mounted navigation: modal overlays (z-50) stay above the dock. */
+.staff-has-dock { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
+.stakeys-macos-dock {
+  position: fixed; z-index: 40; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%); width: min(calc(100% - 20px), 540px); box-sizing: border-box;
+  padding: 10px 10px 13px; border-radius: 25px; border: 1px solid #d3ffe437;
+  background: linear-gradient(155deg, #a9f2cf20, #091a13b8 48%, #07100cd9);
+  backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%);
+  box-shadow: inset 0 1px 0 #ffffff38, inset 0 -1px 0 #ffffff0d, 0 16px 48px #0009, 0 0 28px #05c14712;
+  color: #f1fff7; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.stakeys-dock-items { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; align-items: end; }
+.stakeys-dock-slot { position: relative; min-width: 0; }
+.stakeys-dock-slot > button { width: 100%; height: 54px; border: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 14px; position: relative; -webkit-tap-highlight-color: transparent; }
+.stakeys-dock-icon { width: 46px; height: 46px; max-width: 100%; border-radius: 14px; display: flex; align-items: center; justify-content: center; transform-origin: center bottom; transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms; color: #caffdf; border: 1px solid #ddffed30; background: linear-gradient(145deg, #274b3b, #10281d); box-shadow: inset 0 1px 1px #fff3, 0 4px 10px #0005; }
+.stakeys-dock-icon svg { width: 26px; height: 26px; overflow: visible; }
+.stakeys-dock-icon--sync { background: linear-gradient(145deg, #25674f, #112c25); }
+.stakeys-dock-icon--till { background: linear-gradient(145deg, #1fa96e, #065d3c); color: #fff; }
+.stakeys-dock-icon--workshop { background: linear-gradient(145deg, #57636a, #222b30); color: #f2faf6; }
+.stakeys-dock-icon--stock { background: linear-gradient(145deg, #91713f, #483522); color: #fff0cc; }
+.stakeys-dock-icon--sales { background: linear-gradient(145deg, #397447, #173d25); color: #deffd4; }
+.stakeys-dock-icon--more { background: linear-gradient(145deg, #435c54, #182a24); }
+.stakeys-dock-slot > button:focus-visible { outline: 2px solid #a6ffce; outline-offset: 3px; }
+.stakeys-dock-active { position: absolute; bottom: -6px; width: 5px; height: 5px; border-radius: 50%; background: #67ffa7; box-shadow: 0 0 9px #05ff7f; opacity: 0; }
+.stakeys-dock-slot > button[aria-current="page"] .stakeys-dock-active { opacity: 1; }
+.stakeys-dock-slot > button[aria-current="page"] .stakeys-dock-icon { border-color: #89ffb980; }
+.stakeys-dock-tooltip { position: absolute; pointer-events: none; bottom: calc(100% + 22px); left: 50%; transform: translateX(-50%); opacity: 0; visibility: hidden; width: max-content; max-width: 180px; border: 1px solid #b7ffcf40; border-radius: 11px; padding: 7px 10px; background: #07140ff5; box-shadow: 0 8px 20px #0006; text-align: center; font-size: 11px; font-weight: 700; }
+.stakeys-dock-tooltip span { display: block; margin-top: 3px; color: #9bb8a9; font-size: 9px; font-weight: 500; }
+.stakeys-dock-slot[data-highlight-distance="0"] .stakeys-dock-tooltip { opacity: 1; visibility: visible; }
+.stakeys-dock-slot:first-child .stakeys-dock-tooltip { left: 0; transform: none; }
+.stakeys-dock-slot:last-child .stakeys-dock-tooltip { right: 0; left: auto; transform: none; }
+.stakeys-dock-drawer { position: absolute; bottom: calc(100% + 18px); right: 0; width: min(400px, calc(100vw - 20px)); max-height: min(60dvh, 520px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; padding: 18px; border: 1px solid #a7ffcc40; border-radius: 22px; background: linear-gradient(145deg, #1a3028f5, #07100cf7); backdrop-filter: blur(30px); box-shadow: inset 0 1px #fff2, 0 20px 50px #0009; }
+.stakeys-dock-drawer-heading { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+.stakeys-dock-drawer-heading span { font-size: 9px; letter-spacing: .18em; color: #6df5ab; }
+.stakeys-dock-drawer-heading strong { font-size: 19px; font-weight: 650; }
+.stakeys-dock-app-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stakeys-dock-app-grid button { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 8px 3px; border-radius: 13px; border: 1px solid transparent; background: transparent; color: #f1fff7; font-size: 10px; cursor: pointer; overflow-wrap: anywhere; }
+.stakeys-dock-app-grid button:hover, .stakeys-dock-app-grid button:focus-visible { border-color: #80fcb06b; background: #b8ffce0d; outline: 2px solid transparent; }
+.stakeys-dock-app-symbol { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid #c1ffd130; border-radius: 12px; background: linear-gradient(135deg, #285942, #133225); color: #91ffb7; font-size: 12px; font-weight: 750; box-shadow: inset 0 1px #fff2, 0 4px 10px #0003; }
+@media (hover: hover) and (pointer: fine) and (min-width: 640px) {
+  .stakeys-dock-slot[data-highlight-distance="0"] .stakeys-dock-icon { transform: translateY(-8px) scale(1.35); box-shadow: inset 0 1px #fff4, 0 10px 20px #0006; }
+  .stakeys-dock-slot[data-highlight-distance="1"] .stakeys-dock-icon { transform: translateY(-3px) scale(1.12); }
+}
+@media (max-width: 420px) {
+  .stakeys-macos-dock { padding: 6px 5px 11px; border-radius: 20px; }
+  .stakeys-dock-items { gap: 1px; }
+  .stakeys-dock-icon { width: 36px; height: 38px; border-radius: 11px; }
+  .stakeys-dock-icon svg { width: 23px; height: 23px; }
+  .stakeys-dock-slot > button { height: 46px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stakeys-dock-icon { transition: none; transform: none !important; }
+}
