@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StaffStockTab } from './staff/StaffStockTab';
-import { MacOSDock, type DockTabId } from './staff/MacOSDock';
+import { type DockTabId } from './staff/MacOSDock';
+import { StaffNavigation } from './staff/StaffNavigation';
+import { useStaffDisplayMode } from '../hooks/useStaffDisplayMode';
 import { Home, Package, MoreHorizontal } from 'lucide-react';
 import { StakeysLogo } from './StakeysLogo';
 import confetti from 'canvas-confetti';
@@ -105,12 +107,9 @@ import type { TabTone } from './SegmentedTabs';
 import type { LucideIcon } from 'lucide-react';
 import { TileButton } from './tiles/TileButton';
 import { TileGrid } from './tiles/TileGrid';
-import { TileGroup } from './tiles/TileGroup';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
 import { CommandBar } from './staff/CommandBar';
-import { MetricRail } from './staff/MetricRail';
 import { GrowthTargets } from './staff/GrowthTargets';
-import type { MetricItem } from './staff/MetricRail';
 
 interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
@@ -311,7 +310,8 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [isBridgeRepairOpen, setIsBridgeRepairOpen] = useState(false);
   // Live filter applied by the command bar search to the tool launcher.
-  const [toolFilter, setToolFilter] = useState('');
+  const displayMode = useStaffDisplayMode();
+  const [appsOpen, setAppsOpen] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -544,9 +544,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     | 'repair_guide'
     | 'settings';
 
-  // Tile launcher metadata. The old segmented strips became grouped tile
-  // grids (see TileGroup); picking a tile opens that view. `keywords` feeds the
-  // command bar's quick-find filter.
+  // Shared app metadata supplies searchable names, icons and hints in the drawer.
   type StaffTile = {
     id: StaffTabId;
     label: string;
@@ -572,6 +570,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   ];
 
   const adminTiles: StaffTile[] = [
+    { id: 'google_business', label: 'Google Business', icon: Globe, tone: 'sky', hint: 'Business profile & customer communications', keywords: 'google business profile local listing communications' },
     { id: 'website_cms', label: 'Website', icon: Globe, tone: 'sky', hint: 'Edit the marketing site content', keywords: 'website cms content marketing site pages' },
     { id: 'promotions', label: 'Promotions', icon: Tag, tone: 'amber', badge: promotions.length, hint: 'Promotions manager', keywords: 'promotions offers deals campaigns manager' },
     { id: 'discount_codes', label: 'Discount Codes', icon: BadgePercent, tone: 'amber', badge: discountCodes.length, hint: 'Till discount codes', keywords: 'discount codes vouchers coupons till' },
@@ -585,85 +584,18 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'settings', label: 'Settings', icon: Settings, tone: 'neutral', hint: 'Notifications, tools & station overview', keywords: 'settings notifications tools preferences station' },
   ];
 
-  /** Case-insensitive quick-find over a tile's label, hint and keywords. */
-  const matchesFilter = (t: StaffTile) => {
-    const q = toolFilter.trim().toLowerCase();
-    if (!q) return true;
-    return `${t.label} ${t.hint} ${t.keywords}`.toLowerCase().includes(q);
-  };
-  const visibleOperationTiles = operationTiles.filter(matchesFilter);
-  const visibleAdminTiles = adminTiles.filter(matchesFilter);
-  const filterActive = toolFilter.trim().length > 0;
   const activeTile = [...operationTiles, ...adminTiles].find((t) => t.id === staffTab);
 
-  // Only display real counts. BLE Scan describes an available tool, not an
-  // active connection; the BLE Bench owns its live connection indicator.
-  const statusForTile = (tile: StaffTile): string | null => {
-    if (tile.id === 'ble_bench') return 'BLE Scan';
-    if (tile.id === 'bookings') return `${freshBookings.length} Alert${freshBookings.length === 1 ? '' : 's'}`;
-    if (tile.id === 'customers') return `${customerList.length} Members`;
-    if (tile.id === 'staff_roster') return `${staffMembers.length} Staff`;
-    if (tile.id === 'promotions') return `${promotions.length} Offers`;
-    if (tile.id === 'reviews') return `${reviews.length} Reviews`;
-    return typeof tile.badge === 'number' && tile.badge > 0 ? String(tile.badge) : null;
-  };
-
-  /** Headline KPIs shown on the metric rail; each opens its tool. */
-  const metricItems: MetricItem[] = [
-    {
-      id: 'jobs',
-      label: 'Workshop Jobs',
-      value: activeBookingsCount,
-      unit: 'active on the bench',
-      icon: Wrench,
-      tone: 'emerald',
-      alert: freshBookings.length > 0 ? freshBookings.length : undefined,
-      onSelect: () => openStaffTab('bookings'),
-      testId: 'staff-metric-jobs',
-    },
-    {
-      id: 'riders',
-      label: 'Total Riders',
-      value: customerList.length,
-      unit: 'loyalty members',
-      icon: Users,
-      tone: 'sky',
-      onSelect: () => openStaffTab('customers'),
-      testId: 'staff-metric-riders',
-    },
-    {
-      id: 'rewards',
-      label: 'Rewards Ready',
-      value: rewardReadyCount,
-      unit: 'full stamp cards',
-      icon: Award,
-      tone: 'amber',
-      onSelect: () => openStaffTab('customers'),
-      testId: 'staff-metric-rewards',
-    },
-    {
-      id: 'promos',
-      label: 'Live Promotions',
-      value: promotions.filter((p) => p.status === 'active').length,
-      unit: 'running now',
-      icon: Tag,
-      tone: 'emerald',
-      onSelect: () => openStaffTab('promotions'),
-      testId: 'staff-metric-promos',
-    },
-    {
-      id: 'draw',
-      label: 'Draw Pool',
-      value: eligibleTicketHolders.length,
-      unit: 'ticket entries',
-      icon: Trophy,
-      tone: 'amber',
-      onSelect: () => openStaffTab('draws'),
-      testId: 'staff-metric-draw',
-    },
+  // Plain live readouts preserve the overview without bringing tiles back to Home.
+  const homeStats = [
+    {id: 'jobs', label: 'Workshop Jobs', value: activeBookingsCount},
+    {id: 'riders', label: 'Total Riders', value: customerList.length},
+    {id: 'rewards', label: 'Rewards Ready', value: rewardReadyCount},
+    {id: 'promos', label: 'Live Promotions', value: promotions.filter(p => p.status === 'active').length},
+    {id: 'draw', label: 'Draw Pool', value: eligibleTicketHolders.length},
   ];
 
-  /** Open a tool from the launcher: switch the view and collapse to "Back to tools". */
+  /** Open an app while preserving the existing mounted tool panes. */
   const openStaffTab = (id: StaffTabId) => {
     ride.rideIn();
     setStaffTab(id);
@@ -673,7 +605,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     }
   };
 
-  /** Leave a tool and pedal back to the launcher. */
+  /** Return to the live Home overview. */
   const closeStaffTool = () => {
     ride.rideBack();
     setShowTools(true);
@@ -712,9 +644,9 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   );
 
   return (
-    <div className="stakeys-premium-staff staff-has-dock relative font-['Plus_Jakarta_Sans',sans-serif]">
+    <div data-staff-mode={displayMode} className="stakeys-premium-staff staff-navigation-space relative font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="relative z-10 space-y-5">
-      {showTools && <>
+      {showTools && <section data-testid="staff-home">
       <header className="stakeys-brand-header" aria-label="Stakeys Cycles staff workspace" data-testid="staff-home-header">
         <div className="stakeys-brand-identity">
           <StakeysLogo className="w-16 h-16 sm:w-20 sm:h-20" />
@@ -726,10 +658,6 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         </div>
         <div className="stakeys-brand-status"><span className="stakeys-brand-status-dot" /> STAFF STATION</div>
       </header>
-      {/* BRIDGE STATUS — the top-of-home control that keeps every customer able
-          to sign in; repairs the profile<->login bridge in one click. */}
-      <BridgeStatusTile onOpenDetails={() => setIsBridgeRepairOpen(true)} />
-
       {/* 0. COMMAND BAR — identity, live status, quick actions, tool search */}
       <CommandBar
         operatorName={currentUser.displayName}
@@ -744,10 +672,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           setPushState(perm === 'granted' ? 'granted' : 'blocked');
         }}
         onScan={() => setIsScannerOpen(true)}
-        onQuickFind={(q) => {
-          setToolFilter(q);
-          setShowTools(true);
-        }}
+        onOpenApps={() => setAppsOpen(true)}
       />
 
       {/* 1. UNMISSABLE BRIGHT VISUAL ALERT: FRESH & UNREVIEWED WORKSHOP BOOKINGS */}
@@ -788,77 +713,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </div>
         </div>
       )}
-      </>}
+      </section>}
 
-      {/* 2. METRIC RAIL — headline KPIs, each a shortcut into its tool */}
-      {showTools && (
-        <>
-          <MetricRail items={metricItems} />
-          <section className="stakeys-quick-grid" aria-label="Daily shortcuts">
-            {([{label:'Till', icon:ShoppingCart, target:'till'}, {label:'Workshop', icon:Wrench, target:'bookings'}, {label:'Bookings', icon:Calendar, target:'bookings'}, {label:'Customers', icon:Users, target:'customers'}, {label:'Stock', icon:Package, target:'stock'}, {label:'Accounts', icon:TrendingUp, target:'settings'}] as const).map(item =>
-              <button key={item.label} type="button" className="stakeys-quick-tile" onClick={() => {openStaffTab(item.target); if(item.label === 'Accounts') setSettingsSection('financials');}}>
-                <item.icon size={28} strokeWidth={1.8} /><span>{item.label}</span>
-              </button>)}
-          </section>
-          <GrowthTargets />
-        </>
-      )}
+      {showTools && <dl className="staff-home-summary" aria-label="Workshop overview" data-testid="staff-home-summary">
+        {homeStats.map(item => <div key={item.id}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}
+      </dl>}
 
-      {/* 3. WORKSTATION LAUNCHER: grouped tiles, one per tool, keyboard-navigable */}
       <RideTransition state={ride.state}>
-      {showTools ? (
-      <div className="space-y-4" data-testid="staff-tool-launcher">
-        {/* Purpose-built work areas replace the old undifferentiated tile wall. */}
-        {([
-          { title: '01 / FRONT DESK', subtitle: 'Everything needed when a customer walks in', ids: ['till', 'bookings', 'customers', 'stock'], icon: ShoppingCart },
-          { title: '02 / WORKSHOP', subtitle: 'Diagnose, repair and identify parts', ids: ['ble_bench', 'ev_codes', 'hangers', 'repair_guide'], icon: Wrench },
-          { title: '03 / SALES & LOYALTY', subtitle: 'Offers, rewards and trade-in enquiries', ids: ['draws', 'promotions', 'discount_codes', 'referrals', 'tradeins', 'marketplace', 'offer_prices'], icon: Award },
-          { title: '04 / CUSTOMER EXPERIENCE', subtitle: 'Website, reputation and customer communications', ids: ['website_cms', 'google_business', 'reviews'], icon: Globe },
-          { title: '05 / MANAGEMENT', subtitle: 'Team, records, systems and configuration', ids: ['staff_roster', 'logs', 'backend', 'settings', 'weather'], icon: Settings },
-        ] as const).map((group) => {
-          const entries = [...visibleOperationTiles, ...visibleAdminTiles].filter((t) => (group.ids as readonly string[]).includes(t.id));
-          if (!entries.length) return null;
-          return (
-            <section key={group.title} className="staff-workspace-group" aria-label={group.title}>
-              <header className="staff-workspace-heading">
-                <span className="staff-workspace-heading-icon"><group.icon size={20} strokeWidth={1.65} /></span>
-                <span><strong>{group.title}</strong><small>{group.subtitle}</small></span>
-                <span className="staff-workspace-count">{entries.length} tools</span>
-              </header>
-              <div className="staff-workspace-entries">
-                {entries.map((t) => (
-                  <button key={t.id} type="button" data-testid={`staff-tile-${t.id}`}
-                    className="staff-workspace-entry" onClick={() => openStaffTab(t.id)}
-                    aria-label={`${t.label}: ${t.hint}`}>
-                    <span className="staff-workspace-entry-top">
-                      <span className="staff-workspace-entry-icon"><t.icon size={23} strokeWidth={1.65} aria-hidden="true" /></span>
-                      {statusForTile(t) !== null && <span className="staff-workspace-badge">{statusForTile(t)}</span>}
-                    </span>
-                    <span className="staff-workspace-entry-copy"><strong>{t.label}</strong><small>{t.hint}</small></span>
-                    <ArrowRight size={16} strokeWidth={1.65} className="staff-workspace-arrow" aria-hidden="true" />
-                  </button>
-                ))}
-              </div>
-            </section>
-          );
-        })}
-
-        {filterActive && visibleOperationTiles.length + visibleAdminTiles.length === 0 && (
-          <div className="surface-panel flex flex-col items-center gap-1 p-8 text-center">
-            <Search className="h-6 w-6 text-neutral-500" />
-            <p className="text-sm font-semibold text-white">No tools match “{toolFilter}”</p>
-            <button
-              type="button"
-              onClick={() => setToolFilter('')}
-              className="mt-1 text-xs font-bold text-emerald-400 hover:text-emerald-300"
-            >
-              Clear search
-            </button>
-          </div>
-        )}
-      </div>
-      ) : null}
-
       <div className={showTools ? 'hidden' : 'space-y-4'} data-testid="staff-page-container">
         {!showTools && <section className="surface-panel flex flex-col gap-4 p-4 sm:p-6" data-testid="staff-tool-page" aria-labelledby="staff-tool-page-title">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -869,7 +730,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
             className="pressable inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-neutral-200 transition-colors hover:border-emerald-500/40 hover:text-white"
           >
             <LayoutGrid className="w-4 h-4 text-emerald-400" />
-            <span>Back to tools</span>
+            <span>Back to Home</span>
           </button>
           <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-300">Staff workspace</span>
           </div>
@@ -957,7 +818,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {staffView('repair_guide', <StaffRepairGuideTab />)}
 
       {/* VIEW 9: Backend console — Supabase connection, schema audit & repair */}
-      {staffView('backend', <StaffBackendTab />)}
+      {staffView('backend', <><BridgeStatusTile onOpenDetails={() => setIsBridgeRepairOpen(true)} /><StaffBackendTab /></>)}
 
       {/* VIEW 10: Settings — one home for notification routing and every admin
           tool, paged internally so nothing is duplicated on the top-level nav. */}
@@ -989,7 +850,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           {settingsPane('notifications', <StaffNotificationSettings />)}
           {settingsPane('assistant', <AssistantManagerTab />)}
           {settingsPane('test_bench', <StaffDiagnosticsTab />)}
-          {settingsPane('performance', <PerformanceTracker />)}
+          {settingsPane('performance', <><GrowthTargets /><PerformanceTracker /></>)}
           {settingsPane('financials', <FinancialReportingTab />)}
 
           {settingsPane('station', (
@@ -1798,16 +1659,32 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         <BridgeRepairModal onClose={() => setIsBridgeRepairOpen(false)} />
       )}
       </div>
-      <MacOSDock
+      <StaffNavigation
+        mode={displayMode}
         activeTab={showTools ? 'home' : staffTab === 'backend' ? 'sync' : staffTab === 'till' ? 'till' : staffTab === 'repair_guide' || staffTab === 'bookings' ? 'workshop' : staffTab === 'stock' ? 'stock' : staffTab === 'promotions' || staffTab === 'discount_codes' ? 'sales' : 'more'}
+        activeApp={showTools ? 'home' : staffTab === 'settings' && settingsSection === 'performance' ? 'targets' : staffTab === 'settings' && settingsSection === 'financials' ? 'accounts' : staffTab}
+        drawerOpen={appsOpen}
+        onOpenDrawer={() => setAppsOpen(true)}
+        onCloseDrawer={() => setAppsOpen(false)}
         onSelectTab={(id: DockTabId) => {
           if (id === 'home') return closeStaffTool();
-          if (id === 'more') return;
+          if (id === 'more') return setAppsOpen(true);
           const target = ({ sync: 'backend', till: 'till', workshop: 'repair_guide', stock: 'stock', sales: 'promotions' } as const)[id];
           openStaffTab(target);
         }}
-        moreApps={[...operationTiles, ...adminTiles].filter(tile => !['backend', 'till', 'repair_guide', 'stock', 'promotions'].includes(tile.id)).map(tile => ({ id: tile.id, label: tile.label }))}
-        onSelectApp={(id) => openStaffTab(id as StaffTabId)}
+        apps={[
+          {id: 'home', label: 'Home', hint: 'Live workshop overview', icon: Home},
+          {id: 'targets', label: 'Targets & KPIs', hint: 'Performance, growth and targets', icon: Gauge},
+          {id: 'accounts', label: 'Accounts', hint: 'Financial reporting and tax', icon: TrendingUp},
+          ...operationTiles, ...adminTiles,
+        ]}
+        onSelectApp={(id) => {
+          if (id === 'home') return closeStaffTool();
+          if (id === 'targets' || id === 'accounts') {
+            setSettingsSection(id === 'targets' ? 'performance' : 'financials');
+            openStaffTab('settings');
+          } else openStaffTab(id as StaffTabId);
+        }}
       />
     </div>
 

@@ -57,6 +57,7 @@ vi.mock('./src/components/WheelEditorModal', () => ({ WheelEditorModal: () => nu
 vi.mock('./src/components/weather/WeatherForecast', () => ({ WeatherForecast: () => null }));
 vi.mock('./src/api/firebaseService', () => ({ canCustomerReceiveStampToday: () => true }));
 
+import { openStaffApp, openStaffDrawer } from './test/helpers/staffNavigation';
 import { StaffPortal } from './src/components/StaffPortal';
 import { StaffRepairGuideTab } from './src/components/StaffRepairGuideTab';
 
@@ -68,14 +69,13 @@ beforeEach(() => {
 describe('staff Repair Guide tile', () => {
   it('exposes a Repair Guide tile in the launcher', () => {
     render(<StaffPortal />);
-    const tile = screen.getByTestId('staff-tile-repair_guide');
-    expect(tile).toBeTruthy();
-    expect(screen.getAllByText('Repair Guide').length).toBeGreaterThan(0);
+    const drawer = openStaffDrawer();
+    expect(drawer.textContent).toContain('Repair Guide');
   });
 
   it('opens the guide view when the tile is selected', () => {
     render(<StaffPortal />);
-    fireEvent.click(screen.getByTestId('staff-tile-repair_guide'));
+    openStaffApp('Repair Guide');
     const pane = document.querySelector('[data-staff-view="repair_guide"]');
     expect(pane).toBeTruthy();
     expect(pane!.className).toContain('block');

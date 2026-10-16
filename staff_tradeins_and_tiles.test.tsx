@@ -69,6 +69,7 @@ vi.mock('./src/components/weather/WeatherForecast', () => ({ WeatherForecast: ()
 vi.mock('./src/api/firebaseService', () => ({ canCustomerReceiveStampToday: () => true }));
 
 import { StaffTradeInsTab } from './src/components/StaffTradeInsTab';
+import { openStaffApp } from './test/helpers/staffNavigation';
 import { StaffPortal } from './src/components/StaffPortal';
 import { submitTradeInRequest, getTradeInRequests, deleteTradeInRequest } from './src/context/TradeInStore';
 
@@ -111,8 +112,7 @@ describe('StaffTradeInsTab', () => {
 describe('StaffPortal trade-in tile', () => {
   it('exposes a Trade-Ins launcher tile that opens the inbox', () => {
     render(<StaffPortal />);
-    const tile = screen.getByTestId('staff-tile-tradeins');
-    fireEvent.click(tile);
+    openStaffApp('Sell Your Bike');
     expect(screen.getByTestId('staff-tradeins')).toBeTruthy();
   });
 });
