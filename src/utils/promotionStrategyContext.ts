@@ -1,11 +1,12 @@
 import type { ServiceBooking, SaleTransaction, UserProfile } from '../types/bikeShop';
-import type { WebPriceItem } from '../types/websiteContent';
+import type { WebPriceItem, WebProduct } from '../types/websiteContent';
 import type { WeatherReport } from './weatherService';
 import { affordableSpend, monthEvents, RIDING_STYLES, validMonth, type PromotionStrategy, type RidingStyle, type StrategySegment } from '../../supabase/functions/_shared/promotionStrategy';
 
 export interface StrategyInputs {
   month?: string; maxRepairValuePct?: number; users?: UserProfile[]; priceList?: WebPriceItem[];
   staffNotes?: string; targets?: Record<string, unknown>;
+  products?: WebProduct[];
   officialEvents?: { title: string; date: string }[];
 }
 
@@ -24,6 +25,14 @@ const median = (values: number[]): number | null => {
   const middle = Math.floor(sorted.length / 2);
   return Math.round((sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2) * 100) / 100;
 };
+
+export function catalogueServices(priceList: WebPriceItem[]): PromotionStrategy['services'] {
+  return priceList.flatMap(p => {
+    const exact = /^£\s*\d+(?:\.\d{1,2})?$/.test(p.price.trim()) ? Number(p.price.replace(/£\s*/, '')) : NaN;
+    const price = p.unitPrice ?? exact;
+    return Number.isFinite(price) && price > 0 ? [{ id: p.id, title: p.item, scope: p.scope, priceGbp: price, terms: [p.note, p.desc].filter(Boolean).join(' ').slice(0, 250) }] : [];
+  });
+}
 
 export function buildStrategyContext(today: Date, weather: WeatherReport | null | undefined, bookings: ServiceBooking[], sales: SaleTransaction[], input: StrategyInputs = {}): PromotionStrategy {
   const month = input.month && validMonth(input.month) ? input.month : londonMonth(today);
@@ -72,12 +81,9 @@ export function buildStrategyContext(today: Date, weather: WeatherReport | null 
   if (segments.some(s => s.style === 'unknown')) gaps.push('Some riding styles are unrecorded; do not infer them from brand or price.');
   if (jobs.length + paidSales.length < 10) gaps.push('Fewer than 10 recent bookings and paid sales: behaviour evidence is limited.');
   gaps.push('Job costs and spare workshop capacity are not recorded in this brief; margins require staff review.');
-  const services = (input.priceList || []).flatMap(p => {
-    const exact = /^£\s*\d+(?:\.\d{1,2})?$/.test(p.price.trim()) ? Number(p.price.replace(/£\s*/, '')) : NaN;
-    const price = p.unitPrice ?? exact;
-    return Number.isFinite(price) && price > 0 ? [{ id: p.id, title: p.item, scope: p.scope, priceGbp: price, terms: [p.note, p.desc].filter(Boolean).join(' ').slice(0, 250) }] : [];
-  });
+  const services = catalogueServices(input.priceList || []);
   if (!services.length) gaps.push('No unambiguous catalogue prices available; do not invent paid offers.');
+  if (!(input.products || []).some(p => Number.isSafeInteger(p.stock) && p.stock > 0 && Number.isFinite(p.price) && p.price > 0)) gaps.push('No in-stock catalogue products recorded. Stock campaigns cannot be approved until stock and pricing are available.');
   const forecast = weather && !weather.synthetic && today.getTime() - weather.fetchedAt <= 24 * 3600000 && today.getTime() >= weather.fetchedAt && weather.location.label.toLowerCase().includes('salford') ? weather.days.filter(d => d.date.startsWith(month) && d.date >= today.toISOString().slice(0, 10)) : [];
   const season = Number(month.slice(5));
   const seasonal = season <= 2 || season === 12 ? 'Winter planning assumption: cold, shorter days and wet journeys may favour visibility and battery-care advice.' : season <= 5 ? 'Spring planning assumption: riders may return after winter; check condition before suggesting work.' : season <= 8 ? 'Summer planning assumption: leisure and family riding may increase; do not assume dry weather.' : 'Autumn planning assumption: shorter days and wet journeys may favour lights, brakes and mudguard checks.';
@@ -94,6 +100,8 @@ export function buildStrategyContext(today: Date, weather: WeatherReport | null 
       completedRepairs: paidRepairs.length, declinedQuotes: jobs.filter(b => b.approvalStatus === 'declined').length,
       completedSales: paidSales.length, repeatCustomers: [...counts.values()].filter(n => n >= 2).length,
       medianPaidRepairGbp: median(paidRepairs.map(b => b.invoice!.grandTotal)), medianPaidSaleGbp: median(paidSales.map(s => s.grandTotal)) },
+    products: (input.products || []).filter(p => Number.isFinite(p.price) && p.price > 0 && Number.isSafeInteger(p.stock) && p.stock > 0).map(p => ({id:p.id, title:p.name, category:p.category, priceGbp:p.price, stock:p.stock})),
+    objectives: ['workshop','stock','retention','growth'],
     segments, services, gaps, staffNotes: (input.staffNotes || '').slice(0, 1000), targets: input.targets || {},
   };
 }

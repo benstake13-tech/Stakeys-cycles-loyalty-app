@@ -28,6 +28,7 @@ export interface StaffMember {
 }
 
 export interface ShopPromotion {
+  campaignBrief?: import('../utils/promotionLogistics').PromotionCampaignBrief;
   id: string;
   title: string;
   subtitle: string;

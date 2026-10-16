@@ -539,6 +539,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'status', type: 'text', default: `'active'` },
       { name: 'start_date', type: 'text' },
       { name: 'end_date', type: 'text' },
+      { name: 'campaign_brief', type: 'jsonb' },
       { name: 'terms_and_conditions', type: 'jsonb', default: `'[]'::jsonb` },
       { name: 'eligible_categories', type: 'jsonb', default: `'[]'::jsonb` },
       { name: 'bg_gradient', type: 'text' },
