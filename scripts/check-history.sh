@@ -32,6 +32,16 @@ else
   BRANCHES=("${args[0]}" "${args[1]}" "${args[2]}")
 fi
 DEEP="${DEEP:-0}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BASELINES="$ROOT/scripts/sync-history-baseline.tsv"
+
+# Older histories were independently developed before source synchronization.
+# Pin the reviewed matching trees without rewriting published commits. All new
+# work must have the same ordered subjects after these immutable baseline SHAs.
+baseline_for() {
+  local name="${1##*/}"
+  awk -v branch="$name" '$1 == branch { print $2 }' "$BASELINES"
+}
 
 # Normalise a subject so only intentional per-branch suffixes are removed:
 #   "... (customer-app)" / "... (main-website)" / "... (staff-terminal)"
@@ -58,11 +68,34 @@ subjects() {
     fi
     git log --format='%s' "$1" 2>/dev/null | normalize
   else
-    git log -n "$WINDOW" --format='%s' "$1" 2>/dev/null | normalize
+    local baseline
+    baseline="$(baseline_for "$1")"
+    if [ -n "$baseline" ]; then
+      git log --format='%s' "$baseline..$1" 2>/dev/null | normalize
+    else
+      git log -n "$WINDOW" --format='%s' "$1" 2>/dev/null | normalize
+    fi
   fi
 }
 
 fail=0
+if [ "$DEEP" != "1" ] && [ -f "$BASELINES" ]; then
+  baseline_refs=()
+  for b in "${BRANCHES[@]}"; do
+    baseline="$(baseline_for "$b")"
+    if [ -z "$baseline" ] || ! git merge-base --is-ancestor "$baseline" "$b"; then
+      echo "INVALID BASELINE: $b must descend from its reviewed synchronization head." >&2
+      exit 1
+    fi
+    baseline_refs+=("$baseline")
+  done
+  for baseline in "${baseline_refs[@]:1}"; do
+    if ! git diff --quiet "${baseline_refs[0]}" "$baseline" -- . ':(exclude)src/config/surface.ts'; then
+      echo "INVALID BASELINE: synchronization heads do not have matching source trees." >&2
+      exit 1
+    fi
+  done
+fi
 
 # 1. Linear history: no merge commits on any branch.
 for b in "${BRANCHES[@]}"; do
