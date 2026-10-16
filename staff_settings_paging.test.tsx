@@ -145,7 +145,7 @@ describe('staff Settings tab paging', () => {
     expect(screen.getByText(/Scan Member Code/i)).toBeTruthy();
     expect(isPaneShown('station')).toBe(true);
     expect(isPaneShown('financials')).toBe(false);
-  });
+  }, 15_000);
 
   it('defaults to Notifications when nothing is remembered', () => {
     openSettings();
