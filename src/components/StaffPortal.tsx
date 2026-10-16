@@ -115,6 +115,7 @@ interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
   focusBookingId?: string | null;
   onFocusHandled?: () => void;
+  onOpenSurface?: (id: 'customer' | 'booking' | 'website' | 'promotions' | 'deliverables') => void;
 }
 
 type StaffTab =
@@ -169,7 +170,7 @@ const STAFF_TABS: StaffTab[] = [
   'settings',
 ];
 
-export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocusHandled }) => {
+export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocusHandled, onOpenSurface }) => {
   const {
     currentUser,
     users = [], // Default to empty array
@@ -1677,8 +1678,19 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           {id: 'targets', label: 'Targets & KPIs', hint: 'Performance, growth and targets', icon: Gauge},
           {id: 'accounts', label: 'Accounts', hint: 'Financial reporting and tax', icon: TrendingUp},
           ...operationTiles, ...adminTiles,
+          ...(onOpenSurface ? [
+            {id: 'surface:customer', label: 'Customer Preview', hint: 'Preview the customer app', icon: Users},
+            {id: 'surface:booking', label: 'Book Service', hint: 'Create a workshop booking', icon: Calendar},
+            {id: 'surface:website', label: 'Website Preview', hint: 'Preview the public website', icon: Globe},
+            {id: 'surface:promotions', label: 'Offers Preview', hint: 'View customer offers', icon: Tag},
+            {id: 'surface:deliverables', label: 'Config', hint: 'Architecture & deliverables', icon: Settings},
+          ] : []),
         ]}
         onSelectApp={(id) => {
+          if (id.startsWith('surface:')) {
+            onOpenSurface?.(id.slice(8) as 'customer' | 'booking' | 'website' | 'promotions' | 'deliverables');
+            return;
+          }
           if (id === 'home') return closeStaffTool();
           if (id === 'targets' || id === 'accounts') {
             setSettingsSection(id === 'targets' ? 'performance' : 'financials');

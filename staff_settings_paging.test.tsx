@@ -254,3 +254,15 @@ describe('retained management tools', () => {
     expect(isPaneShown('performance')).toBe(false);
   });
 });
+
+
+describe('outer app links in the shared drawer', () => {
+  it('keeps customer preview and configuration routes accessible without a second header menu', () => {
+    const onOpenSurface = vi.fn();
+    render(<StaffPortal onOpenSurface={onOpenSurface} />);
+    openStaffApp('Customer Preview');
+    expect(onOpenSurface).toHaveBeenCalledWith('customer');
+    openStaffApp('Config');
+    expect(onOpenSurface).toHaveBeenCalledWith('deliverables');
+  });
+});

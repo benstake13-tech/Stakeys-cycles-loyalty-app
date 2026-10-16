@@ -49,6 +49,7 @@ interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
   focusBookingId?: string | null;
   onFocusHandled?: () => void;
+  onOpenSurface?: (id: 'customer' | 'booking' | 'website' | 'promotions' | 'deliverables') => void;
 }
 
 // The entire staff area is only ever bundled into the full/staff surfaces; the
@@ -253,6 +254,7 @@ function AppContent() {
 
   // Customer builds get no route into the staff area at all.
   const showStaffEntry = isFullSurface || isStaffSurface;
+  const inStaffWorkspace = isStaff && activeTab === 'staff' && showStaffEntry;
 
   if (isStaff) {
     navTabs.push({
@@ -465,9 +467,9 @@ function AppContent() {
           </button>
 
           {/* Desktop navigation */}
-          <nav className="hidden md:block">
+          {!inStaffWorkspace && <nav className="hidden md:block">
             <SegmentedTabs tabs={navTabs} active={activeTab} onChange={goToTab} ariaLabel="Primary navigation" />
-          </nav>
+          </nav>}
 
           {/* Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
@@ -487,7 +489,8 @@ function AppContent() {
             <button
               type="button"
               onClick={logoutUser}
-              className={`pressable px-3 py-1.5 rounded-xl border transition-colors text-xs font-medium hidden sm:flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+              aria-label="Sign Out"
+              className={`pressable px-3 py-1.5 rounded-xl border transition-colors text-xs font-medium ${inStaffWorkspace ? 'flex' : 'hidden sm:flex'} items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
                 isDark
                   ? 'bg-neutral-900 hover:bg-neutral-800 border-neutral-800 text-neutral-300 hover:text-rose-400'
                   : 'bg-neutral-100 hover:bg-neutral-200 border-neutral-300 text-neutral-700 hover:text-rose-600'
@@ -495,11 +498,11 @@ function AppContent() {
               title="Sign Out"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Sign Out</span>
+              <span className={inStaffWorkspace ? 'hidden sm:inline' : undefined}>Sign Out</span>
             </button>
 
             {/* Top-corner hamburger menu (all screen sizes) */}
-          <div className="relative">
+          {!inStaffWorkspace && <div className="relative">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
@@ -558,7 +561,7 @@ function AppContent() {
                 </div>
               </div>
             )}
-          </div>
+          </div>}
           </div>
         </div>
       </header>
@@ -596,6 +599,7 @@ function AppContent() {
                 <StaffPortal
                   focusBookingId={focusBookingId}
                   onFocusHandled={() => setFocusBookingId(null)}
+                  onOpenSurface={goToTab}
                 />
               </React.Suspense>
             ) : showStaffEntry ? (
