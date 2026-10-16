@@ -42,6 +42,8 @@ describe('automatic staff display modes', () => {
     fireEvent.click(within(phone).getByRole('button', { name: 'Open staff apps' }));
     const drawer = screen.getByRole('dialog', { name: 'All apps' });
     expect(drawer.className).toContain('staff-app-drawer--phone');
+    expect(within(drawer).getByRole('heading', { name: 'Workspace' })).toBeTruthy();
+    expect(within(drawer).getByRole('heading', { name: 'Workshop' })).toBeTruthy();
     fireEvent.click(within(drawer).getByRole('button', { name: 'Till' }));
     expect(screen.getByRole('heading', { name: 'till workspace' })).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
