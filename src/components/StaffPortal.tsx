@@ -712,7 +712,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   );
 
   return (
-    <div className="stakeys-premium-staff relative font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="stakeys-premium-staff staff-has-dock relative font-['Plus_Jakarta_Sans',sans-serif]">
       <div className="relative z-10 space-y-5">
       {showTools && <>
       <header className="stakeys-brand-header" aria-label="Stakeys Cycles staff workspace" data-testid="staff-home-header">
@@ -1791,22 +1791,24 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
         }}
       />
 
-      <MacOSDock
-        activeTab={showTools ? 'home' : staffTab === 'backend' ? 'sync' : staffTab === 'till' ? 'till' : staffTab === 'repair_guide' || staffTab === 'bookings' ? 'workshop' : staffTab === 'stock' ? 'stock' : staffTab === 'promotions' || staffTab === 'discount_codes' ? 'sales' : 'more'}
-        onSelectTab={(id: DockTabId) => {
-          if (id === 'home' || id === 'more') return closeStaffTool();
-          const target = ({ sync: 'backend', till: 'till', workshop: 'repair_guide', stock: 'stock', sales: 'promotions' } as const)[id];
-          openStaffTab(target);
-        }}
-        moreApps={[{id:'customers',label:'Customers'},{id:'bookings',label:'Bookings'},{id:'discount_codes',label:'Discounts'},{id:'staff_roster',label:'Staff'},{id:'website_cms',label:'Website'},{id:'settings',label:'Settings'}]}
-        onSelectApp={(id) => openStaffTab(id as StaffTabId)}
-      />
+
 
       {/* Repair App Bridge — the full diagnostics / SQL hand-off modal. */}
       {isBridgeRepairOpen && (
         <BridgeRepairModal onClose={() => setIsBridgeRepairOpen(false)} />
       )}
       </div>
+      <MacOSDock
+        activeTab={showTools ? 'home' : staffTab === 'backend' ? 'sync' : staffTab === 'till' ? 'till' : staffTab === 'repair_guide' || staffTab === 'bookings' ? 'workshop' : staffTab === 'stock' ? 'stock' : staffTab === 'promotions' || staffTab === 'discount_codes' ? 'sales' : 'more'}
+        onSelectTab={(id: DockTabId) => {
+          if (id === 'home') return closeStaffTool();
+          if (id === 'more') return;
+          const target = ({ sync: 'backend', till: 'till', workshop: 'repair_guide', stock: 'stock', sales: 'promotions' } as const)[id];
+          openStaffTab(target);
+        }}
+        moreApps={[...operationTiles, ...adminTiles].filter(tile => !['backend', 'till', 'repair_guide', 'stock', 'promotions'].includes(tile.id)).map(tile => ({ id: tile.id, label: tile.label }))}
+        onSelectApp={(id) => openStaffTab(id as StaffTabId)}
+      />
     </div>
 
   );
