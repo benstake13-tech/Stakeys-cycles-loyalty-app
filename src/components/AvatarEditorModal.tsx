@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useId, useReducer, useRef, useState } from 'react';
 import {
   FaceAvatar,
   FaceAvatarConfig,
@@ -33,6 +33,30 @@ interface AvatarEditorModalProps {
   onClose: () => void;
 }
 
+const COLLECTIONS = {
+  All: CLOTHING_OPTIONS.map(o => o.id),
+  "Stakey's & Workwear": ['dungarees', 'collar', 'mechanic', 'hi_vis', 'chef', 'paramedic', 'firefighter', 'stakeys_apron'],
+  Everyday: ['hoodie', 'brand_tee', 'tank', 'varsity', 'racing_kit', 'leather_jacket', 'rain_shell'],
+  Costumes: ['bunny', 'elf', 'skeleton', 'wizard', 'astronaut', 'pirate', 'superhero', 'pumpkin'],
+};
+const FIXED_COLOR_OUTFITS = new Set(['dungarees', 'brand_tee', 'mechanic', 'hi_vis', 'bunny', 'elf', 'skeleton', 'leather_jacket', 'wizard', 'chef', 'paramedic', 'firefighter', 'astronaut', 'pirate', 'pumpkin']);
+
+type AvatarHistory = { past: FaceAvatarConfig[]; present: FaceAvatarConfig; future: FaceAvatarConfig[] };
+type AvatarAction = { type: 'replace'; config: FaceAvatarConfig } | { type: 'undo' | 'redo' };
+function editHistory(state: AvatarHistory, action: AvatarAction): AvatarHistory {
+  if (action.type === 'replace') {
+    if (JSON.stringify(action.config) === JSON.stringify(state.present)) return state;
+    return { past: [...state.past.slice(-49), state.present], present: action.config, future: [] };
+  }
+  if (action.type === 'undo' && state.past.length) return {
+    past: state.past.slice(0, -1), present: state.past[state.past.length - 1], future: [state.present, ...state.future],
+  };
+  if (action.type === 'redo' && state.future.length) return {
+    past: [...state.past, state.present], present: state.future[0], future: state.future.slice(1),
+  };
+  return state;
+}
+
 type TabId = 'backdrop' | 'features' | 'model' | 'face' | 'clothes';
 
 export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
@@ -43,13 +67,46 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
 }) => {
   // Parse initial config
   const initialConfig = parseConfigString(currentConfigString, name);
-  const [config, setConfig] = useState<FaceAvatarConfig>(initialConfig);
+  const [history, dispatch] = useReducer(editHistory, { past: [], present: initialConfig, future: [] });
+  const config = history.present;
+  const originalConfig = useRef(initialConfig).current;
+  const setConfig = (next: FaceAvatarConfig) => dispatch({ type: 'replace', config: next });
+  const [collection, setCollection] = useState<keyof typeof COLLECTIONS>('All');
+  const [compareOriginal, setCompareOriginal] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const titleId = useId();
+
+  useEffect(() => {
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    dialogRef.current?.focus();
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeRef.current(); }
+      if (event.key !== 'Tab') return;
+      const buttons = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [tabindex="0"]') || []);
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialogRef.current)) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || document.activeElement === dialogRef.current)) {
+        event.preventDefault(); first?.focus();
+      }
+    };
+    const dialog = dialogRef.current;
+    dialog?.addEventListener('keydown', handleKey);
+    return () => {
+      dialog?.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, []);
   const [activeTab, setActiveTab] = useState<TabId>('backdrop');
 
   const updateAttr = <K extends keyof FaceAvatarConfig>(key: K, value: FaceAvatarConfig[K]) => {
-    setConfig((prev) => {
-      return { ...prev, [key]: value };
-    });
+    setConfig({ ...config, [key]: value });
   };
 
   const handleRandomize = () => {
@@ -91,16 +148,17 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-neutral-950/80 backdrop-blur-sm">
-      <div className="bg-[#0d1015] border border-neutral-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="bg-[#0d1015]/95 border border-emerald-400/20 rounded-2xl w-full max-w-4xl h-[92dvh] max-h-[900px] overflow-hidden flex flex-col shadow-2xl outline-none">
         
         {/* Modal Header */}
-        <div className="p-5 border-b border-neutral-800 flex items-center justify-between">
+        <div className="p-4 border-b border-neutral-800 flex items-center justify-between shrink-0">
           <div>
-            <h3 className="text-base font-bold text-white font-mono">Customize Face Avatar</h3>
+            <h3 id={titleId} className="text-base font-bold text-white font-mono">Customize Face Avatar</h3>
             <p className="text-xs text-neutral-400 mt-0.5">Design a personalized high-quality face for {name}</p>
           </div>
           <button
             onClick={onClose}
+            aria-label="Close avatar editor"
             className="p-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer"
           >
             ✕
@@ -108,14 +166,20 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
         </div>
 
         {/* Modal Content */}
-        <div className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-8">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row">
           
           {/* Left: Live Preview */}
-          <div className="flex flex-col items-center gap-4 shrink-0">
-            <div className="p-4 bg-gradient-to-br from-neutral-900/90 to-[#101b15] border border-emerald-500/20 rounded-3xl flex items-center justify-center shadow-inner shadow-emerald-950/40">
-              <FaceAvatar seed={name} config={config} size={150} />
+          <div className="flex flex-col items-center gap-2 p-3 md:p-5 shrink-0 border-b md:border-b-0 md:border-r border-white/5 bg-gradient-to-b from-emerald-500/5 to-transparent">
+            <div className="p-2 bg-gradient-to-br from-neutral-900/90 to-[#101b15] border border-emerald-500/20 rounded-3xl flex items-center justify-center shadow-inner shadow-emerald-950/40">
+              <div className="w-32 md:w-56 aspect-square"><FaceAvatar seed={name} config={compareOriginal ? originalConfig : config} size={224} className="!w-full !h-full" /></div>
             </div>
 
+            <button type="button" onClick={() => setCompareOriginal(v => !v)} aria-pressed={compareOriginal}
+              className="text-xs text-emerald-300 underline underline-offset-4 py-1">{compareOriginal ? 'Back to editing' : 'Compare original'}</button>
+            <div className="flex gap-2 w-full">
+              <button type="button" disabled={!history.past.length} onClick={() => dispatch({ type: 'undo' })} className="flex-1 rounded-lg border border-neutral-700 px-3 py-2 text-xs text-white disabled:opacity-30">Undo</button>
+              <button type="button" disabled={!history.future.length} onClick={() => dispatch({ type: 'redo' })} className="flex-1 rounded-lg border border-neutral-700 px-3 py-2 text-xs text-white disabled:opacity-30">Redo</button>
+            </div>
             <div className="flex flex-row gap-2.5 w-full">
               <button
                 onClick={handleRandomize}
@@ -133,9 +197,9 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
           </div>
 
           {/* Right: Customization Controls */}
-          <div className="flex-1 flex flex-col gap-4 min-w-[280px]">
+          <div className="flex-1 min-h-0 min-w-0 flex flex-col gap-2 p-3 md:p-5">
             {/* Tabs Bar */}
-            <div className="flex overflow-x-auto border-b border-neutral-800 text-xs font-mono font-bold">
+            <div className="flex shrink-0 overflow-x-auto border-b border-neutral-800 text-xs font-mono font-bold">
               <button
                 onClick={() => { setActiveTab('backdrop'); }}
                 className={"min-w-max flex-1 px-2 pb-2 border-b-2 transition-all cursor-pointer " + (
@@ -189,7 +253,7 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
             </div>
 
             {/* Customizer Panel */}
-            <div className="flex-1 py-2">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-2 px-1">
               
               {/* Tab 1: Backdrop */}
               {activeTab === 'backdrop' && (
@@ -322,7 +386,7 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
                     </div>
                   </div>
                   <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-3 text-[11px] leading-relaxed text-neutral-400">
-                    The portrait preview updates as you choose each feature. Saved style settings stay attached to this staff profile.
+                    The portrait preview updates as you choose each feature. Apply your avatar to save these choices to your profile.
                   </div>
                 </div>
               )}
@@ -446,25 +510,31 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
                   {/* Clothing */}
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Clothing Style</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {CLOTHING_OPTIONS.map((opt) => (
+                    <div className="flex flex-wrap gap-2" aria-label="Wardrobe collections">
+                      {(Object.keys(COLLECTIONS) as (keyof typeof COLLECTIONS)[]).map(label => <button key={label} type="button" aria-pressed={collection === label} onClick={() => setCollection(label)}
+                        className={`rounded-full border px-3 py-2 text-[11px] ${collection === label ? 'border-emerald-400 text-emerald-300 bg-emerald-500/10' : 'border-neutral-700 text-neutral-300'}`}>{label}</button>)}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {CLOTHING_OPTIONS.filter(opt => (COLLECTIONS[collection] as string[]).includes(opt.id)).map((opt) => (
                         <button
                           key={opt.id}
                           onClick={() => { updateAttr('clothing', opt.id); }}
+                          aria-pressed={config.clothing === opt.id}
                           className={"py-1.5 px-2.5 rounded-xl border text-[11px] font-bold transition-all text-left cursor-pointer " + (
                             config.clothing === opt.id
                               ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400'
                               : 'border-neutral-800 bg-neutral-900/40 hover:border-neutral-700 text-neutral-300'
                           )}
                         >
-                          👕 {opt.name}
+                          <span aria-hidden="true" className="block mx-auto w-16 mb-2"><FaceAvatar seed={name} config={{ ...config, clothing: opt.id, prop: 'none', vehicle: 'none' }} size={64} /></span>
+                          {opt.name}
                         </button>
                       ))}
                     </div>
                   </div>
 
                   {/* Clothing Color */}
-                  {config.clothing !== 'dungarees' && config.clothing !== 'brand_tee' && (
+                  {!FIXED_COLOR_OUTFITS.has(config.clothing) && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Clothing Color</h4>
                       <div className="flex flex-wrap gap-2">
@@ -477,6 +547,8 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
                                 ? 'border-white scale-110 shadow-lg ring-2 ring-emerald-500/50'
                                 : 'border-transparent opacity-70 hover:opacity-100'
                             )}
+                            aria-label={`Clothing colour ${color}`}
+                            aria-pressed={config.clothingColor === color}
                             style={{ backgroundColor: color }}
                           >
                             {config.clothingColor === color && (
@@ -532,7 +604,7 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-5 border-t border-neutral-800 flex items-center justify-end gap-3">
+        <div className="p-4 border-t border-neutral-800 flex items-center justify-end gap-3 shrink-0">
           <button
             onClick={onClose}
             className="px-4 py-2 text-xs font-bold rounded-xl border border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700 transition-colors cursor-pointer"

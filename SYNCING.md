@@ -23,7 +23,9 @@ See `SYNC-PLAN.md` for the rationale and the current-state audit.
 2. **Linear history** - `git rev-list --merges --count <branch>` is `0` on all
    three.
 3. **Matching history** - the three branches' commit sequences are the same
-   subjects in the same order (`check-history.sh`). A duplicated or missing
+   subjects in the same order after the reviewed synchronization heads in
+   `scripts/sync-history-baseline.tsv` (`check-history.sh`). The baseline heads
+   are ancestor-checked and their source trees must match outside surface.ts. A duplicated or missing
    cherry-pick leaves the *trees* identical but the *logs* different - this is
    the check that catches it.
 4. **One difference** - only `DEFAULT_SURFACE` differs.
@@ -89,7 +91,7 @@ that is divergence, not something to paper over. The script stops.
 | Command | Purpose |
 | --- | --- |
 | `npm run check:parity [a b c]` | Content parity + each branch's `DEFAULT_SURFACE`. Defaults to the three local branches. |
-| `npm run check:history [a b c] [--deep]` | Linear history + matching commit sequences. Compares the last `HISTORY_WINDOW` (default 60) subjects; `--deep` on a full clone compares everything. |
+| `npm run check:history [a b c] [--deep]` | Linear history + matching commit sequences. Compares every subject after the pinned synchronization heads; `--deep` compares all legacy history for diagnosis. |
 | `npm run network:status [canonical]` | One-glance table: HEAD / commits / merges / surface / lockstep per branch. |
 | `npm run sync -- <sha>...` | Cherry-pick the SHAs onto the other two branches (idempotent, rule-based); ends with a parity check. |
 | `npm run sync:verify` | Parity + history + full vitest suite + `tsc --noEmit` + a build of all three surfaces. |
@@ -123,3 +125,13 @@ merge commit on a surface branch, and runs **both** `check-parity.sh` and
   re-run `npm run check:parity` before pushing again.
 - **Shallow clone** - `npm run check:history -- ... --deep` needs full depth;
   run `git fetch --deepen=<n>` (or `git fetch --unshallow`) first.
+
+### Reviewed synchronization baseline (16 October 2026)
+
+The three remote heads were source-identical except for `src/config/surface.ts`,
+with no merge commits, but had independently developed legacy commit sequences.
+The TSV pins those exact inspected heads. No existing commits were rewritten or
+merged. The standard gate validates those baseline trees and compares every new
+commit after them, so missing, duplicate, or reordered cherry-picks still fail.
+`--deep` intentionally retains the full-history diagnostic and reports legacy drift.
+Do not advance the baseline to hide an unsynchronized change.
