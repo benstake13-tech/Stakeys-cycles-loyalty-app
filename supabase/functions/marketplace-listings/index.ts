@@ -73,25 +73,33 @@ Deno.serve(async (req) => {
 
   let body: any;
   try { body = await req.json(); } catch { return json(400, { error: 'Invalid request.' }); }
-  if (body?.action !== 'create') return json(400, { error: 'Unknown listing action.' });
+  if (!['create', 'update'].includes(body?.action)) return json(400, { error: 'Unknown listing action.' });
+  const isUpdate = body.action === 'update';
   const listing = body.listing;
   const serial = String(body.frame_serial_number || '').trim();
   const normalized = normaliseSerial(serial);
   const serialPhotoPath = String(body.serial_number_photo_path || '');
-  if (!listing || listing.seller_id !== user.id || !listing.id || !/^[0-9a-f-]{36}$/i.test(String(listing.id))) return json(400, { error: 'Invalid listing details.' });
+  if (!listing || listing.seller_id !== user.id || !listing.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(listing.id))) return json(400, { error: 'Invalid listing details.' });
+  if (isUpdate) {
+    const { data: existing, error: existingError } = await admin.from('marketplace_listings')
+      .select('id,seller_id,status').eq('id', listing.id).maybeSingle();
+    if (existingError) return json(503, { error: 'We could not verify listing ownership. Please try again.' });
+    if (!existing || existing.seller_id !== user.id) return json(404, { error: 'This listing could not be found for your account.' });
+    if (['sold', 'cancelled'].includes(existing.status)) return json(409, { error: 'Sold or archived listings can no longer be edited.' });
+  }
   const category = String(listing.category || '');
-  const isParts = category === 'parts';
+  const isNonVehicle = category === 'parts' || category === 'accessories';
   const aiInspection = listing.ai_inspection;
-  if (!isParts && (!aiInspection || typeof aiInspection !== 'object' || Array.isArray(aiInspection) || aiInspection.hasVisualData !== true || aiInspection.usedFallback !== false || !String(aiInspection.make || '').trim() || !String(aiInspection.model || '').trim() || comparable(`${aiInspection.make} ${aiInspection.model}`) !== comparable(listing.make_model) || !Array.isArray(aiInspection.mainSpecs) || JSON.stringify(aiInspection).length > 60000)) {
-    return json(400, { error: 'Run the guided AI photo identification and use its make/model result before submitting a vehicle listing.' });
+  if (!isNonVehicle && (!aiInspection || typeof aiInspection !== 'object' || Array.isArray(aiInspection) || aiInspection.hasVisualData !== true || aiInspection.usedFallback !== false || !String(aiInspection.make || '').trim() || !String(aiInspection.model || '').trim() || !Array.isArray(aiInspection.mainSpecs) || JSON.stringify(aiInspection).length > 60000)) {
+    return json(400, { error: 'Run the guided AI photo identification and review its make/model result before submitting a vehicle listing.' });
   }
-  if (isParts ? (serial.length > 0 || serialPhotoPath.length > 0) : (normalized.length < 4 || normalized.length > 40 || /^(UNKNOWN|NONE|N\/A|NOTAVAILABLE)$/.test(normalized))) {
-    return json(400, { error: isParts ? 'Do not include a frame serial on a parts listing.' : 'Enter the stamped frame serial number.' });
+  if (isNonVehicle ? (serial.length > 0 || serialPhotoPath.length > 0) : (normalized.length < 4 || normalized.length > 40 || /^(UNKNOWN|NONE|N\/A|NOTAVAILABLE)$/.test(normalized))) {
+    return json(400, { error: isNonVehicle ? 'Do not include a frame serial on a parts or accessories listing.' : 'Enter the stamped frame serial number.' });
   }
-  if (!isParts && !serialPhotoPath.startsWith(`${user.id}/${listing.id}/serial-number.`)) return json(400, { error: 'Upload a clear frame serial-number photo.' });
-  if (!Array.isArray(listing.images) || listing.images.length < 1 || listing.images.length > 10 || listing.images.some((p: unknown) => typeof p !== 'string' || !p.startsWith(`${user.id}/${listing.id}/`))) return json(400, { error: 'Add one to ten listing photos.' });
+  if (!isNonVehicle && !serialPhotoPath.startsWith(`${user.id}/${listing.id}/serial-number.`)) return json(400, { error: 'Upload a clear frame serial-number photo.' });
+  if (!Array.isArray(listing.images) || listing.images.length < 1 || listing.images.length > 5 || listing.images.some((p: unknown) => typeof p !== 'string' || !p.startsWith(`${user.id}/${listing.id}/`))) return json(400, { error: 'Add one to five listing photos.' });
   if (String(listing.title || '').trim().length < 4 || String(listing.title).length > 120 || String(listing.make_model || '').trim().length < 2 || String(listing.description || '').length > 2000) return json(400, { error: 'Check the listing title, make/model and description.' });
-  if (!['bicycle', 'ebike', 'escooter', 'parts'].includes(category) || !['new', 'excellent', 'good', 'fair', 'spares'].includes(listing.condition)) return json(400, { error: 'Invalid listing category or condition.' });
+  if (!['bicycle', 'ebike', 'escooter', 'parts', 'accessories'].includes(category) || !['new', 'excellent', 'good', 'fair', 'spares'].includes(listing.condition)) return json(400, { error: 'Invalid listing category or condition.' });
   const subcategory = listing.subcategory ? String(listing.subcategory) : null;
   if (category === 'bicycle' ? !['commuter', 'hardtail_mtb', 'road', 'other'].includes(subcategory || '') : subcategory !== null) return json(400, { error: 'Choose a valid bicycle category.' });
   const askingPrice = Number(listing.asking_price);
@@ -101,18 +109,20 @@ Deno.serve(async (req) => {
   const { data: uploaded, error: storageError } = await admin.storage.from('marketplace-images').list(folder, { limit: 20 });
   if (storageError) return json(400, { error: 'We could not verify the uploaded photos. Please reselect and upload them.' });
   const uploadedNames = new Set((uploaded || []).map(file => `${folder}/${file.name}`));
-  if ((!isParts && !uploadedNames.has(serialPhotoPath)) || listing.images.some((path: string) => !uploadedNames.has(path))) return json(400, { error: 'A listing photo is missing. Please upload the photos again.' });
+  if ((!isNonVehicle && !uploadedNames.has(serialPhotoPath)) || listing.images.some((path: string) => !uploadedNames.has(path))) return json(400, { error: 'A listing photo is missing. Please upload the photos again.' });
 
   const safeListing = {
     id: String(listing.id), seller_id: user.id, title: String(listing.title).trim(), category,
     subcategory, make_model: String(listing.make_model).trim(), condition: listing.condition,
     description: String(listing.description || '').trim(), asking_price: Math.round(askingPrice * 100) / 100,
-    images: listing.images, ai_inspection: isParts ? null : cleanInspection(aiInspection),
+    images: listing.images, ai_inspection: isNonVehicle ? null : cleanInspection(aiInspection),
   };
-  if (isParts) {
-    const { data: listingId, error } = await admin.rpc('create_marketplace_parts_listing', { p_listing: safeListing });
-    if (error || !listingId) return json(500, { error: 'The parts listing could not be submitted for staff review.' });
-    return json(200, { status: 'pending_approval', listing_id: listingId });
+  if (isNonVehicle) {
+    const { data: listingId, error } = isUpdate
+      ? await admin.rpc('update_marketplace_listing_checked', { p_listing: safeListing, p_seller_id: user.id, p_serial_number: '', p_serial_photo_path: '', p_check_status: null, p_checked_at: null, p_response_sha256: null, p_match_count: 0 })
+      : await admin.rpc('create_marketplace_nonvehicle_listing', { p_listing: safeListing });
+    if (error || !listingId) return json(500, { error: `The ${category} listing could not be submitted for staff review.` });
+    return json(200, { status: 'pending_approval', listing_id: listingId, edited: isUpdate });
   }
 
   const params = new URLSearchParams({ serial, stolenness: 'stolen' });
@@ -146,16 +156,23 @@ Deno.serve(async (req) => {
       serial_sha256: serialHash, bike_index_response_sha256: responseHash, matching_stolen_records: exactMatches.length,
     });
     if (flagError) return json(503, { error: 'The safety review could not be recorded. The listing was not saved; contact the workshop.' });
+    if (isUpdate) await admin.from('marketplace_listings').update({ status: 'pending_review' }).eq('id', listing.id).eq('seller_id', user.id);
     return json(409, { status: 'rejected_stolen', message: 'This serial number exactly matches a bike reported as stolen in Bike Index. This listing cannot be submitted. Stakey’s has flagged the attempt for an administrator to review.' });
   }
 
   const lookupStatus = possibleMatches.length > 0 ? 'review_required' : 'clear';
   const checkedAt = new Date().toISOString();
-  const { data: listingId, error: saveError } = await admin.rpc('create_marketplace_listing_checked', {
-    p_listing: safeListing, p_serial_number: serial, p_serial_photo_path: serialPhotoPath,
-    p_check_status: lookupStatus, p_checked_at: checkedAt, p_response_sha256: responseHash,
-    p_match_count: possibleMatches.length,
-  });
+  const { data: listingId, error: saveError } = isUpdate
+    ? await admin.rpc('update_marketplace_listing_checked', {
+      p_listing: safeListing, p_seller_id: user.id, p_serial_number: serial, p_serial_photo_path: serialPhotoPath,
+      p_check_status: lookupStatus, p_checked_at: checkedAt, p_response_sha256: responseHash,
+      p_match_count: possibleMatches.length,
+    })
+    : await admin.rpc('create_marketplace_listing_checked', {
+      p_listing: safeListing, p_serial_number: serial, p_serial_photo_path: serialPhotoPath,
+      p_check_status: lookupStatus, p_checked_at: checkedAt, p_response_sha256: responseHash,
+      p_match_count: possibleMatches.length,
+    });
   if (saveError || !listingId) return json(500, { error: 'The verified listing could not be saved. Your photos are still available; please retry or contact the workshop.' });
-  return json(200, { status: lookupStatus, listing_id: listingId, checked_at: checkedAt });
+  return json(200, { status: lookupStatus === 'review_required' ? 'review_required' : 'pending_approval', listing_id: listingId, checked_at: checkedAt, edited: isUpdate });
 });

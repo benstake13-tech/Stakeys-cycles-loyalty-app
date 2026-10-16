@@ -86,6 +86,7 @@ describe('Sell a bike from the garage', () => {
 
   it('still opens a blank form from the launcher tile', async () => {
     render(<CustomerPortal />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-tradein'));
     await waitFor(() => expect(screen.getByTestId('tradein-form')).toBeTruthy());
     const brand = screen.getByPlaceholderText('e.g. Giant') as HTMLInputElement;

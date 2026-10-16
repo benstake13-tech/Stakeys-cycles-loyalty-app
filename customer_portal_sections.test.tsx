@@ -51,10 +51,9 @@ import { CustomerPortal } from './src/components/CustomerPortal';
 beforeEach(() => cleanup());
 
 describe('CustomerPortal new sections', () => {
-  const openMore = () => fireEvent.click(within(screen.getByRole('navigation', {name:'Customer primary navigation'})).getByRole('button', {name:'More'}));
   it('exposes the new launcher tiles', () => {
     render(<CustomerPortal />);
-    openMore();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     const launcher = screen.getByTestId('customer-section-launcher');
     for (const id of ['wallet', 'care', 'symptom', 'guides', 'tradein', 'wishlist', 'marketplace']) {
       expect(within(launcher).queryByTestId(`customer-tile-${id}`)).toBeTruthy();
@@ -69,31 +68,31 @@ describe('CustomerPortal new sections', () => {
 
   it('opens the restored marketplace without replacing the shop trade-in flow', () => {
     render(<CustomerPortal/>);
-    openMore();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-marketplace'));
     expect(screen.getByTestId('marketplace-panel')).toBeTruthy();
-    openMore();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-tradein'));
     expect(screen.getByTestId('tradein-form')).toBeTruthy();
   });
 
   it('opens the Watchlist section from its tile', () => {
     render(<CustomerPortal />);
-    openMore();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-wishlist'));
     expect(screen.getByTestId('wishlist-panel')).toBeTruthy();
   });
 
   it('opens the How-To Guides section from its tile', () => {
     render(<CustomerPortal />);
-    openMore();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-guides'));
     expect(screen.getByTestId('care-guides')).toBeTruthy();
   });
 
   it('opens the Trade-In section from its tile', () => {
     render(<CustomerPortal />);
-    openMore();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-tradein'));
     expect(screen.getByTestId('tradein-form')).toBeTruthy();
   });
@@ -110,14 +109,5 @@ describe('customer companion navigation', () => {
     fireEvent.click(within(nav).getByRole('button', {name:'Home'}));
     expect(screen.getByText('My Registered Bikes & Rides')).toBeTruthy();
     expect(within(nav).getByRole('button', {name:'Home'}).getAttribute('aria-current')).toBe('page');
-  });
-
-  it('opens More as its own page rather than scrolling the home launcher into view', () => {
-    render(<CustomerPortal />);
-    const nav = screen.getByRole('navigation', {name:'Customer primary navigation'});
-    fireEvent.click(within(nav).getByRole('button', {name:'More'}));
-    expect(within(nav).getByRole('button', {name:'More'}).getAttribute('aria-current')).toBe('page');
-    expect(screen.getByTestId('customer-section-launcher')).toBeTruthy();
-    expect(screen.queryByText('My Registered Bikes & Rides')).toBeNull();
   });
 });

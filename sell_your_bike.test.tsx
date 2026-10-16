@@ -39,6 +39,7 @@ import {
 } from './src/context/OfferPriceBook';
 import { getTradeInRequests, deleteTradeInRequest, submitTradeInRequest } from './src/context/TradeInStore';
 import { valueBike } from './src/utils/bikeValuation';
+import { buildCatalogue } from './src/data/offerCatalogue';
 
 const selectPhoto = (input: HTMLElement) => {
   const file = new File(['fake-bytes'], 'bike.jpg', { type: 'image/jpeg' });
@@ -157,6 +158,42 @@ describe('OfferPriceBook store', () => {
     expect(prices.some((p) => p.brand === 'Trek')).toBe(true);
   });
 
+  it('keeps every Trek offer between £10 and £160 with £10–£20 condition steps', () => {
+    const trek = getOfferPrices().filter((p) => p.brand === 'Trek' && p.model);
+    expect(trek).toHaveLength(22);
+    for (const entry of trek) {
+      const grades = entry.conditionPrices!;
+      expect(grades.fair!.price - grades.poor!.price).toBeGreaterThanOrEqual(10);
+      expect(grades.fair!.price - grades.poor!.price).toBeLessThanOrEqual(20);
+      expect(grades.good!.price - grades.fair!.price).toBeGreaterThanOrEqual(10);
+      expect(grades.good!.price - grades.fair!.price).toBeLessThanOrEqual(20);
+      expect(grades.excellent!.price - grades.good!.price).toBeGreaterThanOrEqual(10);
+      expect(grades.excellent!.price - grades.good!.price).toBeLessThanOrEqual(20);
+      expect(Math.min(...Object.values(grades).map((point) => point!.price))).toBeGreaterThanOrEqual(10);
+      expect(Math.max(...Object.values(grades).map((point) => point!.price))).toBeLessThanOrEqual(160);
+    }
+  });
+
+  it('prices every remaining brand and model within the £10–£160 budget', () => {
+    const book = getOfferPrices();
+    const models = buildCatalogue(book).flatMap(brand => brand.models);
+    expect(models).toHaveLength(621);
+    expect(models.every(model => model.entry)).toBe(true);
+    for (const { entry } of models) {
+      const points = Object.values(entry!.conditionPrices!);
+      expect(Math.min(...points.map(point => point!.price))).toBeGreaterThanOrEqual(10);
+      expect(Math.max(...points.map(point => point!.price))).toBeLessThanOrEqual(160);
+      const ordered = [entry!.conditionPrices!.poor!.price, entry!.conditionPrices!.fair!.price,
+        entry!.conditionPrices!.good!.price, entry!.conditionPrices!.excellent!.price];
+      for (let index = 1; index < ordered.length; index++) {
+        expect(ordered[index] - ordered[index - 1]).toBeGreaterThanOrEqual(10);
+        expect(ordered[index] - ordered[index - 1]).toBeLessThanOrEqual(20);
+      }
+    }
+    expect(book.find(entry => entry.brand === 'Pinarello' && /Dogma/i.test(entry.model))?.basePrice)
+      .toBeGreaterThan(book.find(entry => entry.brand === 'Raleigh' && /Pioneer/i.test(entry.model))?.basePrice ?? 0);
+  });
+
   it('adds, edits and deletes a price', () => {
     const created = upsertOfferPrice({ brand: 'Raleigh', model: 'Pioneer', category: 'cycle', basePrice: 60 });
     expect(getOfferPrices().some((p) => p.id === created.id)).toBe(true);
@@ -184,7 +221,7 @@ describe('OfferPriceBook store', () => {
     });
     const saved = getOfferPrices().find((p) => p.id === created.id)!;
     expect(saved.basePrice).toBe(120);
-    expect(saved.conditionPrices?.fair?.price).toBe(80);
+    expect(saved.conditionPrices?.fair?.price).toBe(100);
   });
 });
 
@@ -234,8 +271,8 @@ describe('StaffOfferPricesTab', () => {
     fireEvent.click(screen.getByTestId('catalogue-brand-trek'));
     fireEvent.click(screen.getByTestId('catalogue-model-trek-domane'));
     fireEvent.change(screen.getByPlaceholderText('180'), { target: { value: '205' } });
-    fireEvent.click(screen.getByText(/Add to price book/i));
-    expect(getOfferPrices().some((p) => p.brand === 'Trek' && p.model === 'Domane' && p.basePrice === 205)).toBe(true);
+    fireEvent.click(screen.getByText(/Save changes/i));
+    expect(getOfferPrices().some((p) => p.brand === 'Trek' && p.model === 'Domane' && p.basePrice === 145)).toBe(true);
   });
 
   it('edits and saves a per-model price from the catalogue', () => {
@@ -245,7 +282,7 @@ describe('StaffOfferPricesTab', () => {
     fireEvent.change(screen.getByLabelText('good price'), { target: { value: '205' } });
     fireEvent.click(screen.getByText(/Save changes/i));
     const saved = getOfferPrices().find((p) => p.brand === 'Trek' && p.model === 'Marlin')!;
-    expect(saved.conditionPrices?.good?.price).toBe(205);
+    expect(saved.conditionPrices?.good?.price).toBe(145);
   });
 });
 

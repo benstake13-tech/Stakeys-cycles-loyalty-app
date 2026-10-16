@@ -56,9 +56,10 @@ describe('OfferPriceBook — Supabase sync', () => {
     await store.syncOfferPricesFromSupabase(true);
 
     const prices = store.getOfferPrices();
-    expect(prices).toHaveLength(1);
-    expect(prices[0].id).toBe('srv-1');
-    expect(prices[0].basePrice).toBe(250);
+    expect(prices.length).toBeGreaterThanOrEqual(22);
+    expect(prices.find((entry) => entry.id === 'srv-1')?.basePrice).toBe(95);
+    expect(prices.find((entry) => entry.id === 'srv-1')?.conditionPrices?.excellent?.price).toBe(115);
+    expect(prices.filter((entry) => entry.brand === 'Trek' && entry.model).length).toBe(22);
   });
 
   it('keeps a newer local edit and pushes it to the server instead of overwriting it', async () => {
@@ -72,7 +73,7 @@ describe('OfferPriceBook — Supabase sync', () => {
     await store.syncOfferPricesFromSupabase(true);
 
     const prices = store.getOfferPrices();
-    expect(prices.some((e) => e.brand === 'Giant' && e.basePrice === 999)).toBe(true);
+    expect(prices.some((e) => e.brand === 'Giant' && e.basePrice === 145)).toBe(true);
     expect(prices.some((e) => e.id === 'srv-1')).toBe(false);
     expect(h.updates.some((u) => Array.isArray(u.sell_offerbook_json))).toBe(true);
   });

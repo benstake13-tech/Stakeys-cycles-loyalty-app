@@ -13,6 +13,15 @@ import {
   ACCESSORY_OPTIONS,
   CLOTHING_OPTIONS,
   CLOTHING_COLORS,
+  FACE_SHAPE_OPTIONS,
+  PROP_OPTIONS,
+  VEHICLE_OPTIONS,
+  EYE_COLOR_OPTIONS,
+  FACE_DETAIL_OPTIONS,
+  BODY_SHAPE_OPTIONS,
+  AVATAR_POSE_OPTIONS,
+  BROW_STYLE_OPTIONS,
+  NOSE_STYLE_OPTIONS,
   getDeterministicConfig,
   parseConfigString,
 } from './FaceAvatar';
@@ -24,7 +33,7 @@ interface AvatarEditorModalProps {
   onClose: () => void;
 }
 
-type TabId = 'backdrop' | 'features' | 'face' | 'clothes';
+type TabId = 'backdrop' | 'features' | 'model' | 'face' | 'clothes';
 
 export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
   name,
@@ -60,6 +69,15 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
       accessory: randomOption(ACCESSORY_OPTIONS).id,
       clothing: randomOption(CLOTHING_OPTIONS).id,
       clothingColor: randomOption(CLOTHING_COLORS),
+      faceShape: randomOption(FACE_SHAPE_OPTIONS).id,
+      prop: randomOption(PROP_OPTIONS).id,
+      vehicle: randomOption(VEHICLE_OPTIONS).id,
+      eyeColor: randomOption(EYE_COLOR_OPTIONS).id,
+      faceDetail: randomOption(FACE_DETAIL_OPTIONS).id,
+      bodyShape: randomOption(BODY_SHAPE_OPTIONS).id,
+      pose: randomOption(AVATAR_POSE_OPTIONS).id,
+      browStyle: randomOption(BROW_STYLE_OPTIONS).id,
+      noseStyle: randomOption(NOSE_STYLE_OPTIONS).id,
     });
   };
 
@@ -94,7 +112,7 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
           
           {/* Left: Live Preview */}
           <div className="flex flex-col items-center gap-4 shrink-0">
-            <div className="p-4 bg-neutral-900/60 border border-neutral-800 rounded-3xl flex items-center justify-center shadow-inner">
+            <div className="p-4 bg-gradient-to-br from-neutral-900/90 to-[#101b15] border border-emerald-500/20 rounded-3xl flex items-center justify-center shadow-inner shadow-emerald-950/40">
               <FaceAvatar seed={name} config={config} size={150} />
             </div>
 
@@ -117,10 +135,10 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
           {/* Right: Customization Controls */}
           <div className="flex-1 flex flex-col gap-4 min-w-[280px]">
             {/* Tabs Bar */}
-            <div className="flex border-b border-neutral-800 text-xs font-mono font-bold">
+            <div className="flex overflow-x-auto border-b border-neutral-800 text-xs font-mono font-bold">
               <button
                 onClick={() => { setActiveTab('backdrop'); }}
-                className={"flex-1 pb-2 border-b-2 transition-all cursor-pointer " + (
+                className={"min-w-max flex-1 px-2 pb-2 border-b-2 transition-all cursor-pointer " + (
                   activeTab === 'backdrop'
                     ? 'border-emerald-500 text-emerald-400'
                     : 'border-transparent text-neutral-400 hover:text-neutral-200'
@@ -130,7 +148,7 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
               </button>
               <button
                 onClick={() => { setActiveTab('features'); }}
-                className={"flex-1 pb-2 border-b-2 transition-all cursor-pointer " + (
+                className={"min-w-max flex-1 px-2 pb-2 border-b-2 transition-all cursor-pointer " + (
                   activeTab === 'features'
                     ? 'border-emerald-500 text-emerald-400'
                     : 'border-transparent text-neutral-400 hover:text-neutral-200'
@@ -139,8 +157,18 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
                 Hair & Skin
               </button>
               <button
+                onClick={() => { setActiveTab('model'); }}
+                className={"min-w-max flex-1 px-2 pb-2 border-b-2 transition-all cursor-pointer " + (
+                  activeTab === 'model'
+                    ? 'border-emerald-500 text-emerald-400'
+                    : 'border-transparent text-neutral-400 hover:text-neutral-200'
+                )}
+              >
+                Model & Pose
+              </button>
+              <button
                 onClick={() => { setActiveTab('face'); }}
-                className={"flex-1 pb-2 border-b-2 transition-all cursor-pointer " + (
+                className={"min-w-max flex-1 px-2 pb-2 border-b-2 transition-all cursor-pointer " + (
                   activeTab === 'face'
                     ? 'border-emerald-500 text-emerald-400'
                     : 'border-transparent text-neutral-400 hover:text-neutral-200'
@@ -150,7 +178,7 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
               </button>
               <button
                 onClick={() => { setActiveTab('clothes'); }}
-                className={"flex-1 pb-2 border-b-2 transition-all cursor-pointer " + (
+                className={"min-w-max flex-1 px-2 pb-2 border-b-2 transition-all cursor-pointer " + (
                   activeTab === 'clothes'
                     ? 'border-emerald-500 text-emerald-400'
                     : 'border-transparent text-neutral-400 hover:text-neutral-200'
@@ -261,12 +289,57 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
                       </div>
                     </div>
                   )}
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Face Shape</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {FACE_SHAPE_OPTIONS.map((opt) => (
+                        <button key={opt.id} type="button" onClick={() => updateAttr('faceShape', opt.id)} aria-pressed={config.faceShape === opt.id}
+                          className={`rounded-xl border px-2 py-2 text-[10px] font-bold transition-all ${config.faceShape === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>
+                          {opt.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'model' && (
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Portrait build</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {BODY_SHAPE_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('bodyShape', opt.id)} aria-pressed={config.bodyShape === opt.id}
+                        className={`rounded-xl border px-2 py-2 text-[11px] font-bold ${config.bodyShape === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>{opt.name}</button>)}
+                    </div>
+                    <p className="text-[10px] text-neutral-500">Changes the shoulder and portrait silhouette.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Pose & attitude</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      {AVATAR_POSE_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('pose', opt.id)} aria-pressed={config.pose === opt.id}
+                        className={`rounded-xl border px-3 py-2 text-left text-[11px] font-bold ${config.pose === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>{opt.name}</button>)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/15 bg-emerald-500/5 p-3 text-[11px] leading-relaxed text-neutral-400">
+                    The portrait preview updates as you choose each feature. Saved style settings stay attached to this staff profile.
+                  </div>
                 </div>
               )}
 
               {/* Tab 3: Face & Accessories */}
               {activeTab === 'face' && (
                 <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Eye colour</h4>
+                    <div className="grid grid-cols-3 gap-2">
+                      {EYE_COLOR_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('eyeColor', opt.id)} aria-pressed={config.eyeColor === opt.id}
+                        className={`flex items-center gap-2 rounded-xl border px-2 py-2 text-[10px] font-bold ${config.eyeColor === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>
+                        <span className="h-3 w-3 rounded-full ring-1 ring-white/30" style={{ backgroundColor: opt.color }} />{opt.name}
+                      </button>)}
+                    </div>
+                  </div>
+
                   {/* Eyes Style */}
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Eyes & Expression</h4>
@@ -284,6 +357,24 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
                           👀 {opt.name}
                         </button>
                       ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Brows & nose</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {BROW_STYLE_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('browStyle', opt.id)} aria-pressed={config.browStyle === opt.id}
+                        className={`rounded-xl border px-2 py-2 text-[10px] font-bold ${config.browStyle === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>{opt.name} brows</button>)}
+                      {NOSE_STYLE_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('noseStyle', opt.id)} aria-pressed={config.noseStyle === opt.id}
+                        className={`rounded-xl border px-2 py-2 text-[10px] font-bold ${config.noseStyle === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>{opt.name} nose</button>)}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Skin details</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {FACE_DETAIL_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('faceDetail', opt.id)} aria-pressed={config.faceDetail === opt.id}
+                        className={`rounded-xl border px-2 py-2 text-[10px] font-bold ${config.faceDetail === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>{opt.name}</button>)}
                     </div>
                   </div>
 
@@ -414,6 +505,22 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
                           🛠️ {opt.name}
                         </button>
                       ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Props</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {PROP_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('prop', opt.id)} aria-pressed={config.prop === opt.id}
+                          className={`rounded-xl border px-2 py-2 text-[10px] font-bold ${config.prop === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>{opt.name}</button>)}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold font-mono uppercase tracking-wider text-neutral-400">Ride</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {VEHICLE_OPTIONS.map((opt) => <button key={opt.id} type="button" onClick={() => updateAttr('vehicle', opt.id)} aria-pressed={config.vehicle === opt.id}
+                          className={`rounded-xl border px-2 py-2 text-[10px] font-bold ${config.vehicle === opt.id ? 'border-emerald-400 bg-emerald-500/15 text-emerald-300' : 'border-neutral-800 bg-neutral-900/50 text-neutral-300'}`}>{opt.name}</button>)}
+                      </div>
                     </div>
                   </div>
                 </div>

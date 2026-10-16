@@ -220,14 +220,14 @@ describe('staff Settings tab paging', () => {
 
 
 describe('staff app primary navigation', () => {
-  it('opens till and jobs and returns to the dashboard from the bottom bar', () => {
+  it('opens till and workshop tools and returns to the dashboard from the dock', () => {
     render(<StaffPortal />);
-    const nav = screen.getByRole('navigation', { name: 'Staff primary navigation' });
+    const nav = screen.getByRole('navigation', { name: 'Staff dock' });
     fireEvent.click(within(nav).getByRole('button', { name: 'Till' }));
     expect(screen.getByTestId('till').closest('[data-staff-view]')?.getAttribute('aria-hidden')).toBe('false');
     expect(within(nav).getByRole('button', { name: 'Till' }).getAttribute('aria-current')).toBe('page');
-    fireEvent.click(within(nav).getByRole('button', { name: 'Jobs' }));
-    expect(screen.getByTestId('bookings').closest('[data-staff-view]')?.getAttribute('aria-hidden')).toBe('false');
+    fireEvent.click(within(nav).getByRole('button', { name: 'Workshop Tools' }));
+    expect(document.querySelector('[data-staff-view="repair_guide"]')?.getAttribute('aria-hidden')).toBe('false');
     fireEvent.click(within(nav).getByRole('button', { name: 'Home' }));
     expect(screen.getByTestId('staff-tool-launcher')).toBeTruthy();
     expect(within(nav).getByRole('button', { name: 'Home' }).getAttribute('aria-current')).toBe('page');

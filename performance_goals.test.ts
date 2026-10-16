@@ -3,7 +3,7 @@ import {
   DEFAULT_GOALS, GOAL_IDS, goalProgress, growthSnapshot,
   parseGoals, raiseTargets, isValidGoalValue,
 } from './src/utils/performanceGoals';
-import type { ServiceBooking, UserProfile } from './src/types/bikeShop';
+import type { SaleTransaction, ServiceBooking, UserProfile } from './src/types/bikeShop';
 
 const makeBooking = (overrides: Partial<ServiceBooking> = {}): ServiceBooking => ({
   id: 'b-1', customerName: 'Test', customerEmail: 'test@example.test',
@@ -21,7 +21,7 @@ const makeUser = (overrides: Partial<UserProfile>): UserProfile => ({
 
 describe('staff growth KPI targets', () => {
   it('defines meaningful defaults and safe goal input bounds', () => {
-    expect(GOAL_IDS).toHaveLength(4);
+    expect(GOAL_IDS).toHaveLength(8);
     expect(GOAL_IDS.every(id => isValidGoalValue(id, DEFAULT_GOALS[id]))).toBe(true);
     expect(isValidGoalValue('callConversionPct', 101)).toBe(false);
     expect(isValidGoalValue('requests7d', 0)).toBe(false);
@@ -31,8 +31,7 @@ describe('staff growth KPI targets', () => {
 
   it('rejects invalid stored numbers and preserves valid configured targets', () => {
     expect(parseGoals({ requests7d: 30, phone7d: -2, callConversionPct: 999, activeRiders: '500' }))
-      .toEqual({ requests7d: 30, phone7d: DEFAULT_GOALS.phone7d,
-        callConversionPct: DEFAULT_GOALS.callConversionPct, activeRiders: DEFAULT_GOALS.activeRiders });
+      .toEqual({ ...DEFAULT_GOALS, requests7d: 30 });
   });
 
   it('keeps goal progress clamped visually but reports true attainment', () => {
@@ -41,8 +40,9 @@ describe('staff growth KPI targets', () => {
   });
 
   it('raises stretch goals without allowing a percentage above 100', () => {
-    expect(raiseTargets({ requests7d: 10, phone7d: 3, callConversionPct: 99, activeRiders: 50 }))
-      .toEqual({ requests7d: 11, phone7d: 4, callConversionPct: 100, activeRiders: 55 });
+    expect(raiseTargets({ ...DEFAULT_GOALS, requests7d: 10, phone7d: 3, callConversionPct: 99, activeRiders: 50 }))
+      .toEqual({ ...DEFAULT_GOALS, requests7d: 11, phone7d: 4, callConversionPct: 100, activeRiders: 55,
+        signups30d: 22, sales30dPounds: 5500, transactions30d: 44, repeatCustomers: 11 });
   });
 
   it('derives progress from real booking and loyalty data, not settings', () => {
@@ -59,6 +59,19 @@ describe('staff growth KPI targets', () => {
       makeUser({ uid: 'c', role: 'staff', stamps: 9 }),
     ];
     expect(growthSnapshot(bookings, users))
-      .toEqual({ requests7d: 3, phone7d: 2, callConversionPct: 50, activeRiders: 1 });
+      .toEqual({ ...DEFAULT_GOALS, requests7d: 3, phone7d: 2, callConversionPct: 50, activeRiders: 1,
+        signups30d: 2, sales30dPounds: 0, transactions30d: 0, repeatCustomers: 0 });
+  });
+
+  it('tracks sign-ups, completed sales, revenue and repeat buyers over 30 days', () => {
+    const now = new Date('2026-10-15T12:00:00Z');
+    const users = [makeUser({ uid: 'new', createdAt: new Date('2026-10-01T00:00:00Z') }),
+      makeUser({ uid: 'old', createdAt: new Date('2026-08-01T00:00:00Z') })];
+    const sales: SaleTransaction[] = [
+      { id: 's1', saleNumber: '1', customerId: 'new', customerName: 'New', items: [], subtotal: 100, vatRate: 0, vatAmount: 0, discount: 5, grandTotal: 95, paymentMethod: 'card', createdAt: now, status: 'completed' },
+      { id: 's2', saleNumber: '2', customerId: 'new', customerName: 'New', items: [], subtotal: 50, vatRate: 0, vatAmount: 0, discount: 0, grandTotal: 50, paymentMethod: 'card', createdAt: now, status: 'completed' },
+      { id: 's3', saleNumber: '3', customerId: 'old', customerName: 'Old', items: [], subtotal: 500, vatRate: 0, vatAmount: 0, discount: 0, grandTotal: 500, paymentMethod: 'card', createdAt: now, status: 'quote' },
+    ];
+    expect(growthSnapshot([], users, sales, now)).toMatchObject({ signups30d: 1, sales30dPounds: 145, transactions30d: 2, repeatCustomers: 1 });
   });
 });
