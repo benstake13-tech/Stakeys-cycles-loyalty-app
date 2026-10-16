@@ -69,6 +69,7 @@ vi.mock('./src/components/WheelEditorModal', () => ({ WheelEditorModal: () => nu
 vi.mock('./src/components/weather/WeatherForecast', () => ({ WeatherForecast: () => null }));
 vi.mock('./src/api/firebaseService', () => ({ canCustomerReceiveStampToday: () => true }));
 
+import { openStaffApp } from './test/helpers/staffNavigation';
 import { StaffPortal } from './src/components/StaffPortal';
 
 beforeEach(() => {
@@ -84,31 +85,29 @@ describe('staff command bar', () => {
     expect(bar.textContent).toMatch(/CYCLES/i);
     expect(screen.getByText('Sam Staff')).toBeTruthy();
     expect(screen.getByText('STATION')).toBeTruthy();
-    expect(screen.getByLabelText('Search staff tools')).toBeTruthy();
+    expect(within(bar).getByRole('button', { name: 'Open staff apps' })).toBeTruthy();
   });
 
-  it('filters the launcher tiles by search query and clears back', () => {
+  it('opens the searchable drawer without adding launcher tiles to Home', () => {
     render(<StaffPortal />);
-    const search = screen.getByLabelText('Search staff tools') as HTMLInputElement;
-
+    fireEvent.click(within(screen.getByTestId('staff-command-bar')).getByRole('button', { name: 'Open staff apps' }));
+    const drawer = screen.getByRole('dialog', { name: 'All apps' });
+    const search = within(drawer).getByRole('textbox', { name: 'Search staff apps' });
     fireEvent.change(search, { target: { value: 'sheldon' } });
-    // Only the repair-guide tile (which mentions Sheldon Brown) survives.
-    expect(screen.getByTestId('staff-tile-repair_guide')).toBeTruthy();
-    expect(screen.queryByTestId('staff-tile-till')).toBeNull();
-    expect(screen.queryByTestId('staff-tile-backend')).toBeNull();
-
-    fireEvent.change(search, { target: { value: '' } });
-    expect(screen.getByTestId('staff-tile-till')).toBeTruthy();
-    expect(screen.getByTestId('staff-tile-backend')).toBeTruthy();
+    expect(within(drawer).getByRole('button', { name: 'Repair Guide' })).toBeTruthy();
+    expect(within(drawer).queryByRole('button', { name: 'Till' })).toBeNull();
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Clear app search' }));
+    expect(within(drawer).getByRole('button', { name: 'Till' })).toBeTruthy();
   });
 
-  it('shows an empty state when nothing matches, and clears it', () => {
+  it('shows an empty drawer search state and clears it', () => {
     render(<StaffPortal />);
-    const search = screen.getByLabelText('Search staff tools') as HTMLInputElement;
-    fireEvent.change(search, { target: { value: 'zzzzz' } });
-    expect(screen.getByText(/No tools match/i)).toBeTruthy();
-    fireEvent.click(screen.getByText('Clear search'));
-    expect(screen.getByTestId('staff-tile-till')).toBeTruthy();
+    fireEvent.click(within(screen.getByTestId('staff-command-bar')).getByRole('button', { name: 'Open staff apps' }));
+    const drawer = screen.getByRole('dialog', { name: 'All apps' });
+    fireEvent.change(within(drawer).getByRole('textbox'), { target: { value: 'zzzzz' } });
+    expect(within(drawer).getByText(/No apps match/i)).toBeTruthy();
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Clear search' }));
+    expect(within(drawer).getByRole('button', { name: 'Till' })).toBeTruthy();
   });
 
   it('enables push from the command bar', async () => {
@@ -120,22 +119,23 @@ describe('staff command bar', () => {
   });
 });
 
-describe('staff metric rail', () => {
-  it('shows live KPI values derived from the store', () => {
+describe('staff live overview', () => {
+  it('shows actual workshop counts as plain readouts with no metric tiles', () => {
     render(<StaffPortal />);
-    expect(screen.getByTestId('staff-metric-rail')).toBeTruthy();
-    // 2 customers, 1 with a full stamp card, 1 active booking, 1 live promo.
-    expect(screen.getByTestId('staff-metric-riders').textContent).toContain('2');
-    expect(screen.getByTestId('staff-metric-rewards').textContent).toContain('1');
-    expect(screen.getByTestId('staff-metric-jobs').textContent).toContain('1');
-    expect(screen.getByTestId('staff-metric-promos').textContent).toContain('1');
+    const summary = screen.getByTestId('staff-home-summary');
+    const valueFor = (label: string) => within(summary).getByText(label).nextElementSibling?.textContent;
+    expect(valueFor('Total Riders')).toBe('2');
+    expect(valueFor('Rewards Ready')).toBe('1');
+    expect(valueFor('Workshop Jobs')).toBe('1');
+    expect(valueFor('Live Promotions')).toBe('1');
+    expect(within(summary).queryByRole('button')).toBeNull();
+    expect(screen.queryByTestId('staff-metric-rail')).toBeNull();
   });
 
-  it('opens a tool when a metric card is clicked', () => {
+  it('opens bookings from the drawer while keeping Home clear of tool tiles', () => {
     render(<StaffPortal />);
-    fireEvent.click(screen.getByTestId('staff-metric-jobs'));
-    // Opening a tool collapses the launcher and shows the active-tool header.
+    openStaffApp('Bookings');
     expect(screen.getByTestId('staff-back-to-tools')).toBeTruthy();
-    expect(screen.queryByTestId('staff-metric-rail')).toBeNull();
+    expect(screen.queryByTestId('staff-home-summary')).toBeNull();
   });
 });

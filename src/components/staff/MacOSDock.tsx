@@ -26,21 +26,19 @@ const DockIcon = ({ id, active }: { id: DockTabId; active: boolean }) => {
 interface MacOSDockProps {
   activeTab: DockTabId;
   onSelectTab: (id: DockTabId) => void;
-  moreApps?: Array<{ id: string; label: string }>;
-  onSelectApp?: (id: string) => void;
+  onOpenApps: () => void;
 }
 
-export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, moreApps = [], onSelectApp }) => {
+export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, onOpenApps }) => {
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const navRef = useRef<HTMLElement>(null);
-  const drawerRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
-  const focusDrawerOnOpen = useRef(false);
   const onSelectRef = useRef(onSelectTab);
   onSelectRef.current = onSelectTab;
+  const openAppsRef = useRef(onOpenApps);
+  openAppsRef.current = onOpenApps;
   const drawerId = useId();
   const reducedMotion = useReducedMotion();
 
@@ -50,9 +48,8 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, mo
   };
   const select = (index: number) => {
     if (items[index].id === 'more') {
-      setMoreOpen(open => !open);
+      openAppsRef.current();
     } else {
-      setMoreOpen(false);
       onSelectRef.current(items[index].id);
     }
   };
@@ -81,48 +78,47 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, mo
     return () => window.removeEventListener('keydown', key);
   }, [activeTab]);
 
-  useEffect(() => {
-    if (!moreOpen) return;
-    if (focusDrawerOnOpen.current) {
-      drawerRef.current?.querySelector('button')?.focus();
-      focusDrawerOnOpen.current = false;
-    }
-    const closeOutside = (event: PointerEvent) => {
-      if (!navRef.current?.contains(event.target as Node)) setMoreOpen(false);
-    };
-    document.addEventListener('pointerdown', closeOutside);
-    return () => document.removeEventListener('pointerdown', closeOutside);
-  }, [moreOpen]);
+  const clearMagnification = () => {
+    refs.current.forEach(button => {
+      const icon = button?.querySelector<HTMLElement>('.stakeys-dock-icon');
+      icon?.style.removeProperty('--dock-scale');
+      icon?.style.removeProperty('--dock-lift');
+    });
+  };
+  const magnifyAt = (clientX: number) => {
+    if (reducedMotion) return;
+    // Read all button centres before writing styles; the icon transforms don't
+    // move these hit targets. Gaussian falloff gives continuous macOS-like motion.
+    const centres = refs.current.map(button => {
+      const rect = button?.getBoundingClientRect();
+      return rect ? rect.left + rect.width / 2 : null;
+    });
+    refs.current.forEach((button, index) => {
+      const centre = centres[index];
+      const icon = button?.querySelector<HTMLElement>('.stakeys-dock-icon');
+      if (!icon || centre === null) return;
+      const scale = 1 + 0.55 * Math.exp(-((clientX - centre) ** 2) / (2 * 68 ** 2));
+      icon.style.setProperty('--dock-scale', scale.toFixed(3));
+      icon.style.setProperty('--dock-lift', `${-((scale - 1) * 24).toFixed(2)}px`);
+    });
+  };
 
   const highlighted = hoverIndex ?? focusIndex;
   // Render above the workspace so page visibility, transforms and scrolling
   // cannot hide or reposition the fixed navigation. Staff modals remain above it.
   return createPortal(
-    <nav ref={navRef} className="stakeys-macos-dock" aria-label="Staff dock" onMouseLeave={() => setHoverIndex(null)}
+    <nav ref={navRef} className="stakeys-macos-dock" aria-label="Staff dock" onMouseLeave={() => { setHoverIndex(null); clearMagnification(); }}
+      onMouseMove={event => magnifyAt(event.clientX)}
       onKeyDown={event => {
         if (event.key !== 'Escape') return;
         event.preventDefault();
         event.stopPropagation();
-        if (moreOpen) {
-          setMoreOpen(false);
-          activate(6);
-        } else {
-          setFocusIndex(null);
-          setHoverIndex(null);
-          (document.activeElement as HTMLElement)?.blur();
-          previousFocus.current?.focus();
-        }
+        setFocusIndex(null);
+        setHoverIndex(null);
+        clearMagnification();
+        (document.activeElement as HTMLElement)?.blur();
+        previousFocus.current?.focus();
       }}>
-      {moreOpen && <div ref={drawerRef} id={drawerId} className="stakeys-dock-drawer" role="region" aria-label="More apps drawer">
-        <div className="stakeys-dock-drawer-heading"><span>STAKEY’S WORKSPACE</span><strong>More apps</strong></div>
-        <div className="stakeys-dock-app-grid">
-          {moreApps.map(app => <button key={app.id} type="button" onClick={() => {
-            onSelectApp?.(app.id);
-            setMoreOpen(false);
-            activate(6);
-          }}><span aria-hidden="true" className="stakeys-dock-app-symbol">{app.label.slice(0, 2).toUpperCase()}</span><span>{app.label}</span></button>)}
-        </div>
-      </div>}
       <div className="stakeys-dock-items">{items.map((item, index) => {
         const distance = highlighted === null ? 99 : Math.abs(highlighted - index);
         const selected = activeTab === item.id;
@@ -131,9 +127,9 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, mo
           <button ref={el => { refs.current[index] = el; }} type="button" aria-label={item.label}
             aria-describedby={highlighted === index ? `${drawerId}-tip-${index}` : undefined}
             aria-current={selected ? 'page' : undefined} aria-keyshortcuts={`Control+${index + 1} Meta+${index + 1}`}
-            aria-expanded={item.id === 'more' ? moreOpen : undefined} aria-controls={item.id === 'more' ? drawerId : undefined}
+            aria-haspopup={item.id === 'more' ? 'dialog' : undefined} data-staff-app-trigger={item.id === 'more' ? true : undefined}
             onPointerEnter={event => { if (event.pointerType === 'mouse') setHoverIndex(index); }}
-            onFocus={() => setFocusIndex(index)} onBlur={() => setFocusIndex(null)} onClick={() => select(index)}
+            onFocus={() => { clearMagnification(); setFocusIndex(index); }} onBlur={() => setFocusIndex(null)} onClick={() => select(index)}
             onKeyDown={event => {
               if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
                 event.preventDefault();
@@ -142,8 +138,7 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, mo
                 event.preventDefault(); activate(event.key === 'Home' ? 0 : items.length - 1);
               } else if (item.id === 'more' && event.key === 'ArrowDown') {
                 event.preventDefault();
-                if (!moreOpen) { focusDrawerOnOpen.current = true; setMoreOpen(true); }
-                else drawerRef.current?.querySelector('button')?.focus();
+                openAppsRef.current();
               }
             }}>
             <span className={`stakeys-dock-icon stakeys-dock-icon--${item.id}`}><DockIcon id={item.id} active={!reducedMotion && distance === 0} /></span>
