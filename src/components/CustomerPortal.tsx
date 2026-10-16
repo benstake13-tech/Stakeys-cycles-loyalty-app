@@ -1,6 +1,6 @@
 import { BikeSpecificationDetails } from './BikeSpecificationDetails';
 import { MarketplacePanel } from './MarketplacePanel';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Home,
   MoreHorizontal,
@@ -90,11 +90,14 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   } = useShop();
 
   const [activeTab, setActiveTab] = useState<
-    'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace'
+    'garage' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace' | 'more'
   >('garage');
 
   // Bicycle-inspired transition when opening a section from the tile launcher.
   const ride = useRideTransition();
+  useEffect(() => {
+    if (activeTab !== 'garage') window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+  }, [activeTab]);
 
   const [selectedBikeForBooking, setSelectedBikeForBooking] = useState<string | undefined>(undefined);
   // The garage bike the customer chose to sell, pre-filled into the trade-in form.
@@ -267,6 +270,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
   return (
     <div className="stakeys-premium-customer space-y-6 font-['Plus_Jakarta_Sans',sans-serif]">
+      {activeTab === 'garage' && <>
       <MembershipPassCard
         user={currentUser}
         seasonalTheme={seasonalTheme}
@@ -310,9 +314,16 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         <button type="button" onClick={() => setActiveTab('repairs')}><Activity size={26}/><strong>Track my repair</strong><small>See workshop progress</small></button>
         <button type="button" onClick={() => setActiveTab('wallet')}><Gift size={26}/><strong>My rewards</strong><small>Vouchers &amp; points</small></button>
       </section>
+      </>}
       {/* Primary section navigation — grouped launcher tiles */}
       <RideTransition state={ride.state}>
-      <div data-testid="customer-section-launcher">
+      <main data-testid="customer-page-container" className="stakeys-customer-page space-y-5">
+      {activeTab !== 'garage' && activeTab !== 'more' && <header className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-900/60 bg-[#101914]/90 p-4 sm:p-5">
+        <div><p className="text-xs uppercase tracking-[.2em] text-emerald-400">Customer account</p><h1 className="mt-1 text-xl font-bold text-white">{customerTiles.find((tile) => tile.id === activeTab)?.label || 'Your account'}</h1><p className="mt-1 text-sm text-neutral-400">{customerTiles.find((tile) => tile.id === activeTab)?.hint}</p></div>
+        <button type="button" onClick={() => { ride.rideBack(); setActiveTab('garage'); }} className="shrink-0 rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">Home</button>
+      </header>}
+      {activeTab === 'more' && <section data-testid="customer-section-launcher" className="rounded-2xl border border-emerald-900/60 bg-[#101914]/90 p-4 sm:p-6">
+        <div className="mb-4 flex items-center justify-between"><div><p className="text-xs uppercase tracking-[.2em] text-emerald-400">Explore</p><h1 className="mt-1 text-xl font-bold text-white">More from Stakey’s</h1></div><button type="button" onClick={() => { ride.rideBack(); setActiveTab('garage'); }} className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm font-semibold text-white">Home</button></div>
         <TileGroup label="Your Account">
           <TileGrid>
             {customerTiles.map((t) => (
@@ -323,7 +334,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
                 hint={t.hint}
                 tone={t.tone}
                 badge={t.badge}
-                active={activeTab === t.id}
+                active={false}
                 onSelect={() => {
                   ride.rideIn();
                   // Entering Booking from the launcher starts a clean form; the
@@ -345,7 +356,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
             ))}
           </TileGrid>
         </TileGroup>
-      </div>
+      </section>}
 
       {/* TAB 1: MY REGISTERED BIKES (GARAGE) */}
       {activeTab === 'marketplace' && <MarketplacePanel />}
@@ -830,6 +841,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
 
       {/* TAB: WISHLIST / NOTIFY ME */}
       {activeTab === 'wishlist' && <WishlistPanel />}
+      </main>
       </RideTransition>
 
       {/* ADD BIKE MODAL */}
@@ -1021,8 +1033,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       />
 
       <nav className="stakeys-customer-bottom-nav" aria-label="Customer primary navigation">
-        {([{label:'Home',icon:Home,target:'garage'},{label:'Book',icon:Calendar,target:'booking'},{label:'Repairs',icon:Wrench,target:'repairs'},{label:'Pass',icon:Award,target:'stamps'},{label:'More',icon:MoreHorizontal,target:null}] as const).map(item => <button key={item.label} type="button" aria-current={activeTab === item.target ? 'page' : undefined} onClick={() => {
-          if (item.target === null) { document.querySelector('[data-testid="customer-section-launcher"]')?.scrollIntoView({behavior:'smooth',block:'start'}); return; }
+        {([{label:'Home',icon:Home,target:'garage'},{label:'Book',icon:Calendar,target:'booking'},{label:'Repairs',icon:Wrench,target:'repairs'},{label:'Pass',icon:Award,target:'stamps'},{label:'More',icon:MoreHorizontal,target:'more'}] as const).map(item => <button key={item.label} type="button" aria-current={activeTab === item.target ? 'page' : undefined} onClick={() => {
           if(item.target === 'booking') {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);}
           ride.rideIn();setActiveTab(item.target);
         }}><item.icon size={22} strokeWidth={1.7}/><span>{item.label}</span></button>)}
