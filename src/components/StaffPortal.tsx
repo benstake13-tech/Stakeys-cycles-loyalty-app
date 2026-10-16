@@ -3,7 +3,7 @@ import { StaffStockTab } from './staff/StaffStockTab';
 import { type DockTabId } from './staff/MacOSDock';
 import { StaffNavigation } from './staff/StaffNavigation';
 import { useStaffDisplayMode } from '../hooks/useStaffDisplayMode';
-import { Home, Package, MoreHorizontal } from 'lucide-react';
+import { Home, Package, MoreHorizontal, Clock3, Target } from 'lucide-react';
 import { StakeysLogo } from './StakeysLogo';
 import confetti from 'canvas-confetti';
 import {
@@ -313,6 +313,13 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
   // Live filter applied by the command bar search to the tool launcher.
   const displayMode = useStaffDisplayMode();
   const [appsOpen, setAppsOpen] = useState(false);
+  const [desktopNow, setDesktopNow] = useState(() => new Date());
+
+  useEffect(() => {
+    if (displayMode !== 'desktop') return;
+    const timer = window.setInterval(() => setDesktopNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, [displayMode]);
 
   const [searchQuery, setSearchQuery] = useState('STK-839201');
   const [selectedCustomer, setSelectedCustomer] = useState<UserProfile | null>(() => {
@@ -719,6 +726,40 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
       {showTools && <dl className="staff-home-summary" aria-label="Workshop overview" data-testid="staff-home-summary">
         {homeStats.map(item => <div key={item.id}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}
       </dl>}
+
+      {showTools && displayMode === 'desktop' && <section className="staff-os-dashboard" aria-label="Desktop dashboard" data-testid="staff-os-dashboard">
+        <div className="staff-os-window staff-os-targets" aria-labelledby="staff-os-targets-title">
+          <header className="staff-os-window-titlebar">
+            <div className="staff-os-window-lights" aria-hidden="true"><i /><i /><i /></div>
+            <h2 id="staff-os-targets-title"><Target size={16} aria-hidden="true" /> TARGETS &amp; KPIs</h2>
+            <span className="staff-os-live-indicator"><i /> LIVE DATA</span>
+          </header>
+          <div className="staff-os-targets-scroll" data-testid="staff-os-targets-scroll"><GrowthTargets /></div>
+        </div>
+        <aside className="staff-os-side-widgets">
+          <section className="staff-os-window staff-os-clock" aria-label="Clock widget" data-testid="staff-os-clock">
+            <header className="staff-os-window-titlebar">
+              <div className="staff-os-window-lights" aria-hidden="true"><i /><i /><i /></div>
+              <h2><Clock3 size={16} aria-hidden="true" /> CLOCK</h2>
+              <span className="staff-os-live-indicator"><i /> LOCAL</span>
+            </header>
+            <div className="staff-os-clock-content" aria-live="off">
+              <time dateTime={desktopNow.toISOString()}>{desktopNow.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</time>
+              <span>{desktopNow.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</span>
+            </div>
+          </section>
+          <section className="staff-os-window staff-os-activity" aria-label="Workshop overview widget">
+            <header className="staff-os-window-titlebar">
+              <div className="staff-os-window-lights" aria-hidden="true"><i /><i /><i /></div>
+              <h2><Gauge size={16} aria-hidden="true" /> WORKSHOP STATUS</h2>
+              <span className="staff-os-live-indicator"><i /> LIVE</span>
+            </header>
+            <dl className="staff-os-activity-grid">
+              {homeStats.map(item => <div key={item.id}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}
+            </dl>
+          </section>
+        </aside>
+      </section>}
 
       <RideTransition state={ride.state}>
       <div className={showTools ? 'hidden' : 'space-y-4'} data-testid="staff-page-container">
