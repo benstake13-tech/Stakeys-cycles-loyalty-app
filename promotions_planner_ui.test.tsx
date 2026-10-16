@@ -50,6 +50,17 @@ describe('PromotionsPlanner', () => {
     render(<PromotionsPlanner />);
     expect(screen.getByTestId('promotions-planner')).toBeTruthy();
     expect(screen.getByTestId('planner-summary').textContent).toMatch(/campaign/);
+    expect(screen.getByTestId('promo-starter-guide').textContent).toMatch(/Salford|Facebook|Instagram/);
+  });
+
+  it('copies a practical social post for a new local shop', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+    render(<PromotionsPlanner />);
+    fireEvent.click(screen.getByText('New to promoting the shop? Start with this simple plan'));
+    fireEvent.click(screen.getAllByText('Copy caption')[0]);
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Hello Salford')));
+    expect(await screen.findByText('Copied')).toBeTruthy();
   });
 
   it('shows an overlap warning when the draft clashes with a live promotion', () => {
