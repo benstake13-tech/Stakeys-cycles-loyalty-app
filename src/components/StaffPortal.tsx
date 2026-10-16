@@ -856,8 +856,10 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </div>
         )}
       </div>
-      ) : (
-        <section className="surface-panel flex flex-col gap-4 p-4 sm:p-6" data-testid="staff-tool-page" aria-labelledby="staff-tool-page-title">
+      ) : null}
+
+      <div className={showTools ? 'hidden' : 'space-y-4'} data-testid="staff-page-container">
+        {!showTools && <section className="surface-panel flex flex-col gap-4 p-4 sm:p-6" data-testid="staff-tool-page" aria-labelledby="staff-tool-page-title">
           <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
@@ -881,8 +883,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
               </div>
             </div>
           )}
-        </section>
-      )}
+        </section>}
 
       {/* 4. WORKSTATION VIEWS */}
 
@@ -1531,6 +1532,7 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
           </div>
         </div>
       ))}
+      </div>
       </RideTransition>
 
       {/* Winner Celebration Modal */}
