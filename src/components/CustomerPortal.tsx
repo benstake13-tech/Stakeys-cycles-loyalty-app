@@ -1078,10 +1078,11 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       {/* Avatar Editor Modal */}
       {isAvatarEditorOpen && (
         <AvatarEditorModal
+          key={currentUser.uid}
           name={currentUser.displayName}
           currentConfigString={currentUser.avatarColor}
           onSave={async (configString) => {
-            await updateCustomerAvatar(configString);
+            await updateCustomerAvatar(configString, currentUser.uid);
             setIsAvatarEditorOpen(false);
           }}
           onClose={() => setIsAvatarEditorOpen(false)}
