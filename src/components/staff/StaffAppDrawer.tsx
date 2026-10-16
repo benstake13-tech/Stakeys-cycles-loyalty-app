@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { LayoutGrid, Search, X, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Folder, LayoutGrid, Search, X, type LucideIcon } from 'lucide-react';
 import './StaffNavigation.css';
 
 export interface StaffApp {
@@ -30,6 +30,13 @@ export const StaffAppDrawer: React.FC<{
   onClose: () => void;
 }> = ({ apps, activeApp, mode, onSelect, onClose }) => {
   const [query, setQuery] = useState('');
+  const [collapsed, setCollapsed] = useState<Record<AppFolder, boolean>>({
+    Workspace: false,
+    Workshop: false,
+    'Sales & Growth': false,
+    'Admin & System': false,
+    Previews: true,
+  });
   const dialogRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const closeRef = useRef(onClose);
@@ -82,16 +89,24 @@ export const StaffAppDrawer: React.FC<{
       </label>
       <p className="staff-app-count" role="status">{visible.length} app{visible.length === 1 ? '' : 's'}{query ? ' found' : ' available'}{!query && folders.length ? ` · ${folders.length} folders` : ''}</p>
       <div className="staff-app-folders">
-        {folders.map(({ folder, apps: folderApps }) => <section key={folder} className="staff-app-folder" aria-labelledby={`${titleId}-${folder}`}>
-          <h3 id={`${titleId}-${folder}`}>{folder}</h3>
-          <nav className="staff-app-library" aria-label={`${folder} apps`}>
+        {folders.map(({ folder, apps: folderApps }) => {
+          const expanded = !!query.trim() || !collapsed[folder];
+          const contentId = `${titleId}-content-${folder}`;
+          return <section key={folder} className="staff-app-folder" aria-labelledby={`${titleId}-${folder}`}>
+          <button type="button" className="staff-app-folder-toggle" aria-expanded={expanded} aria-controls={contentId}
+            onClick={() => setCollapsed(current => ({ ...current, [folder]: !current[folder] }))}>
+            <span className="staff-app-folder-label"><Folder size={17} aria-hidden="true"/><span id={`${titleId}-${folder}`}>{folder}</span>
+              <span className="staff-app-folder-count">{folderApps.length}</span></span>
+            <ChevronDown size={17} className={expanded ? 'staff-app-folder-chevron is-open' : 'staff-app-folder-chevron'} aria-hidden="true" />
+          </button>
+          {expanded && <nav id={contentId} className="staff-app-library" aria-label={`${folder} apps`}>
             {folderApps.map(app => <button key={app.id} type="button" onClick={() => onSelect(app.id)} aria-label={app.label}
               aria-current={activeApp === app.id ? 'page' : undefined} title={app.hint}>
               <span className="staff-app-icon"><app.icon size={27} strokeWidth={1.65} aria-hidden="true" /></span>
               <span>{app.label}</span>
             </button>)}
-          </nav>
-        </section>)}
+          </nav>}
+        </section>})}
       </div>
       {!visible.length && <div className="staff-app-empty"><LayoutGrid size={30} aria-hidden="true" /><p>No apps match “{query}”</p><button type="button" onClick={() => setQuery('')}>Clear search</button></div>}
     </div>
