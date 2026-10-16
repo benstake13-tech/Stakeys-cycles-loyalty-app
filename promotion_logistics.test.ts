@@ -45,7 +45,7 @@ describe('promotion operational review', () => {
     expect(assess({},action,[],[promo]).ready).toBe(false);
   });
   it('revalidates the live service catalogue before approving an older idea', () => {
-    const priceList = [{id:'check',scope:'bike' as const,group:'Workshop',item:'Check',price:'£60',unitPrice:60}];
+    const priceList = [{id:'check',scope:'bike' as const,group:'Workshop',item:'Check',desc:'Labour check',price:'£60',unitPrice:60}];
     expect(evaluatePromotionLogistics(action, action, inputs, [], [], '2026-10-16', priceList).ready).toBe(true);
     expect(evaluatePromotionLogistics(action, action, inputs, [], [], '2026-10-16', [{...priceList[0],unitPrice:65}]).ready).toBe(false);
     expect(evaluatePromotionLogistics(action, action, inputs, [], [], '2026-10-16', []).ready).toBe(false);
