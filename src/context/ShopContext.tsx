@@ -35,6 +35,7 @@ import {
   DEFAULT_REMINDER_SETTINGS,
 } from '../types/bikeShop';
 import { evaluatePromotionsExpiry } from '../utils/promotionUtils';
+import { AccountSessionGuard, AvatarWriteGuard } from '../utils/accountIsolation';
 import { collectionsEqual, deepEqual, profileMatchesUser } from '../utils/stateEquality';
 import { nextStampAnnouncement } from '../utils/stampAnnouncements';
 import { newBookingIds } from '../utils/bookingAlerts';
@@ -288,7 +289,7 @@ interface ShopContextType {
   // Core actions
   addStamp: (customerId: string, staffId: string, bypassLimit?: boolean) => Promise<{ success: boolean; message: string }>;
   redeemReward: (customerId: string, staffId: string, rewardDescription: string) => Promise<{ success: boolean; message: string }>;
-  updateCustomerAvatar: (avatarColor: string) => Promise<void>;
+  updateCustomerAvatar: (avatarColor: string, expectedUid?: string) => Promise<void>;
   updateCustomerPoints: (
     customerId: string,
     staffId: string,
@@ -499,7 +500,37 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [stampLogs, setStampLogs] = useState<StampLog[]>([]);
 
   // Login is strictly the first screen: currentUser is always NULL initially on app load
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUserState] = useState<UserProfile | null>(null);
+  const currentUserRef = useRef<UserProfile | null>(currentUser);
+  currentUserRef.current = currentUser;
+  const accountSessionRef = useRef(new AccountSessionGuard());
+  const avatarWritesRef = useRef(new AvatarWriteGuard());
+  const signOutInFlightRef = useRef<Promise<void>>(Promise.resolve());
+  // Background actions may update an active profile, never replace its owner.
+  // Only the explicit authentication transition below may change account IDs.
+  const setCurrentUser: React.Dispatch<React.SetStateAction<UserProfile | null>> = React.useCallback(update => {
+    const generation = accountSessionRef.current.snapshot();
+    setCurrentUserState(prev => {
+      if (!accountSessionRef.current.matches(generation)) return prev;
+      const next = typeof update === 'function' ? update(prev) : update;
+      if (next && !accountSessionRef.current.matches(generation, next.uid)) return prev;
+      return next;
+    });
+  }, []);
+
+  const beginAccountChange = () => {
+    const generation = accountSessionRef.current.begin();
+    currentUserRef.current = null;
+    setCurrentUserState(null);
+    return generation;
+  };
+  const activateAccount = (user: UserProfile, generation: number) => {
+    if (!accountSessionRef.current.activate(generation, user.uid)) return false;
+    currentUserRef.current = user;
+    setCurrentUserState(user);
+    return true;
+  };
+
 
   // Clear any legacy persisted active user session so app always begins on the login screen
   useEffect(() => {
@@ -1418,8 +1449,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // same "+N stamps" toast on every poll tick, stacking notifications forever.
   // Remembering the announced level makes each gain announce exactly once.
   const announcedStampsRef = React.useRef<Map<string, number>>(new Map());
-  const currentUserRef = React.useRef<UserProfile | null>(currentUser);
-  currentUserRef.current = currentUser;
+
 
   const [isStaffBookingSoundEnabled, setIsStaffBookingSoundEnabled] = useState<boolean>(() =>
     staffBookingAudio.isSoundEnabled()
@@ -1565,6 +1595,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     hydrateRosterGaragesUtil(profiles, fetchBikesByOwner, usersRef.current);
 
   const syncUserFromDatabase = async (user: UserProfile, quiet = false) => {
+    const generation = accountSessionRef.current.snapshot();
+    const avatarRevision = avatarWritesRef.current.snapshot();
+    const isCurrentAccount = () => accountSessionRef.current.matches(generation, user.uid);
+    if (!isCurrentAccount()) return;
     // Background syncs (the 15s poll / realtime / focus) pass quiet: toggling
     // the shared syncing flag on every tick changed the context identity and
     // re-rendered every consumer for a status no UI actually reads.
@@ -1582,6 +1616,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         fetchVouchersForCustomerFromDb(user.uid),
       ]);
 
+      if (!isCurrentAccount()) return;
+      const liveUser = currentUserRef.current;
+      if (!liveUser || liveUser.uid !== user.uid) return;
       const mergedBikes = remoteBikes && remoteBikes.length > 0 ? remoteBikes : (user.bikes || []);
 
       const remoteStamps = remoteProfile?.stamps !== undefined ? remoteProfile.stamps : user.stamps;
@@ -1601,8 +1638,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       }
 
-      const updatedUser: UserProfile = {
-        ...user,
+      const updatedUser: UserProfile = avatarWritesRef.current.reconcile({
+        ...liveUser,
+        avatarColor: remoteProfile ? remoteProfile.avatarColor : liveUser.avatarColor,
         bikes: mergedBikes,
         stamps: remoteStamps,
         tickets: remoteProfile?.tickets !== undefined ? remoteProfile.tickets : user.tickets,
@@ -1616,18 +1654,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           remoteVouchers && remoteVouchers.length > 0
             ? remoteVouchers
             : user.serviceVouchers,
-      };
+      }, avatarRevision);
 
       // Same identity guard as the poll: the per-user sync runs on every 4s
       // tick, so only write when something actually changed.
-      const liveUser = currentUserRef.current;
-      if (!liveUser || !deepEqual(liveUser, updatedUser)) {
-        setCurrentUser(updatedUser);
+      if (!deepEqual(liveUser, updatedUser)) {
+        setCurrentUser(prev => isCurrentAccount() && prev?.uid === user.uid ? updatedUser : prev);
       }
       if (allProfiles && allProfiles.length > 0) {
         // Re-attach each profile's bikes, otherwise this roster swap blanks
         // every garage until the next per-user sync (the "disappearing" bug).
-        const hydrated = await hydrateRosterGarages(allProfiles);
+        const hydrated = (await hydrateRosterGarages(allProfiles)).map(p => avatarWritesRef.current.reconcile(p, avatarRevision));
+        if (!isCurrentAccount()) return;
         if (!collectionsEqual(usersRef.current, hydrated)) {
           setUsers(hydrated);
         }
@@ -1650,6 +1688,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const refreshDatabaseState = async () => {
+    const generation = accountSessionRef.current.snapshot();
+    const avatarRevision = avatarWritesRef.current.snapshot();
     const [allProfiles, remoteWheels, remoteDraws, remoteCodes, remoteSales, remoteStaff, remotePromos, remoteReviews, remoteSettings] = await Promise.all([
       fetchAllProfilesFromDb(),
       fetchPrizeWheelsFromDb(),
@@ -1668,12 +1708,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (allProfiles && allProfiles.length > 0) {
       // The roster read carries no bikes; re-attach them so this swap (which
       // runs on every realtime event and 4s poll) never blanks a garage.
-      const hydrated = await hydrateRosterGarages(allProfiles);
+      const hydrated = (await hydrateRosterGarages(allProfiles)).map(p => avatarWritesRef.current.reconcile(p, avatarRevision));
       if (!collectionsEqual(usersRef.current, hydrated)) {
         setUsers(hydrated);
       }
       const latestUser = currentUserRef.current;
-      if (latestUser) {
+      if (latestUser && accountSessionRef.current.matches(generation, latestUser.uid)) {
         const freshCurrent = hydrated.find((u) => profileMatchesUser(latestUser, u));
         if (freshCurrent) {
           // Merge the roster read over the signed-in user, but NEVER let the
@@ -1688,7 +1728,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: freshCurrent.uid === latestUser.uid ? freshCurrent.role : latestUser.role,
           };
           if (!deepEqual(latestUser, merged)) {
-            setCurrentUser(merged);
+            setCurrentUser(prev => accountSessionRef.current.matches(generation, latestUser.uid) && prev?.uid === latestUser.uid ? merged : prev);
           }
         }
       }
@@ -1852,7 +1892,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const hasConfirmationParams = AUTH_LINK_ON_LOAD;
 
-    const completeSignupSession = async (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }) => {
+    const completeSignupSession = async (authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }, generation = accountSessionRef.current.snapshot()) => {
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -1866,6 +1906,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: profile?.email || authEmail,
         displayName: profile?.display_name || meta.full_name || authEmail.split('@')[0] || 'Stakey Rider',
         phoneNumber: profile?.phone || meta.phone || undefined,
+        avatarColor: profile?.avatar_color || undefined,
         role: profile?.role || 'customer',
         membershipNumber:
           profile?.membership_number || `STK-${authUser.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
@@ -1877,8 +1918,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
       };
 
+      if (!accountSessionRef.current.matches(generation)) return;
       await ensureProfileRowInDb(userProfile);
-      setCurrentUser(userProfile);
+      if (!activateAccount(userProfile, generation)) return;
       setUsers((prev) => (prev.some((u) => u.uid === userProfile.uid) ? prev : [userProfile, ...prev]));
 
       // Link the referral captured at signup (kept in auth metadata so it
@@ -1895,14 +1937,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // 1. Link already processed into a session before this effect ran.
+    const initialGeneration = accountSessionRef.current.snapshot();
     supabase.auth.getSession().then(({ data }) => {
       if (hasConfirmationParams && data.session?.user) {
-        void completeSignupSession(data.session.user);
+        void completeSignupSession(data.session.user, initialGeneration);
       }
     });
 
     // 2. Link processed after this effect subscribed.
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') beginAccountChange();
+      if (event === 'SIGNED_IN' && currentUserRef.current && currentUserRef.current.uid !== session?.user.id) beginAccountChange();
       if (event === 'SIGNED_IN' && session?.user && hasConfirmationParams) {
         void completeSignupSession(session.user);
       }
@@ -1929,6 +1974,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (isFullSurface) return;
     let cancelled = false;
+    const generation = accountSessionRef.current.snapshot();
     (async () => {
       try {
         const { data } = await supabase.auth.getSession();
@@ -1946,6 +1992,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: profile?.email || authEmail,
           displayName: profile?.display_name || meta.full_name || authEmail.split('@')[0] || 'Stakey Rider',
           phoneNumber: profile?.phone || meta.phone || undefined,
+          avatarColor: profile?.avatar_color || undefined,
           role: profile?.role || 'customer',
           membershipNumber:
             profile?.membership_number || `STK-${sessionUser.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
@@ -1956,8 +2003,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           createdAt: profile?.created_at ? new Date(profile.created_at) : new Date(),
           lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
         };
-        if (cancelled) return;
-        setCurrentUser((prev) => prev ?? restored);
+        if (cancelled || currentUserRef.current || !activateAccount(restored, generation)) return;
         setUsers((prev) => (prev.some((u) => u.uid === restored.uid) ? prev : [restored, ...prev]));
         void syncUserFromDatabase(restored).catch(() => {});
       } catch {
@@ -2205,20 +2251,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  // Keep currentUser state in sync when updated in the users array
+  // Keep garage/loyalty edits responsive, but avatars come only from the
+  // account-scoped profile read or avatar save above, never a cached roster.
   useEffect(() => {
-    if (currentUser) {
-      const updated = users.find((u) => u.uid === currentUser.uid);
-      if (updated) {
-        setCurrentUser(updated);
-      }
-    }
+    const generation = accountSessionRef.current.snapshot();
+    setCurrentUser(prev => {
+      if (!prev || !accountSessionRef.current.matches(generation, prev.uid)) return prev;
+      const updated = users.find(u => u.uid === prev.uid);
+      if (!updated) return prev;
+      const merged = {...updated, avatarColor:prev.avatarColor};
+      return deepEqual(prev, merged) ? prev : merged;
+    });
   }, [users]);
 
   const activeWheel = prizeWheels.find((w) => w.active) || null;
 
   // Customer Login with Supabase Auth
   const loginWithCredentials = async (email: string, password = '') => {
+    await signOutInFlightRef.current;
+    const generation = beginAccountChange();
     try {
       const rawId = email.trim();
       const lowerId = rawId.toLowerCase();
@@ -2306,6 +2357,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: profile?.email || authEmail,
         displayName: profile?.display_name || authName,
         phoneNumber: profile?.phone || undefined,
+        avatarColor: profile?.avatar_color || undefined,
         role: profile?.role || 'customer',
         membershipNumber:
           profile?.membership_number || `STK-${data.user.id.replace(/-/g, '').slice(0, 6).toUpperCase()}`,
@@ -2317,12 +2369,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastStampedAt: profile?.last_stamped_at ? new Date(profile.last_stamped_at) : null,
       };
 
+      if (!accountSessionRef.current.matches(generation)) return {success:false, message:'Sign-in was superseded by another account change.'};
       if (userProfile.role === 'staff' || userProfile.role === 'admin') {
         await supabase.auth.signOut();
         return { success: false, message: 'Please use the Staff Station tab to log in.' };
       }
 
-      setCurrentUser(userProfile);
+      if (!activateAccount(userProfile, generation)) return {success:false, message: "Account changed. Please sign in again."};
       // Some projects have no `on auth.users` trigger, so a freshly registered
       // customer may not have a profiles row yet — create it, then sync.
       await ensureProfileRowInDb(userProfile);
@@ -2339,6 +2392,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       await syncUserFromDatabase(userProfile);
+      if (!accountSessionRef.current.matches(generation, userProfile.uid)) return {success:false,message:'Account changed. Please sign in again.'};
       return { success: true, user: userProfile };
     } catch (err: any) {
       console.error('Login error:', err);
@@ -2348,6 +2402,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Dedicated Staff Station Login using Email/Password
   const loginStaff = async (email: string, password: string) => {
+    await signOutInFlightRef.current;
+    const generation = beginAccountChange();
     try {
       // 1. Authenticate with Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -2377,17 +2433,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // FIX: Ensure we have a user and check if role is either 'staff' OR 'admin'
       const hasStaffAccess = staffUser && (staffUser.role === 'staff' || staffUser.role === 'admin');
 
-      if (!hasStaffAccess) {
+      if (!accountSessionRef.current.matches(generation)) return {success:false,message:'Sign-in was superseded by another account change.'};
+      if (!hasStaffAccess || staffUser?.uid !== data.user.id) {
         console.log('[DEBUG] Access Denied: User does not have staff or admin role.');
         await supabase.auth.signOut();
         return { success: false, message: 'Access Denied: Authorized workshop personnel only.' };
       }
 
-      setCurrentUser(staffUser as UserProfile);
+      if (!activateAccount(staffUser as UserProfile, generation)) return {success:false,message:'Account changed. Please sign in again.'};
       // Automatically request notification permissions for staff terminals
       staffBookingAudio.requestNotificationPermission().catch(() => {});
       // Dynamic database fetch on staff login: syncs all workshop bookings and stamp logs
       await syncUserFromDatabase(staffUser as UserProfile);
+      if (!accountSessionRef.current.matches(generation, staffUser!.uid)) return {success:false,message:'Account changed. Please sign in again.'};
       return { success: true, user: staffUser as UserProfile };
     } catch (err: any) {
       console.error('Staff login error:', err);
@@ -2517,7 +2575,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logoutUser = () => {
-    setCurrentUser(null);
+    beginAccountChange();
+    // Clear the persisted Supabase session too, and finish sign-out before
+    // starting another login so a late sign-out cannot terminate that login.
+    signOutInFlightRef.current = supabase.auth.signOut({scope:'local'}).then(({error}) => {
+      if (error) toast.error('Could not complete sign-out. Please try again.');
+    }).catch(() => { toast.error('Could not complete sign-out. Please try again.'); });
   };
 
   /* ------------------------------------------------------------------ *
@@ -2686,21 +2749,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { success: true, message: `Redeemed: ${rewardDescription}` };
   };
 
-  const updateCustomerAvatar = async (avatarColor: string) => {
-    if (!currentUser) return;
-    const updatedUser = { ...currentUser, avatarColor };
-    setCurrentUser(updatedUser);
-    setUsers((prev) => prev.map((u) => (u.uid === currentUser.uid ? updatedUser : u)));
+  const updateCustomerAvatar = async (avatarColor: string, expectedUid?: string) => {
+    const owner = currentUserRef.current;
+    const generation = accountSessionRef.current.snapshot();
+    if (!owner || (expectedUid && expectedUid !== owner.uid) || !accountSessionRef.current.matches(generation, owner.uid)) throw new Error('Account changed. Reopen the avatar editor for your account.');
+    const revision = avatarWritesRef.current.begin(owner.uid, avatarColor, owner.avatarColor);
+    const patchOwner = (value: string | undefined) => {
+      setCurrentUser(prev => accountSessionRef.current.matches(generation, owner.uid) && prev?.uid === owner.uid ? {...prev, avatarColor:value} : prev);
+      setUsers(prev => prev.map(u => u.uid === owner.uid ? {...u, avatarColor:value} : u));
+    };
+    patchOwner(avatarColor);
     try {
-      const saved = await updateUserProfileInDb(currentUser.uid, currentUser.membershipNumber, { avatarColor });
-      if (!saved) {
-        // Surface the failure instead of leaving the UI showing an avatar that
-        // will silently revert on the next profile reload.
-        toast.error('Could not save your avatar — please try again.');
-      }
+      const saved = await updateUserProfileInDb(owner.uid, owner.membershipNumber, {avatarColor});
+      if (!saved) throw new Error('Could not save your avatar. Your previous avatar has been restored; please try again.');
+      avatarWritesRef.current.finish(owner.uid, revision, true);
     } catch (err) {
-      console.error('[ShopContext] updateCustomerAvatar DB failed:', err);
-      toast.error('Could not save your avatar — please try again.');
+      if (avatarWritesRef.current.finish(owner.uid, revision, false)) patchOwner(owner.avatarColor);
+      throw err instanceof Error ? err : new Error('Could not save your avatar. Please try again.');
     }
   };
 

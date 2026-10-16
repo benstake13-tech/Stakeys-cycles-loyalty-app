@@ -22,10 +22,10 @@ describe('profileMatchesUser', () => {
     expect(profileMatchesUser({ uid: 'a', membershipNumber: '' }, { uid: 'b', membershipNumber: '' })).toBe(false);
   });
 
-  it('matches by a real, shared membership number (legacy key)', () => {
+  it('does not merge different known accounts with a shared membership number', () => {
     expect(
       profileMatchesUser({ uid: 'uuid-x', membershipNumber: 'STK-123456' }, { uid: 'uuid-x-legacy', membershipNumber: 'stk-123456' })
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('does NOT match when only one side carries the membership number', () => {

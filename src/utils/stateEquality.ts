@@ -70,7 +70,8 @@ const normalizedKey = (value: string | number | null | undefined): string =>
 /**
  * True when a roster/profile record is the SAME account as `user`.
  *
- * A profile is matched by uid, or by a membership number that BOTH sides
+ * Known profile IDs must match. Only records lacking an ID may fall back
+ * to a membership number that BOTH sides
  * actually carry. The membership half is deliberately strict: a staff/admin
  * profile has no `membership_number`, so a loose `a.membershipNumber ===
  * b.membershipNumber` compares `undefined === undefined` and matches ANY other
@@ -83,7 +84,9 @@ export function profileMatchesUser(
   candidate: { uid?: string; membershipNumber?: string | number | null }
 ): boolean {
   if (!user || !candidate) return false;
-  if (user.uid && candidate.uid && user.uid === candidate.uid) return true;
+  // Two known account IDs must agree. Membership is never permission to
+  // merge a different person's profile, avatar, balances or role.
+  if (user.uid && candidate.uid) return user.uid === candidate.uid;
   const a = normalizedKey(user.membershipNumber);
   const b = normalizedKey(candidate.membershipNumber);
   return a !== '' && a === b;

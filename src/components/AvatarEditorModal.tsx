@@ -29,7 +29,7 @@ import {
 interface AvatarEditorModalProps {
   name: string;
   currentConfigString?: string;
-  onSave: (configString: string) => void;
+  onSave: (configString: string) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -77,6 +77,9 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const titleId = useId();
+  const savingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
@@ -142,8 +145,12 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
     setConfig(getDeterministicConfig(name));
   };
 
-  const handleSave = () => {
-    onSave(JSON.stringify(config));
+  const handleSave = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setIsSaving(true); setSaveError('');
+    try { await onSave(JSON.stringify(config)); }
+    catch (err) { setSaveError(err instanceof Error ? err.message : 'Could not save your avatar. Please try again.'); }
+    finally { savingRef.current = false; setIsSaving(false); }
   };
 
   return (
@@ -603,6 +610,7 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
 
         </div>
 
+        {saveError && <p role="alert" className="px-4 pt-3 text-xs text-rose-300">{saveError}</p>}
         {/* Modal Footer */}
         <div className="p-4 border-t border-neutral-800 flex items-center justify-end gap-3 shrink-0">
           <button
@@ -612,10 +620,11 @@ export const AvatarEditorModal: React.FC<AvatarEditorModalProps> = ({
             Cancel
           </button>
           <button
-            onClick={handleSave}
+            disabled={isSaving}
+            onClick={() => void handleSave()}
             className="px-5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors cursor-pointer"
           >
-            Apply Avatar
+            {isSaving ? 'Saving avatar…' : 'Apply Avatar'}
           </button>
         </div>
 

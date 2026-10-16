@@ -1119,25 +1119,17 @@ export async function fetchUserProfileFromDb(
   const supabase = getSupabaseClient();
   console.log(`[SUPABASE NET] SELECT profiles userId=${userId}, membership=${membershipNumber}, email=${email}`);
   try {
-    let query = supabase.from('profiles').select('*');
-    const conditions: string[] = [`id.eq.${userId}`];
-    if (membershipNumber) {
-      conditions.push(`membership_number.ilike.${membershipNumber}`);
-    }
-    if (email) {
-      conditions.push(`email.ilike.${email.toLowerCase()}`);
-    }
-    query = query.or(conditions.join(','));
-
-    const { data, error } = await query.limit(1);
+    if (!userId) return null;
+    // Account ownership comes from the authenticated UUID. A shared/legacy
+    // membership or email must never select an unrelated profile first.
+    const { data: row, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
     if (error) {
       console.error('[SUPABASE NET ERROR] SELECT profiles failed:', error.message);
     } else {
-      console.log(`[SUPABASE NET SUCCESS] SELECT profiles returned ${data?.length || 0} rows`);
+      console.log(`[SUPABASE NET SUCCESS] SELECT profiles returned ${row ? 1 : 0} rows`);
     }
 
-    if (data && data.length > 0) {
-      const row = data[0];
+    if (!error && row && row.id === userId) {
       return {
         uid: row.id,
         displayName: row.display_name,

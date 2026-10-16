@@ -18,10 +18,10 @@ export function findCustomerForBooking(
   const membership = (booking.membershipNumber || '').trim().toUpperCase();
   const email = (booking.customerEmail || '').trim().toLowerCase();
 
-  return users.find((u) => {
-    if (uid && u.uid === uid) return true;
-    if (membership && (u.membershipNumber || '').trim().toUpperCase() === membership) return true;
-    if (email && (u.email || '').trim().toLowerCase() === email) return true;
-    return false;
-  });
+  // A known ID is authoritative even if older contact details point elsewhere.
+  if (uid) return users.find(u => u.uid === uid);
+  const unique = (matches: UserProfile[]) => matches.length === 1 ? matches[0] : undefined;
+  if (membership) return unique(users.filter(u => (u.membershipNumber || '').trim().toUpperCase() === membership));
+  if (email) return unique(users.filter(u => (u.email || '').trim().toLowerCase() === email));
+  return undefined;
 }
