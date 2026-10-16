@@ -17,9 +17,9 @@ export type ExpressionStyle = 'smile' | 'grin' | 'excited' | 'neutral';
 export type GlassesStyle =
   | 'none' | 'round_wireframe' | 'square_nerd' | 'sporty_cycling' | 'retro_cat' | 'aviator';
 export type AccessoryStyle = 'none' | 'earbuds' | 'stud' | 'headset' | 'scarf';
-export type ClothingStyle = 'dungarees' | 'collar' | 'hoodie' | 'brand_tee' | 'tank' | 'varsity' | 'mechanic' | 'hi_vis' | 'bunny' | 'elf' | 'skeleton' | 'racing_kit' | 'leather_jacket' | 'rain_shell' | 'wizard';
+export type ClothingStyle = 'dungarees' | 'collar' | 'hoodie' | 'brand_tee' | 'tank' | 'varsity' | 'mechanic' | 'hi_vis' | 'bunny' | 'elf' | 'skeleton' | 'racing_kit' | 'leather_jacket' | 'rain_shell' | 'wizard' | 'chef' | 'paramedic' | 'firefighter' | 'astronaut' | 'pirate' | 'superhero' | 'pumpkin' | 'stakeys_apron';
 export type FaceShape = 'soft' | 'oval' | 'square' | 'round' | 'heart' | 'angular';
-export type AvatarProp = 'none' | 'wrench' | 'coffee' | 'medal';
+export type AvatarProp = 'none' | 'wrench' | 'coffee' | 'medal' | 'pump' | 'clipboard' | 'pizza' | 'wand';
 export type AvatarVehicle = 'none' | 'bicycle' | 'scooter' | 'electric_dirt_bike';
 export type EyeColor = 'brown' | 'blue' | 'green' | 'amber' | 'gray' | 'violet';
 export type FaceDetail = 'none' | 'freckles' | 'beauty_mark' | 'rosy_cheeks';
@@ -188,6 +188,14 @@ export const CLOTHING_OPTIONS: { id: ClothingStyle; name: string }[] = [
   { id: 'leather_jacket', name: 'Biker Leather Jacket' },
   { id: 'rain_shell', name: 'All-Weather Shell' },
   { id: 'wizard', name: 'Workshop Wizard' },
+  { id: 'chef', name: 'Workshop Chef' },
+  { id: 'paramedic', name: 'Cycle Paramedic' },
+  { id: 'firefighter', name: 'Firefighter' },
+  { id: 'astronaut', name: 'Orbit Explorer' },
+  { id: 'pirate', name: 'Pedal Pirate' },
+  { id: 'superhero', name: 'Salford Superhero' },
+  { id: 'pumpkin', name: 'Pumpkin Patch' },
+  { id: 'stakeys_apron', name: "Stakey's Workshop Apron" },
 ];
 
 export const FACE_SHAPE_OPTIONS: { id: FaceShape; name: string }[] = [
@@ -196,6 +204,8 @@ export const FACE_SHAPE_OPTIONS: { id: FaceShape; name: string }[] = [
 ];
 export const PROP_OPTIONS: { id: AvatarProp; name: string }[] = [
   { id: 'none', name: 'No prop' }, { id: 'wrench', name: 'Workshop wrench' }, { id: 'coffee', name: 'Coffee cup' }, { id: 'medal', name: 'Champion medal' },
+  { id: 'pump', name: 'Track pump' }, { id: 'clipboard', name: 'Workshop checklist' },
+  { id: 'pizza', name: 'Pizza break' }, { id: 'wand', name: 'Magic wand' },
 ];
 export const VEHICLE_OPTIONS: { id: AvatarVehicle; name: string }[] = [
   { id: 'none', name: 'None' }, { id: 'bicycle', name: 'Bicycle' }, { id: 'scooter', name: 'E-scooter' }, { id: 'electric_dirt_bike', name: 'Electric dirt bike' },
@@ -250,7 +260,8 @@ export function getDeterministicConfig(seed: string, fallbackColor?: string): Fa
   const expression = EXPRESSION_OPTIONS[Math.abs(hash >> 6) % EXPRESSION_OPTIONS.length].id;
   const glasses = GLASSES_OPTIONS[Math.abs(hash >> 7) % GLASSES_OPTIONS.length].id;
   const accessory = ACCESSORY_OPTIONS[Math.abs(hash >> 8) % ACCESSORY_OPTIONS.length].id;
-  const clothing = CLOTHING_OPTIONS[Math.abs(hash >> 9) % CLOTHING_OPTIONS.length].id;
+  // Keep the original default wardrobe stable when new outfits are appended.
+  const clothing = CLOTHING_OPTIONS[Math.abs(hash >> 9) % 15].id;
   const clothingColor = CLOTHING_COLORS[Math.abs(hash >> 10) % CLOTHING_COLORS.length];
 
   return {
@@ -440,6 +451,22 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
         return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill={clothColor}/><path d="M67 158q33 21 66 0" fill="none" stroke="#263d4b" strokeWidth="5"/><path d="M100 167v33" stroke="#dceef4" strokeWidth="2" strokeDasharray="3 2"/><path d="M55 184h17m56 0h17" stroke="#f4d86e" strokeWidth="5"/><path d="M68 161l-7 14m71-14 7 14" stroke="rgba(255,255,255,.36)" strokeWidth="2"/></g>;
       case 'wizard':
         return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#43246f"/><path d="M74 161l26 12 26-12-11 39H85z" fill="#321a5b" stroke="#c7a6ff" strokeWidth="2"/><path d="M100 177l3 6h7l-5.5 4.5 2 7-6.5-4-6.5 4 2-7L90 183h7z" fill="#ffe27a"/><path d="M65 179h12m46 0h12" stroke="#8ae4bd" strokeWidth="2"/></g>;
+      case 'chef':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#f8fafc"/><path d="M79 159l28 18v23H78z" fill="#e2e8f0" stroke="#94a3b8"/><path d="M78 162l14 10-9 7m25-17-9 10 11 7" fill="none" stroke="#475569" strokeWidth="2"/>{[181,192].map(y => <g key={y}><circle cx="88" cy={y} r="2" fill="#1e293b"/><circle cx="103" cy={y} r="2" fill="#1e293b"/></g>)}<path d="M119 180h20v11h-20z" fill="#fff" stroke="#cbd5e1"/></g>;
+      case 'paramedic':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#12614e"/><path d="M57 174h86v5H57m-2 12h90v5H55" fill="#d8f4e4"/><path d="M100 164v36" stroke="#092e27" strokeWidth="3"/><rect x="115" y="179" width="17" height="15" rx="3" fill="#fff"/><path d="M123.5 182v9m-4.5-4.5h9" stroke="#12614e" strokeWidth="3"/></g>;
+      case 'firefighter':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#b89963"/><path d="M55 177h90v9H55" fill="#e7ed3e"/><path d="M55 180h90v3H55" fill="#e5e7eb"/><path d="M100 163v37" stroke="#332c23" strokeWidth="4"/><path d="M76 163v37m48-37v37" stroke="#312b25" strokeWidth="5"/><rect x="112" y="170" width="18" height="7" rx="1" fill="#332c23"/></g>;
+      case 'astronaut':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#e7edf5"/><path d="M72 159q28 18 56 0" fill="none" stroke="#94a3b8" strokeWidth="8"/><path d="M72 159q28 18 56 0" fill="none" stroke="#334155" strokeWidth="3"/><rect x="83" y="178" width="34" height="19" rx="4" fill="#374151" stroke="#94a3b8" strokeWidth="2"/><rect x="88" y="182" width="13" height="8" rx="1" fill="#67e8f9"/><circle cx="110" cy="185" r="3" fill="#fb923c"/><path d="M56 184h16m56 0h16" stroke="#f97316" strokeWidth="4"/></g>;
+      case 'pirate':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#f5e6c8"/><path d="M60 160l24 3 7 37H42m98-40-24 3-7 37h49" fill="#542c33" stroke="#b78b4e" strokeWidth="2"/><path d="M94 165l12 8-12 7 12 7-12 7" fill="none" stroke="#403027" strokeWidth="2"/><path d="M45 194h110v6H45" fill="#d45142"/></g>;
+      case 'superhero':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill={clothColor}/><path d="M50 160l26 2-11 38H42m108-40-26 2 11 38h23" fill="#d63c4b"/><path d="M100 172l17 7-5 13-12 7-12-7-5-13z" fill="#fcd34d" stroke="#fff3ba"/><path d="M105 176l-10 10h9l-9 10" fill="none" stroke="#d63c4b" strokeWidth="3" strokeLinejoin="round"/></g>;
+      case 'pumpkin':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill="#ed8022"/><path d="M65 161q-10 20-5 39m24-40q-7 20-4 40m36-40q7 20 4 40m15-39q10 20 5 39" fill="none" stroke="#b64b16" strokeWidth="2"/><path d="M75 159l10 12 15-9 15 9 10-12" fill="#2b6e3e"/><path d="M84 179l9 7H81zm32 0-9 7h12zM88 191l6 3 6-3 6 3 6-3-5 8H93z" fill="#302017"/></g>;
+      case 'stakeys_apron':
+        return <g><path d="M50 160Q100 155 150 160L158 200H42Z" fill={clothColor}/><path d="M77 158h7l-3 19h38l-3-19h7l5 42H72z" fill="#15251e" stroke="#709983"/><path d="M84 187h32v13H84z" fill="#223d2e" stroke="#05c147"/><path d="M90 187v13m20-13v13" stroke="#8fb6a0"/><text x="100" y="183" textAnchor="middle" fontSize="5" fontWeight="bold" fill="#63ef9a">STAKEY'S</text></g>;
       default:
         return null;
     }
@@ -911,7 +938,10 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
       />
 
       {/* 3. CLOTHING */}
-      {renderClothing()}
+      <g aria-label={CLOTHING_OPTIONS.find(o => o.id === config.clothing)?.name || 'Clothing'}>
+        {renderClothing()}
+        <path d="M50 164l-6 34m106-34 6 34" fill="none" stroke="#000" strokeOpacity=".16" strokeWidth="3"/>
+      </g>
 
       {/* 4. BASE FACE & EARS */}
       <circle cx="58" cy="98" r="9" fill={skinGradientUrl} />
@@ -994,6 +1024,10 @@ export const FaceAvatar: React.FC<FaceAvatarProps> = ({
           <circle cx="12" cy="12" r="11" fill="#0b1911" stroke="#5de995" strokeWidth="1.5" />
           {config.prop === 'wrench' && <path d="M7 17l7-7m-3-4a5 5 0 0 0 6 6l-7 7-3-3 7-7a5 5 0 0 1-6-6l3 3 3-1 1-3-3-3z" fill="none" stroke="#effff4" strokeWidth="1.5" strokeLinejoin="round" />}
           {config.prop === 'coffee' && <g fill="none" stroke="#effff4" strokeWidth="1.5"><path d="M7 8h11v9H7zM18 10h2a2 2 0 0 1 0 4h-2M9 5q-2-2 0-3m5 3q-2-2 0-3" /></g>}
+          {config.prop === 'pump' && <g fill="none" stroke="#effff4" strokeWidth="1.6" strokeLinecap="round"><path d="M8 5h8m-4 0v14m-5 1h10M15 9q8-2 5 8"/><path d="M10 10h4v7h-4z" fill="#34d878"/></g>}
+          {config.prop === 'clipboard' && <g><rect x="5" y="5" width="14" height="16" rx="2" fill="#e2e8f0"/><rect x="9" y="3" width="6" height="4" rx="1" fill="#34d878"/><path d="m8 11 1 1 2-2m-3 6 1 1 2-2m2-4h3m-3 5h3" fill="none" stroke="#17543b" strokeWidth="1.2"/></g>}
+          {config.prop === 'pizza' && <g><path d="M5 5q8-4 15 3L8 21z" fill="#f6ce62" stroke="#c47c32"/><path d="M5 5q8-4 15 3" fill="none" stroke="#e99d48" strokeWidth="3"/><circle cx="10" cy="10" r="2" fill="#c74c3b"/><circle cx="13" cy="14" r="1.6" fill="#c74c3b"/></g>}
+          {config.prop === 'wand' && <g><path d="m5 21 9-11" stroke="#d4bafc" strokeWidth="3"/><path d="m16 2 2 4 4 1-3 3v5l-4-3-4 1 1-5-2-3 5 1z" fill="#ffe27a"/><path d="M4 5v4m-2-2h4" stroke="#90efc1"/></g>}
           {config.prop === 'medal' && <g><path d="M8 3h8l-2 8h-4z" fill="#34d878"/><circle cx="12" cy="15" r="5" fill="#ffd76b" stroke="#fff0b0"/><path d="m12 12 1 2h2l-2 1.5.7 2.2-1.7-1.3-1.7 1.3.7-2.2-2-1.5h2z" fill="#fff"/></g>}
         </g>
       )}
