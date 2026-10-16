@@ -22,6 +22,8 @@ import { useShop } from '../context/ShopContext';
 import { diagnoseFault, isBikeVisionConfigured } from '../api/visionService';
 import { classifyVisionError } from '../api/visionErrors';
 import { SPEC_SYSTEMS, specCoverage, systemIdForItem } from '../utils/bikeSpecTaxonomy';
+import { BIKE_INSPECTION_PHOTO_SLOTS, PHOTO_SLOT_FOR_SYSTEM } from '../utils/bikeInspectionPhotos';
+import { compressImageFile } from '../utils/imageCompress';
 
 const SEVERITY_STYLES = {
   high: 'border-rose-500/40 bg-rose-950/40 text-rose-200',
@@ -54,17 +56,17 @@ const TYPE_LABELS = {
 const toCategory = (type) =>
   type === 'electric_scooter' || type === 'ebike' || type === 'cargo' ? type : 'cycle';
 
-export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
+/** @param {{ user: any, isOpen: boolean, onClose: () => void, onAdded?: (bike: any) => void, addBike?: (bike: any) => any, mode?: string, onIdentified?: (result: any) => void }} props */
+export function AiBikeIdentifier({ user, isOpen, onClose, onAdded = () => {}, addBike, mode = 'garage', onIdentified = () => {} }) {
   const { addCustomerBike } = useShop();
   const fileRef = useRef(null);
   // Which slot the shared hidden file input should fill next.
-  const targetSlot = useRef('full');
+  const targetSlot = useRef(BIKE_INSPECTION_PHOTO_SLOTS[0].id);
   const analysisSequence = useRef(0);
   const persistBike = addBike || addCustomerBike;
 
-  // Up to three shots: the full side-on view (required) plus optional close-ups
-  // of the brand badge and the model decal, which sharpen make/model accuracy.
-  const [shots, setShots] = useState({ full: null, brand: null, model: null });
+  const emptyShots = () => Object.fromEntries(BIKE_INSPECTION_PHOTO_SLOTS.map(({ id }) => [id, null]));
+  const [shots, setShots] = useState(emptyShots);
   const [notes, setNotes] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -77,7 +79,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
 
   const reset = useCallback(() => {
     analysisSequence.current += 1;
-    setShots({ full: null, brand: null, model: null });
+    setShots(emptyShots());
     setNotes('');
     setResult(null);
     setError('');
@@ -93,9 +95,13 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
   };
 
   const runAnalysis = useCallback(async (current, currentNotes) => {
-    const images = Object.values(current)
-      .filter(Boolean)
-      .map((shot) => ({ data: shot.dataUrl.split(',').pop(), mimeType: shot.mime }));
+    const capturedCount = BIKE_INSPECTION_PHOTO_SLOTS.filter(({ id }) => current[id]).length;
+    if (capturedCount > 0 && capturedCount < BIKE_INSPECTION_PHOTO_SLOTS.length) {
+      setError(`Add all ${BIKE_INSPECTION_PHOTO_SLOTS.length} guided photos before the full bike assessment.`);
+      return;
+    }
+    const orderedShots = BIKE_INSPECTION_PHOTO_SLOTS.map(({ id }) => [id, current[id]]).filter(([, shot]) => shot);
+    const images = orderedShots.map(([, shot]) => ({ data: shot.dataUrl.split(',').pop(), mimeType: shot.mime }));
     const text = typeof currentNotes === 'string' ? currentNotes.trim() : '';
     if (!images.length && !text) return;
     const sequence = ++analysisSequence.current;
@@ -106,7 +112,8 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     try {
       // diagnoseFault never throws for an unavailable service — it returns a
       // structured fallback built from the notes, so intake never blocks.
-      const analysis = await diagnoseFault({ images, userNotes: images.length ? `${text}\nPhoto order: ${Object.entries(current).filter(([, shot]) => shot).map(([key]) => key).join(', ')}` : text });
+      const photoOrder = orderedShots.map(([id]) => BIKE_INSPECTION_PHOTO_SLOTS.find(slot => slot.id === id)?.label || id).join('; ');
+      const analysis = await diagnoseFault({ images, userNotes: images.length ? `${text}\nPhoto order: ${photoOrder}` : text });
       if (sequence === analysisSequence.current) setResult(analysis);
     } catch (err) {
       // Defensive: only a truly unexpected error reaches here.
@@ -118,43 +125,36 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     }
   }, []);
 
-  const readImage = (file) =>
-    new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve({ dataUrl: reader.result, mime: file.type || 'image/jpeg' });
-      reader.readAsDataURL(file);
-    });
-
   const setSlot = async (slot, file) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setError('Please choose an image file.');
       return;
     }
-    const shot = await readImage(file);
+    const compressed = await compressImageFile(file);
+    const shot = { dataUrl: compressed.dataUrl, mime: compressed.mime };
     const next = { ...shots, [slot]: shot };
     setShots(next);
-    // Analyse as soon as the required full shot exists; re-runs when a close-up
-    // is added or removed, so the result always uses every photo supplied.
-    if (next.full) runAnalysis(next, notes);
+    setError('');
+    setResult(null);
   };
 
   const clearSlot = (slot) => {
     const next = { ...shots, [slot]: null };
     setShots(next);
-    if (next.full) runAnalysis(next, notes);
-    else if (!notes.trim()) setResult(null);
+    setResult(null);
   };
 
   /** Text-only submission (no photo): the fallback path always answers. */
   const submitNotes = () => {
     if (!notes.trim()) return;
-    runAnalysis(shots, notes);
+    runAnalysis(BIKE_INSPECTION_PHOTO_SLOTS.every(({ id }) => shots[id]) ? shots : emptyShots(), notes);
   };
 
   /** Retry the current photos after a transient failure. */
   const reanalyse = () => {
-    if (shots.full || notes.trim()) runAnalysis(shots, notes);
+    const hasCompletePhotoSet = BIKE_INSPECTION_PHOTO_SLOTS.every(({ id }) => shots[id]);
+    if (hasCompletePhotoSet || notes.trim()) runAnalysis(hasCompletePhotoSet ? shots : emptyShots(), notes);
   };
 
   /** Point the shared hidden input at a slot, then open the camera/file picker. */
@@ -250,10 +250,25 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
     }
   };
 
+  const handleUseForListing = () => {
+    if (!result) return;
+    if (!result.hasVisualData || result.usedFallback) {
+      setError('A live photo assessment is required for a marketplace vehicle listing. Add all guided photos and retry the AI assessment.');
+      return;
+    }
+    if (!String(result.make || '').trim() || !String(result.model || '').trim()) {
+      setError('The bike identity is not clear enough yet. Retake the requested photos and run the assessment again.');
+      return;
+    }
+    onIdentified?.(result);
+    handleClose();
+  };
+
   if (!isOpen) return null;
 
   const ekit = result?.electricKit;
   const confidencePct = result ? Math.round((result.confidence || 0) * 100) : 0;
+  const capturedPhotoCount = BIKE_INSPECTION_PHOTO_SLOTS.filter(({ id }) => shots[id]).length;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm animate-fade-in">
@@ -275,7 +290,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
           <div>
             <h3 className="font-display text-xl font-black">AI Bike Identifier</h3>
             <p className="text-xs text-neutral-400">
-              Snap a photo and Stakey's AI will identify the bike, read its positioning, spot any electric kit, list the main specs (including wheel size, tyre size and valve type) and flag obvious problems — then add it to your garage. Add a close-up of the brand name and one of the model for the most accurate read. No photo? Just describe the fault below in any language and we'll take it from there.
+              Add ten guided photos and Stakey's AI will follow the full component, condition and safety checklist to identify the bike and populate its garage specification. If a visible detail remains unclear, it will ask for a focused retake. You do not need to enter specifications manually. You can still describe a repair issue below without photos.
             </p>
           </div>
         </div>
@@ -304,7 +319,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
             )}
             <div className="min-w-0 flex-1">
               <span className="block">{error}</span>
-              {shots.full && (errorInfo?.retryable ?? true) && (
+              {BIKE_INSPECTION_PHOTO_SLOTS.every(({ id }) => shots[id]) && (errorInfo?.retryable ?? true) && (
                 <button
                   type="button"
                   onClick={reanalyse}
@@ -334,15 +349,15 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
-                setSlot('full', e.dataTransfer.files?.[0]);
+                setSlot(BIKE_INSPECTION_PHOTO_SLOTS[0].id, e.dataTransfer.files?.[0]);
               }}
               className={`relative flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed ${
-                shots.full ? 'border-neutral-700' : 'border-neutral-700/80 bg-neutral-950/60'
+                shots[BIKE_INSPECTION_PHOTO_SLOTS[0].id] ? 'border-neutral-700' : 'border-neutral-700/80 bg-neutral-950/60'
               }`}
             >
-              {shots.full ? (
+              {shots[BIKE_INSPECTION_PHOTO_SLOTS[0].id] ? (
                 <>
-                  <img src={shots.full.dataUrl} alt="Bike to identify" className="h-full w-full object-cover" />
+                  <img src={shots[BIKE_INSPECTION_PHOTO_SLOTS[0].id].dataUrl} alt="Bike drive side" className="h-full w-full object-cover" />
                   {analyzing && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/60 backdrop-blur-sm">
                       <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
@@ -353,13 +368,13 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
               ) : (
                 <button
                   type="button"
-                  onClick={() => openPicker('full')}
+                  onClick={() => openPicker(BIKE_INSPECTION_PHOTO_SLOTS[0].id)}
                   className="flex cursor-pointer flex-col items-center gap-3 p-6 text-center"
                 >
                   <Camera className="h-10 w-10 text-emerald-400" />
-                  <span className="text-sm font-bold text-white">Take or upload a full side-on photo</span>
+                  <span className="text-sm font-bold text-white">1. {BIKE_INSPECTION_PHOTO_SLOTS[0].label}</span>
                   <span className="text-[11px] text-neutral-500">
-                    A clear side-on shot in good light works best. Drag &amp; drop also works — or skip the photo and describe the fault below.
+                    {BIKE_INSPECTION_PHOTO_SLOTS[0].hint} Drag &amp; drop also works.
                   </span>
                   <span className="pressable mt-1 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold uppercase tracking-wider text-neutral-950">
                     Choose photo
@@ -368,34 +383,27 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
               )}
             </div>
 
-            {/* Optional close-ups that make the make/model reading far more reliable. */}
+            <div className="flex items-center justify-between text-xs text-neutral-400">
+              <span>Guided bike assessment</span>
+              <span className="font-mono text-emerald-300">{capturedPhotoCount}/10 photos</span>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
-              <PhotoSlot
-                label="Brand name"
-                hint="Close-up of the head badge / logo"
-                shot={shots.brand}
-                onPick={() => openPicker('brand')}
-                onClear={() => clearSlot('brand')}
-              />
-              <PhotoSlot
-                label="Model"
-                hint="Close-up of the model decal"
-                shot={shots.model}
-                onPick={() => openPicker('model')}
-                onClear={() => clearSlot('model')}
-              />
+              {BIKE_INSPECTION_PHOTO_SLOTS.slice(1).map((slot, index) => <PhotoSlot key={slot.id}
+                label={`${index + 2}. ${slot.label}`} hint={slot.hint} shot={shots[slot.id]}
+                onPick={() => openPicker(slot.id)} onClear={() => clearSlot(slot.id)} />)}
             </div>
 
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => openPicker('full')}
+                onClick={() => openPicker(BIKE_INSPECTION_PHOTO_SLOTS[0].id)}
                 className="pressable flex flex-1 items-center justify-center gap-2 rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs font-semibold text-neutral-300 hover:text-white cursor-pointer"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>{shots.full ? 'Retake' : 'Upload'}</span>
+                <span>{shots[BIKE_INSPECTION_PHOTO_SLOTS[0].id] ? 'Retake drive-side' : 'Upload drive-side'}</span>
               </button>
-              {shots.full && (
+              {BIKE_INSPECTION_PHOTO_SLOTS.every(({ id }) => shots[id]) && (
                 <button
                   type="button"
                   onClick={reanalyse}
@@ -403,7 +411,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                   className="pressable flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50 cursor-pointer"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>Re-analyse</span>
+                  <span>{result ? 'Re-analyse' : 'Assess my bike'}</span>
                 </button>
               )}
             </div>
@@ -423,11 +431,14 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
             {result && <TechnicalDiagnosticAudit audit={result.technicalAudit} calculator />}
             {result?.photoRequests?.length > 0 && <div className="rounded-2xl border border-amber-500/30 p-3 space-y-3">
               <h4 className="font-bold text-amber-300">More detail needed</h4>
-              <p className="text-xs text-neutral-400">Unknown specifications stay unconfirmed. Add a close-up to reanalyse all supplied photos.</p>
-              {result.photoRequests.map(request => <div key={request.systemId} className="text-xs">
+              <p className="text-xs text-neutral-400">Unknown specifications stay unconfirmed. Retake the requested area and run the assessment again.</p>
+              {result.photoRequests.map((request, index) => {
+                const slot = PHOTO_SLOT_FOR_SYSTEM[request.systemId] || BIKE_INSPECTION_PHOTO_SLOTS[0].id;
+                return <div key={`${request.systemId}-${index}`} className="text-xs">
                 <strong>{request.area}</strong><p>{request.instruction}</p>
-                <button type="button" disabled={analyzing} className="text-emerald-300 underline py-2" onClick={() => openPicker(request.systemId)}>{shots[request.systemId] ? 'Retake' : 'Add'} {request.area} photo</button>
-              </div>)}
+                {request.reason && <p className="text-neutral-500">{request.reason}</p>}
+                <button type="button" disabled={analyzing} className="text-emerald-300 underline py-2" onClick={() => openPicker(slot)}>{shots[slot] ? 'Retake' : 'Add'} {request.area} photo</button>
+              </div>; })}
               <p className="text-xs text-amber-200">Stock comparison pending: confirm exact model year and trim against a manufacturer reference. Photos alone do not confirm a puncture or internal damage.</p>
             </div>}
             {/* Free-text intake: works with or without a photo, any language. */}
@@ -453,7 +464,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                 className="pressable mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-40 cursor-pointer"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span>{shots.full ? 'Re-analyse with notes' : 'Diagnose from description'}</span>
+                <span>{capturedPhotoCount === BIKE_INSPECTION_PHOTO_SLOTS.length ? 'Re-analyse with notes' : 'Diagnose from description'}</span>
               </button>
             </div>
           </div>
@@ -490,7 +501,7 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
                       <span className="opacity-90">
                         We couldn't reach the photo diagnostic, so this intake is based on your notes. A mechanic will confirm everything at the workshop.
                       </span>
-                      {(shots.full || notes.trim()) && (
+                      {(capturedPhotoCount === BIKE_INSPECTION_PHOTO_SLOTS.length || notes.trim()) && (
                         <button
                           type="button"
                           onClick={reanalyse}
@@ -773,7 +784,17 @@ export function AiBikeIdentifier({ user, isOpen, onClose, onAdded, addBike }) {
           >
             {savedBike ? 'Done' : 'Cancel'}
           </button>
-          {result && !savedBike && (
+          {result && !savedBike && mode === 'marketplace' && (
+            <button
+              type="button"
+              onClick={handleUseForListing}
+              className="pressable flex items-center justify-center gap-2 rounded-xl bg-emerald-500 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-neutral-950 hover:bg-emerald-400 cursor-pointer"
+            >
+              <Check className="h-4 w-4" />
+              <span>Use AI results for listing</span>
+            </button>
+          )}
+          {result && !savedBike && mode !== 'marketplace' && (
             <button
               type="button"
               onClick={handleSave}

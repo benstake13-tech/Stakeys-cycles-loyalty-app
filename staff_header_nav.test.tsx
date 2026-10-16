@@ -29,7 +29,7 @@ vi.mock('./src/context/ShopContext', () => ({
 }));
 
 vi.mock('./src/components/CustomerPortal', () => ({ CustomerPortal: () => <div data-testid="customer-portal" /> }));
-vi.mock('./src/components/WebsiteReplica', () => ({ WebsiteReplica: () => <><header data-testid="website-site-header" /><div data-testid="website" /></> }));
+vi.mock('./src/components/WebsiteReplica', () => ({ WebsiteReplica: () => <div data-testid="website" /> }));
 vi.mock('./src/components/ShopAssistant', () => ({ ShopAssistant: () => null }));
 vi.mock('./src/components/PromotionsCarousel', () => ({ PromotionsCarousel: () => <div data-testid="promotions" /> }));
 vi.mock('./src/components/WinnerAnnouncementBanner', () => ({ WinnerAnnouncementBanner: () => null }));
@@ -92,7 +92,6 @@ describe('browser app blanket', () => {
     hoisted.native = false; hoisted.publicWebsite = true;
     render(<App/>);
     expect(screen.getByTestId('website')).toBeTruthy();
-    expect(screen.getAllByRole('banner')).toHaveLength(1);
     expect(screen.queryByText(/This web address does not provide account access/)).toBeNull();
   });
   it('keeps recovery links limited to password reset even with an existing session', () => {

@@ -34,10 +34,15 @@ export function completeBikeInspection(result) {
       notes: found?.notes || 'Not assessed from the supplied photos.',
     };
   })).map(part => ({ ...part, ...compareStockPart(part, reference) }));
-  const photoRequests = SPEC_SYSTEMS.filter(system => mainSpecs.some(s => s.systemId === system.id && (s.verification === 'needs-verification' || s.specDetails.some(d => d.verification !== 'photo-supported'))))
+  const generatedPhotoRequests = SPEC_SYSTEMS.filter(system => mainSpecs.some(s => s.systemId === system.id && (s.verification === 'needs-verification' || s.specDetails.some(d => d.verification !== 'photo-supported'))))
     .filter(system => system.id !== 'geometry' && (system.id !== 'electric' || result.type === 'ebike' || result.type === 'electric_scooter' || result.electricKit?.isElectric))
     .map(system => ({ systemId: system.id, area: system.label, instruction: INSPECTION_PHOTOS[system.id] || `Clear close-ups of ${system.label.toLowerCase()} and any part numbers`,
       components: mainSpecs.filter(s => s.systemId === system.id && (s.verification === 'needs-verification' || s.specDetails.some(d => d.verification !== 'photo-supported'))).map(s => s.componentName) }));
+  const modelPhotoRequests = (Array.isArray(result.photoRequests) ? result.photoRequests : [])
+    .filter(request => request && request.systemId && request.area && request.instruction)
+    .map(request => ({ ...request, reason: request.reason || 'This detail could not be confirmed clearly.' }));
+  const photoRequests = [...new Map([...modelPhotoRequests, ...generatedPhotoRequests]
+    .map(request => [request.systemId, request])).values()];
   return { ...result, mainSpecs, photoRequests, technicalAudit: normaliseTechnicalAudit(result.technicalAudit),
     notVisible: mainSpecs.filter(s => s.verification !== 'photo-supported').map(s => s.componentName),
     coverage: mainSpecs.filter(s => s.verification === 'photo-supported').length / mainSpecs.length,

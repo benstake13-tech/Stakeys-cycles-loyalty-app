@@ -6,9 +6,11 @@ import {
   ServiceBooking,
   SaleTransaction,
 } from '../types/bikeShop';
-import { suggestWindows, SuggestedWindow, toDateOnly } from './promotionPlanner';
+import { suggestWindows, SuggestedWindow, toDateOnly, parseDate, daysBetween, addDays } from './promotionPlanner';
 import { seasonalDemand } from './seasonalDemand';
 import type { WeatherReport } from './weatherService';
+import { buildStrategyContext, type StrategyInputs } from './promotionStrategyContext';
+import { monthEvents, assessStrategyAction, type PromotionStrategy, type StrategyActionDetails } from '../../supabase/functions/_shared/promotionStrategy';
 
 /**
  * Turns the shop's live promotions, coupon codes and (optionally) past usage
@@ -53,6 +55,7 @@ export function bestCampaign(perf: CampaignPerformance[]): CampaignPerformance |
 }
 
 export interface PromotionBrief {
+  strategy: PromotionStrategy;
   today: string;
   liveCampaigns: { title: string; code: string; categories: VehicleCategory[]; startDate: string; endDate: string }[];
   clearWindows: SuggestedWindow[];
@@ -106,25 +109,11 @@ export function deriveShopSignals(
  * maths — no external calendar.
  */
 export function seasonalHooks(today: Date = new Date()): string[] {
-  const hooks: { month: number; day: number; label: string }[] = [
-    { month: 0, day: 1, label: "New Year's Day" },
-    { month: 1, day: 14, label: "Valentine's Day" },
-    { month: 2, day: 17, label: "St. Patrick's Day" },
-    { month: 3, day: 1, label: "Easter window" },
-    { month: 4, day: 5, label: "May bank holiday" },
-    { month: 5, day: 21, label: "Summer solstice / longest day" },
-    { month: 8, day: 1, label: 'Back to school' },
-    { month: 9, day: 31, label: 'Halloween' },
-    { month: 10, day: 28, label: 'Black Friday window' },
-    { month: 11, day: 25, label: 'Christmas' },
-  ];
   const out: string[] = [];
   for (let offset = 0; offset < 3; offset++) {
     const cursor = new Date(today.getFullYear(), today.getMonth() + offset, 1);
-    for (const h of hooks) {
-      if (h.month !== cursor.getMonth()) continue;
-      const date = new Date(today.getFullYear(), h.month, h.day);
-      if (date >= today) out.push(`${h.label} (${date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})`);
+    for (const event of monthEvents(toDateOnly(cursor).slice(0, 7))) {
+      if (event.date >= toDateOnly(today)) out.push(`${event.label} (${parseDate(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})`);
     }
   }
   return out.slice(0, 4);
@@ -136,11 +125,17 @@ export function buildPromotionBrief(
   today: Date = new Date(),
   weather?: WeatherReport | null,
   bookings: ServiceBooking[] = [],
-  sales: SaleTransaction[] = []
+  sales: SaleTransaction[] = [],
+  strategyInputs: StrategyInputs = {}
 ): PromotionBrief {
   const perf = campaignPerformance(codes);
   const demand = seasonalDemand(weather, today);
+  const strategy = buildStrategyContext(today, weather, bookings, sales, strategyInputs);
+  const monthStart = `${strategy.month}-01`;
+  const monthEnd = toDateOnly(new Date(Number(strategy.month.slice(0,4)), Number(strategy.month.slice(5)), 0));
+  const start = toDateOnly(today) > monthStart ? toDateOnly(today) : monthStart;
   return {
+    strategy,
     today: toDateOnly(today),
     liveCampaigns: promotions
       .filter((p) => p.status !== 'expired')
@@ -151,10 +146,10 @@ export function buildPromotionBrief(
         startDate: p.startDate,
         endDate: p.endDate,
       })),
-    clearWindows: suggestWindows(promotions, { today, count: 3 }),
+    clearWindows: start > monthEnd ? [] : suggestWindows(promotions, { today: parseDate(start), horizonDays: daysBetween(start, monthEnd), minDays: 1, count: 3 }),
     bestCampaign: bestCampaign(perf),
     codesByUsage: perf.slice(0, 5),
-    upcomingSeasonalHooks: seasonalHooks(today),
+    upcomingSeasonalHooks: strategy.events.filter(e => e.date >= start).map(e => `${e.label} (${e.date})`),
     demandForecast: {
       season: demand.season,
       signals: demand.signals.map((s) => ({
@@ -172,7 +167,7 @@ export function buildPromotionBrief(
   };
 }
 
-export interface AdvisorAction {
+export interface AdvisorAction extends Partial<StrategyActionDetails> {
   title: string;
   rationale: string;
   discountPercentage?: number;
@@ -192,99 +187,32 @@ export interface AdvisorResult {
   notes?: string;
 }
 
-/** A 7-day campaign starting from a given window (or today). */
-function weekFrom(window: SuggestedWindow | undefined, today: Date): { startDate: string; endDate: string } {
-  const start = window?.startDate || toDateOnly(today);
-  const end = window ? window.endDate : toDateOnly(new Date(today.getTime() + 6 * 86400000));
-  return { startDate: start, endDate: end };
-}
-
-/**
- * The always-available recommendation, derived purely from the brief. Used when
- * the AI is not configured or the quota is exhausted, so the planner never
- * shows a dead end.
- */
-export function recommendPromotion(brief: PromotionBrief, today: Date = new Date()): AdvisorResult {
-  const actions: AdvisorAction[] = [];
-  const best = brief.bestCampaign;
+/** A useful offline brief uses the same affordability checks as AI output. */
+export function recommendPromotion(brief: PromotionBrief, _today: Date = new Date()): AdvisorResult {
   const window = brief.clearWindows[0];
-  const { startDate, endDate } = weekFrom(window, today);
-
-  const topSignal = brief.demandForecast.signals[0];
-  const topPart = brief.demandForecast.parts[0];
-
-  // 1. Lead with the weather-driven demand forecast — the shop's own, real reason.
-  if (topSignal) {
-    const partLine = brief.demandForecast.parts.slice(0, 3).map((p) => p.name).join(', ');
-    actions.push({
-      title: topPart ? `Capitalise on ${topSignal.issue.toLowerCase()}` : topSignal.issue,
-      rationale: `${topSignal.reason} Target ${partLine || 'the affected systems'}${
-        topPart ? ` (e.g. "${topPart.offer}")` : ''
-      }. Forecast demand uplift ≈ +${topSignal.estimatedUpliftPct}%.`,
-      discountPercentage: 12,
-      categories: [topSignal.category],
-      startDate,
-      endDate,
-      audience: 'public',
-      confidence: Math.min(0.85, 0.55 + topSignal.magnitude * 0.4),
-    });
-  }
-
-  // 2. Repeat the best-performing code, if there is one.
-  if (best) {
-    actions.push({
-      title: `Repeat your best seller: ${best.title}`,
-      rationale: `"${best.code}" is your most-redeemed code (${best.timesUsed} uses${
-        best.redemptionPct != null ? `, ${best.redemptionPct}% of its limit` : ''
-      }). Re-running the same shape in a clear window is the lowest-risk way to lift sales.`,
-      discountPercentage: best.type === 'percent' ? best.value : undefined,
-      discountAmount: best.type === 'fixed' ? best.value : undefined,
-      categories: ['cycle', 'ebike'],
-      startDate,
-      endDate,
-      audience: 'public',
-      confidence: 0.7,
-    });
-  }
-
-  // 3. Always offer a seasonal-hook campaign too, so there is always a time-boxed option.
-  const hook = brief.upcomingSeasonalHooks[0];
-  actions.push({
-    title: hook ? `Tie a campaign to ${hook.split(' (')[0]}` : 'Run a short, focused weekend offer',
-    rationale: hook
-      ? `Customers already recognise ${hook.split(' (')[0]}. A 10-15% service offer timed to it converts better than a generic deal.`
-      : 'A short, time-boxed offer creates urgency without training customers to wait for discounts.',
-    discountPercentage: 12,
-    categories: ['cycle', 'ebike', 'electric_scooter'],
-    startDate,
-    endDate,
-    audience: 'member',
-    confidence: 0.5,
-  });
-
-  if (brief.clearWindows.length > 1) {
-    const w2 = weekFrom(brief.clearWindows[1], today);
-    actions.push({
-      title: 'Fill the next quiet stretch',
-      rationale: `Your next clear window runs from ${w2.startDate}. Booking a low-depth loyalty offer here smooths demand without clashing with live campaigns.`,
-      discountPercentage: 8,
-      categories: ['cycle'],
-      startDate: w2.startDate,
-      endDate: w2.endDate,
-      audience: 'member',
-      confidence: 0.45,
-    });
-  }
-
-  return {
-    headline: topSignal
-      ? `Weather-led: ${topSignal.issue} looks set to rise (+${topSignal.estimatedUpliftPct}%). The next clear window opens ${startDate}.`
-      : best
-        ? `Start from what works: your best code is "${best.code}", and the next clear window opens ${startDate}.`
-        : `No redemptions logged yet — start with a short, clear-window offer from ${startDate} and measure it.`,
-    actions,
-    source: 'offline',
+  if (!window) return { headline: 'No clear dates in this month. Choose another month or review overlapping campaigns.', actions: [], source: 'offline' };
+  const startDate = window.startDate;
+  const endDate = addDays(startDate, Math.min(6, window.days - 1));
+  const strategy = brief.strategy;
+  const actions: AdvisorAction[] = [];
+  const add = (raw: Record<string, unknown>, categories: VehicleCategory[] = ['cycle']) => {
+    const assessed = assessStrategyAction(raw, strategy);
+    if (assessed) actions.push({title: String(raw.title), rationale: String(raw.rationale), categories, startDate, endDate, audience: 'member', confidence: 0.4, ...assessed});
   };
+  const segment = strategy.segments.find(s => s.maxSpendGbp !== null);
+  const service = segment && strategy.services.filter(s => (s.scope === 'scooter') === (segment.category === 'electric_scooter') && s.priceGbp <= segment.maxSpendGbp!).sort((a,b) => a.priceGbp - b.priceGbp)[0];
+  add({title: service ? `${service.title}: keep a budget bike useful` : 'Small repair, clear quote',
+    rationale: service ? 'This catalogue job fits the lowest recorded spending ceiling in this segment. Confirm the fault and parts cost before offering it.' : 'Ask about the bike’s value, intended use and repair budget, then quote only worthwhile work.',
+    segmentId: segment?.id, serviceId: service?.id,
+    evidence: [strategy.weather.basis === 'forecast' ? 'A fresh local forecast is available; check the relevant dates.' : 'Only seasonal planning assumptions are available.'],
+    successMetric: 'Track accepted quotes and completed paid jobs by segment.'}, segment ? [segment.category] : ['cycle']);
+  const event = strategy.events.find(e => e.date >= startDate && e.date <= window.endDate);
+  add({title: event ? `${event.label}: prepare for the next ride` : 'Reliable everyday riding',
+    rationale: event ? event.relevance : 'Discuss the rider’s next journey and prioritise a small useful maintenance job after assessment.',
+    evidence: [event ? `${event.date}: ${event.source}` : strategy.weather.summary],
+    successMetric: 'Record enquiries, accepted quotes and the revenue from completed jobs.'});
+  if (brief.bestCampaign) add({title: 'Review a previously redeemed campaign', rationale: `Code ${brief.bestCampaign.code} recorded ${brief.bestCampaign.timesUsed} uses. Review its actual costs and customer fit before reusing the idea.`, successMetric: 'Compare accepted quotes and net revenue, not redemptions alone.'});
+  return { headline: brief.demandForecast.signals.length ? 'Weather-led campaign briefs — check customer budgets and job costs before approval.' : 'Practical campaign briefs — check customer budgets and job costs before approval.', actions, source: 'offline', notes: 'Rules-based ideas, not AI predictions. No campaign has been published.' };
 }
 
 /** Renders the brief as compact text for the model's prompt. */
@@ -312,22 +240,6 @@ export function briefToPrompt(brief: PromotionBrief): string {
   );
   lines.push(`Upcoming seasonal hooks: ${brief.upcomingSeasonalHooks.join('; ') || 'none'}`);
   lines.push(
-    `Demand forecast (${brief.demandForecast.season}): ${
-      brief.demandForecast.signals.length
-        ? brief.demandForecast.signals
-            .map((s) => `${s.issue} (+${s.estimatedUpliftPct}%, ${s.category}) — ${s.reason}`)
-            .join('; ')
-        : 'no standout pressure'
-    }`
-  );
-  lines.push(
-    `At-risk parts: ${
-      brief.demandForecast.parts.length
-        ? brief.demandForecast.parts.map((p) => `${p.name} (${p.offer})`).join('; ')
-        : 'none flagged'
-    }`
-  );
-  lines.push(
     `Shop history (top services): ${
       brief.shopSignals.topServices.length
         ? brief.shopSignals.topServices.map((s) => `${s.label}×${s.count}`).join('; ')
@@ -341,5 +253,6 @@ export function briefToPrompt(brief: PromotionBrief): string {
         : 'none'
     }`
   );
+  lines.push('Planning evidence (aggregated; no customer identities): ' + JSON.stringify(brief.strategy));
   return lines.join('\n');
 }

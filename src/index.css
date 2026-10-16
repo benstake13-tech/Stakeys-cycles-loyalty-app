@@ -1827,3 +1827,9 @@ main:has(>.stakeys-customer-login) {padding:0!important;max-width:none!important
 .seasonal-theme-active .site-canvas {background:transparent!important;}
 .seasonal-theme-active .site-canvas::after,
 .seasonal-theme-active .site-aurora {display:none!important;}
+@keyframes stakeys-avatar-idle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3px) rotate(-0.6deg); }
+}
+.avatar-idle { animation: stakeys-avatar-idle 3.8s ease-in-out infinite; transform-origin: 50% 55%; }
+@media (prefers-reduced-motion: reduce) { .avatar-idle { animation: none; } }

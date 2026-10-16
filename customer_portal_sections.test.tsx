@@ -53,6 +53,7 @@ beforeEach(() => cleanup());
 describe('CustomerPortal new sections', () => {
   it('exposes the new launcher tiles', () => {
     render(<CustomerPortal />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     const launcher = screen.getByTestId('customer-section-launcher');
     for (const id of ['wallet', 'care', 'symptom', 'guides', 'tradein', 'wishlist', 'marketplace']) {
       expect(within(launcher).queryByTestId(`customer-tile-${id}`)).toBeTruthy();
@@ -67,26 +68,31 @@ describe('CustomerPortal new sections', () => {
 
   it('opens the restored marketplace without replacing the shop trade-in flow', () => {
     render(<CustomerPortal/>);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-marketplace'));
     expect(screen.getByTestId('marketplace-panel')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-tradein'));
     expect(screen.getByTestId('tradein-form')).toBeTruthy();
   });
 
   it('opens the Watchlist section from its tile', () => {
     render(<CustomerPortal />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-wishlist'));
     expect(screen.getByTestId('wishlist-panel')).toBeTruthy();
   });
 
   it('opens the How-To Guides section from its tile', () => {
     render(<CustomerPortal />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-guides'));
     expect(screen.getByTestId('care-guides')).toBeTruthy();
   });
 
   it('opens the Trade-In section from its tile', () => {
     render(<CustomerPortal />);
+    fireEvent.click(screen.getByRole('button', { name: 'More' }));
     fireEvent.click(screen.getByTestId('customer-tile-tradein'));
     expect(screen.getByTestId('tradein-form')).toBeTruthy();
   });

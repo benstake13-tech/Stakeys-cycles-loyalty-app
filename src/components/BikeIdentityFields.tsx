@@ -16,10 +16,14 @@ import {
   BIKE_YEAR_OPTIONS,
   EbikeStatus,
 } from '../data/bikeCatalog';
-import { VehicleCategory } from '../types/bikeShop';
+import { VehicleCategory, BikeDetails } from '../types/bikeShop';
+import { RIDING_STYLES } from '../../supabase/functions/_shared/promotionStrategy';
 
 /** The subset of bike identity this component owns. */
 export interface BikeIdentityValue {
+  purchasePriceGbp?: string;
+  repairBudgetGbp?: string;
+  ridingStyle?: BikeDetails['ridingStyle'];
   category: VehicleCategory;
   brand: string;
   model: string;
@@ -540,13 +544,27 @@ export const BikeIdentityFields: React.FC<Props> = ({
         )}
       </div>
       )}
+      <details className="rounded-xl border border-emerald-900/50 bg-emerald-950/10 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-emerald-200">Riding style &amp; repair budget (optional)</summary>
+        <p className="my-2 text-xs text-neutral-400">Record what the owner paid and their preferred limit to help suggest sensible work. Leave prices blank if unknown; these are not a valuation or consent to repairs.</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className={labelClass}>Riding style<select className={fieldClass} value={value.ridingStyle || 'unknown'} onChange={e => onChange({ridingStyle: e.target.value as BikeDetails['ridingStyle']})}>{RIDING_STYLES.map(style => <option key={style} value={style}>{style === 'unknown' ? 'Not recorded' : style}</option>)}</select></label>
+          <label className={labelClass}>Price paid (£)<input className={fieldClass} type="number" min="0" step="0.01" inputMode="decimal" value={value.purchasePriceGbp || ''} onChange={e => onChange({purchasePriceGbp:e.target.value})} placeholder="Unknown" /></label>
+          <label className={labelClass}>Repair budget (£)<input className={fieldClass} type="number" min="0" step="0.01" inputMode="decimal" value={value.repairBudgetGbp || ''} onChange={e => onChange({repairBudgetGbp:e.target.value})} placeholder="Ask the owner" /></label>
+        </div>
+      </details>
     </div>
   );
 };
 
 /** Build the persisted BikeDetails payload from the form value (omitting blanks). */
 export function toBikeDetails(value: BikeIdentityValue) {
-  const details: Record<string, string> = {};
+  const details: BikeDetails = {};
+  if (value.ridingStyle) details.ridingStyle = value.ridingStyle;
+  for (const field of ['purchasePriceGbp', 'repairBudgetGbp'] as const) {
+    const amount = value[field];
+    if (amount?.trim() && Number.isFinite(Number(amount)) && Number(amount) >= 0) details[field] = Number(amount);
+  }
   if (value.ebikeStatus) details.ebikeStatus = value.ebikeStatus;
   if (value.conversionSystem) details.conversionSystem = value.conversionSystem;
   if (value.batteryPosition) details.batteryPosition = value.batteryPosition;
@@ -580,6 +598,9 @@ export function identityFromBike(bike: {
   serialNumber?: string;
   frameSizeOrNotes?: string;
   bikeDetails?: {
+    purchasePriceGbp?: number;
+    repairBudgetGbp?: number;
+    ridingStyle?: BikeDetails['ridingStyle'];
     ebikeStatus?: string;
     conversionSystem?: string;
     batteryPosition?: string;
@@ -594,6 +615,9 @@ export function identityFromBike(bike: {
   const known = modelsForBrand(bike.brand);
   const modelInCatalog = known.includes(bike.model);
   return {
+    purchasePriceGbp: details.purchasePriceGbp == null ? '' : String(details.purchasePriceGbp),
+    repairBudgetGbp: details.repairBudgetGbp == null ? '' : String(details.repairBudgetGbp),
+    ridingStyle: details.ridingStyle || 'unknown',
     category: bike.category,
     brand: bike.brand || 'Other / Not Listed',
     model: modelInCatalog ? bike.model : 'Other Model',

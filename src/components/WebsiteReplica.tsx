@@ -571,7 +571,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   );
 
   const siteHeader = (
-    <header data-testid="website-site-header" className="site-header-glass -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-xl border-b border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-canvas)_82%,transparent)]">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4">
         <button
           type="button"
@@ -1975,7 +1975,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
   return (
     <div className={`site-canvas ${isDark ? '' : 'site-light'} font-ui min-h-screen rounded-[1.75rem] px-4 pb-10 pt-0 sm:px-6 lg:px-8`}>
-      {siteHeader}
       {content.siteAnnouncements.length > 0 && (
         <div className="mx-auto max-w-7xl pt-3">
           <div className="flex items-center justify-center gap-2.5 rounded-full border border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-card-solid)_60%,transparent)] px-4 py-2">
@@ -1986,6 +1985,8 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           </div>
         </div>
       )}
+
+      {siteHeader}
 
       <main className="mx-auto max-w-7xl pt-10">{renderPage()}</main>
       {cartDrawer}

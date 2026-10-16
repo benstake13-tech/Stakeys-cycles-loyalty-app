@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createSeasonalRenderer, type SceneTheme, type V3 } from './seasonal3d';
-export function Theme3DCanvas({ world, motion, preview, reaction, onReady }: {
- world:SceneTheme; motion:'full'|'gentle'|'still'; preview:boolean; reaction:number; onReady:(ready:boolean)=>void;
+export function Theme3DCanvas({ world, motion, preview, reaction, onReady, onCharacterTap }: {
+ world:SceneTheme; motion:'full'|'gentle'|'still'; preview:boolean; reaction:number; onReady:(ready:boolean)=>void; onCharacterTap?:(index:number)=>void;
 }) {
  const canvas=useRef<HTMLCanvasElement>(null),engine=useRef<ReturnType<typeof createSeasonalRenderer>>(null);
  const [generation,setGeneration]=useState(0);
@@ -38,7 +38,7 @@ export function Theme3DCanvas({ world, motion, preview, reaction, onReady }: {
    const origin=down;down=null;if(!origin||motion==='still'||performance.now()-origin.time>600||Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>12)return;
    if(!preview&&interactive(event.target))return;
    const rect=node.getBoundingClientRect(),index=renderer!.pick(event.clientX-rect.left,event.clientY-rect.top);
-   if(index>=0)renderer!.poke(index);
+   if(index>=0){renderer!.poke(index);onCharacterTap?.(index);}
   };
   const move=(event:PointerEvent)=>{
    if(motion==='still'||event.pointerType!=='mouse'||(!preview&&interactive(event.target)))return;
@@ -59,7 +59,7 @@ export function Theme3DCanvas({ world, motion, preview, reaction, onReady }: {
    node.removeEventListener('webglcontextlost',lost);node.removeEventListener('webglcontextrestored',restored);document.removeEventListener('visibilitychange',visibility);window.removeEventListener('resize',resize);
    renderer!.dispose();if(engine.current===renderer)engine.current=null;
   };
- },[world,motion,preview,onReady,generation]);
+ },[world,motion,preview,onReady,onCharacterTap,generation]);
  useEffect(()=>{if(reaction>0&&motion!=='still')engine.current?.poke(0);},[reaction,motion]);
  return <canvas ref={canvas} className="theme-3d-canvas" aria-hidden="true" data-testid="theme-3d-canvas"/>;
 }

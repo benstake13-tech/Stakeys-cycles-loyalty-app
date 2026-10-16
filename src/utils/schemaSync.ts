@@ -47,6 +47,8 @@ export interface ExpectedTable {
    * rejects 0, but every stamp history row carries amount 0).
    */
   dropChecks?: string[];
+  /** Tables with migration-owned row policies must never get generic grants. */
+  securityManaged?: boolean;
 }
 
 export interface ColumnIssue {
@@ -103,6 +105,77 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'payment_status', type: 'text', default: "'pending'" },
       { name: 'payout_status', type: 'text', default: "'not_due'" },
       { name: 'created_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  // These marketplace tables have participant/staff-only RLS in their
+  // migrations. They are audited here, but bootstrap and policy repair must
+  // stay migration-owned; the generic sync SQL must not open them up.
+  {
+    name: 'marketplace_conversations', primaryKey: 'id', securityManaged: true,
+    columns: [
+      { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
+      { name: 'listing_id', type: 'uuid', references: 'public.marketplace_listings(id) ON DELETE CASCADE' },
+      { name: 'buyer_id', type: 'uuid', references: 'auth.users(id) ON DELETE CASCADE' },
+      { name: 'seller_id', type: 'uuid', references: 'auth.users(id) ON DELETE CASCADE' },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'marketplace_messages', primaryKey: 'id', securityManaged: true,
+    columns: [
+      { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
+      { name: 'conversation_id', type: 'uuid', references: 'public.marketplace_conversations(id) ON DELETE CASCADE' },
+      { name: 'sender_id', type: 'uuid', references: 'auth.users(id) ON DELETE CASCADE' },
+      { name: 'body', type: 'text' },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'marketplace_deal_terms', primaryKey: 'conversation_id', securityManaged: true,
+    columns: [
+      { name: 'conversation_id', type: 'uuid', references: 'public.marketplace_conversations(id) ON DELETE CASCADE' },
+      { name: 'proposed_price', type: 'numeric' },
+      { name: 'proposed_by', type: 'uuid', references: 'auth.users(id)' },
+      { name: 'agreed_price', type: 'numeric' },
+      { name: 'accepted_by', type: 'uuid', references: 'auth.users(id)' },
+      { name: 'agreed_at', type: 'timestamptz' },
+      { name: 'location_method', type: 'text' },
+      { name: 'location_details', type: 'text' },
+      { name: 'location_set_by', type: 'uuid', references: 'auth.users(id)' },
+      { name: 'buyer_location_confirmed_at', type: 'timestamptz' },
+      { name: 'seller_location_confirmed_at', type: 'timestamptz' },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'marketplace_serial_checks', primaryKey: 'listing_id', securityManaged: true,
+    columns: [
+      { name: 'listing_id', type: 'uuid', references: 'public.marketplace_listings(id) ON DELETE CASCADE' },
+      { name: 'seller_id', type: 'uuid', references: 'auth.users(id) ON DELETE RESTRICT' },
+      { name: 'frame_serial_number', type: 'text' },
+      { name: 'serial_number_photo_path', type: 'text' },
+      { name: 'check_status', type: 'text' },
+      { name: 'checked_at', type: 'timestamptz' },
+      { name: 'response_sha256', type: 'text' },
+      { name: 'matched_stolen_records', type: 'integer', default: '0' },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'marketplace_stolen_listing_flags', primaryKey: 'id', securityManaged: true,
+    columns: [
+      { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
+      { name: 'user_id', type: 'uuid', references: 'auth.users(id) ON DELETE RESTRICT' },
+      { name: 'listing_title', type: 'text' },
+      { name: 'make_model', type: 'text' },
+      { name: 'serial_sha256', type: 'text' },
+      { name: 'bike_index_response_sha256', type: 'text' },
+      { name: 'matching_stolen_records', type: 'integer' },
+      { name: 'status', type: 'text', default: "'open'" },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+      { name: 'reviewed_at', type: 'timestamptz' },
+      { name: 'reviewed_by', type: 'uuid', references: 'auth.users(id)' },
     ],
   },
   {
@@ -675,6 +748,7 @@ function columnDefinition(col: ExpectedColumn): string {
  * re-publishes realtime. Safe to run repeatedly; never drops data.
  */
 export function generateSchemaSyncSql(): string {
+  const syncableTables = EXPECTED_SCHEMA.filter((table) => !table.securityManaged);
   const lines: string[] = [
     "-- ==========================================================================",
     "-- Stakey's Cycles — sync live Supabase schema with the app",
@@ -684,9 +758,10 @@ export function generateSchemaSyncSql(): string {
     "-- ==========================================================================",
     '',
     '-- 1. Create any missing tables (existing tables are left untouched).',
+    '-- Marketplace chat and serial-check tables are audited only; apply their migrations so policies and constraints remain intact.',
   ];
 
-  for (const table of EXPECTED_SCHEMA) {
+  for (const table of syncableTables) {
     const cols = table.columns
       .map((c) => {
         if (c.name === table.primaryKey) {
@@ -702,7 +777,7 @@ export function generateSchemaSyncSql(): string {
   }
 
   lines.push('-- 2. Add any missing columns to existing tables.');
-  for (const table of EXPECTED_SCHEMA) {
+  for (const table of syncableTables) {
     for (const col of table.columns) {
       if (col.name === table.primaryKey) continue;
       const def = col.default ? ` DEFAULT ${col.default}` : '';
@@ -798,13 +873,14 @@ export function generateSchemaSyncSql(): string {
   }
 
   const tableList = EXPECTED_SCHEMA.map((t) => `'${t.name}'`).join(', ');
+  const writableTableList = syncableTables.map((t) => `'${t.name}'`).join(', ');
 
   lines.push('-- 5. Grants + permissive RLS on every app table.');
   lines.push(`DO $$`);
   lines.push(`DECLARE t text; r text;`);
   lines.push(`BEGIN`);
   lines.push(
-    `  FOREACH t IN ARRAY ARRAY[${tableList}] LOOP`
+    `  FOREACH t IN ARRAY ARRAY[${writableTableList}] LOOP`
   );
   lines.push(
     `    IF to_regclass('public.' || t) IS NULL THEN CONTINUE; END IF;`
@@ -839,7 +915,7 @@ export function generateSchemaSyncSql(): string {
   lines.push(`DO $$`);
   lines.push(`DECLARE t text;`);
   lines.push(`BEGIN`);
-  lines.push(`  FOREACH t IN ARRAY ARRAY[${tableList}] LOOP`);
+  lines.push(`  FOREACH t IN ARRAY ARRAY[${writableTableList}] LOOP`);
   lines.push(`    BEGIN`);
   lines.push(
     `      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);`
@@ -907,8 +983,12 @@ export function generateSchemaSyncSql(): string {
  * Idempotent and non-destructive, same guarantees as the full sync.
  */
 export function generateRepairSqlForTables(tableNames: string[]): string {
-  const tables = EXPECTED_SCHEMA.filter((t) => tableNames.includes(t.name));
+  const requested = EXPECTED_SCHEMA.filter((t) => tableNames.includes(t.name));
+  const tables = requested.filter((t) => !t.securityManaged);
   if (tables.length === 0) {
+    if (requested.some((t) => t.securityManaged)) {
+      return '-- These tables are migration-owned for security. Apply the corresponding marketplace migration instead of generic repair SQL.\n';
+    }
     return '-- No known schema is associated with this feature, so there is nothing to repair here.\n';
   }
 

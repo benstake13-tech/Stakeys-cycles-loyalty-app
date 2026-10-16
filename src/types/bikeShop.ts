@@ -166,6 +166,11 @@ export interface CustomerBike {
  * quick bookings keep working.
  */
 export interface BikeDetails {
+  /** Voluntary owner-reported price paid, not MSRP or our trade-in offer. */
+  purchasePriceGbp?: number;
+  /** Owner-declared spending limit, not inferred willingness to pay. */
+  repairBudgetGbp?: number;
+  ridingStyle?: 'commuter' | 'mountain' | 'road' | 'gravel' | 'hybrid' | 'kids' | 'cargo' | 'leisure' | 'scooter' | 'unknown';
   brand?: string;
   model?: string;
   /** Customer photo intake, carried in the existing bike_details JSON column. */

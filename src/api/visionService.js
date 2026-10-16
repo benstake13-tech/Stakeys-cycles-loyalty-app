@@ -31,9 +31,11 @@ const BIKE_IDENTIFICATION_PROMPT = `${UK_DIAGNOSTIC_PROMPT}\nYou are Stakey's Cy
 Do not call a part stock, upgraded, original or aftermarket based on appearance alone. Distinguish fitted observations from manufacturer specifications. Do not invent a model year, trim, source URL, dimension or part number.
 A deflated tyre is an observation, not proof of a puncture. Leak tests, torque, internal damage, bearing play and brake effectiveness require workshop checks. Use condition "unknown" when obscured or unassessed. Additional photos are labelled by the component area.
 Study the photo(s) of the bicycle or scooter carefully and return a precise, structured assessment.
-You may receive more than one photo: a full side-on shot, a close-up of the brand/head badge, and a
-close-up of the model name/decal. Use the close-ups to pin down make and model; use the full shot for
-geometry, wheel/tyre size and overall condition.
+You may receive ten labelled views of the same bike: both sides, front, rear, drivetrain, brakes,
+cockpit, tyre sidewalls, frame/serial and (when fitted) motor/battery labels. Follow the supplied
+photo order labels. Apply the complete diagnostic checklist below to these photos; do not ask the
+customer to type component specifications. Ask only for a focused retake when a specific required
+detail is unclear, and never infer hidden specifications from appearance.
 
 EXHAUSTIVE PART SWEEP (most important):
 Work through the checklist below top to bottom and emit ONE entry in "mainSpecs" for EVERY component,
@@ -66,6 +68,9 @@ Also return:
 - "notVisible": an array of the component names you could NOT assess from these photos and that the
   mechanic must confirm at intake.
 - "coverage": a 0-1 estimate of how much of the bike's components you were able to assess.
+- "photoRequests": for each important unresolved visual detail, give a targeted request with
+  "systemId", "area", "instruction" and "reason". Request a retake only when another safe photo
+  could resolve it; do not request details that need measurement or dismantling.
 
 Other required fields:
 - "type" must be exactly one of: "cycle", "ebike", "electric_scooter", "cargo".
@@ -188,6 +193,20 @@ const BIKE_RESPONSE_SCHEMA = {
       type: Type.NUMBER,
       description: "0 to 1 estimate of how much of the bike's components were assessed",
     },
+    photoRequests: {
+      type: Type.ARRAY,
+      description: "Targeted, safe retake requests for important photo-visible details that remain unclear",
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          systemId: { type: Type.STRING, description: "Relevant taxonomy system id" },
+          area: { type: Type.STRING, description: "Short component area name" },
+          instruction: { type: Type.STRING, description: "Exact angle, distance or label to photograph" },
+          reason: { type: Type.STRING, description: "What this photo could clarify" },
+        },
+        required: ["systemId", "area", "instruction", "reason"],
+      },
+    },
     obviousProblems: {
       type: Type.ARRAY,
       description: "Visible problems, wear or damage",
@@ -232,7 +251,7 @@ const BIKE_RESPONSE_SCHEMA = {
       },
     },
   },
-  required: ["make", "model", "type", "confidence", "electricKit", "mainSpecs", "obviousProblems", "cosmeticIssues", "summary", "faults", "overallCondition", "wheelSizeAndSpecs", "hasVisualData", "inputLanguageDetected", "userNotesTranslated"],
+  required: ["make", "model", "type", "confidence", "electricKit", "mainSpecs", "obviousProblems", "cosmeticIssues", "summary", "faults", "overallCondition", "wheelSizeAndSpecs", "hasVisualData", "inputLanguageDetected", "userNotesTranslated", "photoRequests"],
 };
 
 /**
