@@ -728,14 +728,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addPromotion = async (promoData: Omit<ShopPromotion, 'id'>): Promise<ShopPromotion> => {
     const newPromo: ShopPromotion = {
       ...promoData,
-      id: `promo-${Date.now().toString().slice(-4)}`,
+      id: `promo-${crypto.randomUUID()}`,
     };
+    const saved = await upsertPromotionToDb(newPromo);
+    if (!saved) throw new Error('Promotion was not saved to the server. Your draft is still available; check your connection and staff access, then retry.');
     setPromotions((prev) => [newPromo, ...prev]);
-    try {
-      await upsertPromotionToDb(newPromo);
-    } catch (e) {
-      console.warn('[DB SYNC] addPromotion persist failed:', e);
-    }
     return newPromo;
   };
 
@@ -743,12 +740,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = promotions.find((p) => p.id === id);
     if (!target) throw new Error('Promotion not found');
     const updatedPromo: ShopPromotion = { ...target, ...updates };
+    if (target.campaignBrief && (updates.campaignBrief !== undefined || updates.startDate && updates.startDate !== target.startDate || updates.endDate && updates.endDate !== target.endDate || updates.eligibleCategories && JSON.stringify(updates.eligibleCategories) !== JSON.stringify(target.eligibleCategories) || (updates.discountPercentage || 0) > 0 || (updates.discountAmount || 0) > 0)) throw new Error('Regenerate and review this campaign in the planner to change its dates, targeting or pricing.');
+    if (target.campaignBrief && updates.termsAndConditions && JSON.stringify(updates.termsAndConditions) !== JSON.stringify(target.termsAndConditions)) throw new Error('Quote-led campaign terms must retain their reviewed restrictions. Regenerate the brief in the planner.');
+    const saved = await upsertPromotionToDb(updatedPromo);
+    if (!saved) throw new Error('Promotion changes were not saved to the server. Please retry.');
     setPromotions((prev) => prev.map((p) => (p.id === id ? updatedPromo : p)));
-    try {
-      await upsertPromotionToDb(updatedPromo);
-    } catch (e) {
-      console.warn('[DB SYNC] updatePromotion persist failed:', e);
-    }
     return updatedPromo;
   };
 

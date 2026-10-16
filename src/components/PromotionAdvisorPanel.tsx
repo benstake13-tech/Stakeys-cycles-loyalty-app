@@ -6,6 +6,7 @@ import { advisePromotion } from '../api/promotionAdvisorService';
 import { buildPromotionBrief, type AdvisorAction, type AdvisorResult } from '../utils/promotionAdvisor';
 import { fetchOfficialHolidays, londonMonth } from '../utils/promotionStrategyContext';
 import { fetchWeatherReport, loadCachedWeather, DEFAULT_WEATHER_LOCATION, type WeatherReport } from '../utils/weatherService';
+import { CAMPAIGN_GOALS } from '../utils/promotionLogistics';
 import { validMonth } from '../../supabase/functions/_shared/promotionStrategy';
 
 const field = 'mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white focus:border-emerald-400 focus:outline-none';
@@ -33,8 +34,8 @@ export function PromotionAdvisorPanel({ weather: suppliedWeather, targets = {}, 
     if (suppliedWeather === undefined) void fetchWeatherReport(DEFAULT_WEATHER_LOCATION).then(w => { if (mounted.current) setWeather(w); }).catch(() => {});
     return () => { mounted.current = false; };
   }, []);
-  const options = {month, maxRepairValuePct:percent, staffNotes:notes, users, priceList:catalogue.priceList || [], officialEvents:official, targets};
-  const brief = useMemo(() => buildPromotionBrief(promotions, discountCodes, now, suppliedWeather === undefined ? weather : suppliedWeather, bookings, sales, options), [promotions, discountCodes, now, suppliedWeather, weather, bookings, sales, users, catalogue.priceList, official, month, percent, notes, targets]);
+  const options = {month, maxRepairValuePct:percent, staffNotes:notes, users, priceList:catalogue.priceList || [], products:catalogue.products || [], officialEvents:official, targets};
+  const brief = useMemo(() => buildPromotionBrief(promotions, discountCodes, now, suppliedWeather === undefined ? weather : suppliedWeather, bookings, sales, options), [promotions, discountCodes, now, suppliedWeather, weather, bookings, sales, users, catalogue.priceList, catalogue.products, official, month, percent, notes, targets]);
   const context = brief.strategy;
   const recorded = context.segments.reduce((sum,s) => sum+s.count,0);
   const valued = context.segments.reduce((sum,s) => sum+s.knownValues,0);
@@ -51,7 +52,7 @@ export function PromotionAdvisorPanel({ weather: suppliedWeather, targets = {}, 
   };
   return <section data-testid="promo-advisor" className="rounded-2xl border border-emerald-400/25 bg-gradient-to-br from-emerald-950/40 to-neutral-950/80 p-4 sm:p-5 space-y-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-emerald-400">Stakey’s growth studio</p><h3 className="mt-1 text-lg font-bold text-white">AI promotion planner</h3><p className="mt-1 max-w-xl text-xs text-neutral-400">Useful offers for real riders. Check the month, weather, riding needs and spending limits before preparing campaign briefs.</p></div>
+      <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-emerald-400">Stakey’s growth studio</p><h3 className="mt-1 text-lg font-bold text-white">AI promotion planner</h3><p className="mt-1 max-w-xl text-xs text-neutral-400">Balance quiet workshop slots, available stock, repeat visits and new customers. Check the month, weather, riding needs and spending limits before preparing campaign briefs.</p></div>
       <Sparkles size={24} className="text-emerald-400" aria-hidden="true" />
     </div>
     <div className="grid gap-3 sm:grid-cols-2">
@@ -81,8 +82,8 @@ export function PromotionAdvisorPanel({ weather: suppliedWeather, targets = {}, 
     {advice && <div data-testid="promo-advisor-result" aria-live="polite" className="space-y-3">
       <div className="flex flex-wrap items-center gap-2"><h4 className="font-semibold text-emerald-200">{advice.headline}</h4><span data-testid="promo-advisor-source" className="rounded-full border border-white/15 px-2 py-1 text-[10px] text-neutral-300">{advice.source === 'ai' ? 'AI' : 'Offline'}</span></div>
       <div className="grid gap-3 lg:grid-cols-2">{advice.actions.map((a,i) => <article key={i} className="rounded-2xl border border-white/10 bg-black/25 p-4 space-y-3">
-        <h4 className="font-bold text-white">{a.title}</h4><p className="text-xs leading-relaxed text-neutral-300">{a.rationale}</p>
-        <dl className="space-y-2 text-xs"><div><dt className="font-bold text-emerald-300">Who it suits</dt><dd>{a.audienceDescription || 'Confirm rider needs and budget'}</dd></div><div><dt className="font-bold text-emerald-300">Spending fit</dt><dd>{a.offerPriceGbp !== undefined ? `${gbp(a.offerPriceGbp)} catalogue labour estimate${a.spendCeilingGbp !== undefined ? ` · ${gbp(a.spendCeilingGbp)} total planning ceiling` : ''}` : 'Quote first — no price promised'}</dd><dd className="mt-1 text-neutral-400">{a.priceBasis}</dd></div><div><dt className="font-bold text-emerald-300">Timing &amp; channel</dt><dd>{a.startDate} → {a.endDate} · {a.channel || 'In-store discussion'}</dd></div><div><dt className="font-bold text-emerald-300">Measure</dt><dd>{a.successMetric || 'Enquiries and accepted quotes'}</dd></div></dl>
+        <p className="text-xs font-bold text-emerald-300">{CAMPAIGN_GOALS[a.objective || 'workshop']} · {a.provenance === 'rules' ? 'Rules-based' : advice.source === 'ai' ? 'AI brief' : 'Rules-based'}</p><h4 className="font-bold text-white">{a.title}</h4><p className="text-xs leading-relaxed text-neutral-300">{a.rationale}</p>
+        <dl className="space-y-2 text-xs"><div><dt className="font-bold text-emerald-300">Who it suits</dt><dd>{a.audienceDescription || 'Confirm rider needs and budget'}</dd></div><div><dt className="font-bold text-emerald-300">Spending fit</dt><dd>{a.offerPriceGbp !== undefined ? `${gbp(a.offerPriceGbp)} catalogue estimate${a.spendCeilingGbp !== undefined ? ` · ${gbp(a.spendCeilingGbp)} total planning ceiling` : ''}` : 'Quote first — no price promised'}</dd><dd className="mt-1 text-neutral-400">{a.priceBasis}</dd></div><div><dt className="font-bold text-emerald-300">Timing &amp; channel</dt><dd>{a.startDate} → {a.endDate} · {a.channel || 'In-store discussion'}</dd></div><div><dt className="font-bold text-emerald-300">Measure</dt><dd>{a.successMetric || 'Enquiries and accepted quotes'}</dd></div></dl>
         {a.evidence?.length ? <ul className="list-disc pl-4 text-xs text-neutral-400">{a.evidence.map((e,j) => <li key={j}>{e}</li>)}</ul> : null}
         {a.checks?.length ? <details className="text-xs text-amber-100"><summary className="cursor-pointer">Checks before approval</summary><ul className="mt-2 list-disc pl-4">{a.checks.map((c,j) => <li key={j}>{c}</li>)}</ul></details> : null}
         {onApply && <button type="button" data-testid={`promo-advisor-apply-${i}`} onClick={() => onApply(a)} className="w-full rounded-xl border border-emerald-400/30 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200">Load into draft</button>}

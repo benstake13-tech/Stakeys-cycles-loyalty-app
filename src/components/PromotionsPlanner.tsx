@@ -11,6 +11,10 @@ import {
   Tag,
   CloudRain,
 } from 'lucide-react';
+import { useWebsiteContent } from '../context/WebsiteContentStore';
+import { PromotionLogisticsReview } from './PromotionLogisticsReview';
+import { campaignBrief, campaignTerms, evaluatePromotionLogistics, type LogisticsInputs } from '../utils/promotionLogistics';
+import { validDay } from '../../supabase/functions/_shared/promotionStrategy';
 import { useShop } from '../context/ShopContext';
 import { ShopPromotion, VehicleCategory } from '../types/bikeShop';
 import {
@@ -66,6 +70,11 @@ const emptyDraft = (): PlannerInput => ({
  */
 export const PromotionsPlanner: React.FC = () => {
   const { promotions, addPromotion, discountCodes, bookings, sales } = useShop();
+  const catalogue = useWebsiteContent();
+  const [selectedAdvice, setSelectedAdvice] = useState<AdvisorAction | null>(null);
+  const [logistics, setLogistics] = useState<LogisticsInputs>({reviewed:false});
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState('');
   const [draft, setDraft] = useState<PlannerInput>(emptyDraft);
   const [showTimeline, setShowTimeline] = useState(true);
   const [created, setCreated] = useState<string | null>(null);
@@ -75,6 +84,10 @@ export const PromotionsPlanner: React.FC = () => {
   const plan = useMemo(() => planPromotion(draft, promotions), [draft, promotions]);
   const timeline = useMemo(() => buildTimeline(promotions, draft, { spanDays: 120 }), [promotions, draft]);
   const windows = useMemo(() => suggestWindows(promotions, { count: 3 }), [promotions]);
+
+  const logisticsResult = selectedAdvice ? evaluatePromotionLogistics(selectedAdvice, draft, logistics, catalogue.products || [], promotions, toDateOnly(new Date()), catalogue.priceList || []) : null;
+  const datesValid = validDay(draft.startDate) && validDay(draft.endDate) && draft.endDate >= draft.startDate && draft.startDate >= toDateOnly(new Date());
+  useEffect(() => { setLogistics(l => ({...l, reviewed:false})); }, [draft]);
 
   // Fetch the forecast once, non-blocking; keep the cached report on failure and
   // always fall back to the deterministic season model when there is no weather.
@@ -102,6 +115,7 @@ export const PromotionsPlanner: React.FC = () => {
 
   /** Seed the draft from a forecast signal (title + category). */
   const seedFromSignal = (signal: DemandSignal) => {
+    if (selectedAdvice) return;
     setDraft((d) => ({
       ...d,
       title: d.title.trim() ? d.title : `${signal.issue} — book ahead`,
@@ -111,12 +125,13 @@ export const PromotionsPlanner: React.FC = () => {
 
   /** Load a suggested action into the draft so it can be reviewed and created. */
   const applyAdvice = (a: AdvisorAction) => {
+    setSelectedAdvice(a); setLogistics({reviewed:false}); setCreated(null); setPublishError('');
     setDraft((d) => ({
       ...d,
-      title: d.title.trim() ? d.title : a.title,
-      discountPercentage: a.discountPercentage ?? 0,
-      discountAmount: a.discountAmount ?? 0,
-      eligibleCategories: a.categories.length ? a.categories : d.eligibleCategories,
+      title: a.title,
+      discountPercentage: 0,
+      discountAmount: 0,
+      eligibleCategories: a.categories,
       startDate: a.startDate || d.startDate,
       endDate: a.endDate || d.endDate,
     }));
@@ -137,18 +152,20 @@ export const PromotionsPlanner: React.FC = () => {
   };
 
   const handleCreate = async () => {
-    if (!draft.title.trim()) return;
+    if (publishing || !draft.title.trim() || !datesValid || (logisticsResult && !logisticsResult.ready)) return;
+    setPublishing(true); setPublishError('');
     const newPromo: Omit<ShopPromotion, 'id'> = {
       title: draft.title.trim(),
-      subtitle: plan.summary,
+      subtitle: selectedAdvice ? `Quote-led campaign · ${selectedAdvice.audienceDescription || 'Confirm customer fit and budget'}` : plan.summary,
       code: plan.code,
       discountPercentage: draft.discountPercentage,
       discountAmount: draft.discountAmount,
-      badgeText: plan.badgeText,
+      badgeText: selectedAdvice ? 'Quote required' : plan.badgeText,
+      campaignBrief: selectedAdvice ? campaignBrief(selectedAdvice, logistics.quantity!) : undefined,
       status: plan.status,
       startDate: draft.startDate,
       endDate: draft.endDate,
-      termsAndConditions: [
+      termsAndConditions: selectedAdvice ? campaignTerms(selectedAdvice, logistics.quantity!) : [
         'Valid for in-store and online bookings.',
         'Labour only; replacement parts charged separately.',
         'Cannot combine with other offers.',
@@ -156,9 +173,11 @@ export const PromotionsPlanner: React.FC = () => {
       eligibleCategories: draft.eligibleCategories,
       bgGradient: 'from-emerald-950/80 via-[#0e1713] to-neutral-900',
     };
-    await addPromotion(newPromo);
-    setCreated(`Planned and created "${newPromo.title}" (${plan.code}).`);
-    setDraft(emptyDraft());
+    try {
+      await addPromotion(newPromo);
+      setCreated(`Planned and created "${newPromo.title}" (${plan.code}).`);
+      setDraft(emptyDraft()); setSelectedAdvice(null); setLogistics({reviewed:false});
+    } catch (error) { setPublishError(error instanceof Error ? error.message : 'Promotion was not saved. Please retry.'); } finally { setPublishing(false); }
   };
 
   return (
@@ -203,7 +222,7 @@ export const PromotionsPlanner: React.FC = () => {
             </p>
           </div>
           <span className="text-[10px] uppercase tracking-wider text-neutral-500">
-            {weather ? 'Live forecast' : 'Season model'}
+            Planning signals · verify conditions
           </span>
         </div>
 
@@ -213,13 +232,14 @@ export const PromotionsPlanner: React.FC = () => {
               <button
                 key={s.id}
                 type="button"
+                disabled={!!selectedAdvice}
                 onClick={() => seedFromSignal(s)}
                 data-testid={`promo-signal-${s.id}`}
                 className="text-left rounded-xl border border-neutral-800 bg-neutral-950/60 p-3 space-y-1 hover:border-sky-500/50"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-white">{s.issue}</span>
-                  <span className="shrink-0 text-[10px] font-bold text-emerald-300">+{s.estimatedUpliftPct}%</span>
+                  <span className="shrink-0 text-[10px] text-neutral-400">Planning assumption</span>
                 </div>
                 <p className="text-[11px] text-neutral-400">{s.reason}</p>
                 <span className="inline-block rounded bg-neutral-900 px-1.5 py-0.5 text-[10px] text-neutral-400">
@@ -283,6 +303,7 @@ export const PromotionsPlanner: React.FC = () => {
             type="number"
             min={0}
             max={100}
+            disabled={!!selectedAdvice}
             value={draft.discountPercentage ?? 0}
             onChange={(e) => setDraft({ ...draft, discountPercentage: Number(e.target.value) || 0 })}
             className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
@@ -293,6 +314,7 @@ export const PromotionsPlanner: React.FC = () => {
           <input
             type="number"
             min={0}
+            disabled={!!selectedAdvice}
             value={draft.discountAmount ?? 0}
             onChange={(e) => setDraft({ ...draft, discountAmount: Number(e.target.value) || 0 })}
             className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500"
@@ -309,6 +331,7 @@ export const PromotionsPlanner: React.FC = () => {
                   key={c.id}
                   type="button"
                   data-testid={`planner-cat-${c.id}`}
+                  disabled={!!selectedAdvice}
                   aria-pressed={on}
                   onClick={() => toggleCategory(c.id)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-colors ${
@@ -343,6 +366,8 @@ export const PromotionsPlanner: React.FC = () => {
         ))}
       </div>
 
+      {selectedAdvice && logisticsResult && <PromotionLogisticsReview action={selectedAdvice} input={logistics} result={logisticsResult} onChange={setLogistics}/>}
+      {publishError && <p role="alert" className="text-sm text-rose-300">{publishError}</p>}
       {/* Plan summary + warnings */}
       <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -379,17 +404,17 @@ export const PromotionsPlanner: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             type="button"
-            onClick={handleCreate}
-            disabled={!draft.title.trim()}
+            onClick={() => void handleCreate()}
+            disabled={publishing || !draft.title.trim() || !datesValid || (!!logisticsResult && !logisticsResult.ready)}
             data-testid="planner-create"
             className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-50 disabled:cursor-not-allowed text-neutral-950 font-bold text-xs flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            <span>Create promotion</span>
+            <span>{publishing ? 'Saving…' : selectedAdvice ? 'Approve quote-led campaign' : 'Create promotion'}</span>
           </button>
           <button
             type="button"
-            onClick={() => setDraft(emptyDraft())}
+            onClick={() => {setDraft(emptyDraft());setSelectedAdvice(null);setLogistics({reviewed:false});setPublishError('');}}
             className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold"
           >
             Reset

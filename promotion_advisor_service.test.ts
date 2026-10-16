@@ -64,7 +64,8 @@ describe('advisePromotion', () => {
     });
     const result = await advisePromotion(brief());
     expect(result.source).toBe('ai');
-    expect(result.actions).toHaveLength(1);
+    expect(result.actions.map(a => a.objective)).toEqual(['workshop','retention','growth']);
+    expect(result.actions[1].provenance).toBe('rules');
     expect(result.actions[0].title).toBe('Drivetrain Week');
     expect(result.actions[0].audience).toBe('member');
     // the low-quota lite model is what was asked for

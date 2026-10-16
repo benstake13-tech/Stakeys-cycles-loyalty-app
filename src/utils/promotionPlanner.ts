@@ -1,3 +1,4 @@
+import { validDay } from '../../supabase/functions/_shared/promotionStrategy';
 import { ShopPromotion, VehicleCategory } from '../types/bikeShop';
 
 /**
@@ -36,7 +37,7 @@ export const toDateOnly = (d: Date): string => {
 
 export const parseDate = (value: string): Date => {
   const [y, m, d] = String(value || '').split('-').map(Number);
-  if (!y || !m || !d) return new Date(NaN);
+  if (!validDay(String(value || ''))) return new Date(NaN);
   return new Date(y, m - 1, d);
 };
 
@@ -78,7 +79,7 @@ const overlaps = (aStart: string, aEnd: string, bStart: string, bEnd: string): b
   parseDate(aStart) <= parseDate(bEnd) && parseDate(bStart) <= parseDate(aEnd);
 
 const sharesCategory = (a: VehicleCategory[], b: VehicleCategory[]): boolean =>
-  a.some((c) => b.includes(c));
+  !a.length || !b.length || a.some((c) => b.includes(c));
 
 const CODE_PREFIX = 'STK';
 
