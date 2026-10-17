@@ -20,9 +20,10 @@ describe('marketplace public and installed app access',()=>{
   expect(state.select.mock.calls[0][0]).not.toContain('seller_id');
   expect(state.eq).toHaveBeenCalledWith('status','active');
   fireEvent.click(screen.getByRole('button',{name:'List your ride'}));
-  expect(screen.getByText('Browse here. Buy and sell in the app.')).toBeTruthy();
+  expect(screen.getByRole('dialog',{name:'Marketplace member sign in'})).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'Close sign in'}));
   expect(screen.queryByTestId('marketplace-listing-form')).toBeNull();
-  fireEvent.click(screen.getByRole('button',{name:'Use the app to message seller'}));
+  fireEvent.click(screen.getByRole('button',{name:'Sign in to message seller'}));
   expect(state.invoke).not.toHaveBeenCalled();
  });
  it('groups marketplace browsing by bicycle, e-bike and scooter categories',async()=>{
@@ -59,11 +60,11 @@ describe('marketplace public and installed app access',()=>{
   fireEvent.click(screen.getByRole('button',{name:'Close listing details'}));
   expect(screen.queryByRole('dialog')).toBeNull();
  });
- it('does not expose browser listing forms through an existing web session',async()=>{
+ it('lets signed-in website members create a staff-reviewed listing',async()=>{
   state.user={uid:'seller-1'};render(<MarketplacePanel/>);
   await screen.findByText('Local bike');
   fireEvent.click(screen.getByRole('button',{name:'List your ride'}));
-  expect(screen.queryByTestId('marketplace-listing-form')).toBeNull();
+  expect(screen.getByTestId('marketplace-listing-form')).toBeTruthy();
  });
  it('keeps listing creation available inside the signed-in APK',async()=>{
   state.native=true;state.user={uid:'seller-1'};render(<MarketplacePanel/>);
