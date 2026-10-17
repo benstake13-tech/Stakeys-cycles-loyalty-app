@@ -9,9 +9,9 @@ describe('production surface routing', () => {
   expect(hostedSurfaceForBranch('feature/test')).toBeUndefined();
  });
  it('keeps only the public marketing domain exempt from the browser login blanket', () => {
-  expect(isPublicWebsiteHost('www.stakeyswheels.co.uk')).toBe(true);
-  expect(isPublicWebsiteHost('stakeyswheels.co.uk')).toBe(true);
-  expect(isPublicWebsiteHost('WWW.STAKEYSWHEELS.CO.UK.')).toBe(true);
-  for (const host of ['localhost','www.stakeys-cycles.co.uk','stakeyswheels.co.uk.evil.example','fake-stakeyswheels.co.uk']) expect(isPublicWebsiteHost(host)).toBe(false);
+  expect(isPublicWebsiteHost('www.stakeys.co.uk')).toBe(true);
+  expect(isPublicWebsiteHost('stakeys.co.uk')).toBe(true);
+  expect(isPublicWebsiteHost('WWW.STAKEYS.CO.UK.')).toBe(true);
+  for (const host of ['localhost','www.stakeys-cycles.co.uk','www.stakeyswheels.co.uk','stakeys.co.uk.evil.example','fake-stakeys.co.uk']) expect(isPublicWebsiteHost(host)).toBe(false);
  });
 });

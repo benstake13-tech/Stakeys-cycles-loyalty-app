@@ -9,8 +9,8 @@ anything that could affect a deploy.
 | Branch           | Surface   | Vercel project                  | Live domain                 |
 | ---------------- | --------- | ------------------------------- | --------------------------- |
 | `staff-terminal` | `staff`   | `stakeys-cycles-loyalty-app`    | www.stakeys-cycles.co.uk    |
-| `main-website`   | `website` | `stakeys-cycles-loyalty-app-6jf5` | www.stakeyswheels.co.uk   |
-| `customer-app`   | `customer`| `stakeys-cycles-loyalty-app-i34d` | `...-i34d.vercel.app`     |
+| `main-website`   | `website` | `stakeys-cycles-loyalty-app-6jf5` | www.stakeys.co.uk         |
+| `customer-app`   | `customer`| `stakeys-cycles-loyalty-app-i34d` | www.stakeyswheels.co.uk   |
 
 - The branches are **never merged**. Make every change on `staff-terminal`, then
   cherry-pick it onto the other two:
