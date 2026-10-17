@@ -1,6 +1,7 @@
 .theme-world{isolation:isolate;overflow:hidden;background:#07151e;pointer-events:none;contain:paint;--world-accent:#99edca}
 .theme-world-background{position:fixed;inset:0;z-index:0}.theme-world-preview{position:relative;width:100%;aspect-ratio:16/10;border-radius:20px;min-height:200px}
-.theme-artwork{display:block;width:100%;height:100%;position:absolute;inset:0}.theme-world-background .theme-artwork{opacity:.78}
+.theme-artwork{display:block;width:100%;height:100%;position:absolute;inset:0}.theme-world-background .theme-artwork{opacity:.86}
+.theme-shop-sign{fill:#e6f5e7;font:800 51px 'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:5px;paint-order:stroke fill;stroke:#153327;stroke-width:1.5px;filter:drop-shadow(0 2px 4px #000a)}
 .theme-world-background:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(4,12,18,.33),rgba(4,12,18,.50) 50%,rgba(4,12,18,.12)),radial-gradient(ellipse at center,transparent 35%,#06121d99)}
 .theme-atmosphere{position:absolute;inset:0;background:radial-gradient(ellipse at 70% 20%,color-mix(in srgb,var(--world-accent) 12%,transparent),transparent 65%);opacity:.7;animation:theme-breathe 12s ease-in-out infinite alternate}
 .theme-particles{position:absolute;inset:0;overflow:hidden}.theme-particles i{position:absolute;left:var(--x);top:-5%;height:var(--size);width:var(--size);border-radius:50%;background:#e8f7ff;opacity:.6;animation:theme-drift var(--duration) linear var(--delay) infinite;box-shadow:0 0 9px #b7e7ff35}
@@ -18,18 +19,19 @@
 @keyframes theme-drift{from{transform:translate3d(0,-10vh,0) rotate(0deg);opacity:0}10%{opacity:.65}to{transform:translate3d(var(--drift),105vh,0) rotate(var(--twist));opacity:0}}
 @keyframes theme-twinkle{0%,100%{opacity:.1;transform:scale(.6)}50%{opacity:.7;transform:scale(1.2)}}
 @keyframes theme-breathe{to{opacity:.3}}@keyframes theme-sway{to{rotate:3deg}}@keyframes theme-depth{to{transform:translateX(7px) scale(1.025)}}@keyframes theme-firework{0%,60%,100%{opacity:0;scale:.4}70%{opacity:.8;scale:1}90%{opacity:0;scale:1.2}}
-@media(max-width:600px){.theme-world-background .theme-artwork{width:150%;left:-25%}.theme-particles i:nth-child(n+17){display:none}.theme-studio-preview .theme-world-preview{aspect-ratio:4/3}.theme-studio-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.theme-studio-header{align-items:flex-start}}
+@media(max-width:600px){.theme-particles i:nth-child(n+17){display:none}.theme-studio-preview .theme-world-preview{aspect-ratio:4/3}.theme-studio-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.theme-studio-header{align-items:flex-start}}
 @media(prefers-reduced-motion:reduce){.theme-world *{animation:none!important}.theme-particles{display:none}}
 
-/* Actual 3D world, decorative fallback and a clear space to interact. */
+/* The photograph fills every surface; the interactive character diorama stays in the preview. */
 .theme-world{background:linear-gradient(180deg,var(--world-sky,#07151e),var(--world-horizon,#294647));}
 .theme-3d-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
-.theme-world[data-renderer=webgl]>.theme-artwork{visibility:hidden}
 .theme-world-preview{pointer-events:auto}
-.theme-world-preview .theme-3d-canvas{pointer-events:auto;touch-action:pan-y}
+.theme-world-preview .theme-3d-canvas{inset:auto 14px 14px auto;width:34%;height:48%;border:1px solid #bbdec855;border-radius:14px;background:linear-gradient(160deg,var(--world-sky),var(--world-horizon));box-shadow:0 12px 28px #0008;pointer-events:auto;touch-action:pan-y}
+.theme-scene-dialog>.theme-world-preview .theme-3d-canvas{width:38%;height:52%}
+.theme-studio-card .theme-shop-sign{display:none}
 .theme-world-preview .theme-atmosphere,.theme-world-preview .theme-particles{pointer-events:none}
 .theme-world-background:after{pointer-events:none;background:linear-gradient(180deg,rgba(4,12,18,.15),rgba(4,12,18,.26) 50%,rgba(4,12,18,.12)),radial-gradient(ellipse at center,transparent 35%,#06121d66)}
-.theme-scene-tools{position:absolute;bottom:12px;left:14px;right:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;pointer-events:none;color:#ebfbf0;font-size:10px}
+.theme-scene-tools{position:absolute;bottom:12px;left:14px;right:40%;display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:8px;pointer-events:none;color:#ebfbf0;font-size:10px}
 .theme-scene-tools>span{padding:6px 10px;border:1px solid #a1d3b244;border-radius:20px;background:#0a2318b8;backdrop-filter:blur(12px)}
 .theme-scene-tools button{pointer-events:auto;min-height:36px;padding:7px 12px;border:1px solid #8dcaab77;border-radius:20px;background:#102c20e8;color:#d9fce7;font-size:10px;font-weight:650;cursor:pointer}
 .theme-scene-tools button:disabled{opacity:.45;cursor:default}
