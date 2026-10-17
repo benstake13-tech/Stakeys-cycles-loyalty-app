@@ -4,14 +4,11 @@ import './CustomerDesktopNavigation.css';
 
 type CustomerNavId = 'garage' | 'booking' | 'repairs' | 'stamps' | 'more';
 const destinations: Array<{ id: CustomerNavId; label: string; icon: StakeysIconName }> = [
-  { id: 'garage', label: 'Garage', icon: 'garage' },
-  { id: 'booking', label: 'Book', icon: 'booking' },
-  { id: 'repairs', label: 'Repairs', icon: 'workshop' },
-  { id: 'stamps', label: 'Pass', icon: 'rewards' },
-  { id: 'more', label: 'More', icon: 'apps' },
+  { id: 'more', label: 'Apps', icon: 'apps' },
+  { id: 'stamps', label: 'Customer ID', icon: 'rewards' },
 ];
 
-/** One persistent glass bar: More opens the full customer feature directory. */
+/** One glass bar: the app drawer and a combined customer ID / QR pass. */
 export const CustomerDesktopNavigation: React.FC<{
   active: CustomerNavId;
   onSelect: (id: CustomerNavId) => void;
