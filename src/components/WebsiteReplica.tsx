@@ -546,12 +546,12 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   );
 
   const siteHeader = (
-    <header className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 px-4 sm:px-6 lg:px-8 backdrop-blur-xl border-b border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-canvas)_82%,transparent)]">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4">
+    <header className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 px-3 sm:px-6 lg:px-8 backdrop-blur-xl border-b border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-canvas)_82%,transparent)]">
+      <div className="mx-auto flex h-16 max-w-7xl min-w-0 items-center justify-between gap-2 sm:gap-4">
         <button
           type="button"
           onClick={() => goTo('home')}
-          className="flex items-center gap-3 text-left cursor-pointer"
+          className="flex min-w-0 shrink items-center gap-2 text-left cursor-pointer sm:gap-3"
           aria-label="Stakey's Cycles home"
         >
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)]">
@@ -561,9 +561,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
               className="h-full w-full object-contain"
             />
           </span>
-          <span className="leading-tight">
-            <span className="font-editorial block text-lg font-semibold tracking-tight text-[var(--site-ink)]">
-              Stakey's <span className="text-[var(--site-green)]">Cycles</span>
+          <span className="min-w-0 leading-tight">
+            <span className="font-editorial hidden whitespace-nowrap text-lg font-semibold tracking-tight text-[var(--site-ink)] min-[390px]:block">
+              Stakey's <span className="hidden text-[var(--site-green)] min-[460px]:inline">Cycles</span>
             </span>
             <span className="hidden text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--site-ink-faint)] sm:block">
               Repairs · Salford
@@ -572,7 +572,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
         </button>
 
         {/* Desktop grouped navigation */}
-        <nav ref={navRef} className="hidden xl:flex items-center gap-1" aria-label="Website pages">
+        <nav ref={navRef} className="hidden 2xl:flex items-center gap-1" aria-label="Website pages">
           <button
             type="button"
             onClick={() => goTo('home')}
@@ -635,9 +635,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           })}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <span className="hidden xl:inline-flex">{utilityBadge}</span>
-          <ThemeToggle className="site-toggle !px-2.5 !py-1.5" />
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <span className="hidden 2xl:inline-flex">{utilityBadge}</span>
+          <ThemeToggle className="site-toggle !h-11 !w-11 !justify-center !gap-1 !p-0 sm:!h-auto sm:!w-auto sm:!px-2.5 sm:!py-1.5" />
           {onSignIn && (
             <button
               type="button"
@@ -651,7 +651,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
             type="button"
             onClick={() => setCartOpen(true)}
             aria-label="Open basket"
-            className="site-btn site-btn-ghost site-btn-sm relative !px-3"
+            className="site-btn site-btn-ghost site-btn-sm relative !h-11 !w-11 !p-0 sm:!h-auto sm:!w-auto sm:!px-3"
           >
             <ShoppingCart className="w-4 h-4" />
             {cartCount > 0 && (
@@ -660,15 +660,15 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
               </span>
             )}
           </button>
-          <button type="button" onClick={onBookService} className="site-btn site-btn-primary site-btn-sm">
-            <CalendarCheck className="w-3.5 h-3.5" /> Book a repair
+          <button type="button" onClick={onBookService} aria-label="Book a repair" className="site-btn site-btn-primary site-btn-sm !h-11 !w-11 !p-0 sm:!h-auto sm:!w-auto sm:!px-4">
+            <CalendarCheck className="h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Book a repair</span>
           </button>
           <button
             type="button"
             onClick={() => setMobileNavOpen((v) => !v)}
             aria-label="Toggle navigation"
             aria-expanded={mobileNavOpen}
-            className="site-btn site-btn-ghost site-btn-sm !px-3 xl:hidden"
+            className="site-btn site-btn-ghost site-btn-sm !h-11 !w-11 !p-0 sm:!h-auto sm:!w-auto sm:!px-3 2xl:hidden"
           >
             {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
@@ -677,7 +677,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
       {/* Mobile drawer */}
       {mobileNavOpen && (
-        <div className="xl:hidden pb-4 animate-slide-down">
+        <div className="2xl:hidden pb-4 animate-slide-down">
           <div className="site-glass p-2">
             <button
               type="button"
