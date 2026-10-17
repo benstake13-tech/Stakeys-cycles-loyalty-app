@@ -52,6 +52,7 @@ const marketplaceInspectionFromResult = (result:any):MarketplaceInspection => ({
 /** Shared marketplace surface used by the public website and customer app. */
 export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> = ({ staff = false, enabled = true }) => {
   const { currentUser } = useShop();
+  const userId = currentUser?.uid;
   const [view, setView] = useState<MarketplaceView>('browse');
   const [chatError, setChatError] = useState('');
   const checkoutEnabled = import.meta.env.VITE_MARKETPLACE_PAYMENTS_ENABLED === 'true';
@@ -86,7 +87,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
   const [ledger, setLedger] = useState<LedgerRow[]>([]);
   const [payoutRefs, setPayoutRefs] = useState<Record<string,string>>({});
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation|null>(null);
+  const [storedConversation, setSelectedConversation] = useState<Conversation|null>(null);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [threadDeal, setDeal] = useState<DealTerms|null>(null);
   const [messageDraft, setMessageDraft] = useState('');
@@ -98,7 +99,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
   const [serialPhoto, setSerialPhoto] = useState<File|null>(null);
   const [frameSerial, setFrameSerial] = useState('');
   const [form, setForm] = useState({ title:'', category:'bicycle' as Listing['category'], subcategory:'commuter' as NonNullable<Listing['subcategory']>, make_model:'', condition:'good', description:'', asking_price:'' });
-  const userId = currentUser?.uid;
+  const selectedConversation = storedConversation && userId && [storedConversation.buyer_id, storedConversation.seller_id].includes(userId) ? storedConversation : null;
   const chatScope = useRef({ userId, conversationId: selectedConversation?.id });
   chatScope.current = { userId, conversationId: selectedConversation?.id };
   const [threadConversationId, setThreadConversationId] = useState<string | null>(null);
@@ -545,7 +546,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
       <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 font-bold text-white"><MessageCircle className="h-5 w-5 text-emerald-300"/>Messages and sale agreements</h2><p className="mt-1 text-xs leading-5 text-neutral-400">Chat privately, agree the price, then arrange a safe handover. Only the buyer and seller can see these messages.</p></div><button type="button" onClick={()=>void loadConversations()} className="min-h-10 rounded-lg border border-white/10 px-3 text-xs text-neutral-300">Refresh chats</button></div>
       {chatError && <p role="alert" className="mt-3 text-sm text-amber-200">{chatError}</p>}
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(180px,.7fr)_minmax(0,1.3fr)]">
-        <div className="space-y-2">{conversations.length===0&&<p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-neutral-500">Your marketplace conversations will appear here.</p>}{conversations.map(chat=><button key={chat.id} type="button" onClick={()=>setSelectedConversation(chat)} className={`w-full rounded-xl border p-3 text-left ${selectedConversation?.id===chat.id?'border-emerald-400/50 bg-emerald-950/30':'border-white/10 bg-neutral-900/70'}`}><span className="block truncate text-sm font-semibold text-white">{chat.listing?.title||'Marketplace listing'}</span><span className="mt-1 block truncate text-xs text-neutral-400">{chat.listing?.make_model||''} · {chat.buyer_id===userId?'You are buying':'You are selling'}</span></button>)}</div>
+        <div className="space-y-2">{conversations.length===0&&<p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-neutral-500">Your marketplace conversations will appear here.</p>}{conversations.filter(chat=>chat.buyer_id===userId||chat.seller_id===userId).map(chat=><button key={chat.id} type="button" onClick={()=>setSelectedConversation(chat)} className={`w-full rounded-xl border p-3 text-left ${selectedConversation?.id===chat.id?'border-emerald-400/50 bg-emerald-950/30':'border-white/10 bg-neutral-900/70'}`}><span className="block truncate text-sm font-semibold text-white">{chat.listing?.title||'Marketplace listing'}</span><span className="mt-1 block truncate text-xs text-neutral-400">{chat.listing?.make_model||''} · {chat.buyer_id===userId?'You are buying':'You are selling'}</span></button>)}</div>
         {!selectedConversation&&<MarketplaceInboxEmpty/>}
         {selectedConversation && <div className="min-w-0 space-y-4 rounded-xl border border-white/10 bg-neutral-900/60 p-3 sm:p-4">
           <div className="flex items-center justify-between gap-2"><h3 className="truncate font-semibold text-white">{selectedConversation.listing?.title||'Sale chat'}</h3><button type="button" aria-label="Close conversation" onClick={()=>setSelectedConversation(null)} className="rounded-lg p-2 text-neutral-400 hover:text-white"><X className="h-4 w-4"/></button></div>
