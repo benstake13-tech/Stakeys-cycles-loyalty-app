@@ -69,32 +69,37 @@ export function MarketplaceRecords() {
 
   const loadRecords = useCallback(async (page = 0) => {
     setBusy(true);
-    const { data, error: queryError } = await supabase.from('marketplace_records')
-      .select('listing_id,seller_id,seller_snapshot,bike_snapshot,sale_mode,listing_status,listing_created_at,recorded_at,updated_at')
-      .order('updated_at', { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-    if (queryError) setError('Marketplace history could not be loaded. Check your staff access and refresh.');
-    else {
+    try {
+      const { data, error: queryError } = await supabase.from('marketplace_records')
+        .select('listing_id,seller_id,seller_snapshot,bike_snapshot,sale_mode,listing_status,listing_created_at,recorded_at,updated_at')
+        .order('updated_at', { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (queryError) throw queryError;
       const rows = (data || []) as RecordRow[];
       setRecords(current => page ? [...current, ...rows] : rows);
       if (!page) setSelected(current => current ? rows.find(row => row.listing_id === current.listing_id) || current : null);
       setMoreRecords(rows.length === PAGE_SIZE);
       setRecordPage(page);
       setError('');
+    } catch {
+      setError('Marketplace history could not be loaded. Check your staff access and refresh.');
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }, []);
 
   const loadEvents = useCallback(async (listingId: string, page = 0) => {
-    const { data, error: queryError } = await supabase.from('marketplace_record_events')
-      .select('id,listing_id,event_type,actor_id,people,details,bike_snapshot,occurred_at')
-      .eq('listing_id', listingId).order('occurred_at', { ascending: false })
-      .order('id', { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-    if (queryError) setError('This case timeline could not be loaded.');
-    else {
+    try {
+      const { data, error: queryError } = await supabase.from('marketplace_record_events')
+        .select('id,listing_id,event_type,actor_id,people,details,bike_snapshot,occurred_at')
+        .eq('listing_id', listingId).order('occurred_at', { ascending: false })
+        .order('id', { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (queryError) throw queryError;
       const rows = (data || []) as RecordEvent[];
       setEvents(current => page ? [...current, ...rows] : rows);
       setMoreEvents(rows.length === PAGE_SIZE);
       setEventPage(page);
+    } catch {
+      setError('This case timeline could not be loaded.');
     }
   }, []);
 
