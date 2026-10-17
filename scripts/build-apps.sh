@@ -32,6 +32,20 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
+# Remove any previous output for the requested flavors before preflight. A
+# failed build must never leave an older APK looking like its new result.
+if [ -z "$ONLY" ] || [ "$ONLY" = "staff" ]; then rm -f "$OUT/stakeys-staff.apk"; fi
+if [ -z "$ONLY" ] || [ "$ONLY" = "customer" ]; then rm -f "$OUT/stakeys-customer.apk"; fi
+
+# Never publish a successful APK build without the Firebase client registration
+# needed by OneSignal's Android FCM transport. CI can supply the base64 config
+# via its protected environment; the decoded JSON stays git-ignored.
+if [ -z "$ONLY" ]; then
+  node scripts/check-native-push-config.mjs staff customer
+else
+  node scripts/check-native-push-config.mjs "$ONLY"
+fi
+
 # The Android toolchain is not always on PATH in a bare shell.
 export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
 export ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
@@ -80,6 +94,11 @@ build_one() {
 
   local pkg
   pkg="$(aapt dump badging "$dest" 2>/dev/null | sed -n "s/^package: name='\([^']*\)'.*/\1/p")"
+  if [ "$pkg" != "uk.co.stakeyscycles.$app" ]; then
+    rm -f "$dest"
+    echo "APK package mismatch for $app: found ${pkg:-none}" >&2
+    exit 1
+  fi
   echo "  -> $dest"
   echo "     package: $pkg   label: $label   api: $API_BASE"
 }

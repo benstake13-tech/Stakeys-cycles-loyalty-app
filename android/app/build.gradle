@@ -88,14 +88,7 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-def sharedGoogleServices = file('google-services.json')
-def staffGoogleServices = file('src/staff/google-services.json')
-def customerGoogleServices = file('src/customer/google-services.json')
-def hasFlavorGoogleServices = staffGoogleServices.isFile() && customerGoogleServices.isFile()
-if (sharedGoogleServices.isFile() || hasFlavorGoogleServices) {
-    // A shared file must register both application IDs. Flavor-specific files
-    // avoid mixing Firebase client registrations and are the recommended setup.
-    apply plugin: 'com.google.gms.google-services'
-} else {
-    logger.warn('Firebase config missing for staff/customer flavors. Android APKs can compile, but native FCM push will not work until both Firebase client configs are supplied.')
-}
+// Keep the Google Services plugin active for every build. Its flavor task must
+// fail when a Firebase client registration is missing; a compile-only APK is
+// not a valid native-push artifact.
+apply plugin: 'com.google.gms.google-services'
