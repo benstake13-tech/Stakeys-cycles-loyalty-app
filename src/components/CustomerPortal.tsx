@@ -1,6 +1,6 @@
 import { BikeSpecificationDetails } from './BikeSpecificationDetails';
 import { MarketplacePanel } from './MarketplacePanel';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Home,
   MoreHorizontal,
@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useShop } from '../context/ShopContext';
+import { isCustomerSurface } from '../config/surface';
 import { RideTransition, useRideTransition } from './tiles/RideTransition';
 
 import { StakeysLogo } from './StakeysLogo';
@@ -70,9 +71,10 @@ import { EditBikeModal } from './EditBikeModal';
 
 interface CustomerPortalProps {
   onStaffScanCustomer?: (membershipNumber: string) => void;
+  navigationRequest?: { section: 'garage' | 'repairs' | 'stamps' | 'more'; nonce: number };
 }
 
-export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCustomer }) => {
+export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCustomer, navigationRequest }) => {
   const {
     currentUser,
     bookings,
@@ -88,6 +90,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
   const [activeTab, setActiveTab] = useState<
     'garage' | 'more' | 'wheel' | 'scratch' | 'booking' | 'bookings' | 'repairs' | 'stamps' | 'refer' | 'weather' | 'wallet' | 'care' | 'symptom' | 'guides' | 'tradein' | 'wishlist' | 'marketplace'
   >('garage');
+  useEffect(() => { if (navigationRequest) setActiveTab(navigationRequest.section); }, [navigationRequest]);
 
   // Bicycle-inspired transition when opening a section from the tile launcher.
   const ride = useRideTransition();
@@ -1069,12 +1072,12 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         onAdded={(bike: CustomerBike) => setViewingBikeSpecs(bike)}
       />
 
-      <nav className="stakeys-customer-bottom-nav" aria-label="Customer primary navigation">
+      {!isCustomerSurface && <nav className="stakeys-customer-bottom-nav" aria-label="Customer primary navigation">
         {([{label:'Home',icon:Home,target:'garage'},{label:'Book',icon:Calendar,target:'booking'},{label:'Repairs',icon:Wrench,target:'repairs'},{label:'Pass',icon:Award,target:'stamps'},{label:'More',icon:MoreHorizontal,target:'more'}] as const).map(item => <button key={item.label} type="button" aria-current={activeTab === item.target ? 'page' : undefined} onClick={() => {
           if(item.target === 'booking') {setSeedIssueIds(undefined);setSeedNotes(undefined);setSelectedBikeForBooking(undefined);}
           ride.rideIn();setActiveTab(item.target);
         }}><item.icon size={22} strokeWidth={1.7}/><span>{item.label}</span></button>)}
-      </nav>
+      </nav>}
       {/* Avatar Editor Modal */}
       {isAvatarEditorOpen && (
         <AvatarEditorModal
