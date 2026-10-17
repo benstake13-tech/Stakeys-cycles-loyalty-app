@@ -10,7 +10,6 @@ import {
   ChevronDown,
   Clock,
   Copy,
-  Globe,
   Link2,
   Lock,
   MapPin,
@@ -535,23 +534,13 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
    * Header — brand lock-up, grouped nav, one clear action
    * ------------------------------------------------------------------ */
 
-  const utilityBadge = (
-    <span
-      data-testid="website-context-badge"
-      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--site-line)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--site-ink-faint)]"
-    >
-      <Globe className="w-3 h-3" />
-      {isEmbedded ? 'Customer app preview' : 'Public website'}
-    </span>
-  );
-
   const siteHeader = (
-    <header className="sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 px-3 sm:px-6 lg:px-8 backdrop-blur-xl border-b border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-canvas)_82%,transparent)]">
-      <div className="mx-auto flex h-16 max-w-7xl min-w-0 items-center justify-between gap-2 sm:gap-4">
+    <header className="website-header sticky top-0 z-40 -mx-4 sm:-mx-6 lg:-mx-8 px-3 sm:px-6 lg:px-8 backdrop-blur-xl border-b border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-canvas)_82%,transparent)]">
+      <div className="website-header-row mx-auto flex min-h-16 min-w-0 items-center justify-between gap-2 sm:gap-4">
         <button
           type="button"
           onClick={() => goTo('home')}
-          className="flex min-w-0 shrink items-center gap-2 text-left cursor-pointer sm:gap-3"
+          className="website-header-brand flex min-w-0 shrink-0 items-center gap-2 text-left cursor-pointer sm:gap-3"
           aria-label="Stakey's Cycles home"
         >
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)]">
@@ -572,7 +561,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
         </button>
 
         {/* Desktop grouped navigation */}
-        <nav ref={navRef} className="hidden 2xl:flex items-center gap-1" aria-label="Website pages">
+        <nav ref={navRef} className="website-desktop-nav items-center gap-1" aria-label="Website pages">
           <button
             type="button"
             onClick={() => goTo('home')}
@@ -636,7 +625,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
         </nav>
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          <span className="hidden 2xl:inline-flex">{utilityBadge}</span>
           <ThemeToggle className="site-toggle !h-11 !w-11 !justify-center !gap-1 !p-0 sm:!h-auto sm:!w-auto sm:!px-2.5 sm:!py-1.5" />
           {onSignIn && (
             <button
@@ -660,7 +648,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
               </span>
             )}
           </button>
-          <button type="button" onClick={onBookService} aria-label="Book a repair" className="site-btn site-btn-primary site-btn-sm !h-11 !w-11 !p-0 sm:!h-auto sm:!w-auto sm:!px-4">
+          <button type="button" onClick={onBookService} aria-label="Book a repair" className="website-header-book site-btn site-btn-primary site-btn-sm !h-11 !w-11 !p-0 sm:!h-auto sm:!w-auto sm:!px-4">
             <CalendarCheck className="h-4 w-4 shrink-0" /> <span className="hidden sm:inline">Book a repair</span>
           </button>
           <button
@@ -668,7 +656,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
             onClick={() => setMobileNavOpen((v) => !v)}
             aria-label="Toggle navigation"
             aria-expanded={mobileNavOpen}
-            className="site-btn site-btn-ghost site-btn-sm !h-11 !w-11 !p-0 sm:!h-auto sm:!w-auto sm:!px-3 2xl:hidden"
+            className="website-menu-toggle site-btn site-btn-ghost site-btn-sm !h-11 !w-11 !p-0 sm:!h-auto sm:!w-auto sm:!px-3"
           >
             {mobileNavOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
@@ -677,8 +665,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
       {/* Mobile drawer */}
       {mobileNavOpen && (
-        <div className="2xl:hidden pb-4 animate-slide-down">
+        <div className="website-mobile-drawer pb-4 animate-slide-down">
           <div className="site-glass p-2">
+            <button type="button" onClick={onBookService} className="site-btn site-btn-primary w-full mb-2">Book a repair</button>
             <button
               type="button"
               onClick={() => goTo('home')}
