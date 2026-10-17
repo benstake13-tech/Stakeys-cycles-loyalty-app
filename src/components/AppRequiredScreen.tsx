@@ -17,7 +17,7 @@ export function AppRequiredScreen({ audience }: { audience: 'staff' | 'customer'
           <h2 className="font-semibold">Need the app?</h2>
           <p className="mt-2 text-sm text-neutral-300 leading-relaxed">{staff ? 'Contact your workshop administrator for the current Staff app installation link and help getting started.' : 'Contact Stakey’s Cycles for the current app installation link and help getting started.'}</p>
         </div>
-        <a href="https://www.stakeyswheels.co.uk" className="mt-7 inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 font-bold text-neutral-950 hover:bg-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-400">Visit our website <ArrowUpRight size={18} aria-hidden="true" /></a>
+        <a href="https://www.stakeys.co.uk" className="mt-7 inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 font-bold text-neutral-950 hover:bg-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-400">Visit our website <ArrowUpRight size={18} aria-hidden="true" /></a>
       </section>
     </main>
   );
