@@ -1767,7 +1767,7 @@
 .stakeys-staff-login main > .relative > .flex {display:none;}
 .stakeys-staff-login main > .relative > .backdrop-blur-xl {background:rgba(3,12,8,.48);border-color:rgba(201,225,211,.3);box-shadow:0 20px 60px #0008;}
 .stakeys-login-logo {display:block!important;background:transparent!important;border:0!important;box-shadow:none!important;}
-.stakeys-login-logo svg {width:140px;height:140px;}
+.stakeys-login-logo img {width:140px;height:140px;max-width:min(140px,40vw);object-fit:contain;}
 .stakeys-staff-login input {background:linear-gradient(130deg,#25342d99,#111c1799);border-color:#adc6b43b;border-radius:11px;}
 .stakeys-staff-login button[type="submit"] {background:linear-gradient(135deg,#26fa97,#00d85a);border:1px solid #69ffb1;box-shadow:0 0 25px #00e87535;border-radius:12px;color:#00190c;}
 .stakeys-login-address {position:relative;z-index:1;text-align:center;font-size:12px;font-style:normal;color:#e7f4ec;margin-top:28px;line-height:1.8;}

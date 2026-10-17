@@ -33,10 +33,10 @@ import { BookingPortal } from './components/BookingPortal';
 import { DeliverablesViewer } from './components/DeliverablesViewer';
 import { WinnerAnnouncementBanner } from './components/WinnerAnnouncementBanner';
 import { StakeysLogo } from './components/StakeysLogo';
+import { CustomerDesktopNavigation } from './components/customer/CustomerDesktopNavigation';
 import { PremiumBackdrop } from './components/PremiumBackdrop';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
-import { ThemeStage } from './components/ThemeStage';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
@@ -44,7 +44,6 @@ import { Toaster } from 'react-hot-toast';
 import { consumeNativeNotificationOpenUrl, initOneSignal, linkUser, unlinkUser, registerEmailSubscription, ADMIN_NOTIFICATION_EMAIL } from './utils/pushNotifications';
 import { parseBookingDeepLink } from './utils/bookingNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
-import { CustomerDesktopNavigation } from './components/customer/CustomerDesktopNavigation';
 
 interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
@@ -61,8 +60,7 @@ const StaffPortal: React.LazyExoticComponent<React.ComponentType<StaffPortalProp
 });
 
 function AppContent() {
-  const { currentUser, logoutUser, loginStaff, theme, bookings, seasonalTheme } = useShop();
-  const seasonalThemeClass = seasonalTheme && seasonalTheme !== 'none' ? ' seasonal-theme-active' : '';
+  const { currentUser, logoutUser, loginStaff, theme, bookings } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
   // Logged-out visitors land on the public marketing website, not the login form.
@@ -74,6 +72,7 @@ function AppContent() {
   const isResetRoute =
     typeof window !== 'undefined' && /^\/reset-password\/?$/.test(window.location.pathname);
   const [activeTab, setActiveTab] = useState<NavTabId>('customer');
+  const [customerSectionRequest, setCustomerSectionRequest] = useState<{ section: 'garage' | 'repairs' | 'stamps' | 'more'; nonce: number }>({ section: 'garage', nonce: 0 });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Push deep link: `?staff=1&booking=<id>` (from a tapped notification) opens
@@ -289,7 +288,7 @@ function AppContent() {
 
   if (isAvatarPreview) {
     return (
-      <div className={`min-h-screen${seasonalThemeClass} ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+      <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
 
         <AvatarPreviewStage />
       </div>
@@ -416,12 +415,8 @@ function AppContent() {
   }
 
   return (
-    <div className={`min-h-screen${seasonalThemeClass} ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-      {/* Seasonal characters ride across the background of every screen */}
-
-
-      {/* Page content sits above the seasonal canvas (z-0) so the characters
-          ride across the background of every screen, behind the UI. */}
+    <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
+      {/* App content and navigation share one surface across device sizes. */}
       <div className={`relative z-10 min-h-screen flex flex-col ${APP_SURFACE === 'customer' ? 'stakeys-customer-shell' : ''}`}>
       {/* Ambient premium backdrop for every surface (website, customer, staff). */}
       <PremiumBackdrop />
@@ -564,18 +559,19 @@ function AppContent() {
         </div>
       )}
 
-      {APP_SURFACE === 'customer' && !isStaff && <CustomerDesktopNavigation active={activeTab === 'booking' || activeTab === 'website' || activeTab === 'promotions' ? activeTab : 'customer'} onSelect={id => goToTab(id)} />}
+      {APP_SURFACE === 'customer' && !isStaff && <CustomerDesktopNavigation
+        active={activeTab === 'booking' ? 'booking' : activeTab === 'customer' ? customerSectionRequest.section : 'garage'}
+        onSelect={section => {
+          if (section === 'booking') { goToTab('booking'); return; }
+          setCustomerSectionRequest(current => ({ section, nonce: current.nonce + 1 }));
+          goToTab('customer');
+        }}
+      />}
 
-      {/* Main Content Area.
-
-          The shell keeps a stable, height-reserving wrapper and does NOT key or
-          fade the tab wrapper on switch: re-running an opacity 0 entrance — or
-          unmounting descendants — on every top-level/sub-tab change is what let
-          the seasonal backdrop flash through. The inner panels toggle their own
-          visibility instead. */}
+      {/* Main content keeps a stable shell while the active page changes. */}
       <main className="flex-1 min-h-[70vh] max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 pb-28 md:pb-8 space-y-8">
         <div className="min-w-0">
-          {activeTab === 'customer' && <CustomerPortal key={currentUser?.uid || 'signed-out'} />}
+          {activeTab === 'customer' && <CustomerPortal key={currentUser?.uid || 'signed-out'} navigationRequest={APP_SURFACE === 'customer' ? customerSectionRequest : undefined} />}
           {activeTab === 'booking' && <BookingPortal />}
           {activeTab === 'website' && <WebsiteReplica context="embedded" onBookService={handleWebsiteBookService} />}
           {activeTab === 'promotions' && <PromotionsCarousel />}
@@ -726,12 +722,7 @@ function AppContent() {
 }
 
 function ThemeSurface({ children }: { children: React.ReactNode }) {
-  const { seasonalTheme } = useShop();
-  const active = Boolean(seasonalTheme && seasonalTheme !== 'none');
-  return <div className={active ? 'stakeys-theme-shell seasonal-theme-active' : 'stakeys-theme-shell'}>
-    <ThemeStage theme={seasonalTheme} />
-    <div className="stakeys-theme-ui">{children}</div>
-  </div>;
+  return <div className="stakeys-theme-shell"><div className="stakeys-theme-ui">{children}</div></div>;
 }
 
 export default function App() {
@@ -739,9 +730,6 @@ export default function App() {
     <ShopProvider>
       <ThemeSurface>
       <div className="min-h-screen flex flex-col">
-        {/* Graphical swinging celebration banner for the active seasonal theme,
-            on every surface and every screen (website, login, staff, customer). */}
-
         <div className="flex-1 flex flex-col min-h-0">
           <AppContent />
         </div>

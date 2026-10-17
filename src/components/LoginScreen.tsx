@@ -19,7 +19,6 @@ import {
   Gift,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { StakeysLoginMark } from './StakeysAppIcon';
 import { ThemeToggle } from './ThemeToggle';
 import { VehicleCategory } from '../types/bikeShop';
 import { referralCodeFromSearch } from '../utils/referral';
@@ -38,9 +37,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackToWebsite, audience = 'customer' }) => {
-  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, resetPassword, addCustomerBike, seasonalTheme } = useShop();
-
-  const themeActive = Boolean(seasonalTheme && seasonalTheme !== 'none');
+  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, resetPassword, addCustomerBike } = useShop();
   const [mode, setMode] = useState<'signin' | 'register' | 'staff'>(audience === 'staff' ? 'staff' : 'signin');
   const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
@@ -258,22 +255,22 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
   };
 
   return (
-    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} ${themeActive ? 'seasonal-theme-active' : ''} stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
+    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* ===== LEFT: BRAND / WORKSHOP PANEL (desktop only) ===== */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden p-10 xl:p-14">
-        {!themeActive && <img
+        <img
           src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
           alt="Stakey's cycle and scooter workshop"
           referrerPolicy="no-referrer"
           className="stakeys-auth-decoration absolute inset-0 w-full h-full object-cover object-center opacity-40 scale-105"
-        />}
+        />
         <div className="stakeys-auth-decoration absolute inset-0 bg-gradient-to-br from-[#0b0f15] via-[#0b0f15]/80 to-emerald-950/60" />
         <div className="stakeys-auth-decoration absolute inset-0 bg-[radial-gradient(circle_at_20%_10%,_rgba(5,193,71,0.22),transparent_55%)]" />
         <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex items-center gap-3">
           <div className="p-1.5 rounded-2xl bg-neutral-950/80 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 backdrop-blur">
-            <StakeysLoginMark className="w-12 h-12" />
+            <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Stakey's Cycles logo" className="w-12 h-12 object-contain" />
           </div>
           <div>
             <div className="font-display text-xl font-extrabold tracking-tight text-white leading-none">
@@ -342,9 +339,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
       </aside>
 
       {/* ===== RIGHT: AUTH PANEL ===== */}
-      <main style={themeActive ? { background: 'transparent' } : undefined} className="relative flex flex-col justify-center items-center px-4 py-8 sm:py-12 overflow-hidden">
+      <main className="relative flex flex-col justify-center items-center px-4 py-8 sm:py-12 overflow-hidden">
         {/* Mobile / tablet background */}
-        {!themeActive && <div className="stakeys-auth-decoration absolute inset-0 z-0 overflow-hidden pointer-events-none lg:hidden">
+        <div className="stakeys-auth-decoration absolute inset-0 z-0 overflow-hidden pointer-events-none lg:hidden">
           <img
             src="/images/hero_workshop_craftsmanship_1790159761910.jpg"
             alt="Stakey's cycle and scooter workshop"
@@ -353,13 +350,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
           />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f15] via-[#0b0f15]/90 to-[#0b0f15]/70" />
           <div className="stakeys-auth-decoration absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-emerald-500/20 via-transparent to-transparent" />
-        </div>}
+        </div>
 
         <div className="w-full max-w-md z-10 relative">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 lg:hidden">
               <div className="p-1.5 rounded-xl bg-neutral-950 border border-emerald-500/40 text-emerald-400">
-                <StakeysLoginMark className="w-9 h-9" />
+                <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Stakey's Cycles logo" className="w-9 h-9 object-contain" />
               </div>
               <span className="font-display text-lg font-extrabold text-white">STAKEY'S</span>
             </div>
@@ -372,7 +369,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
             {/* Brand Header */}
             <div className="flex flex-col items-center text-center mb-6">
               <div className={`${audience !== 'both' ? 'stakeys-login-logo' : 'hidden lg:block'} p-2 rounded-2xl bg-neutral-950 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 mb-3`}>
-                <StakeysLoginMark className="w-14 h-14" />
+                <img src={`${import.meta.env.BASE_URL}logo.svg`} alt="Stakey's Cycles logo" className="w-14 h-14 object-contain" />
               </div>
               <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                 Welcome back
