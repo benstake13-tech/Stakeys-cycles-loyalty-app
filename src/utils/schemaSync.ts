@@ -111,6 +111,34 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
   // migrations. They are audited here, but bootstrap and policy repair must
   // stay migration-owned; the generic sync SQL must not open them up.
   {
+    name: 'marketplace_auctions', primaryKey: 'listing_id', securityManaged: true,
+    columns: [
+      { name: 'listing_id', type: 'uuid', references: 'public.marketplace_listings(id) ON DELETE CASCADE' },
+      { name: 'seller_id', type: 'uuid', references: 'auth.users(id) ON DELETE RESTRICT' },
+      { name: 'start_price', type: 'numeric' },
+      { name: 'duration_hours', type: 'integer' },
+      { name: 'status', type: 'text', default: "'pending'" },
+      { name: 'starts_at', type: 'timestamptz' },
+      { name: 'ends_at', type: 'timestamptz' },
+      { name: 'highest_bid', type: 'numeric' },
+      { name: 'bid_count', type: 'integer', default: '0' },
+      { name: 'extension_count', type: 'integer', default: '0' },
+      { name: 'winning_bid_id', type: 'uuid' },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'marketplace_bids', primaryKey: 'id', securityManaged: true,
+    columns: [
+      { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
+      { name: 'listing_id', type: 'uuid', references: 'public.marketplace_auctions(listing_id) ON DELETE RESTRICT' },
+      { name: 'bidder_id', type: 'uuid', references: 'auth.users(id) ON DELETE RESTRICT' },
+      { name: 'amount', type: 'numeric' },
+      { name: 'created_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
     name: 'marketplace_conversations', primaryKey: 'id', securityManaged: true,
     columns: [
       { name: 'id', type: 'uuid', default: 'gen_random_uuid()' },
