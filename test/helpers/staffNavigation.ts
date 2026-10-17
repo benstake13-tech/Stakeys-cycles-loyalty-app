@@ -7,5 +7,15 @@ export function openStaffDrawer() {
   return screen.getByRole('dialog', { name: 'All apps' });
 }
 export function openStaffApp(label: string) {
-  fireEvent.click(within(openStaffDrawer()).getByRole('button', { name: label }));
+  const drawer = openStaffDrawer();
+  let app = within(drawer).queryByRole('button', { name: label });
+  if (!app) {
+    for (const folder of within(drawer).getAllByRole('button').filter(button => button.getAttribute('aria-expanded') === 'false')) {
+      fireEvent.click(folder);
+      app = within(drawer).queryByRole('button', { name: label });
+      if (app) break;
+    }
+  }
+  if (!app) throw new Error(`Staff app ${label} is missing from the drawer`);
+  fireEvent.click(app);
 }

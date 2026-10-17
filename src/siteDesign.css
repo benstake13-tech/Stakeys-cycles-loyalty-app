@@ -44,6 +44,32 @@
   --site-glow: 0 0 0 1px rgba(15, 156, 85, 0.14), 0 30px 60px -40px rgba(15, 156, 85, 0.35);
 }
 
+/* The shared seasonal world supplies the website accent. Keep its artwork
+   visible through the editorial cards without changing the normal site. */
+.site-canvas[data-seasonal-theme] {
+  --site-green: var(--site-seasonal-accent);
+  --site-green-deep: color-mix(in srgb, var(--site-seasonal-accent) 78%, #17231e);
+  --site-line: color-mix(in srgb, var(--site-seasonal-accent) 23%, transparent);
+  --site-line-strong: color-mix(in srgb, var(--site-seasonal-accent) 42%, transparent);
+  --site-card: rgba(8, 17, 20, 0.64);
+  --site-card-solid: rgba(8, 17, 20, 0.76);
+}
+.site-canvas.site-light[data-seasonal-theme] {
+  --site-green: color-mix(in srgb, var(--site-seasonal-accent) 45%, #182620);
+  --site-green-deep: color-mix(in srgb, var(--site-seasonal-accent) 30%, #182620);
+  --site-card: rgba(255, 255, 255, 0.72);
+  --site-card-solid: rgba(255, 255, 255, 0.8);
+}
+.site-canvas[data-seasonal-theme] .site-glass {
+  background: var(--site-card);
+  border-color: var(--site-line);
+}
+.site-canvas[data-seasonal-theme] .site-frame {
+  background-image:
+    linear-gradient(var(--site-card-solid), var(--site-card-solid)),
+    linear-gradient(135deg, var(--site-seasonal-accent), var(--site-line-strong));
+}
+
 /* --- Typography helpers ------------------------------------------------- */
 .font-editorial {
   font-family: 'Fraunces', 'Times New Roman', serif;

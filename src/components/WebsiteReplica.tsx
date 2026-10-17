@@ -1,5 +1,5 @@
 import { MarketplacePanel } from './MarketplacePanel';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -57,6 +57,7 @@ import { WeatherForecast } from './weather/WeatherForecast';
 import { CustomerErrorCodeHelper } from './CustomerErrorCodeHelper';
 import { SellYourBikeForm } from './TradeInRequestForm';
 import { ThemeToggle } from './ThemeToggle';
+import { worldFor } from './theme/worldCatalog';
 
 interface WebsiteReplicaProps {
 /** Opens the app's own booking flow (guest when signed out, Booking tab when signed in). */
@@ -179,10 +180,11 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   context = 'public',
   onSignIn,
 }) => {
-  const { currentUser, theme, promotions, discountCodes, recordDiscountUsage } = useShop();
+  const { currentUser, theme, seasonalTheme, promotions, discountCodes, recordDiscountUsage } = useShop();
   const content = useWebsiteContent();
   const isDark = theme === 'dark';
   const isEmbedded = context === 'embedded';
+  const seasonalWorld = worldFor(seasonalTheme ?? 'none');
 
   const livePromotions = promotions.filter((p) => p.status === 'active');
   // Live codes plus the curated public set, so the coupon panel works before
@@ -506,33 +508,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
     );
     return () => window.clearInterval(id);
   }, [content.siteAnnouncements.length]);
-  const valueProps = [
-    {
-      icon: CalendarCheck,
-      title: 'Book a repair in a minute',
-      body: 'Tell us the symptoms, pick a slot and we confirm by text — no phone queue, no guesswork.',
-      tone: 'emerald',
-    },
-    {
-      icon: Store,
-      title: 'Second-hand bikes & parts',
-      body: 'Every bike is stripped, serviced and photographed before it reaches the shelf. Buy online, collect in person.',
-      tone: 'brass',
-    },
-    {
-      icon: BadgePoundSterling,
-      title: 'Loyalty that pays you back',
-      body: 'Collect a stamp every visit. Fill the card and £40 of workshop credit is yours to spend.',
-      tone: 'sky',
-    },
-  ] as const;
-
-  const TONE_BG: Record<string, string> = {
-    emerald: 'bg-[rgba(18,184,102,0.14)] text-[var(--site-green)]',
-    brass: 'bg-[rgba(216,180,90,0.16)] text-[var(--site-brass)]',
-    sky: 'bg-[rgba(56,189,248,0.14)] text-sky-400',
-  };
-
   /* ------------------------------------------------------------------ *
    * Reusable page furniture
    * ------------------------------------------------------------------ */
@@ -870,83 +845,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           <span className="site-editorial-photo__index">03 / ELECTRIC MOBILITY</span>
           <span className="site-editorial-photo__caption"><strong>Electric. Elevated.</strong><span>Enquire about e-scooters <ArrowRight size={18} /></span></span>
         </button>
-      </div>
-    </section>
-  );
-
-  const servicesSection = (
-    <section className="space-y-8">
-      {sectionHeading(
-        'What we do',
-        'Everything your bike needs, under one roof',
-        'From a quick puncture to a full e-bike service — booked in a minute and tracked while we work.'
-      )}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {valueProps.map(({ icon: Icon, title, body, tone }) => (
-          <Reveal key={title}>
-            <article className="site-glass site-glass-hover h-full p-6">
-              <span className={`inline-flex h-11 w-11 items-center justify-center rounded-2xl ${TONE_BG[tone]}`}>
-                <Icon className="w-5 h-5" />
-              </span>
-              <h3 className="font-editorial mt-4 text-lg font-semibold text-[var(--site-ink)]">{title}</h3>
-              <p className="site-lede mt-2 text-[13px]">{body}</p>
-            </article>
-          </Reveal>
-        ))}
-      </div>
-    </section>
-  );
-
-  const brandStorySection = (
-    <Reveal>
-      <section data-testid="home-brand-story" className="site-glass overflow-hidden p-7 sm:p-10">
-        <div className="max-w-4xl">
-          <div>
-            <span className="site-eyebrow">{content.brandStory.eyebrow}</span>
-            <h2 className="site-display mt-3 text-3xl sm:text-4xl">{content.brandStory.title}</h2>
-            <p className="site-lede mt-4 text-sm sm:text-base">{content.brandStory.body}</p>
-            <ul className="mt-5 space-y-2.5">
-              {content.brandStory.bullets.map((b) => (
-                <li key={b} className="flex items-start gap-2.5 text-[13px] text-[var(--site-ink-soft)]">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-green)]" />
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
-    </Reveal>
-  );
-
-  const howItWorksSection = (
-    <section className="space-y-8">
-      {sectionHeading(
-        content.brandStory.howWeWorkTitle,
-        'Three clear steps from your first call to a completed repair',
-        undefined,
-        <button type="button" onClick={onBookService} className="site-btn site-btn-primary">
-          <CalendarCheck className="w-4 h-4" /> Start a booking
-        </button>
-      )}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {content.brandStory.howWeWorkSteps.slice(0, 3).map((step, i) => {
-          const Icon = [MessageCircle, Check, Wrench][i];
-          return (
-          <Reveal key={step.title} delay={i * 80}>
-            <article className="site-glass h-full p-6">
-              <div className="flex items-center justify-between">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[rgba(18,184,102,0.14)] text-[var(--site-green)]">
-                  <Icon className="w-5 h-5" />
-                </span>
-                <span className="site-index">{String(i + 1).padStart(2, '0')}</span>
-              </div>
-              <h3 className="font-editorial mt-4 text-lg font-semibold text-[var(--site-ink)]">{step.title}</h3>
-              <p className="site-lede mt-2 text-[13px]">{step.body}</p>
-            </article>
-          </Reveal>
-          );
-        })}
       </div>
     </section>
   );
@@ -1573,8 +1471,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           <div className="space-y-10">
             <Reveal>{pageHeading('Repairs & services', 'Fixed-price repairs, done properly', content.priceIntroBody)}</Reveal>
 
-            {servicesSection}
-
             <section className="space-y-6">
               {sectionHeading('Price list', content.priceIntroTitle, undefined, (
                 <a href={call} className="site-btn site-btn-ghost site-btn-sm">
@@ -1623,7 +1519,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
               })}
             </section>
 
-            {howItWorksSection}
             {ctaBand}
             {siteFooter}
           </div>
@@ -1961,9 +1856,6 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
             {trustMarquee}
             {editorialGallery}
             <CustomerErrorCodeHelper onBookService={onBookService} />
-            {servicesSection}
-            {brandStorySection}
-            {howItWorksSection}
             {offersTeaser}
             {reviewSection}
             {ctaBand}
@@ -1974,7 +1866,11 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   };
 
   return (
-    <div className={`site-canvas ${isDark ? '' : 'site-light'} font-ui min-h-screen rounded-[1.75rem] px-4 pb-10 pt-0 sm:px-6 lg:px-8`}>
+    <div
+      className={`site-canvas ${isDark ? '' : 'site-light'} font-ui min-h-screen rounded-[1.75rem] px-4 pb-10 pt-0 sm:px-6 lg:px-8`}
+      data-seasonal-theme={seasonalWorld?.id}
+      style={seasonalWorld ? { '--site-seasonal-accent': seasonalWorld.accent } as CSSProperties : undefined}
+    >
       {content.siteAnnouncements.length > 0 && (
         <div className="mx-auto max-w-7xl pt-3">
           <div className="flex items-center justify-center gap-2.5 rounded-full border border-[var(--site-line)] bg-[color-mix(in_srgb,var(--site-card-solid)_60%,transparent)] px-4 py-2">
