@@ -1,7 +1,7 @@
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state=vi.hoisted(()=>({native:false,user:null as any,error:null as any,select:vi.fn(),eq:vi.fn(),invoke:vi.fn(),milestone:vi.fn(),mutationError:null as any,status:'active',updated:null as any,bulkFilter:null as any,bulkFilters:[] as any[]}));
+const state=vi.hoisted(()=>({native:false,user:null as any,error:null as any,select:vi.fn(),eq:vi.fn(),invoke:vi.fn(),rpc:vi.fn(),milestone:vi.fn(),mutationError:null as any,status:'active',updated:null as any,bulkFilter:null as any,bulkFilters:[] as any[]}));
 vi.mock('./src/utils/milestoneAnimations',()=>({announceMilestone:state.milestone}));
 vi.mock('./src/components/AiBikeIdentifier',()=>({AiBikeIdentifier:(props:any)=>props.isOpen?<button type="button" onClick={()=>props.onIdentified({make:'Trek',model:'FX 3',year:2024,type:'cycle',confidence:.92,coverage:84,hasVisualData:true,usedFallback:false,mainSpecs:[{componentName:'Brakes',currentPart:'Shimano hydraulic disc'}],obviousProblems:[],faults:[],photoRequests:[],notVisible:[]})}>Use AI results for listing</button>:null}));
 vi.mock('@capacitor/core',()=>({Capacitor:{isNativePlatform:()=>state.native}}));
@@ -9,10 +9,10 @@ vi.mock('./src/context/ShopContext',()=>({useShop:()=>({currentUser:state.user})
 vi.mock('react-hot-toast',()=>({default:{error:vi.fn(),success:vi.fn()}}));
 vi.mock('./src/lib/supabase',()=>({supabase:{from:(table:string)=>{
  const mutation:any={eq:async()=>{if(!state.mutationError) state.status=state.updated.status;return {error:state.mutationError};},in:(...args:any[])=>{state.bulkFilter=args;state.bulkFilters.push(args);if(!state.mutationError&&state.updated?.status==='cancelled')state.status='cancelled';return mutation;},select:()=>mutation,then:(resolve:any)=>resolve({data:state.mutationError?null:[{id:'listing-1'}],error:state.mutationError})};
- const query:any={update:(values:any)=>{state.updated=values;return mutation;},select:(columns:string)=>{state.select(columns);return query;},order:()=>query,limit:()=>query,eq:(...args:any[])=>{state.eq(...args);return query;},or:()=>query,in:(...args:any[])=>{if(state.updated)state.bulkFilter=args;return query;},then:(resolve:any)=>resolve({data:table==='marketplace_transactions'?[]:[{id:'listing-1',title:'Local bike',make_model:'Trek FX',category:'bicycle',subcategory:'commuter',condition:'good',asking_price:200,status:state.status,images:[]}],error:state.error})};return query;
-},storage:{from:()=>({createSignedUrls:vi.fn()})},functions:{invoke:state.invoke}}}));
+ const query:any={update:(values:any)=>{state.updated=values;return mutation;},select:(columns:string)=>{state.select(columns);return query;},order:()=>query,limit:()=>query,range:async()=>({data:[],error:null}),eq:(...args:any[])=>{state.eq(...args);return query;},or:()=>query,in:(...args:any[])=>{if(state.updated)state.bulkFilter=args;return query;},then:(resolve:any)=>resolve({data:table==='marketplace_transactions'?[]:[{id:'listing-1',title:'Local bike',make_model:'Trek FX',category:'bicycle',subcategory:'commuter',condition:'good',asking_price:200,status:state.status,images:[]}],error:state.error})};return query;
+},storage:{from:()=>({createSignedUrls:vi.fn()})},functions:{invoke:state.invoke},rpc:state.rpc}}));
 import { MarketplacePanel } from './src/components/MarketplacePanel';
-beforeEach(()=>{cleanup();vi.clearAllMocks();state.native=false;state.user=null;state.error=null;state.mutationError=null;state.status='active';state.updated=null;state.bulkFilter=null;state.bulkFilters=[];window.history.replaceState({},'','/');});
+beforeEach(()=>{cleanup();vi.clearAllMocks();state.rpc.mockResolvedValue({error:null});state.native=false;state.user=null;state.error=null;state.mutationError=null;state.status='active';state.updated=null;state.bulkFilter=null;state.bulkFilters=[];window.history.replaceState({},'','/');});
 describe('marketplace public and installed app access',()=>{
  it('lets visitors browse approved listings without a login screen or exposed seller id',async()=>{
   render(<MarketplacePanel/>);
@@ -106,6 +106,11 @@ describe('marketplace public and installed app access',()=>{
   fireEvent.click(await screen.findByRole('button',{name:'Approve listing'}));
   await waitFor(()=>expect(state.milestone).toHaveBeenCalledWith(expect.objectContaining({kind:'listing',title:'Listing approved',scope:'staff-1'})));
   fireEvent.click(await screen.findByRole('button',{name:'Mark sold'}));
+  expect(screen.getByRole('dialog',{name:'Record offline marketplace sale'})).toBeTruthy();
+  fireEvent.change(screen.getByLabelText('Buyer name'),{target:{value:'Local Rider'}});
+  fireEvent.change(screen.getByLabelText('Buyer email or phone'),{target:{value:'rider@example.com'}});
+  fireEvent.click(screen.getByRole('button',{name:'Save sale record'}));
+  await waitFor(()=>expect(state.rpc).toHaveBeenCalledWith('record_marketplace_manual_sale',expect.objectContaining({p_buyer_name:'Local Rider',p_buyer_contact:'rider@example.com'})));
   await waitFor(()=>expect(state.milestone).toHaveBeenCalledWith(expect.objectContaining({kind:'sale',title:'Sale recorded'})));
  });
  it('does not celebrate failed writes',async()=>{

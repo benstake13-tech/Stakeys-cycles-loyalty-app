@@ -3,6 +3,7 @@ build/
 dist/
 preview/
 coverage/
+supabase/.temp/
 .DS_Store
 *.log
 .env*

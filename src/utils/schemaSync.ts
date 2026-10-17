@@ -20,6 +20,7 @@ export type SqlType =
   | 'uuid'
   | 'boolean'
   | 'integer'
+  | 'bigint'
   | 'numeric'
   | 'timestamptz'
   | 'jsonb';
@@ -110,6 +111,33 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
   // These marketplace tables have participant/staff-only RLS in their
   // migrations. They are audited here, but bootstrap and policy repair must
   // stay migration-owned; the generic sync SQL must not open them up.
+  {
+    name: 'marketplace_records', primaryKey: 'listing_id', securityManaged: true,
+    columns: [
+      { name: 'listing_id', type: 'uuid' },
+      { name: 'seller_id', type: 'uuid' },
+      { name: 'seller_snapshot', type: 'jsonb' },
+      { name: 'bike_snapshot', type: 'jsonb' },
+      { name: 'sale_mode', type: 'text' },
+      { name: 'listing_status', type: 'text' },
+      { name: 'listing_created_at', type: 'timestamptz' },
+      { name: 'recorded_at', type: 'timestamptz', default: NOW },
+      { name: 'updated_at', type: 'timestamptz', default: NOW },
+    ],
+  },
+  {
+    name: 'marketplace_record_events', primaryKey: 'id', securityManaged: true,
+    columns: [
+      { name: 'id', type: 'bigint' },
+      { name: 'listing_id', type: 'uuid', references: 'public.marketplace_records(listing_id) ON DELETE RESTRICT' },
+      { name: 'event_type', type: 'text' },
+      { name: 'actor_id', type: 'uuid' },
+      { name: 'people', type: 'jsonb' },
+      { name: 'details', type: 'jsonb' },
+      { name: 'bike_snapshot', type: 'jsonb' },
+      { name: 'occurred_at', type: 'timestamptz', default: NOW },
+    ],
+  },
   {
     name: 'marketplace_auctions', primaryKey: 'listing_id', securityManaged: true,
     columns: [
