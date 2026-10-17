@@ -2,7 +2,7 @@ import type { AppSurface } from './surface';
 
 /** A stale hosted surface setting must never put an app-login gate on the public shop domain. */
 export function isPublicWebsiteHost(hostname: string): boolean {
-  return ['stakeyswheels.co.uk', 'www.stakeyswheels.co.uk'].includes(hostname.toLowerCase().replace(/\.$/, ''));
+  return ['stakeys.co.uk', 'www.stakeys.co.uk'].includes(hostname.toLowerCase().replace(/\.$/, ''));
 }
 
 /** Production source branches take precedence over stale per-project VITE_SURFACE values. */

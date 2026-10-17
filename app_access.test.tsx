@@ -24,6 +24,6 @@ describe('installed app access', () => {
     expect(screen.getByText(/current.*installation link/)).toBeTruthy();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByRole('link', { name: /Visit our website/ }).getAttribute('href')).toBe('https://www.stakeyswheels.co.uk');
+    expect(screen.getByRole('link', { name: /Visit our website/ }).getAttribute('href')).toBe('https://www.stakeys.co.uk');
   });
 });
