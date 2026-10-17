@@ -75,7 +75,7 @@ export function ThemeWorld({ theme, preview=false, motion:requested, huntEnabled
  return <>
   <div className={'theme-world '+(preview?'theme-world-preview':'theme-world-background')} data-motion={motion} data-paused={hidden} data-renderer={ready?'webgl':'artwork'} aria-hidden={preview?undefined:true} style={{'--world-accent':world.accent,'--world-sky':world.sky,'--world-horizon':world.horizon} as CSSProperties}>
    <ThemeArtwork world={world}/>
-   <Theme3DCanvas world={world} motion={open?'still':motion} preview={preview} reaction={reaction} onReady={setReady} onCharacterTap={preview&&theme==='easter'?handleCharacterTap:undefined}/>
+   {preview&&<Theme3DCanvas world={world} motion={motion} preview reaction={reaction} onReady={setReady} onCharacterTap={theme==='easter'?handleCharacterTap:undefined}/>}
    <div className="theme-atmosphere"/>
    {world.effect!=='none'&&<div className={'theme-particles theme-particles-'+world.effect}>
     {Array.from({length:motion==='full'?32:16},(_,i)=><i key={i} style={{'--x':((i*37+11)%100)+'%','--duration':(9+i%7*2)+'s','--delay':(-i*1.7)+'s','--size':(3+i%4*2)+'px','--drift':((i%2?1:-1)*(35+i%4*12))+'px','--twist':(i*47)+'deg'} as CSSProperties}/>)}

@@ -91,7 +91,7 @@ export const SEASONAL_THEME_LABELS = Object.fromEntries(
 
 /** Concrete themes (everything except 'none'), used to populate selectors. */
 export const HOLIDAY_THEME_IDS = Object.keys(CAL.themes).filter(
-  (id): id is SeasonalThemeId => id !== 'none'
+  (id): id is Exclude<SeasonalThemeId, 'none'> => id !== 'none'
 );
 
 export const SEASONAL_THEME_IDS = ['none', ...HOLIDAY_THEME_IDS] as SeasonalThemeId[];
