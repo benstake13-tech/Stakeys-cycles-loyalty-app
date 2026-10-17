@@ -76,6 +76,8 @@ Deno.serve(async (req) => {
   if (!['create', 'update'].includes(body?.action)) return json(400, { error: 'Unknown listing action.' });
   const isUpdate = body.action === 'update';
   const listing = body.listing;
+  const isAuction = body.auction?.enabled === true;
+  const auctionDuration = Number(body.auction?.duration_hours);
   const serial = String(body.frame_serial_number || '').trim();
   const normalized = normaliseSerial(serial);
   const serialPhotoPath = String(body.serial_number_photo_path || '');
@@ -86,8 +88,15 @@ Deno.serve(async (req) => {
     if (existingError) return json(503, { error: 'We could not verify listing ownership. Please try again.' });
     if (!existing || existing.seller_id !== user.id) return json(404, { error: 'This listing could not be found for your account.' });
     if (['sold', 'cancelled'].includes(existing.status)) return json(409, { error: 'Sold or archived listings can no longer be edited.' });
+    const { data: auction, error: auctionError } = await admin.from('marketplace_auctions')
+      .select('listing_id').eq('listing_id', listing.id).maybeSingle();
+    if (auctionError) return json(503, { error: 'Could not check the auction status. Try again.' });
+    if (auction) return json(409, { error: 'Auction listings cannot be edited. Contact the workshop if a live auction needs to be cancelled.' });
   }
   const category = String(listing.category || '');
+  if (isAuction && (isUpdate || !['bicycle', 'ebike'].includes(category) || ![24,72,168].includes(auctionDuration))) {
+    return json(400, { error: 'Choose a 1, 3 or 7 day auction for a bicycle or e-bike.' });
+  }
   const isNonVehicle = category === 'parts' || category === 'accessories';
   const aiInspection = listing.ai_inspection;
   if (!isNonVehicle && (!aiInspection || typeof aiInspection !== 'object' || Array.isArray(aiInspection) || aiInspection.hasVisualData !== true || aiInspection.usedFallback !== false || !String(aiInspection.make || '').trim() || !String(aiInspection.model || '').trim() || !Array.isArray(aiInspection.mainSpecs) || JSON.stringify(aiInspection).length > 60000)) {
@@ -174,5 +183,15 @@ Deno.serve(async (req) => {
       p_match_count: possibleMatches.length,
     });
   if (saveError || !listingId) return json(500, { error: 'The verified listing could not be saved. Your photos are still available; please retry or contact the workshop.' });
+  if (isAuction) {
+    const { error: auctionError } = await admin.rpc('configure_marketplace_auction', {
+      p_listing_id: listingId, p_seller_id: user.id,
+      p_start_price: safeListing.asking_price, p_duration_hours: auctionDuration,
+    });
+    if (auctionError) {
+      await admin.from('marketplace_listings').delete().eq('id', listingId).eq('seller_id', user.id).in('status', ['pending_approval', 'pending_review']);
+      return json(503, { error: 'Could not configure the auction. Your listing was not published; please retry.' });
+    }
+  }
   return json(200, { status: lookupStatus === 'review_required' ? 'review_required' : 'pending_approval', listing_id: listingId, checked_at: checkedAt, edited: isUpdate });
 });
