@@ -1,12 +1,15 @@
-import { Suspense, lazy } from 'react';
+import type { CSSProperties } from 'react';
 import type { SeasonalThemeId } from '../utils/holidayCalendar';
-import { useShop } from '../context/ShopContext';
-import { isCustomerSurface } from '../config/surface';
-const ThemeWorld = lazy(() => import('./theme/ThemeWorld').then(m => ({default:m.ThemeWorld})));
-/** One shared visual renderer for staff, customer and website surfaces. */
-export const ThemeStage = ({theme}:{theme:SeasonalThemeId}) => {
- const { currentUser } = useShop();
- const huntUserId = isCustomerSurface && currentUser?.role === 'customer' ? currentUser.uid : undefined;
- return theme && theme !== 'none'
-  ? <Suspense fallback={null}><ThemeWorld theme={theme} huntEnabled={isCustomerSurface} huntUserId={huntUserId}/></Suspense> : null;
+import { ThemeArtwork } from './theme/ThemeArtwork';
+import { worldFor } from './theme/worldCatalog';
+import './theme/themeWorld.css';
+
+/** The same locally bundled shop photograph on every surface, without a WebGL startup dependency. */
+export const ThemeStage = ({ theme }: { theme: SeasonalThemeId }) => {
+  const world = worldFor(theme);
+  if (!world) return null;
+  return <div className="theme-world theme-world-background" data-theme={theme} data-renderer="artwork" aria-hidden="true"
+    style={{ '--world-accent': world.accent } as CSSProperties}>
+    <ThemeArtwork world={world} />
+  </div>;
 };

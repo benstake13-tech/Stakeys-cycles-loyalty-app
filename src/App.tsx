@@ -37,6 +37,7 @@ import { CustomerDesktopNavigation } from './components/customer/CustomerDesktop
 import { PremiumBackdrop } from './components/PremiumBackdrop';
 import { NavTabId } from './components/Navigation3DDeck';
 import { ThemeToggle } from './components/ThemeToggle';
+import { ThemeStage } from './components/ThemeStage';
 import { PromotionsCarousel } from './components/PromotionsCarousel';
 import { SegmentedTabs, SegmentedTab } from './components/SegmentedTabs';
 import { AvatarPreviewStage } from './components/AvatarPreviewStage';
@@ -722,7 +723,12 @@ function AppContent() {
 }
 
 function ThemeSurface({ children }: { children: React.ReactNode }) {
-  return <div className="stakeys-theme-shell"><div className="stakeys-theme-ui">{children}</div></div>;
+  const { seasonalTheme } = useShop();
+  const active = Boolean(seasonalTheme && seasonalTheme !== 'none');
+  return <div className={active ? 'stakeys-theme-shell seasonal-theme-active' : 'stakeys-theme-shell'}>
+    <ThemeStage theme={seasonalTheme} />
+    <div className="stakeys-theme-ui">{children}</div>
+  </div>;
 }
 
 export default function App() {
