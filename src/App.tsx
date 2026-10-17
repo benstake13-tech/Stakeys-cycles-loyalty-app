@@ -481,7 +481,7 @@ function AppContent() {
             </button>
 
             {/* Top-corner hamburger menu (all screen sizes) */}
-          {!inStaffWorkspace && <div className="relative">
+          {!inStaffWorkspace && APP_SURFACE !== 'customer' && <div className="relative">
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
