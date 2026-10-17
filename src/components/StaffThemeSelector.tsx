@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { HOLIDAY_THEME_IDS, SEASONAL_THEME_LABELS, activeHoliday, upcomingHolidays, windowLabel, type ThemeOverride } from '../utils/holidayCalendar';
-import { ThemeWorld, ThemeMotionControl } from './theme/ThemeWorld';
+import { ThemeWorld } from './theme/ThemeWorld';
 import { ThemeArtwork } from './theme/ThemeArtwork';
-import { characterLabel } from './theme/seasonal3d';
 import { worldFor, type WorldFamily } from './theme/worldCatalog';
 
 export const StaffThemeSelector = () => {
@@ -21,9 +20,8 @@ export const StaffThemeSelector = () => {
   <header className="theme-studio-header"><div><div className="theme-studio-kicker">Stakey’s • Atmosphere studio</div><h3>A world for every season.</h3><p>Live: {SEASONAL_THEME_LABELS[seasonalTheme]} · Preview a scene before applying it to all accounts.</p></div></header>
   <div className="theme-studio-preview">
    {world?<ThemeWorld theme={preview} preview/>:<div className="theme-studio-empty"><strong>Pure Stakey’s</strong><p>No seasonal scenery</p></div>}
-   {world&&<div className="theme-studio-caption"><strong>{world.label}</strong><p>{characterLabel(preview)} · {world.description}</p></div>}
+   {world&&<div className="theme-studio-caption"><strong>{world.label}</strong><p>{world.description}</p></div>}
   </div>
-  <ThemeMotionControl/>
   <button type="button" className="theme-auto" aria-pressed={selected==='AUTO'||selected===null} onClick={()=>setSelected('AUTO')}>Automatic holiday calendar · {active?active.name:'Between celebrations'}</button>
   <p className="mt-3 text-xs text-emerald-100/60">{upcoming.map(o=>`${o.name}: ${windowLabel(o)}`).join(' · ')}</p>
   <div className="theme-studio-controls"><input aria-label="Search themes" placeholder="Find a holiday or season…" value={search} onChange={e=>setSearch(e.target.value)}/><select aria-label="Scene collection" value={family} onChange={e=>setFamily(e.target.value)}><option value="all">All collections</option>{(['winter','haunted','garden','coast','harvest','lantern','festival','cosmic','romance','remembrance'] as WorldFamily[]).map(f=><option key={f} value={f}>{f[0].toUpperCase()+f.slice(1)}</option>)}</select></div>
