@@ -23,6 +23,7 @@ public class NativeOneSignalPlugin extends Plugin {
         JSObject data = new JSObject();
         data.put("notificationsEnabled", androidx.core.app.NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
         String token = ApplicationClass.isOneSignalInitialized() ? OneSignal.getUser().getPushSubscription().getToken() : null;
+        data.put("initializationError", ApplicationClass.getInitializationError());
         data.put("hasPushToken", token != null && !token.isEmpty());
         data.put("interruptionFilter", manager.getCurrentInterruptionFilter());
         com.getcapacitor.JSArray channels = new com.getcapacitor.JSArray();
@@ -69,12 +70,16 @@ public class NativeOneSignalPlugin extends Plugin {
             return;
         }
         String configuredAppId = getContext().getString(R.string.onesignal_app_id);
-        if (!ApplicationClass.isOneSignalInitialized()) {
-            call.reject("OneSignal was not initialized by the Android Application class");
-            return;
-        }
         if (!configuredAppId.equals(appId)) {
             call.reject("The requested OneSignal App ID does not match the native app configuration");
+            return;
+        }
+        if (!ApplicationClass.isOneSignalInitialized()) {
+            getActivity().runOnUiThread(() -> {
+                ApplicationClass application = (ApplicationClass) getActivity().getApplication();
+                if (application.initializePush()) call.resolve();
+                else call.reject("Native push initialization failed: " + ApplicationClass.getInitializationError());
+            });
             return;
         }
         // ApplicationClass initializes the SDK before any Activity starts.
