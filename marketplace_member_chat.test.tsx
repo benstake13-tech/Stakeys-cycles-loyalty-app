@@ -50,7 +50,7 @@ describe('website marketplace members', () => {
     fireEvent.change(input,{target:{value:'My counter offer'}}); fireEvent.click(screen.getByRole('button',{name:'Send message'}));
     await waitFor(() => expect(state.insert).toHaveBeenCalled());
     await waitFor(() => expect(input.disabled).toBe(false)); expect(input.value).toBe('My counter offer');
-    state.user=null;page.rerender(<MarketplacePanel/>);
+    state.user={uid:'unrelated-account'};page.rerender(<MarketplacePanel/>);
     expect(screen.queryByText('Would £180 work for you?')).toBeNull();
   });
 });
