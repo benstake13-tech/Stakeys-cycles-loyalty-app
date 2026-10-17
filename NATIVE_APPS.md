@@ -102,10 +102,25 @@ Download a Firebase Android client config for each app and place them locally
 at `android/app/src/staff/google-services.json` and
 `android/app/src/customer/google-services.json`. Alternatively, a single
 `android/app/google-services.json` may be used if it contains both registered
-Android clients. These Firebase client config files are git-ignored. The
-Google Services Gradle plugin is enabled only when a shared config or both
-flavor configs are present; without them, debug builds may compile but FCM
-delivery is not configured.
+Android clients from the **same Firebase project**. These Firebase client
+config files are git-ignored. `npm run apps:build` validates the relevant
+package IDs and Firebase client registrations before bundling any web assets.
+The Google Services Gradle plugin always runs for Android builds, so even a
+direct Gradle invocation fails if its flavor has no client config. A missing
+config is a failed build, never a usable APK.
+
+For GitHub Actions, set repository secrets
+`FIREBASE_STAFF_GOOGLE_SERVICES_JSON_BASE64` and
+`FIREBASE_CUSTOMER_GOOGLE_SERVICES_JSON_BASE64` to the base64-encoded contents
+of the corresponding **client** JSON files. The Android workflows pass these
+values to the build, which validates and writes the ignored flavor files on
+the runner. Do not use a Firebase service-account JSON here. The two Android
+clients must be registered in the Firebase project connected to the shared
+OneSignal Android App ID in `android/app/src/main/res/values/onesignal.xml`.
+After installing a newly built APK, use the native push test bench on each
+phone to check permission, FCM token, subscription ID, delivery, and receipt.
+Build-time checks cannot prove that OneSignal's server-side FCM credentials or
+a phone's notification settings are working.
 
 For delivery, enable Firebase Cloud Messaging HTTP v1 and provide OneSignal
 with a Firebase service-account JSON credential that has the required FCM
