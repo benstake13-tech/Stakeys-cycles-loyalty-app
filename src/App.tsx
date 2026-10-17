@@ -44,6 +44,7 @@ import { Toaster } from 'react-hot-toast';
 import { consumeNativeNotificationOpenUrl, initOneSignal, linkUser, unlinkUser, registerEmailSubscription, ADMIN_NOTIFICATION_EMAIL } from './utils/pushNotifications';
 import { parseBookingDeepLink } from './utils/bookingNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
+import { CustomerDesktopNavigation } from './components/customer/CustomerDesktopNavigation';
 
 interface StaffPortalProps {
   /** Booking id from a notification deep link that should be opened on arrival. */
@@ -579,6 +580,8 @@ function AppContent() {
           </div>
         </div>
       )}
+
+      {APP_SURFACE === 'customer' && !isStaff && <CustomerDesktopNavigation active={activeTab === 'booking' || activeTab === 'website' || activeTab === 'promotions' ? activeTab : 'customer'} onSelect={id => goToTab(id)} />}
 
       {/* Main Content Area.
 

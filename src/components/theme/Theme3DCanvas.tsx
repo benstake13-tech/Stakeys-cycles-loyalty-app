@@ -13,12 +13,24 @@ export function Theme3DCanvas({ world, motion, preview, reaction, onReady, onCha
   if(!renderer)return;
   engine.current=renderer;onReady(true);
   let raf=0,last=0,clock=1.2,visible=true,stopped=false;
+  // Pointer events arrive at an uneven rate. Keep a separate rendered value and
+  // ease toward the latest target so the camera never snaps between events.
   const pointer:V3=[0,0,preview ? .12 : 0];
-  const interval=1000/(motion==='full'?30:20);
+  const renderedPointer:V3=[...pointer];
+  // The scene is deliberately detailed; a modest frame cap reduces GPU work
+  // while easing keeps mouse motion smooth on lower-powered phones and tablets.
+  const interval=1000/(motion==='full'?24:16);
   let lastPaint=0;
   const draw=(now:number)=>{
    raf=0;if(stopped||document.hidden||!visible)return;
-   if(now-lastPaint>=interval){clock+=Math.min(last?now-last:0,80)/1000;last=now;lastPaint=now;renderer!.draw(clock,pointer);}
+   if(now-lastPaint>=interval){
+    const elapsed=Math.min(last?now-last:interval,100);
+    const blend=1-Math.exp(-elapsed/105);
+    clock+=elapsed/1000;last=now;lastPaint=now;
+    for(let axis=0;axis<2;axis++)renderedPointer[axis]+=(pointer[axis]-renderedPointer[axis])*blend;
+    renderedPointer[2]=pointer[2];
+    renderer!.draw(clock,renderedPointer);
+   }
    if(motion!=='still')raf=requestAnimationFrame(draw);
   };
   const start=()=>{if(!stopped&&!document.hidden&&visible&&!raf){last=0;raf=requestAnimationFrame(draw);}};
@@ -41,8 +53,11 @@ export function Theme3DCanvas({ world, motion, preview, reaction, onReady, onCha
    if(index>=0){renderer!.poke(index);onCharacterTap?.(index);}
   };
   const move=(event:PointerEvent)=>{
-   if(motion==='still'||event.pointerType!=='mouse'||(!preview&&interactive(event.target)))return;
-   const rect=node.getBoundingClientRect();pointer[0]=Math.max(-1,Math.min(1,(event.clientX-rect.left)/rect.width*2-1));pointer[1]=Math.max(-1,Math.min(1,1-(event.clientY-rect.top)/rect.height*2));start();
+   if(motion==='still'||event.pointerType!=='mouse')return;
+   if(!preview&&interactive(event.target)){pointer[0]=0;pointer[1]=0;start();return;}
+   const rect=node.getBoundingClientRect();
+   if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom){pointer[0]=0;pointer[1]=0;start();return;}
+   pointer[0]=Math.max(-1,Math.min(1,(event.clientX-rect.left)/rect.width*2-1));pointer[1]=Math.max(-1,Math.min(1,1-(event.clientY-rect.top)/rect.height*2));start();
   };
   const lost=(event:Event)=>{event.preventDefault();stopped=true;cancelAnimationFrame(raf);onReady(false);};
   const restored=()=>setGeneration(n=>n+1);

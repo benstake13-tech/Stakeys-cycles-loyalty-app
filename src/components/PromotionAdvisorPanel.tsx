@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Sparkles, Loader2, Copy, Check } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 import { useWebsiteContent } from '../context/WebsiteContentStore';
 import { advisePromotion } from '../api/promotionAdvisorService';
@@ -27,6 +27,7 @@ export function PromotionAdvisorPanel({ weather: suppliedWeather, targets = {}, 
   const [advice, setAdvice] = useState<AdvisorResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [copiedCaption, setCopiedCaption] = useState<string | null>(null);
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
@@ -40,6 +41,27 @@ export function PromotionAdvisorPanel({ weather: suppliedWeather, targets = {}, 
   const recorded = context.segments.reduce((sum,s) => sum+s.count,0);
   const valued = context.segments.reduce((sum,s) => sum+s.knownValues,0);
   const reset = () => { setAdvice(null); setError(''); };
+  const copyCaption = async (id: string, caption: string) => {
+    try {
+      await navigator.clipboard.writeText(caption);
+      setCopiedCaption(id);
+      window.setTimeout(() => setCopiedCaption(current => current === id ? null : current), 1800);
+    } catch {
+      setError('Could not copy the post. Select the caption and copy it manually.');
+    }
+  };
+  const captions = [
+    {
+      id: 'intro',
+      label: 'Introduce the shop',
+      text: `Hello Salford 👋 We’re Stakey’s Cycles, your local place for bike and e-scooter servicing, repairs and advice.\n\nGot a bike that needs some attention? Send us a photo or message to ask what to do next. We’ll explain the options and agree a quote before any work starts.\n\n📍 Salford\n📞 Call or message us to get started\n\n#Salford #SalfordBusiness #Cycling #StakeysCycles`,
+    },
+    {
+      id: 'workshop',
+      label: 'Show useful workshop work',
+      text: `A little workshop care can make the next ride feel much better 🚲\n\nThis week at Stakey’s Cycles, we’re sharing simple bike-care tips and showing the repairs that help local riders keep moving. Have a question about your bike? Message us for friendly advice and a clear quote.\n\n📍 Proud to serve Salford\n\n#Salford #BikeRepair #CyclingTips #StakeysCycles`,
+    },
+  ];
   const run = async () => {
     if (busy || !validMonth(month)) return;
     setBusy(true); reset();
@@ -61,6 +83,29 @@ export function PromotionAdvisorPanel({ weather: suppliedWeather, targets = {}, 
     </div>
     <p className="rounded-xl bg-emerald-400/5 p-3 text-xs leading-relaxed text-emerald-100">At this setting, a bike bought for £30 has a planning ceiling of {gbp(Math.floor(30 * percent / 100))}. An owner’s lower repair budget takes priority. This is a guide for relevant offers; always agree the actual work and total with the customer.</p>
     <label className="block text-xs text-neutral-300">Workshop facts to consider<textarea value={notes} disabled={busy} maxLength={1000} rows={2} onChange={e => {setNotes(e.target.value);reset();}} className={field} placeholder="e.g. spare Tuesday slots, tyre stock to move, services we cannot offer this month"/></label>
+    <details data-testid="promo-starter-guide" className="rounded-2xl border border-sky-300/20 bg-sky-950/20 p-4">
+      <summary className="cursor-pointer text-sm font-bold text-sky-100">New to promoting the shop? Start with this simple plan</summary>
+      <div className="mt-4 space-y-4 text-xs leading-relaxed text-neutral-300">
+        <p>Build local awareness before spending heavily on discounts. Pick one clear message, show real work with permission, and make it easy for people to ask a question or book.</p>
+        <ol className="grid gap-2 sm:grid-cols-2">
+          {[
+            ['Week 1 · Be findable', 'Check your Google Business Profile details, opening hours, phone and map pin. Add a clear workshop photo and a direct booking or message link.'],
+            ['Week 2 · Show the work', 'Post a short before-and-after or a 20-second repair tip on Facebook and Instagram. Explain the problem and the result in plain language.'],
+            ['Week 3 · Meet local riders', 'Share a useful offer or maintenance tip in relevant Salford community groups where business posts are allowed. Answer questions helpfully; avoid repetitive posting.'],
+            ['Week 4 · Learn what worked', 'Ask every new customer how they found you. Track enquiries, bookings and completed paid jobs by channel before repeating or paying to boost a post.'],
+          ].map(([title, detail]) => <li key={title} className="list-none rounded-xl border border-white/10 bg-black/20 p-3"><strong className="block text-sky-200">{title}</strong><span>{detail}</span></li>)}
+        </ol>
+        <div className="space-y-2">
+          <h4 className="font-bold text-white">Ready-to-edit social captions</h4>
+          <p>Replace the call-to-action with your preferred phone number or booking link. Only share customer bikes or faces when you have permission.</p>
+          {captions.map(caption => <article key={caption.id} className="rounded-xl border border-white/10 bg-black/30 p-3">
+            <div className="mb-2 flex items-center justify-between gap-2"><strong className="text-emerald-200">{caption.label}</strong><button type="button" onClick={() => void copyCaption(caption.id, caption.text)} className="inline-flex items-center gap-1 rounded-lg border border-white/15 px-2 py-1 text-[11px] font-semibold text-white">{copiedCaption === caption.id ? <Check size={13}/> : <Copy size={13}/>} {copiedCaption === caption.id ? 'Copied' : 'Copy caption'}</button></div>
+            <p className="whitespace-pre-line text-neutral-300">{caption.text}</p>
+          </article>)}
+        </div>
+        <p className="rounded-xl bg-emerald-400/5 p-3 text-emerald-100">When you have created and approved a promotion below, use <strong>Business Performance → Promote to Social</strong> to review its post and publish it to the connected Facebook Page or Instagram account. Posting requires the existing Meta connection to be configured.</p>
+      </div>
+    </details>
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-xs">
       {[['Bike values', `${valued}/${recorded} recorded`],['Paid sales · 90 days',context.behaviour.completedSales],['Paid repairs · 90 days',context.behaviour.completedRepairs],['Weather',context.weather.basis === 'forecast' ? 'Dated local forecast' : 'Seasonal assumptions']].map(([label,value]) => <div key={label} className="rounded-xl border border-white/5 bg-black/20 p-3"><span className="block text-neutral-400">{label}</span><strong className="mt-1 block text-white">{value}</strong></div>)}
     </div>

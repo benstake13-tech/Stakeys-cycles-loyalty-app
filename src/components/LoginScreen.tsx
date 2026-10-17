@@ -19,7 +19,7 @@ import {
   Gift,
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
-import { StakeysLogo } from './StakeysLogo';
+import { StakeysLoginMark } from './StakeysAppIcon';
 import { ThemeToggle } from './ThemeToggle';
 import { VehicleCategory } from '../types/bikeShop';
 import { referralCodeFromSearch } from '../utils/referral';
@@ -272,8 +272,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
         <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex items-center gap-3">
-          <div className="p-2 rounded-2xl bg-neutral-950/80 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 backdrop-blur">
-            <StakeysLogo className="w-11 h-11" />
+          <div className="p-1.5 rounded-2xl bg-neutral-950/80 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 backdrop-blur">
+            <StakeysLoginMark className="w-12 h-12" />
           </div>
           <div>
             <div className="font-display text-xl font-extrabold tracking-tight text-white leading-none">
@@ -359,7 +359,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2 lg:hidden">
               <div className="p-1.5 rounded-xl bg-neutral-950 border border-emerald-500/40 text-emerald-400">
-                <StakeysLogo className="w-8 h-8" />
+                <StakeysLoginMark className="w-9 h-9" />
               </div>
               <span className="font-display text-lg font-extrabold text-white">STAKEY'S</span>
             </div>
@@ -372,7 +372,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
             {/* Brand Header */}
             <div className="flex flex-col items-center text-center mb-6">
               <div className={`${audience !== 'both' ? 'stakeys-login-logo' : 'hidden lg:block'} p-2 rounded-2xl bg-neutral-950 border border-emerald-500/50 shadow-xl shadow-emerald-500/10 text-emerald-400 mb-3`}>
-                <StakeysLogo className="w-13 h-13" />
+                <StakeysLoginMark className="w-14 h-14" />
               </div>
               <h1 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
                 Welcome back

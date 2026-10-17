@@ -1,27 +1,17 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, useReducedMotion } from 'motion/react';
+import { useReducedMotion } from 'motion/react';
+import { StaffDockIcon } from './StaffDockIcons';
 import './MacOSDock.css';
 
 export type DockTabId = 'home' | 'sync' | 'till' | 'workshop' | 'stock' | 'sales' | 'more';
 
-const items: Array<{ id: DockTabId; label: string }> = [
-  { id: 'home', label: 'Home' }, { id: 'sync', label: 'Sync Workspace' },
-  { id: 'till', label: 'Till' }, { id: 'workshop', label: 'Workshop Tools' },
-  { id: 'stock', label: 'Stock & Inventory' }, { id: 'sales', label: 'Sales & Offers' },
-  { id: 'more', label: 'More Apps' },
+const items: Array<{ id: DockTabId; label: string; shortLabel: string }> = [
+  { id: 'home', label: 'Home', shortLabel: 'Home' }, { id: 'sync', label: 'Sync Workspace', shortLabel: 'Sync' },
+  { id: 'till', label: 'Till', shortLabel: 'Till' }, { id: 'workshop', label: 'Workshop Tools', shortLabel: 'Workshop' },
+  { id: 'stock', label: 'Stock & Inventory', shortLabel: 'Stock' }, { id: 'sales', label: 'Sales & Offers', shortLabel: 'Offers' },
+  { id: 'more', label: 'More Apps', shortLabel: 'Apps' },
 ];
-
-const DockIcon = ({ id, active }: { id: DockTabId; active: boolean }) => {
-  const common = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.75, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
-  if (id === 'home') return <svg viewBox="0 0 24 24" {...common}><motion.path animate={{ y: active ? -2 : 0 }} d="m3 11 9-7 9 7"/><path d="M5 10v10h14V10M9 20v-6h6v6"/><motion.circle animate={active ? { scale:[1,1.4,1] } : {scale:1}} transition={{repeat:Infinity,duration:1.5}} cx="12" cy="17" r="1"/></svg>;
-  if (id === 'sync') return <motion.svg viewBox="0 0 24 24" {...common} animate={{rotate:active?180:0}} transition={{duration:.5}}><path d="M20 7h-6V1"/><path d="M4 17h6v6"/><path d="M5.1 9A8 8 0 0 1 20 7M18.9 15A8 8 0 0 1 4 17"/></motion.svg>;
-  if (id === 'till') return <svg viewBox="0 0 24 24" {...common}><path d="M3 4h2l2 11h11l2-7H7"/><motion.g animate={active?{x:[0,2,0]}:{x:0}}><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></motion.g></svg>;
-  if (id === 'workshop') return <motion.svg viewBox="0 0 24 24" {...common} animate={active?{rotate:[0,-15,15,0]}:{rotate:0}}><path d="M14.7 6.3a5 5 0 0 0-6.4 6.4L3 18l3 3 5.3-5.3a5 5 0 0 0 6.4-6.4l-3 3-3-3 3-3Z"/></motion.svg>;
-  if (id === 'stock') return <svg viewBox="0 0 24 24" {...common}><path d="m3 7 9 5 9-5-9-5-9 5Z"/><path d="M3 7v10l9 5 9-5V7M12 12v10"/><motion.path d="m3 7 9-5 9 5" animate={active?{y:-2}:{y:0}}/></svg>;
-  if (id === 'sales') return <motion.svg viewBox="0 0 24 24" {...common} animate={{scale:active?1.1:1,filter:active?'drop-shadow(0 0 4px #34d399)':'none'}}><path d="M20 13 13 20l-9-9V4h7l9 9Z"/><circle cx="8.5" cy="8.5" r="1.5"/></motion.svg>;
-  return <svg viewBox="0 0 24 24" {...common}>{[6,12,18].map((cx,i)=><motion.circle key={cx} cx={cx} cy="12" r="1.7" fill="currentColor" animate={active?{scale:[1,1.45,1]}:{scale:1}} transition={{delay:i*.05,duration:.45}}/>)}</svg>;
-};
 
 interface MacOSDockProps {
   activeTab: DockTabId;
@@ -33,6 +23,12 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, on
   const [focusIndex, setFocusIndex] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const iconRefs = useRef<Array<HTMLSpanElement | null>>([]);
+  const centres = useRef<number[]>([]);
+  const currentScales = useRef<number[]>(items.map(() => 1));
+  const targetScales = useRef<number[]>(items.map(() => 1));
+  const frame = useRef<number | null>(null);
+  const lastFrame = useRef(0);
   const navRef = useRef<HTMLElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const onSelectRef = useRef(onSelectTab);
@@ -41,6 +37,23 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, on
   openAppsRef.current = onOpenApps;
   const drawerId = useId();
   const reducedMotion = useReducedMotion();
+
+  useEffect(() => () => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+  }, []);
+  useEffect(() => {
+    if (!reducedMotion) return;
+    if (frame.current !== null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    targetScales.current.fill(1);
+    currentScales.current.fill(1);
+    iconRefs.current.forEach(icon => { if (icon) icon.style.transform = ''; });
+  }, [reducedMotion]);
+  useEffect(() => {
+    const invalidate = () => { centres.current = []; };
+    window.addEventListener('resize', invalidate);
+    return () => window.removeEventListener('resize', invalidate);
+  }, []);
 
   const activate = (index: number) => {
     refs.current[index]?.focus();
@@ -78,36 +91,47 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, on
     return () => window.removeEventListener('keydown', key);
   }, [activeTab]);
 
+  const animateMagnification = (time: number) => {
+    const delta = lastFrame.current ? Math.min(40, time - lastFrame.current) : 16;
+    lastFrame.current = time;
+    const amount = 1 - Math.exp(-delta / 30);
+    let moving = false;
+    iconRefs.current.forEach((icon, index) => {
+      if (!icon) return;
+      const target = targetScales.current[index];
+      const current = currentScales.current[index];
+      const next = Math.abs(target - current) < .003 ? target : current + (target - current) * amount;
+      currentScales.current[index] = next;
+      icon.style.transform = `translate3d(0, ${(-24 * (next - 1)).toFixed(2)}px, 0) scale(${next.toFixed(3)})`;
+      if (next !== target) moving = true;
+    });
+    frame.current = moving ? requestAnimationFrame(animateMagnification) : null;
+  };
+  const scheduleMagnification = () => {
+    if (frame.current === null) frame.current = requestAnimationFrame(animateMagnification);
+  };
   const clearMagnification = () => {
-    refs.current.forEach(button => {
-      const icon = button?.querySelector<HTMLElement>('.stakeys-dock-icon');
-      icon?.style.removeProperty('--dock-scale');
-      icon?.style.removeProperty('--dock-lift');
+    targetScales.current.fill(1);
+    if (!reducedMotion) scheduleMagnification();
+  };
+  const measureCentres = () => {
+    centres.current = refs.current.map(button => {
+      const rect = button?.getBoundingClientRect();
+      return rect ? rect.left + rect.width / 2 : 0;
     });
   };
   const magnifyAt = (clientX: number) => {
     if (reducedMotion) return;
-    // Read all button centres before writing styles; the icon transforms don't
-    // move these hit targets. Gaussian falloff gives continuous macOS-like motion.
-    const centres = refs.current.map(button => {
-      const rect = button?.getBoundingClientRect();
-      return rect ? rect.left + rect.width / 2 : null;
-    });
-    refs.current.forEach((button, index) => {
-      const centre = centres[index];
-      const icon = button?.querySelector<HTMLElement>('.stakeys-dock-icon');
-      if (!icon || centre === null) return;
-      const scale = 1 + 0.55 * Math.exp(-((clientX - centre) ** 2) / (2 * 68 ** 2));
-      icon.style.setProperty('--dock-scale', scale.toFixed(3));
-      icon.style.setProperty('--dock-lift', `${-((scale - 1) * 24).toFixed(2)}px`);
-    });
+    if (!centres.current.length) measureCentres();
+    targetScales.current = centres.current.map(centre => 1 + .55 * Math.exp(-((clientX - centre) ** 2) / (2 * 68 ** 2)));
+    scheduleMagnification();
   };
 
   const highlighted = hoverIndex ?? focusIndex;
   // Render above the workspace so page visibility, transforms and scrolling
   // cannot hide or reposition the fixed navigation. Staff modals remain above it.
   return createPortal(
-    <nav ref={navRef} className="stakeys-macos-dock" aria-label="Staff dock" onMouseLeave={() => { setHoverIndex(null); clearMagnification(); }}
+    <nav ref={navRef} className="stakeys-macos-dock" aria-label="Staff dock" onMouseEnter={measureCentres} onMouseLeave={() => { setHoverIndex(null); clearMagnification(); }}
       onMouseMove={event => magnifyAt(event.clientX)}
       onKeyDown={event => {
         if (event.key !== 'Escape') return;
@@ -129,7 +153,7 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, on
             aria-current={selected ? 'page' : undefined} aria-keyshortcuts={`Control+${index + 1} Meta+${index + 1}`}
             aria-haspopup={item.id === 'more' ? 'dialog' : undefined} data-staff-app-trigger={item.id === 'more' ? true : undefined}
             onPointerEnter={event => { if (event.pointerType === 'mouse') setHoverIndex(index); }}
-            onFocus={() => { clearMagnification(); setFocusIndex(index); }} onBlur={() => setFocusIndex(null)} onClick={() => select(index)}
+            onFocus={() => setFocusIndex(index)} onBlur={() => setFocusIndex(null)} onClick={() => select(index)}
             onKeyDown={event => {
               if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
                 event.preventDefault();
@@ -141,7 +165,8 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, on
                 openAppsRef.current();
               }
             }}>
-            <span className={`stakeys-dock-icon stakeys-dock-icon--${item.id}`}><DockIcon id={item.id} active={!reducedMotion && distance === 0} /></span>
+            <span ref={el => { iconRefs.current[index] = el; }} className={`stakeys-dock-icon stakeys-dock-icon--${item.id}`}><StaffDockIcon id={item.id} /></span>
+            <span className="stakeys-dock-label" aria-hidden="true">{item.shortLabel}</span>
             <span className="stakeys-dock-active" aria-hidden="true" />
           </button>
         </div>;

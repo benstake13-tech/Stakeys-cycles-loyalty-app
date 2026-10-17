@@ -1649,6 +1649,39 @@
   .stakeys-premium-staff *, .stakeys-premium-staff *::before, .stakeys-premium-staff *::after { scroll-behavior: auto !important; }
 }
 
+/* Desktop staff terminal: break out of the public site's 7xl content rail and
+   give the denser workstation screens room to breathe. Keep this scoped to the
+   staff terminal in desktop mode so mobile and customer layouts stay intact. */
+@media (min-width: 1024px) {
+  main:has(.stakeys-premium-staff[data-staff-mode="desktop"]) {
+    width: 100%;
+    max-width: none !important;
+    padding-left: clamp(28px, 2.5vw, 56px);
+    padding-right: clamp(28px, 2.5vw, 56px);
+    padding-top: clamp(24px, 2.5vh, 40px);
+  }
+  .stakeys-premium-staff[data-staff-mode="desktop"] {
+    width: 100%;
+    font-size: 15px;
+    -webkit-font-smoothing: auto;
+    text-rendering: optimizeLegibility;
+  }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .text-xs { font-size: .875rem !important; line-height: 1.4; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] [class*="text-[8px]"],
+  .stakeys-premium-staff[data-staff-mode="desktop"] [class*="text-[9px]"] { font-size: 11px !important; line-height: 1.35; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] [class*="text-[10px]"],
+  .stakeys-premium-staff[data-staff-mode="desktop"] [class*="text-[11px]"] { font-size: 12px !important; line-height: 1.4; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] [class*="text-[12px]"] { font-size: 13px !important; line-height: 1.45; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-workspace-group { padding: 20px; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-workspace-heading strong { font-size: 14px; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-workspace-heading small { font-size: 13px; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-workspace-count { font-size: 12px; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-workspace-entry-copy strong { font-size: 16px; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-workspace-entry-copy small { font-size: 13px; }
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-workspace-badge,
+  .stakeys-premium-staff[data-staff-mode="desktop"] .staff-kpi-pill { font-size: 11px; }
+}
+
 /* Staff app reference: black glass, luminous green controls, compact touch navigation. */
 .stakeys-premium-staff {
   --stakeys-green: #00ed76;
