@@ -17,6 +17,12 @@ The 20% fee is the supplied proposal, stored as 2,000 basis points when a checko
 
 The ledger keeps gross payment, fee and seller payable separate. The seller balance becomes `due` for staff review; this integration does not transfer money to sellers or create a split payment. Staff should complete any payout using the business's approved process and keep its payment reference with the transaction records. A checkout that is abandoned is released after an hour.
 
+## Staff case records
+
+`marketplace_records` keeps a bike and seller snapshot for each submitted listing, including its category, make/model, condition, description, asking price, frame serial check, inspection and photo references. `marketplace_record_events` is an append-only timeline of moderation, auction start/end and extensions, every bid with its bidder identity and amount, checkout, verified payment, refund and payout changes. Winner and buyer details are captured at the relevant auction or sale event. Snapshots remain after a listing is archived; historical imports are explicitly marked because current contact details cannot be represented as an earlier snapshot.
+
+Both tables are readable only by staff/admin profiles through RLS and have no client write grants. Staff Terminal → Marketplace → Marketplace records lets the team review paginated case files. A staff-recorded offline sale requires the buyer's name, contact and actual sale amount, and is marked as unverified payment. The database prevents marking a listing sold without either that record or a completed marketplace transaction. These records contain personal contact details: keep staff access limited and handle retention or erasure requests through the business's data process. The photo paths are references to private Storage objects, not copies of the image bytes.
+
 The product does not determine the business's legal role, VAT treatment, seller tax duties, consumer cancellation rights, ownership verification, or final terms. Get the fee structure and customer/seller wording approved for the actual operating and payment model before taking live orders. The current account check verifies email only; phone verification and seller payout onboarding are not implemented.
 
 ## Current operational limits
