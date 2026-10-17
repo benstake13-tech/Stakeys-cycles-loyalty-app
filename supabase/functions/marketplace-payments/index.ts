@@ -25,17 +25,23 @@ Deno.serve(async (req) => {
   const user = authData?.user;
   if (authError || !user || !user.email_confirmed_at) return json(401, { error: 'Verify your email and sign in before buying or selling.' });
 
-  let body: { action?: string; listing_id?: string; transaction_id?: string };
+  let body: { action?: string; conversation_id?: string; transaction_id?: string };
   try { body = await req.json(); } catch { return json(400, { error: 'Invalid JSON body.' }); }
 
   if (body.action === 'create') {
-    if (!body.listing_id) return json(400, { error: 'Listing id is required.' });
-    const { data: listing, error: listingError } = await admin.from('marketplace_listings').select('id,seller_id,title,asking_price,status').eq('id', body.listing_id).maybeSingle();
+    if (!body.conversation_id) return json(400, { error: 'Agree a price and handover plan before checkout.' });
+    const { data: conversation, error: conversationError } = await admin.from('marketplace_conversations')
+      .select('id,listing_id,buyer_id,seller_id').eq('id', body.conversation_id).maybeSingle();
+    if (conversationError || !conversation || conversation.buyer_id !== user.id) return json(404, { error: 'Sale agreement not found.' });
+    const { data: listing, error: listingError } = await admin.from('marketplace_listings')
+      .select('id,seller_id,title,status').eq('id', conversation.listing_id).maybeSingle();
     if (listingError || !listing || listing.status !== 'active') return json(404, { error: 'This listing is no longer available.' });
-    if (listing.seller_id === user.id) return json(400, { error: 'You cannot buy your own listing.' });
+    if (listing.seller_id === user.id || listing.seller_id !== conversation.seller_id) return json(400, { error: 'Invalid sale agreement.' });
 
-    const { data: tx, error: txError } = await admin.rpc('reserve_marketplace_transaction', { p_listing_id: listing.id, p_buyer_id: user.id }).maybeSingle();
-    if (txError || !tx) return json(409, { error: 'Someone may already be checking out this listing. Refresh and try again.' });
+    const { data: tx, error: txError } = await admin.rpc('reserve_marketplace_agreed_transaction', {
+      p_conversation_id: conversation.id, p_buyer_id: user.id,
+    }).maybeSingle();
+    if (txError || !tx) return json(409, { error: txError?.message || 'Could not reserve this sale. Refresh and try again.' });
 
     const reference = `STK-${tx.id.replaceAll('-', '').slice(0, 24)}`;
     const redirectUrl = `${(Deno.env.get('SITE_URL') || 'https://www.stakeys-cycles.co.uk').replace(/\/$/, '')}/?page=marketplace&marketplace_tx=${tx.id}`;
