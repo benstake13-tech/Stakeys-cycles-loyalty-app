@@ -37,7 +37,8 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackToWebsite, audience = 'customer' }) => {
-  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, resetPassword, addCustomerBike } = useShop();
+  const { loginWithCredentials, loginStaff, registerCustomerAccount, resendConfirmationEmail, resetPassword, addCustomerBike, seasonalTheme } = useShop();
+  const themeActive = Boolean(seasonalTheme && seasonalTheme !== 'none');
   const [mode, setMode] = useState<'signin' | 'register' | 'staff'>(audience === 'staff' ? 'staff' : 'signin');
   const [notice, setNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
@@ -255,7 +256,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onGoToBooking, onBackT
   };
 
   return (
-    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
+    <div className={`${audience === 'staff' ? 'stakeys-staff-login' : audience === 'customer' ? 'stakeys-customer-login' : ''} ${themeActive ? 'seasonal-theme-active' : ''} stakeys-auth-screen min-h-screen bg-[#0b0f15] text-neutral-100 grid lg:grid-cols-[1.05fr_0.95fr] font-['Plus_Jakarta_Sans',sans-serif]`}>
       {/* ===== LEFT: BRAND / WORKSHOP PANEL (desktop only) ===== */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden p-10 xl:p-14">
         <img
