@@ -12,3 +12,6 @@ verify_jwt = true
 
 [functions.onesignal-gateway]
 verify_jwt = true
+
+[functions.marketplace-auctions]
+verify_jwt = true
