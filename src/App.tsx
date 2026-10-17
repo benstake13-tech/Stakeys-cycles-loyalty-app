@@ -299,35 +299,18 @@ function AppContent() {
   if (isWebsiteSurface) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-
-        <header className={`sticky top-0 z-40 ${isDark ? 'bg-neutral-950/90 border-neutral-800' : 'bg-white/90 border-neutral-200'} backdrop-blur-md border-b`}>
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className={`p-1 rounded-2xl ${isDark ? 'bg-neutral-900 border-emerald-500/40' : 'bg-white border-emerald-500/40'} border shadow-lg shadow-emerald-500/10 shrink-0`}>
-                <StakeysLogo className="w-9 h-9" />
-              </div>
-              <div>
-                <span className={`font-black text-lg tracking-tight ${isDark ? 'text-white' : 'text-neutral-900'} flex items-center gap-1.5`}>
-                  STAKEYS
-                  <span className="text-[12px] font-bold text-[#05C147] tracking-normal uppercase">Cycles &amp; Scooter</span>
-                </span>
-                <div className={`text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-600'} font-mono`}>Repairs · Parts · Salford</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <ThemeToggle showLabel={false} />
-              <button
-                onClick={() => setShowGuestBooking(true)}
-                className="pressable inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 px-4 py-2 text-xs font-black uppercase tracking-wider text-neutral-950 shadow cursor-pointer"
-              >
-                <Wrench className="w-3.5 h-3.5" /> Book a repair
-              </button>
-            </div>
-          </div>
-        </header>
-        <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pb-8">
           {showGuestBooking ? (
-            <BookingPortal onBookingComplete={() => setShowGuestBooking(false)} />
+            <div className="pt-6">
+              <button
+                type="button"
+                onClick={() => setShowGuestBooking(false)}
+                className="mb-5 rounded-xl border border-emerald-500/30 bg-[#0d1015]/80 px-4 py-2 text-sm font-semibold text-emerald-300 backdrop-blur hover:border-emerald-400 focus-visible:outline-2 focus-visible:outline-emerald-400"
+              >
+                ← Back to website
+              </button>
+              <BookingPortal onBookingComplete={() => setShowGuestBooking(false)} />
+            </div>
           ) : (
             <WebsiteReplica context="public" onBookService={() => setShowGuestBooking(true)} />
           )}
