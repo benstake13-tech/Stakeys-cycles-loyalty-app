@@ -91,7 +91,7 @@ export function MarketplaceAuction({
         </button>
         <p className="text-[11px] leading-4 text-neutral-400">The highest bid wins when time ends. No payment is taken when you bid. A bid in the final two minutes can extend the auction.</p>
       </form>
-    ) : <button type="button" onClick={onUseApp} className="mt-3 min-h-10 w-full rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Use the app to bid</button>
+    ) : <button type="button" onClick={onUseApp} className="mt-3 min-h-10 w-full rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Sign in to bid</button>
     : null}
     {!compact && auction.status === 'ended' && isWinner && (
       <button type="button" onClick={onOpenDeal} className="mt-3 min-h-11 w-full rounded-lg bg-emerald-400 px-3 text-sm font-bold text-neutral-950">
@@ -99,6 +99,6 @@ export function MarketplaceAuction({
       </button>
     )}
     {!compact && auction.status === 'ended' && isSeller && <p className="mt-2 text-xs text-emerald-200">A winning bid is ready. Open Messages and sale agreements to arrange the handover.</p>}
-    {!compact && auction.status === 'ended' && !isWinner && !isSeller && !isStaff && <p className="mt-2 text-xs text-neutral-400">Bidding has closed. The winner and seller can arrange the sale in the app.</p>}
+    {!compact && auction.status === 'ended' && !isWinner && !isSeller && !isStaff && <p className="mt-2 text-xs text-neutral-400">Bidding has closed. The winner and seller can arrange the sale in Messages.</p>}
   </section>;
 }
