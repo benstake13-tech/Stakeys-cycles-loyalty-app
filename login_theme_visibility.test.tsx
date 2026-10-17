@@ -7,10 +7,11 @@ vi.mock('./src/components/ThemeToggle',()=>({ThemeToggle:()=>null}));
 import { LoginScreen } from './src/components/LoginScreen';
 afterEach(cleanup);
 describe('login background photography',()=>{
- it.each(['customer','staff'] as const)('hides all workshop backdrops while the %s theme is enabled and restores them when disabled',audience=>{
+ it.each(['customer','staff'] as const)('keeps the workshop photo and real logo on the %s login without a seasonal scene',audience=>{
   state.seasonalTheme='halloween';const view=render(<LoginScreen audience={audience}/>);
-  expect(view.container.querySelectorAll('img[src*="hero_workshop"]').length).toBe(0);
-  expect(view.container.querySelector('main')?.style.background).toBe('transparent');
+  expect(view.container.querySelectorAll('img[src*="hero_workshop"]').length).toBe(2);
+  expect(view.container.querySelectorAll('img[src$="logo.svg"]').length).toBe(3);
+  expect(view.container.querySelector('.seasonal-theme-active')).toBeNull();
   state.seasonalTheme='none';view.rerender(<LoginScreen audience={audience}/>);
   expect(view.container.querySelectorAll('img[src*="hero_workshop"]').length).toBe(2);
  });
