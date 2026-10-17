@@ -3,6 +3,29 @@
 .staff-home-summary > div { display: flex; flex-direction: column; gap: 5px; }
 .staff-home-summary dt { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #9db3a6; }
 .staff-home-summary dd { margin: 0; font-size: 26px; font-weight: 650; color: #effff5; }
+.staff-os-dashboard { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(310px, .8fr); align-items: start; gap: 20px; margin-top: 22px; }
+.staff-os-window { min-width: 0; overflow: hidden; border: 1px solid #a9ffd02c; border-radius: 20px; background: linear-gradient(145deg, #13271fef, #07140ef5); box-shadow: inset 0 1px #ffffff12, 0 18px 46px #0005; }
+.staff-os-window-titlebar { display: flex; min-height: 52px; align-items: center; gap: 14px; padding: 0 17px; border-bottom: 1px solid #aaffce1c; background: linear-gradient(100deg, #b4ffcf0d, transparent); }
+.staff-os-window-titlebar h2 { display: flex; align-items: center; gap: 9px; min-width: 0; margin: 0; color: #dfffea; font-size: 13px; font-weight: 750; letter-spacing: .1em; }
+.staff-os-window-titlebar h2 svg { flex: 0 0 auto; color: #78ffac; }
+.staff-os-window-lights { display: flex; flex: 0 0 auto; gap: 6px; }
+.staff-os-window-lights i { width: 9px; height: 9px; border-radius: 50%; background: #ff6b69; }
+.staff-os-window-lights i:nth-child(2) { background: #ffd166; }
+.staff-os-window-lights i:nth-child(3) { background: #62db89; }
+.staff-os-live-indicator { display: flex; align-items: center; gap: 7px; margin-left: auto; color: #91b5a0; font-size: 10px; font-weight: 750; letter-spacing: .08em; white-space: nowrap; }
+.staff-os-live-indicator i { width: 7px; height: 7px; border-radius: 50%; background: #00ff66; box-shadow: 0 0 10px #00ff6680; }
+.staff-os-targets-scroll { max-height: min(66vh, 760px); overflow-y: auto; overscroll-behavior: contain; padding: 20px; scrollbar-color: #4c8062 #0b1912; scrollbar-width: thin; }
+.staff-os-targets-scroll .staff-goals-panel { max-width: none; }
+.staff-os-side-widgets { display: grid; gap: 20px; }
+.staff-os-clock-content { display: flex; flex-direction: column; gap: 10px; padding: 26px 22px 30px; }
+.staff-os-clock-content time { color: #f0fff5; font-variant-numeric: tabular-nums; font-size: clamp(38px, 4vw, 58px); font-weight: 650; letter-spacing: -.055em; line-height: 1; }
+.staff-os-clock-content span { color: #9cb7a6; font-size: 14px; }
+.staff-os-activity-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; margin: 0; padding: 18px; }
+.staff-os-activity-grid > div { min-width: 0; padding: 14px; border: 1px solid #aaffce18; border-radius: 14px; background: #ffffff05; }
+.staff-os-activity-grid dt { color: #9db3a6; font-size: 11px; letter-spacing: .04em; }
+.staff-os-activity-grid dd { margin: 7px 0 0; color: #effff5; font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .staff-os-dashboard { grid-template-columns: minmax(0, 1.4fr) minmax(260px, .9fr); gap: 14px; } .staff-os-targets-scroll { padding: 15px; } }
+@media (max-width: 899px) { .staff-os-dashboard { display: none; } }
 .staff-phone-navigation { position: fixed; z-index: 40; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); }
 .staff-phone-navigation button { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 12px 30px; border-radius: 20px; border: 1px solid #a0ffc568; color: #dbffe9; background: linear-gradient(140deg, #24513ce8, #071c11ed); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); box-shadow: inset 0 1px #fff3, 0 10px 35px #0008; font-size: 13px; font-weight: 700; cursor: pointer; }
 .staff-phone-navigation svg { color: #6dffa9; }
@@ -17,9 +40,17 @@
 .staff-app-search button { display: grid; place-items: center; border: 0; background: none; color: #b3d9c1; padding: 3px; cursor: pointer; }
 .staff-app-count { margin: 14px 0; font-size: 11px; color: #9bb6a7; }
 .staff-app-folders { overflow-y: auto; min-height: 0; overscroll-behavior: contain; padding: 2px 4px 6px; }
-.staff-app-folder + .staff-app-folder { margin-top: 18px; }
-.staff-app-folder h3 { margin: 0 0 6px; padding: 0 3px; color: #8debb0; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; }
-.staff-app-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px 10px; overflow-y: auto; min-height: 0; overscroll-behavior: contain; padding: 4px; }
+.staff-app-folder + .staff-app-folder { margin-top: 9px; }
+.staff-app-folder { overflow: hidden; border: 1px solid #b4ffcf20; border-radius: 17px; background: #0002; }
+.staff-app-folder-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 48px; padding: 0 13px; border: 0; background: linear-gradient(100deg, #b4ffcf0c, transparent); color: #b6f4cc; cursor: pointer; text-align: left; }
+.staff-app-folder-label { display: flex; align-items: center; gap: 9px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; font-weight: 750; }
+.staff-app-folder-label > svg { color: #7ceca5; }
+.staff-app-folder-count { display: grid; place-items: center; min-width: 22px; height: 22px; margin-left: 2px; padding: 0 6px; border: 1px solid #b4ffcf27; border-radius: 999px; background: #b4ffcf0b; color: #c4ebd0; font-size: 10px; letter-spacing: 0; }
+.staff-app-folder-chevron { flex: 0 0 auto; color: #8bb79b; transition: transform 160ms ease; }
+.staff-app-folder-chevron.is-open { transform: rotate(180deg); }
+.staff-app-folder-toggle:hover { background: #b4ffcf12; }
+.staff-app-folder-toggle:focus-visible { outline: 2px solid #9dffc4; outline-offset: -2px; }
+.staff-app-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px 10px; overflow-y: auto; min-height: 0; overscroll-behavior: contain; padding: 8px; }
 .staff-app-library button { display: flex; flex-direction: column; align-items: center; gap: 9px; min-height: 98px; padding: 8px 4px; border: 1px solid transparent; border-radius: 16px; background: transparent; color: #effff6; font-size: 11px; text-align: center; cursor: pointer; }
 .staff-app-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 17px; color: #89ffb6; border: 1px solid #b4ffcf38; background: linear-gradient(145deg, #335c46, #122d20); box-shadow: inset 0 1px #fff3, 0 5px 14px #0004; }
 .staff-app-library button:hover, .staff-app-library button[aria-current="page"] { border-color: #7affad50; background: #a6ffc80a; }

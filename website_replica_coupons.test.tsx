@@ -5,12 +5,14 @@ import { DEFAULT_WEBSITE_CONTENT } from './src/data/websiteContent';
 
 const hoisted = vi.hoisted(() => ({
   discountCodes: [] as any[],
+  seasonalTheme: 'none' as string,
 }));
 
 vi.mock('./src/context/ShopContext', () => ({
   useShop: () => ({
     currentUser: null,
     theme: 'dark',
+    seasonalTheme: hoisted.seasonalTheme,
     promotions: [],
     discountCodes: hoisted.discountCodes,
     recordDiscountUsage: vi.fn(),
@@ -25,6 +27,7 @@ import { WebsiteReplica } from './src/components/WebsiteReplica';
 
 beforeEach(() => {
   hoisted.discountCodes = [];
+  hoisted.seasonalTheme = 'none';
 });
 
 /** Renders the public site and routes to the Offers page where codes live. */
@@ -53,13 +56,27 @@ describe('website coupon panel', () => {
     expect(screen.getAllByText(/Use this code/i).length).toBeGreaterThan(0);
   });
 
-  it('keeps discount codes off the brand-first home page but links to all offers', () => {
+  it('removes the three former home sections while keeping the offers link', () => {
     render(<WebsiteReplica context="public" onBookService={vi.fn()} />);
-    // The Home page leads with the brand story and demotes offers to one row.
-    expect(screen.getByTestId('home-brand-story')).toBeTruthy();
+    expect(screen.queryByText('Everything your bike needs, under one roof')).toBeNull();
+    expect(screen.queryByText("Salford's independent cycle & scooter workshop")).toBeNull();
+    expect(screen.queryByText('Three clear steps from your first call to a completed repair')).toBeNull();
     expect(screen.queryByText(/Current discount codes/i)).toBeNull();
     expect(screen.getByTestId('home-offers-teaser')).toBeTruthy();
     expect(screen.getByText(/See all offers/i)).toBeTruthy();
+  });
+
+  it('uses the active seasonal world palette on the website', () => {
+    hoisted.seasonalTheme = 'halloween';
+    const { container, rerender } = render(<WebsiteReplica context="public" onBookService={vi.fn()} />);
+    const canvas = container.querySelector('.site-canvas') as HTMLElement;
+    expect(canvas.dataset.seasonalTheme).toBe('halloween');
+    expect(canvas.style.getPropertyValue('--site-seasonal-accent')).toBe('#ffa348');
+
+    hoisted.seasonalTheme = 'none';
+    rerender(<WebsiteReplica context="public" onBookService={vi.fn()} />);
+    expect(canvas.hasAttribute('data-seasonal-theme')).toBe(false);
+    expect(canvas.style.getPropertyValue('--site-seasonal-accent')).toBe('');
   });
 
   it('recovers codes on a pre-migration DB where the audience column is missing', () => {

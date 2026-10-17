@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MacOSDock } from './src/components/staff/MacOSDock';
 
@@ -27,19 +27,21 @@ describe('desktop macOS dock', () => {
     expect(onOpenApps).toHaveBeenCalledTimes(3);
     expect(onSelectTab).not.toHaveBeenCalled();
   });
-  it('magnifies smoothly near the pointer, affects neighbours and resets after leaving', () => {
+  it('tracks the pointer smoothly, affects neighbours and avoids repeated layout reads', async () => {
     const { nav } = setup();
     const buttons = within(nav).getAllByRole('button');
-    buttons.forEach((button, i) => vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({ left: 50 + i * 70, width: 70 } as DOMRect));
+    const measurements = buttons.map((button, i) => vi.spyOn(button, 'getBoundingClientRect').mockReturnValue({ left: 50 + i * 70, width: 70 } as DOMRect));
+    fireEvent.mouseEnter(nav);
     fireEvent.mouseMove(nav, { clientX: 225 }); // Centre of Till.
-    const scale = (index: number) => Number((buttons[index].querySelector('.stakeys-dock-icon') as HTMLElement).style.getPropertyValue('--dock-scale'));
-    expect(scale(2)).toBeCloseTo(1.55, 2);
+    const scale = (index: number) => Number((buttons[index].querySelector('.stakeys-dock-icon') as HTMLElement).style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1);
+    await waitFor(() => expect(scale(2)).toBeGreaterThan(1.53));
     expect(scale(1)).toBeGreaterThan(scale(0));
     expect(scale(1)).toBeLessThan(scale(2));
-    fireEvent.mouseMove(nav, { clientX: 240 });
-    expect(scale(2)).toBeLessThan(1.55);
+    fireEvent.mouseMove(nav, { clientX: 365 }); // Move towards Stock.
+    await waitFor(() => expect(scale(4)).toBeGreaterThan(scale(2)));
+    expect(measurements.every(measure => measure.mock.calls.length === 1)).toBe(true);
     fireEvent.mouseLeave(nav);
-    expect((buttons[2].querySelector('.stakeys-dock-icon') as HTMLElement).style.getPropertyValue('--dock-scale')).toBe('');
+    await waitFor(() => expect(scale(4)).toBeCloseTo(1, 2));
   });
   it('focuses the active destination, wraps arrows and restores prior focus on Escape', () => {
     const outside = document.createElement('button'); document.body.append(outside); outside.focus();
