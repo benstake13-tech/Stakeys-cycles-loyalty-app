@@ -446,7 +446,7 @@ function AppContent() {
           </button>
 
           {/* Desktop navigation */}
-          {!inStaffWorkspace && <nav className="hidden md:block">
+          {!inStaffWorkspace && APP_SURFACE !== 'customer' && <nav className="hidden md:block">
             <SegmentedTabs tabs={navTabs} active={activeTab} onChange={goToTab} ariaLabel="Primary navigation" />
           </nav>}
 
@@ -461,7 +461,7 @@ function AppContent() {
                   Staff Verified
                 </span>
               ) : (
-                <span className={`font-mono text-[11px] ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>{currentUser.membershipNumber}</span>
+                <span className="text-xs text-emerald-400">Customer</span>
               )}
             </div>
 
@@ -547,7 +547,7 @@ function AppContent() {
 
       {/* Always-visible customer booking entry: prevents workshop bookings becoming
           inaccessible when the navigation launcher is collapsed or redesigned. */}
-      {!isStaff && (
+      {!isStaff && APP_SURFACE !== 'customer' && (
         <div className="sticky top-16 z-30 px-3 sm:px-6 py-2 bg-neutral-950/95 border-b border-emerald-500/30 backdrop-blur-sm">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <span className="text-xs text-neutral-300">Need your bike or scooter repaired?</span>

@@ -17,6 +17,14 @@ import { CustomerPortal } from './src/components/CustomerPortal';
 import { CustomerDesktopNavigation } from './src/components/customer/CustomerDesktopNavigation';
 
 describe('customer surface navigation', () => {
+  it('combines the QR code and customer identity in the pass section', () => {
+    render(<CustomerPortal navigationRequest={{ section: 'stamps', nonce: 1 }} />);
+    const pass = screen.getByRole('region', { name: 'Digital Membership Pass' });
+    expect(pass.textContent).toContain('Rider');
+    expect(pass.querySelector('svg')).toBeTruthy();
+    expect(screen.queryByText(/Member ID/)).toBeNull();
+  });
+
   it('renders one persistent bar and keeps the feature directory reachable', () => {
     render(<><CustomerPortal navigationRequest={{ section: 'more', nonce: 1 }} /><CustomerDesktopNavigation active="more" onSelect={() => {}} /></>);
     expect(screen.getAllByRole('navigation', { name: /Customer (app|primary) navigation/ })).toHaveLength(1);

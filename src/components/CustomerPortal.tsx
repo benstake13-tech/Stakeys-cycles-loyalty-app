@@ -253,8 +253,6 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
         <button type="button" aria-label="Edit your avatar" title="Customise your avatar" onClick={() => setIsAvatarEditorOpen(true)} className="stakeys-customer-avatar shrink-0 rounded-full border border-emerald-400/40 p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"><FaceAvatar seed={currentUser.displayName} configString={currentUser.avatarColor} size={36} /></button>
       </header>
       {activeTab === 'garage' && <>
-      {/* 1. FRONT AND CENTRE: DIGITAL MEMBER PASS & BARCODE */}
-      <MembershipPassCard user={currentUser} />
 
       {/* Editorial Hero Banner with High-Resolution Workshop Scrim */}
       <div className="stakeys-customer-welcome surface-panel relative overflow-hidden !rounded-3xl">
@@ -292,7 +290,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
               {/* Unboxed Zero-Pill Metadata */}
               <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
                 <span className="text-emerald-400 font-semibold tracking-wider uppercase">
-                  Member ID {currentUser.membershipNumber}
+                  Your workshop
                 </span>
                 <span aria-hidden="true" className="text-neutral-600">·</span>
                 <span>Workshop</span>
@@ -779,6 +777,7 @@ export const CustomerPortal: React.FC<CustomerPortalProps> = ({ onStaffScanCusto
       {/* TAB 4: LOYALTY PASS & STAMPS */}
       {activeTab === 'stamps' && (
         <div className="space-y-6">
+          <MembershipPassCard user={currentUser} />
           {/* Quick link to Weekly Wheel */}
           <div className="p-4 rounded-xl bg-[#0d1015] border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">

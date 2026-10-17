@@ -11,9 +11,18 @@ public final class ApplicationClass extends Application {
     public static final String PUSH_CHANNEL_ID = "stakeys_cycles_updates";
     private static volatile boolean oneSignalInitialized = false;
 
+    private static volatile String initializationError = "";
+
     @Override
     public void onCreate() {
         super.onCreate();
+        initializePush();
+    }
+
+    /** A push SDK failure must remain diagnosable without closing the workshop app. */
+    public synchronized boolean initializePush() {
+        if (oneSignalInitialized) return true;
+        try {
         OneSignal.initWithContext(this, getString(R.string.onesignal_app_id));
         OneSignal.getNotifications().addClickListener(event -> {
             String url = event.getResult() == null ? null : event.getResult().getUrl();
@@ -43,6 +52,17 @@ public final class ApplicationClass extends Application {
             ((android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(channel);
         }
         oneSignalInitialized = true;
+        initializationError = "";
+        return true;
+        } catch (RuntimeException error) {
+            initializationError = error.getClass().getSimpleName() + ": " + error.getMessage();
+            android.util.Log.e("StakeysPush", "Native push initialization failed", error);
+            return false;
+        }
+    }
+
+    public static String getInitializationError() {
+        return initializationError;
     }
 
     public static boolean isOneSignalInitialized() {
