@@ -100,6 +100,15 @@ describe('CustomerPortal new sections', () => {
 
 
 describe('customer companion navigation', () => {
+  it('opens the full feature directory when the persistent app bar requests More', () => {
+    const { rerender } = render(<CustomerPortal navigationRequest={{ section: 'garage', nonce: 0 }} />);
+    rerender(<CustomerPortal navigationRequest={{ section: 'more', nonce: 1 }} />);
+    const launcher = screen.getByTestId('customer-section-launcher');
+    expect(within(launcher).getByTestId('customer-tile-marketplace')).toBeTruthy();
+    expect(within(launcher).getByTestId('customer-tile-guides')).toBeTruthy();
+    fireEvent.click(within(launcher).getByTestId('customer-tile-marketplace'));
+    expect(screen.getByTestId('marketplace-panel')).toBeTruthy();
+  });
   it('keeps booking reachable through the bottom bar and returns to the garage', () => {
     render(<CustomerPortal />);
     const nav=screen.getByRole('navigation', {name:'Customer primary navigation'});
