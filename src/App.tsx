@@ -299,7 +299,7 @@ function AppContent() {
   if (isWebsiteSurface) {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
-        <main className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pb-8">
+        <main className="relative z-10 w-full mx-auto pb-8">
           {showGuestBooking ? (
             <div className="pt-6">
               <button

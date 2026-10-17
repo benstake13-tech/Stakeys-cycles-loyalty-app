@@ -114,18 +114,18 @@ describe('website coupon panel', () => {
 });
 
 describe('website public/embedded context split', () => {
-  it('marks the standalone public website as the public context', () => {
+  it('keeps the public header free of surface badges', () => {
     render(<WebsiteReplica context="public" onBookService={vi.fn()} />);
-    expect(screen.getByTestId('website-context-badge').textContent).toMatch(/Public website/i);
+    expect(screen.queryByTestId('website-context-badge')).toBeNull();
   });
 
-  it('marks the embedded customer-app Website tab as the embedded context', () => {
+  it('keeps the embedded header free of surface badges', () => {
     render(<WebsiteReplica context="embedded" onBookService={vi.fn()} />);
-    expect(screen.getByTestId('website-context-badge').textContent).toMatch(/Customer app preview/i);
+    expect(screen.queryByTestId('website-context-badge')).toBeNull();
   });
 
-  it('defaults to the public context when no context is passed', () => {
+  it('omits surface badges when no context is passed', () => {
     render(<WebsiteReplica onBookService={vi.fn()} />);
-    expect(screen.getByTestId('website-context-badge').textContent).toMatch(/Public website/i);
+    expect(screen.queryByTestId('website-context-badge')).toBeNull();
   });
 });
