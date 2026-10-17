@@ -172,10 +172,11 @@ export const ShopAssistant: React.FC<ShopAssistantProps> = ({ surface }) => {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? 'Close assistant' : `Open ${config.name}`}
-        className={`fixed right-4 z-[60] inline-flex items-center justify-center rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 shadow-2xl shadow-emerald-500/30 cursor-pointer hover:scale-105 transition-transform ${surface === 'customer' ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom)+1rem)] h-12 w-12 p-0' : 'bottom-6 gap-2 px-4 py-3'}`}
+        aria-expanded={open}
+        title={open ? 'Close assistant' : config.name}
+        className={`fixed right-4 z-[60] inline-flex h-11 w-11 items-center justify-center rounded-full border border-emerald-300/50 bg-emerald-400 text-neutral-950 shadow-lg shadow-emerald-500/20 cursor-pointer transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 ${surface === 'customer' ? 'bottom-[calc(5.5rem+env(safe-area-inset-bottom)+1rem)]' : 'bottom-6'}`}
       >
         {open ? <X className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
-        {!open && surface !== 'customer' && <span className="text-xs font-black uppercase tracking-wider">{config.name}</span>}
       </button>
     </>
   );
