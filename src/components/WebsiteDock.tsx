@@ -91,26 +91,34 @@ export function WebsiteDock({ activePage, onNavigate }: {
     frame.current = moving ? requestAnimationFrame(animate) : null;
   }
   function magnify(clientX: number) {
-    if (reducedMotion.current || settings.magnification === 0) return resetScale();
+    if (reducedMotion.current || settings.magnification === 0) {
+      resetScale();
+      return;
+    }
+    // Measure the icon tiles themselves: their centres stay stable while the glyphs scale.
     targets.current = itemRefs.current.map(button => {
-      if (!button) return 1;
-      const rect = button.getBoundingClientRect();
-      const centre = rect.left + rect.width / 2;
-      const influence = Math.exp(-((clientX - centre) ** 2) / (2 * 76 ** 2));
-      return 1 + (settings.magnification / 100) * influence;
+      const glyph = button?.querySelector<HTMLElement>('.website-dock-glyph');
+      if (!glyph) return 1;
+      const rect = glyph.getBoundingClientRect();
+      const distance = Math.abs(clientX - (rect.left + rect.width / 2));
+      const influence = Math.exp(-(distance * distance) / (2 * 82 * 82));
+      return 1 + (settings.magnification / 100) * 0.72 * influence;
     });
     if (frame.current === null) frame.current = requestAnimationFrame(animate);
   }
   function handlePointerMove(event: React.PointerEvent<HTMLElement>) {
-    if (event.pointerType === 'touch') return;
+    if (event.pointerType === 'touch' || event.pointerType === 'pen') return;
     pointerX.current = event.clientX;
     magnify(event.clientX);
   }
   function handlePointerLeave() {
     pointerX.current = null;
     targets.current.fill(1);
-    if (!reducedMotion.current && frame.current === null) frame.current = requestAnimationFrame(animate);
-    else if (reducedMotion.current) resetScale();
+    if (reducedMotion.current) {
+      resetScale();
+      return;
+    }
+    if (frame.current === null) frame.current = requestAnimationFrame(animate);
   }
   const cssVars = {
     '--website-dock-gap': `${settings.spacing}px`,
