@@ -26,3 +26,13 @@
 @keyframes website-dock-panel-in{from{opacity:0;transform:translateY(7px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
 @media(max-width:520px){.website-dock-layer{bottom:calc(8px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 12px)}.website-dock{gap:clamp(3px,2vw,8px);padding:8px 9px 10px;border-radius:20px}.website-dock-item{flex-basis:36px;width:36px;min-width:36px;height:57px;gap:4px}.website-dock-glyph{width:36px;height:36px;border-radius:11px}.website-dock-glyph svg{width:20px;height:20px}.website-dock-label{font-size:8px;letter-spacing:-.025em}.website-dock-settings{right:-2px;bottom:calc(100% + 11px)}}
 @media(prefers-reduced-motion:reduce){.website-dock-item,.website-dock-label,.website-dock-glyph{transition:none!important;will-change:auto}.website-dock-settings{animation:none}}
+
+
+/* Desktop dock: a roomier macOS-style floating shelf with glass depth. */
+@media(min-width:768px){
+  .website-dock-layer{bottom:calc(18px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 48px)}
+  .website-dock{gap:var(--website-dock-gap,26px);padding:12px 18px 14px;border-radius:27px;background:linear-gradient(155deg,#ffffff20 0%,#173426e8 38%,#06110df7 100%);box-shadow:inset 0 1px 0 #ffffff42,inset 0 -1px 0 #ffffff0a,0 22px 64px #0009,0 0 34px #0fbf6326}
+  .website-dock-item{flex-basis:48px;width:48px;min-width:48px;height:70px;gap:6px}
+  .website-dock-glyph{width:48px;height:48px;border-radius:15px}
+  .website-dock-label{font-size:10px}
+}
