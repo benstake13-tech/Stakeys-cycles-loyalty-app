@@ -619,7 +619,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
         </div>
       </section>
     </div>}
-    {!staff&&<p className="text-center text-[11px] leading-5 text-neutral-500">Peer-to-peer listings are supplied by private sellers. The shop checks listing submissions but does not certify condition or ownership. Sale terms and disputes remain between buyer and seller; Stakey’s acts as mediator and takes a 20% commission to help fund the app and marketplace. Please welcome to send feedback and feature requests at any time.</p>}
+    {!staff&&<p className="text-center text-[11px] leading-5 text-neutral-500">Peer-to-peer listings are supplied by private sellers. The shop checks listing submissions but does not certify condition or ownership. Sale terms and disputes remain between buyer and seller; Stakey’s provides the marketplace without taking a per-sale commission. Please send feedback and feature requests at any time.</p>}
   </section>;
 };
 
