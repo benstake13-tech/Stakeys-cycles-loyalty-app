@@ -206,7 +206,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   // Visitors can still navigate manually; reduced-motion users get no autoplay.
   useEffect(() => {
     if (page !== 'home') return;
-    const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reducedMotion) return;
     const slideCount = content.galleryImages.length || 3;
     if (slideCount < 2) return;
