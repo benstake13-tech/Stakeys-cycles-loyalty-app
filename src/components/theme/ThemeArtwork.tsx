@@ -36,7 +36,7 @@ export function ThemeArtwork({ world }: { world: WorldSpec }) {
         </filter>
       </defs>
       <image href={shopPhotoFor(world.id)} width="1672" height="941" />
-      <g className="theme-signage" filter={`url(#${shadow})`}>
+      <g className="theme-signage" filter={`url(#${shadow})`} transform="matrix(1 0.035 0 1 0 -30)">
         <path d="M733 83 L1419 83 L1440 96 L1440 161 L1419 174 L733 174 L712 161 L712 96 Z" fill="#071b12" opacity=".88" transform="translate(0 8)" />
         <path d="M733 78 L1419 78 L1440 91 L1440 156 L1419 169 L733 169 L712 156 L712 91 Z" fill={`url(#${metal})`} />
         <path d="M737 84 L1417 84 L1433 94 L1433 152 L1417 162 L737 162 L719 152 L719 94 Z" fill={`url(#${face})`} stroke="#f5df9c" strokeWidth="1.5" />
