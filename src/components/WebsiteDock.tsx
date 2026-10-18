@@ -46,12 +46,14 @@ export function WebsiteDock({ activePage, onNavigate }: {
         });
       }
     } catch { /* defaults remain available when storage is blocked */ }
-    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reducedMotion.current = query.matches;
-    const updateMotion = () => { reducedMotion.current = query.matches; if (query.matches) resetScale(); };
-    query.addEventListener?.('change', updateMotion);
+    const query = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)')
+      : null;
+    reducedMotion.current = query?.matches ?? false;
+    const updateMotion = () => { reducedMotion.current = query?.matches ?? false; if (query?.matches) resetScale(); };
+    query?.addEventListener?.('change', updateMotion);
     return () => {
-      query.removeEventListener?.('change', updateMotion);
+      query?.removeEventListener?.('change', updateMotion);
       if (frame.current !== null) cancelAnimationFrame(frame.current);
     };
   }, []);
