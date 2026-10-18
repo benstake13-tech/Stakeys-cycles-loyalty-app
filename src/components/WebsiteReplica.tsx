@@ -199,7 +199,22 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<'all' | WebProductCategory>('all');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [homeSlideIndex, setHomeSlideIndex] = useState(0);
   const navRef = useRef<HTMLDivElement>(null);
+
+  // Cycle through the homepage gallery while the homepage is visible.
+  // Visitors can still navigate manually; reduced-motion users get no autoplay.
+  useEffect(() => {
+    if (page !== 'home') return;
+    const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) return;
+    const slideCount = content.galleryImages.length || 3;
+    if (slideCount < 2) return;
+    const timer = window.setInterval(() => {
+      setHomeSlideIndex(index => (index + 1) % slideCount);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [page, content.galleryImages.length]);
 
   // Close the mega-menu / mobile drawer when clicking away or pressing Escape.
   useEffect(() => {
@@ -802,28 +817,40 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
    * Home — sections
    * ------------------------------------------------------------------ */
 
+  const editorialFallbackSlides = [
+    { id: 'workshop', url: '/images/hero_workshop_craftsmanship_1790159761910.jpg', alt: 'Close-up of precision bicycle workshop craftsmanship', title: 'Crafted with care.', caption: 'Cycle servicing & repairs' },
+    { id: 'bicycle', url: '/images/bike_precision_gravel_studio_1790159773368.jpg', alt: 'Premium gravel bicycle photographed in a dramatic studio setting', title: 'Every ride matters.', caption: 'Explore bicycle care' },
+    { id: 'electric', url: '/images/scooter_performance_studio_1790159785831.jpg', alt: 'Modern electric scooter photographed with premium studio lighting', title: 'Electric. Elevated.', caption: 'Enquire about e-scooters' },
+  ];
+  const homepageSlides = content.galleryImages.length > 0
+    ? content.galleryImages.map((image) => ({ id: image.id, url: image.url, alt: "Stakey's Cycles workshop gallery", title: "From the workshop.", caption: "Recent builds, repairs and restorations" }))
+    : editorialFallbackSlides;
+  const activeHomeSlide = homepageSlides[homeSlideIndex % homepageSlides.length];
+
   const editorialGallery = (
-    <section className="site-editorial-gallery" aria-label="Explore our cycle and e-scooter workshop">
+    <section className="site-editorial-gallery" aria-label="Homepage workshop gallery slideshow">
       <div className="site-editorial-heading">
         <div><span className="site-eyebrow">THE ART OF THE RIDE / SALFORD</span><h2 className="site-display">Precision in every detail.</h2></div>
         <p>From finely tuned bicycles to everyday electric mobility. Discover a workshop where the details matter.</p>
       </div>
-      <div className="site-editorial-grid">
-        <button type="button" className="site-editorial-photo site-editorial-photo--lead" onClick={() => goTo('repairs')} aria-label="Explore cycle servicing and workshop repairs">
-          <img src="/images/hero_workshop_craftsmanship_1790159761910.jpg" alt="Close-up of precision bicycle workshop craftsmanship" loading="eager" decoding="async" />
-          <span className="site-editorial-photo__index">01 / THE WORKSHOP</span>
-          <span className="site-editorial-photo__caption"><strong>Crafted with care.</strong><span>Cycle servicing & repairs <ArrowRight size={18} /></span></span>
+      <div className="site-home-slideshow">
+        <button type="button" className="site-home-slideshow__image" onClick={() => goTo('gallery')} aria-label="Open the full workshop gallery">
+          <img key={activeHomeSlide.id} src={activeHomeSlide.url} alt={activeHomeSlide.alt} loading={homeSlideIndex === 0 ? 'eager' : 'lazy'} decoding="async" />
+          <span className="site-home-slideshow__shade" aria-hidden="true" />
+          <span className="site-home-slideshow__index">{String((homeSlideIndex % homepageSlides.length) + 1).padStart(2, '0')} / {String(homepageSlides.length).padStart(2, '0')}</span>
+          <span className="site-home-slideshow__caption"><strong>{activeHomeSlide.title}</strong><span>{activeHomeSlide.caption} <ArrowRight size={18} /></span></span>
         </button>
-        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore bicycle repair services">
-          <img src="/images/bike_precision_gravel_studio_1790159773368.jpg" alt="Premium gravel bicycle photographed in a dramatic studio setting" loading="lazy" decoding="async" />
-          <span className="site-editorial-photo__index">02 / THE MACHINE</span>
-          <span className="site-editorial-photo__caption"><strong>Every ride matters.</strong><span>Explore bicycle care <ArrowRight size={18} /></span></span>
-        </button>
-        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore electric scooter servicing enquiries">
-          <img src="/images/scooter_performance_studio_1790159785831.jpg" alt="Modern electric scooter photographed with premium studio lighting" loading="lazy" decoding="async" />
-          <span className="site-editorial-photo__index">03 / ELECTRIC MOBILITY</span>
-          <span className="site-editorial-photo__caption"><strong>Electric. Elevated.</strong><span>Enquire about e-scooters <ArrowRight size={18} /></span></span>
-        </button>
+        {homepageSlides.length > 1 && (
+          <div className="site-home-slideshow__controls" aria-label="Gallery slideshow controls">
+            <button type="button" onClick={() => setHomeSlideIndex(index => (index - 1 + homepageSlides.length) % homepageSlides.length)} aria-label="Previous gallery image">‹</button>
+            <div className="site-home-slideshow__dots" aria-label="Choose gallery image">
+              {homepageSlides.map((slide, index) => (
+                <button key={slide.id} type="button" className={index === homeSlideIndex % homepageSlides.length ? 'is-active' : ''} onClick={() => setHomeSlideIndex(index)} aria-label={`Show gallery image ${index + 1}`} aria-current={index === homeSlideIndex % homepageSlides.length ? 'true' : undefined} />
+              ))}
+            </div>
+            <button type="button" onClick={() => setHomeSlideIndex(index => (index + 1) % homepageSlides.length)} aria-label="Next gallery image">›</button>
+          </div>
+        )}
       </div>
     </section>
   );
