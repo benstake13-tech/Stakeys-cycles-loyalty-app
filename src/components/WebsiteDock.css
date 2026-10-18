@@ -174,3 +174,28 @@
 .website-dock-item:hover,.website-dock-item:focus-visible{z-index:20}
 .website-dock-item:hover .website-dock-glyph,.website-dock-item:focus-visible .website-dock-glyph{transform:translate3d(0,-12px,0) scale(1.6)!important;border-color:#dcffe7!important;box-shadow:0 0 0 2px #7dffa944,0 14px 30px #0008,0 0 26px #5ff49759!important;filter:brightness(1.18)}
 @media(prefers-reduced-motion:reduce){.website-dock-item:hover .website-dock-glyph,.website-dock-item:focus-visible .website-dock-glyph{transition-duration:.01ms!important;transform:translate3d(0,-8px,0) scale(1.6)!important}}
+
+
+/* Homepage gallery slideshow and persistent public-site dock. */
+.site-home-slideshow{width:100%;max-width:1120px;margin-inline:auto}
+.site-home-slideshow__image{position:relative;display:block;width:100%;aspect-ratio:16/8.5;min-height:280px;max-height:640px;overflow:hidden;padding:0;border:1px solid var(--site-line,rgba(255,255,255,.16));border-radius:clamp(18px,3vw,30px);background:#0b1710;text-align:left;box-shadow:var(--site-shadow,0 24px 70px rgba(0,0,0,.22));cursor:pointer}
+.site-home-slideshow__image img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:site-home-slide-in .65s ease both}
+.site-home-slideshow__shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.08) 20%,rgba(0,0,0,.08) 45%,rgba(0,0,0,.78) 100%);pointer-events:none}
+.site-home-slideshow__index{position:absolute;top:clamp(14px,3vw,28px);left:clamp(14px,3vw,28px);padding:7px 10px;border:1px solid rgba(255,255,255,.28);border-radius:999px;background:rgba(8,20,13,.48);color:#fff;font-size:10px;font-weight:800;letter-spacing:.12em;backdrop-filter:blur(12px)}
+.site-home-slideshow__caption{position:absolute;right:clamp(18px,4vw,42px);bottom:clamp(22px,4vw,42px);left:clamp(18px,4vw,42px);display:flex;flex-direction:column;gap:8px;color:#fff;pointer-events:none}
+.site-home-slideshow__caption strong{font-family:Georgia,'Times New Roman',serif;font-size:clamp(27px,4.5vw,54px);font-weight:600;letter-spacing:-.04em;line-height:1.04;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.site-home-slideshow__caption span{display:flex;align-items:center;gap:9px;font-size:clamp(11px,1.4vw,14px);font-weight:700;letter-spacing:.015em;color:rgba(255,255,255,.88)}
+.site-home-slideshow__controls{display:flex;align-items:center;justify-content:center;gap:22px;padding:15px 0 0}
+.site-home-slideshow__controls>button{display:grid;place-items:center;width:38px;height:38px;border:1px solid var(--site-line,rgba(255,255,255,.2));border-radius:50%;background:var(--site-card,rgba(255,255,255,.06));color:var(--site-ink,#fff);font-size:27px;line-height:1;cursor:pointer;transition:transform .2s ease,border-color .2s ease}
+.site-home-slideshow__controls>button:hover{transform:scale(1.06);border-color:var(--site-green,#65d98c)}
+.site-home-slideshow__dots{display:flex;align-items:center;justify-content:center;gap:8px}
+.site-home-slideshow__dots button{width:7px;height:7px;padding:0;border:0;border-radius:99px;background:var(--site-ink-soft,rgba(255,255,255,.35));opacity:.55;cursor:pointer;transition:width .2s ease,opacity .2s ease,background .2s ease}
+.site-home-slideshow__dots button.is-active{width:24px;background:var(--site-green,#65d98c);opacity:1}
+@keyframes site-home-slide-in{from{opacity:.55;transform:scale(1.015)}to{opacity:1;transform:scale(1)}}
+@media(max-width:640px){.site-home-slideshow__image{aspect-ratio:4/3;min-height:260px;max-height:440px}.site-home-slideshow__caption strong{max-width:12ch}.site-home-slideshow__controls{gap:15px}}
+@media(prefers-reduced-motion:reduce){.site-home-slideshow__image img{animation:none}.site-home-slideshow__controls>button,.site-home-slideshow__dots button{transition:none}}
+
+/* Keep the dock anchored above the viewport edge on every public-site page. */
+.site-public-canvas .website-dock-layer{position:fixed!important;z-index:9999!important;visibility:visible!important;opacity:1!important;pointer-events:none;bottom:calc(12px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);max-width:calc(100vw - 12px)}
+.site-public-canvas .website-dock{visibility:visible;opacity:1;pointer-events:auto}
+@media(min-width:768px){.site-public-canvas .website-dock-layer{bottom:calc(18px + env(safe-area-inset-bottom,0px));max-width:calc(100vw - 48px)}}
