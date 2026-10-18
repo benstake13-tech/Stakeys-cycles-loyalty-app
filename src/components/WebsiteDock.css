@@ -98,3 +98,54 @@
   .website-dock-item{flex-basis:35px;width:35px;min-width:35px;height:57px;gap:4px}
   .website-dock-glyph{width:35px;height:35px;border-radius:11px}
 }
+
+
+/* Compact-by-default dock: magnification is the visual reward for hover/focus. */
+.website-dock-layer{
+  z-index:9999;
+  bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+  max-width:calc(100vw - 12px);
+}
+.website-dock{
+  gap:clamp(5px,1.25vw,16px);
+  padding:9px 12px 10px;
+  max-width:calc(100vw - 12px);
+}
+.website-dock-item{
+  flex-basis:38px;
+  width:38px;
+  min-width:38px;
+  height:54px;
+  gap:4px;
+  padding-bottom:4px;
+}
+.website-dock-glyph{
+  width:34px;
+  height:34px;
+  border-radius:11px;
+}
+.website-dock-glyph svg{width:19px;height:19px;stroke-width:2}
+.website-dock-label{font-size:9px}
+.website-dock-item:focus-visible .website-dock-glyph{
+  transform:translate3d(0,-4px,0) scale(1.16);
+}
+.website-dock-item:focus-visible{z-index:2}
+@media(min-width:768px){
+  .website-dock-layer{bottom:calc(16px + env(safe-area-inset-bottom, 0px));max-width:calc(100vw - 32px)}
+  .website-dock{gap:clamp(8px,1.35vw,18px);padding:10px 15px 11px}
+  .website-dock-item{flex-basis:42px;width:42px;min-width:42px;height:59px;gap:5px}
+  .website-dock-glyph{width:36px;height:36px;border-radius:12px}
+  .website-dock-glyph svg{width:20px;height:20px}
+  .website-dock-label{font-size:9px}
+}
+@media(max-width:520px){
+  .website-dock-layer{bottom:calc(7px + env(safe-area-inset-bottom, 0px));max-width:calc(100vw - 8px)}
+  .website-dock{gap:clamp(2px,1.1vw,6px);padding:7px 7px 8px}
+  .website-dock-item{flex-basis:34px;width:34px;min-width:34px;height:51px;gap:3px}
+  .website-dock-glyph{width:31px;height:31px;border-radius:10px}
+  .website-dock-glyph svg{width:18px;height:18px}
+  .website-dock-label{font-size:8px}
+}
+@media(prefers-reduced-motion:reduce){
+  .website-dock-item:focus-visible .website-dock-glyph{transform:none}
+}
