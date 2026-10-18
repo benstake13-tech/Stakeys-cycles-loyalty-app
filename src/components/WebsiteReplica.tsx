@@ -1,4 +1,5 @@
 import { MarketplacePanel } from './MarketplacePanel';
+import { WebsiteDock } from './WebsiteDock';
 import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   AlertTriangle,
@@ -1875,6 +1876,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
       <main className="mx-auto max-w-7xl pt-10">{renderPage()}</main>
       {cartDrawer}
+      {context === 'public' && <WebsiteDock activePage={page} onNavigate={goTo} />}
     </div>
   );
 };
