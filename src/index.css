@@ -1866,3 +1866,14 @@ main:has(>.stakeys-customer-login) {padding:0!important;max-width:none!important
 }
 .avatar-idle { animation: stakeys-avatar-idle 3.8s ease-in-out infinite; transform-origin: 50% 55%; }
 @media (prefers-reduced-motion: reduce) { .avatar-idle { animation: none; } }
+
+
+/* Public desktop website uses the whole available viewport rather than an inset app card. */
+.site-public-canvas{width:100%;max-width:none;min-height:100dvh;border-radius:0!important;overflow-x:clip}
+.site-public-canvas>.website-header{margin-left:0!important;margin-right:0!important}
+.site-public-canvas .website-header-row{width:100%;max-width:none}
+.site-public-main{width:100%;max-width:none}
+@media(min-width:1024px){
+  .site-public-main{padding-left:clamp(28px,3.2vw,64px);padding-right:clamp(28px,3.2vw,64px)}
+  .site-public-canvas .website-header-row{min-height:76px}
+}
