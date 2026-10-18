@@ -620,7 +620,7 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
         </div>
       </section>
     </div>}
-    {!staff&&<p className="text-center text-[11px] leading-5 text-neutral-500">Peer-to-peer listings are supplied by private sellers. The shop checks listing submissions but does not certify condition or ownership. Sale terms and disputes remain between buyer and seller; Stakey’s provides the marketplace without taking a per-sale commission. Please welcome to send feedback and feature requests at any time.</p>}
+    {!staff&&<div className="rounded-2xl border border-rose-400/25 bg-gradient-to-r from-rose-950/35 via-neutral-950/80 to-neutral-950/70 p-4 text-left sm:p-5"><p className="text-sm font-extrabold text-rose-100"><ShieldCheck className="mr-2 inline h-4 w-4 text-rose-300"/>Zero tolerance for scams and stolen goods</p><p className="mt-1 text-xs leading-5 text-neutral-300">The marketplace is free to use and listings and activity are monitored for suspicious behaviour. Anyone suspected of fraud, theft, selling stolen property or abusing the platform may be banned and reported to the police. Reports are assessed and shared with the appropriate authorities where warranted. Always inspect the item and arrange a safe public handover.</p><p className="mt-2 text-[11px] leading-5 text-neutral-500">Listings are supplied by private sellers. Review is not a guarantee of condition or ownership, and buyers should complete their own checks.</p></div>}
   </section>;
 };
 
