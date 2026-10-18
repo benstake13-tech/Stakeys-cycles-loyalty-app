@@ -544,7 +544,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           className="website-header-brand flex min-w-0 shrink-0 items-center gap-2 text-left cursor-pointer sm:gap-3"
           aria-label="Stakey's Cycles home"
         >
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)]">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)] sm:h-12 sm:w-12 lg:h-14 lg:w-14">
             <img
               src={`${import.meta.env.BASE_URL}logo.svg`}
               alt="Stakey's Cycles &amp; Scooter"
@@ -767,27 +767,16 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           </div>
         </div>
 
-        {/* Quality promise card */}
+        {/* Workshop photo replaces the old quality-claim quote. */}
         <div className="lg:col-span-5">
-          <div
-            data-testid="hero-quality-claim"
-            className="site-frame relative rounded-[1.75rem] p-7 sm:p-8 shadow-[var(--site-shadow)]"
-          >
-            <Quote className="w-7 h-7 text-[var(--site-brass)]" />
-            <p className="font-editorial mt-4 text-xl font-semibold leading-snug text-[var(--site-ink)] sm:text-2xl">
-              {content.brandStory.qualityClaim}
-            </p>
-            <div className="mt-6 flex items-center gap-3">
-              <div className="flex -space-x-1.5">
-                {[0, 1, 2, 3, 4].map((s) => (
-                  <Star key={s} className="w-4 h-4 fill-[var(--site-brass)] text-[var(--site-brass)]" />
-                ))}
-              </div>
-              <span className="text-[11px] font-semibold text-[var(--site-ink-faint)]">
-                Loved by local riders
-              </span>
-            </div>
-          </div>
+          <figure className="site-frame relative h-full min-h-[300px] overflow-hidden rounded-[1.5rem] shadow-[var(--site-shadow)]">
+            <img src="/images/hero_workshop_craftsmanship_1790159761910.jpg" alt="Bicycle servicing and craftsmanship inside the Stakey’s Cycles workshop" className="absolute inset-0 h-full w-full object-cover" loading="eager" decoding="async" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#06130be8] via-[#06130b25] to-transparent" aria-hidden="true" />
+            <figcaption className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              <span className="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#a9efbd]">Inside the workshop</span>
+              <p className="mt-2 max-w-sm font-editorial text-2xl font-semibold leading-tight text-white sm:text-3xl">Proper care for every ride.</p>
+            </figcaption>
+          </figure>
         </div>
       </div>
     </section>
@@ -1857,7 +1846,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
   return (
     <div
-      className={`site-canvas ${isDark ? '' : 'site-light'} font-ui min-h-screen rounded-[1.75rem] px-4 pb-10 pt-0 sm:px-6 lg:px-8`}
+      className={['site-canvas', isDark ? '' : 'site-light', 'font-ui min-h-screen pt-0', isEmbedded ? 'rounded-[1.75rem] px-4 pb-10 sm:px-6 lg:px-8' : 'site-public-canvas w-full rounded-none px-0 pb-24'].join(' ')}
       data-seasonal-theme={seasonalWorld?.id}
       style={seasonalWorld ? { '--site-seasonal-accent': seasonalWorld.accent } as CSSProperties : undefined}
     >
@@ -1874,7 +1863,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
       {siteHeader}
 
-      <main className="mx-auto max-w-7xl pt-10">{renderPage()}</main>
+      <main className={isEmbedded ? "mx-auto max-w-7xl pt-10" : "site-public-main w-full px-4 pt-7 sm:px-6 sm:pt-9 lg:px-8"}>{renderPage()}</main>
       {cartDrawer}
       {context === 'public' && <WebsiteDock activePage={page} onNavigate={goTo} />}
     </div>
