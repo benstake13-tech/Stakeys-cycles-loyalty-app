@@ -1,12 +1,12 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, within, act } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ user: null as any, empty: false, failSend: false, blocked:false, peerBlocked:false, preview:null as string|null, unread:0, oldHistory:false, logout: vi.fn(), insert: vi.fn(), rpc: vi.fn(), subscriptions: [] as any[], removeChannel: vi.fn() }));
+const state = vi.hoisted(() => ({ user: null as any, empty: false, listingStatus:'active', soldAt:null as string|null, failSend: false, blocked:false, peerBlocked:false, preview:null as string|null, unread:0, oldHistory:false, logout: vi.fn(), insert: vi.fn(), rpc: vi.fn(), subscriptions: [] as any[], removeChannel: vi.fn() }));
 vi.mock('./src/context/ShopContext', () => ({ useShop: () => ({ currentUser: state.user, logoutUser: state.logout }) }));
 vi.mock('./src/components/LoginScreen', () => ({ LoginScreen: () => <div>Member sign in form</div> }));
 vi.mock('./src/components/AiBikeIdentifier', () => ({ AiBikeIdentifier: () => null }));
 vi.mock('./src/lib/supabase', () => ({ supabase: { channel: (name:string) => { const channel:any={on:(_event:string,filter:any,callback:any)=>{state.subscriptions.push({name,filter,callback});return channel;},subscribe:()=>channel};return channel; }, removeChannel: state.removeChannel, rpc: state.rpc, from: (table: string) => {
-  const rows = table === 'marketplace_listings' ? (state.empty ? [] : [{ id:'bike',seller_id:'seller',title:'Local bike',make_model:'Trek FX',category:'bicycle',condition:'good',asking_price:200,images:[],status:'active' }])
+  const rows = table === 'marketplace_listings' ? (state.empty ? [] : [{ id:'bike',seller_id:'seller',title:'Local bike',make_model:'Trek FX',category:'bicycle',condition:'good',asking_price:200,images:[],status:state.listingStatus,sold_at:state.soldAt }])
     : table === 'marketplace_conversations' ? [{ id:'chat',listing_id:'bike',buyer_id:'buyer',seller_id:'seller',listing:{ title:'Local bike',make_model:'Trek FX',asking_price:200 } }]
     : table === 'marketplace_messages' ? [...(state.oldHistory?Array.from({length:299},(_,i)=>({id:'history-'+i,conversation_id:'chat',sender_id:'buyer',body:'Recent message '+i,created_at:'2026-10-17T11:00:00Z'})):[]),{ id:'m1',conversation_id:'chat',sender_id:'seller',body:'Would £180 work for you?',created_at:'2026-10-17T12:00:00Z' }] : [];
   const query: any = { select: () => query, eq: () => query, or: () => query, in: () => query, order: () => query, limit: () => query,
@@ -15,7 +15,7 @@ vi.mock('./src/lib/supabase', () => ({ supabase: { channel: (name:string) => { c
     then: (resolve: any) => resolve({data:rows,error:null}) }; return query;
 }, storage: { from: () => ({ createSignedUrls: async () => ({data:[]}) }) } } }));
 import { MarketplacePanel } from './src/components/MarketplacePanel';
-beforeEach(() => { cleanup(); vi.clearAllMocks(); state.user=null; state.empty=false; state.failSend=false; state.subscriptions=[];state.blocked=false;state.peerBlocked=false;state.preview=null;state.unread=0;state.oldHistory=false;
+beforeEach(() => { cleanup(); vi.clearAllMocks(); state.user=null; state.empty=false;state.listingStatus='active';state.soldAt=null; state.failSend=false; state.subscriptions=[];state.blocked=false;state.peerBlocked=false;state.preview=null;state.unread=0;state.oldHistory=false;
 state.rpc.mockImplementation(async(name:string,args:any)=>{
  if(name==='marketplace_messenger_state')return {data:{blocked_by_me:state.blocked,messaging_available:!state.blocked&&!state.peerBlocked,other_read_at:null},error:null};
  if(name==='marketplace_messenger_summary')return {data:[{conversation_id:'chat',other_name:'Local Rider',last_message:state.preview,last_message_at:null,unread_count:state.unread}],error:null};
@@ -133,4 +133,25 @@ it('logs a website member out and removes private conversation content', async()
  state.user=null;rerender(<MarketplacePanel showLogout/>);
  await waitFor(()=>expect(screen.queryByText('Would £180 work for you?')).toBeNull());
  expect(screen.queryByRole('button',{name:'Log out'})).toBeNull();
+});
+
+it('lets the listing seller complete a sale and records the buyer and amount',async()=>{
+ state.user={uid:'seller'};render(<MarketplacePanel/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Mark as complete'}));
+ fireEvent.change(screen.getByLabelText('Buyer name'),{target:{value:'Alex Rider'}});
+ fireEvent.change(screen.getByLabelText('Buyer email or phone'),{target:{value:'alex@example.test'}});
+ fireEvent.click(within(screen.getByRole('dialog',{name:'Record offline marketplace sale'})).getByRole('button',{name:'Mark as complete'}));
+ await waitFor(()=>expect(state.rpc).toHaveBeenCalledWith('record_marketplace_manual_sale',expect.objectContaining({p_listing_id:'bike',p_buyer_name:'Alex Rider',p_amount:200})));
+});
+
+it('removes a sold advert from an open public page at the 48-hour boundary',async()=>{
+ vi.useFakeTimers();vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
+ try{
+ state.listingStatus='sold';state.soldAt=new Date(Date.now()-48*60*60*1000+1000).toISOString();
+ await act(async()=>{render(<MarketplacePanel/>);});
+ expect(screen.getByText('Local bike')).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'Sign in to message seller'})).toBeNull();
+ await act(async()=>{vi.advanceTimersByTime(1011);});
+ expect(screen.queryByText('Local bike')).toBeNull();
+ }finally{cleanup();vi.useRealTimers();}
 });
