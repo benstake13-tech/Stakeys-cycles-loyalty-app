@@ -83,11 +83,14 @@ build_one() {
   npx cap sync android
 
   # 3. build the flavor's APK.
-  ( cd android && ./gradlew "assemble${flavor}${BUILD_TYPE}" )
+  # Discard packaging intermediates from interrupted builds. Reusing them can
+  # leave extra truncated DEX entries in an otherwise correctly signed APK.
+  ( cd android && ./gradlew clean "assemble${flavor}${BUILD_TYPE}" )
 
   # 4. collect it under a predictable name.
   local src="android/app/build/outputs/apk/${surface}/$(echo "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')/app-${surface}-$(echo "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]').apk"
   [ -f "$src" ] || { echo "expected APK not found: $src" >&2; exit 1; }
+  python3 scripts/check-apk-integrity.py "$src"
   mkdir -p "$OUT"
   local dest="$OUT/stakeys-${app}.apk"
   cp "$src" "$dest"
