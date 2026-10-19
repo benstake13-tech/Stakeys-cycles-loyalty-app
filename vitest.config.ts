@@ -5,7 +5,7 @@ export default defineConfig({
     environment: 'jsdom',
     // Bound jsdom/React concurrency on shared runners: unrestricted workers
     // can starve interactive navigation tests of their five-second budget.
-    maxWorkers: 4,
+    maxWorkers: 2,
     globals: true,
     include: ['**/*.test.{ts,tsx}'],
     // Tests must not depend on, or be perturbed by, a developer's local .env
