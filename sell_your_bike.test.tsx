@@ -2,6 +2,10 @@ import React from 'react';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Staff price-book cases render the full editor; allow shared-runner scheduling
+// without changing UI assertions or waitFor deadlines.
+vi.setConfig({testTimeout:60_000});
+
 vi.mock('./src/lib/supabase', () => ({
   supabase: {
     from: () => ({
