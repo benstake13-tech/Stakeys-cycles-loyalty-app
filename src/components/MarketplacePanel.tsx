@@ -1,6 +1,6 @@
 import { announceMilestone } from '../utils/milestoneAnimations';
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
-import { Bike, CheckCircle2, CircleAlert, Clock3, Gavel, ImagePlus, LoaderCircle, MapPin, MessageCircle, RefreshCw, Send, ShieldCheck, Ban, Search, ArrowLeft, Store, X } from 'lucide-react';
+import { Bike, CheckCircle2, CircleAlert, Clock3, Gavel, ImagePlus, LoaderCircle, MapPin, MessageCircle, RefreshCw, Send, ShieldCheck, Ban, Search, ArrowLeft, LogOut, Store, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useShop } from '../context/ShopContext';
@@ -53,19 +53,19 @@ const marketplaceInspectionFromResult = (result:any):MarketplaceInspection => ({
 });
 
 /** Shared marketplace surface used by the public website and customer app. */
-export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> = ({ staff = false, enabled = true }) => {
+export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean; showLogout?: boolean }> = ({ staff = false, enabled = true, showLogout = false }) => {
   const [personalChat, setPersonalChat] = useState(false);
   return <>
     {staff && <nav aria-label="Staff marketplace workspace" className="marketplace-workspace mb-4 flex gap-2 p-2">
       <button type="button" aria-pressed={!personalChat} onClick={()=>setPersonalChat(false)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-emerald-200">Marketplace management</button>
       <button type="button" aria-pressed={personalChat} onClick={()=>setPersonalChat(true)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-emerald-200">My marketplace chats</button>
     </nav>}
-    <MarketplaceContent key={`${staff}-${personalChat}`} staff={staff && !personalChat} enabled={enabled} initialView={personalChat?'messages':'browse'}/>
+    <MarketplaceContent key={`${staff}-${personalChat}`} staff={staff && !personalChat} enabled={enabled} showLogout={showLogout} initialView={personalChat?'messages':'browse'}/>
   </>;
 };
 
-const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialView: MarketplaceView }> = ({ staff, enabled, initialView }) => {
-  const { currentUser } = useShop();
+const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; showLogout: boolean; initialView: MarketplaceView }> = ({ staff, enabled, showLogout, initialView }) => {
+  const { currentUser, logoutUser } = useShop();
   const userId = currentUser?.uid;
   const [view, setView] = useState<MarketplaceView>(initialView);
   const [chatError, setChatError] = useState('');
@@ -642,6 +642,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
         </div>
         {!staff && <button type="button" onClick={()=>{if(!userId){setAppNotice(true);return;}if(showForm){setShowForm(false);setEditingListing(null);return;}setEditingListing(null);setSaleMode('fixed');setAuctionDuration(72);setExistingImagePaths([]);setExistingSerialPath('');setFiles([]);setSerialPhoto(null);setFrameSerial('');setAiInspection(null);setForm({title:'',category:'bicycle',subcategory:'commuter',make_model:'',condition:'good',description:'',asking_price:''});setShowForm(true);setView('selling');}} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#39FF14] px-4 py-2.5 text-sm font-bold text-neutral-950 hover:bg-[#72ff55]">{showForm?<X className="h-4 w-4"/>:<ImagePlus className="h-4 w-4"/>}{showForm?'Close':'List your ride'}</button>}
       </div>
+      {showLogout && userId && <div className="mt-4 flex justify-end"><button type="button" onClick={logoutUser} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/20 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"><LogOut size={16} aria-hidden="true"/>Log out</button></div>}
       {!staff && <div className="mt-6 grid gap-2 sm:grid-cols-3"><div className="rounded-2xl border border-[#39FF14]/25 bg-black/25 p-3"><p className="text-sm font-extrabold text-[#39FF14]"><ShieldCheck className="mr-1.5 inline h-4 w-4"/>100% FREE</p><p className="mt-1 text-xs leading-5 text-neutral-300">No listing fees and no per-sale commission.</p></div><div className="rounded-2xl border border-white/10 bg-black/25 p-3"><p className="text-sm font-bold text-white"><MessageCircle className="mr-1.5 inline h-4 w-4 text-[#39FF14]"/>Chat direct</p><p className="mt-1 text-xs leading-5 text-neutral-300">Talk through price and handover with the seller.</p></div><div className="rounded-2xl border border-white/10 bg-black/25 p-3"><p className="text-sm font-bold text-white"><ShieldCheck className="mr-1.5 inline h-4 w-4 text-amber-300"/>Monitored for safety</p><p className="mt-1 text-xs leading-5 text-neutral-300">Suspected scams, theft or stolen goods may be reported to police and accounts banned.</p></div></div>}
     </header>
 
