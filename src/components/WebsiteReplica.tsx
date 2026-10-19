@@ -1892,7 +1892,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
       <main className={isEmbedded ? "mx-auto max-w-7xl pt-10" : "site-public-main w-full px-4 pt-7 sm:px-6 sm:pt-9 lg:px-8"}>{renderPage()}</main>
       {cartDrawer}
-      {context === 'public' && <WebsiteDock activePage={page} onNavigate={goTo} />}
+      {context === 'public' && <WebsiteDock activePage={page} onNavigate={goTo} onMember={onSignIn} />}
     </div>
   );
 };
