@@ -93,6 +93,13 @@ build_one() {
   local src="$build_root/app/outputs/apk/${surface}/$(echo "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]')/app-${surface}-$(echo "$BUILD_TYPE" | tr '[:upper:]' '[:lower:]').apk"
   [ -f "$src" ] || { echo "expected APK not found: $src" >&2; exit 1; }
   python3 scripts/check-apk-integrity.py "$src"
+  local expected_version actual_version
+  expected_version="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle)"
+  actual_version="$(aapt dump badging "$src" 2>/dev/null | sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p")"
+  if [ -z "$expected_version" ] || [ "$actual_version" != "$expected_version" ]; then
+    echo "APK version mismatch: expected $expected_version, found ${actual_version:-none}" >&2
+    exit 1
+  fi
   mkdir -p "$OUT"
   local dest="$OUT/stakeys-${app}.apk"
   cp "$src" "$dest"
