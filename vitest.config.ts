@@ -4,8 +4,12 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     // Bound jsdom/React concurrency on shared runners: unrestricted workers
-    // can starve interactive navigation tests of their five-second budget.
+    // can starve interactive navigation tests on shared runners.
     maxWorkers: 2,
+    // Deep jsdom navigation/role queries are synchronous and can exceed the
+    // default five-second case budget under shared-runner CPU contention.
+    // Assertion and waitFor deadlines remain unchanged.
+    testTimeout: 30_000,
     globals: true,
     include: ['**/*.test.{ts,tsx}'],
     // Tests must not depend on, or be perturbed by, a developer's local .env
