@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // These integration cases mount the full settings/drawer tree. Keep the same
 // assertions with the existing slow-case budget on shared CI runners.
-vi.setConfig({testTimeout:15_000});
+vi.setConfig({testTimeout:30_000});
 
 // StaffPortal pulls in a lot of heavy tabs; stub them so this test exercises
 // only the navigation/paging wiring (which section renders for which tab).

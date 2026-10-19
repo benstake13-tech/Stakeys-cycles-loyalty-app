@@ -2,6 +2,10 @@ import React from 'react';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Full staff navigation renders can exceed five seconds on shared runners.
+// Keep all UI assertions and their normal query deadlines intact.
+vi.setConfig({testTimeout:15_000});
+
 vi.mock('./src/lib/supabase', () => ({
   supabase: {
     from: () => ({
