@@ -1582,10 +1582,10 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
                 <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
                   <div className="lg:col-span-7">
                     <span className="site-eyebrow">Sell Your Bike</span>
-                    <h1 className="site-display mt-3 text-4xl sm:text-5xl">Turn your old bike into cash or credit</h1>
+                    <h1 className="site-display mt-3 text-4xl sm:text-5xl">Sell your bike, or give it a new purpose</h1>
                     <p className="site-lede mt-4">
                       Snap seven guided photos, let our AI identify the bike, and get an instant indicative offer —
-                      no haggling, no waiting.
+                      no haggling, no waiting. Or offer a bicycle for our repair-and-donate initiative.
                     </p>
                     <ul className="mt-6 grid gap-2 sm:grid-cols-3">
                       {['7 guided photo angles', 'AI identifies the bike', 'Instant indicative offer'].map((b) => (

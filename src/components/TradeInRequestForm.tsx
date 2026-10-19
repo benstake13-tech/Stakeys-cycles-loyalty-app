@@ -17,6 +17,7 @@ import { diagnoseFault, isBikeVisionConfigured } from '../api/visionService';
 import { compressImageFile } from '../utils/imageCompress';
 import { valueBike } from '../utils/bikeValuation';
 import toast from 'react-hot-toast';
+import {BikeDonationSection} from './BikeDonationSection';
 
 /**
  * The seven guided angles. Together they let the AI read the make, model,
@@ -147,7 +148,7 @@ function buildSpecSections(r: any): SpecSection[] {
  * from the workshop's price book. The lead lands in the staff inbox with every
  * photo and the AI read attached.
  */
-export const SellYourBikeForm: React.FC<Props> = ({ compact = false, prefill = null }) => {
+const SellBikeOfferForm: React.FC<Props> = ({ compact = false, prefill = null }) => {
   // Pull the workshop's latest price book when the customer opens the form, so a
   // price staff just set in the terminal is used here even if this device already
   // cached an older copy.
@@ -627,6 +628,8 @@ export const SellYourBikeForm: React.FC<Props> = ({ compact = false, prefill = n
 };
 
 /** Backwards-compatible alias for the former trade-in component name. */
+export const SellYourBikeForm: React.FC<Props> = props => {const {currentUser}=useShop();return <div className="space-y-8"><BikeDonationSection key={currentUser?.uid||'guest'}/><SellBikeOfferForm {...props}/></div>;};
+
 export const TradeInRequestForm = SellYourBikeForm;
 
 export default SellYourBikeForm;
