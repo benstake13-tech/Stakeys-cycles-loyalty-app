@@ -1,4 +1,5 @@
 import { MarketplacePanel } from './MarketplacePanel';
+import { WebsiteDock } from './WebsiteDock';
 import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   AlertTriangle,
@@ -198,7 +199,22 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   const [categoryFilter, setCategoryFilter] = useState<'all' | WebProductCategory>('all');
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [homeSlideIndex, setHomeSlideIndex] = useState(0);
   const navRef = useRef<HTMLDivElement>(null);
+
+  // Cycle through the homepage gallery while the homepage is visible.
+  // Visitors can still navigate manually; reduced-motion users get no autoplay.
+  useEffect(() => {
+    if (page !== 'home') return;
+    const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reducedMotion) return;
+    const slideCount = content.galleryImages.length || 3;
+    if (slideCount < 2) return;
+    const timer = window.setInterval(() => {
+      setHomeSlideIndex(index => (index + 1) % slideCount);
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [page, content.galleryImages.length]);
 
   // Close the mega-menu / mobile drawer when clicking away or pressing Escape.
   useEffect(() => {
@@ -543,7 +559,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           className="website-header-brand flex min-w-0 shrink-0 items-center gap-2 text-left cursor-pointer sm:gap-3"
           aria-label="Stakey's Cycles home"
         >
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)]">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[rgba(5,193,71,0.45)] bg-black shadow-[0_12px_30px_-12px_rgba(18,184,102,0.9)] sm:h-12 sm:w-12 lg:h-14 lg:w-14">
             <img
               src={`${import.meta.env.BASE_URL}logo.svg`}
               alt="Stakey's Cycles &amp; Scooter"
@@ -766,27 +782,16 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
           </div>
         </div>
 
-        {/* Quality promise card */}
+        {/* Workshop photo replaces the old quality-claim quote. */}
         <div className="lg:col-span-5">
-          <div
-            data-testid="hero-quality-claim"
-            className="site-frame relative rounded-[1.75rem] p-7 sm:p-8 shadow-[var(--site-shadow)]"
-          >
-            <Quote className="w-7 h-7 text-[var(--site-brass)]" />
-            <p className="font-editorial mt-4 text-xl font-semibold leading-snug text-[var(--site-ink)] sm:text-2xl">
-              {content.brandStory.qualityClaim}
-            </p>
-            <div className="mt-6 flex items-center gap-3">
-              <div className="flex -space-x-1.5">
-                {[0, 1, 2, 3, 4].map((s) => (
-                  <Star key={s} className="w-4 h-4 fill-[var(--site-brass)] text-[var(--site-brass)]" />
-                ))}
-              </div>
-              <span className="text-[11px] font-semibold text-[var(--site-ink-faint)]">
-                Loved by local riders
-              </span>
-            </div>
-          </div>
+          <figure className="site-frame relative h-full min-h-[300px] overflow-hidden rounded-[1.5rem] shadow-[var(--site-shadow)]">
+            <img src="/images/hero_workshop_craftsmanship_1790159761910.jpg" alt="Bicycle servicing and craftsmanship inside the Stakey’s Cycles workshop" className="absolute inset-0 h-full w-full object-cover" loading="eager" decoding="async" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#06130be8] via-[#06130b25] to-transparent" aria-hidden="true" />
+            <figcaption className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+              <span className="text-[10px] font-extrabold uppercase tracking-[.22em] text-[#a9efbd]">Inside the workshop</span>
+              <p className="mt-2 max-w-sm font-editorial text-2xl font-semibold leading-tight text-white sm:text-3xl">Proper care for every ride.</p>
+            </figcaption>
+          </figure>
         </div>
       </div>
     </section>
@@ -812,28 +817,40 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
    * Home — sections
    * ------------------------------------------------------------------ */
 
+  const editorialFallbackSlides = [
+    { id: 'workshop', url: '/images/hero_workshop_craftsmanship_1790159761910.jpg', alt: 'Close-up of precision bicycle workshop craftsmanship', title: 'Crafted with care.', caption: 'Cycle servicing & repairs' },
+    { id: 'bicycle', url: '/images/bike_precision_gravel_studio_1790159773368.jpg', alt: 'Premium gravel bicycle photographed in a dramatic studio setting', title: 'Every ride matters.', caption: 'Explore bicycle care' },
+    { id: 'electric', url: '/images/scooter_performance_studio_1790159785831.jpg', alt: 'Modern electric scooter photographed with premium studio lighting', title: 'Electric. Elevated.', caption: 'Enquire about e-scooters' },
+  ];
+  const homepageSlides = content.galleryImages.length > 0
+    ? content.galleryImages.map((image) => ({ id: image.id, url: image.url, alt: "Stakey's Cycles workshop gallery", title: "From the workshop.", caption: "Recent builds, repairs and restorations" }))
+    : editorialFallbackSlides;
+  const activeHomeSlide = homepageSlides[homeSlideIndex % homepageSlides.length];
+
   const editorialGallery = (
-    <section className="site-editorial-gallery" aria-label="Explore our cycle and e-scooter workshop">
+    <section className="site-editorial-gallery" aria-label="Homepage workshop gallery slideshow">
       <div className="site-editorial-heading">
         <div><span className="site-eyebrow">THE ART OF THE RIDE / SALFORD</span><h2 className="site-display">Precision in every detail.</h2></div>
         <p>From finely tuned bicycles to everyday electric mobility. Discover a workshop where the details matter.</p>
       </div>
-      <div className="site-editorial-grid">
-        <button type="button" className="site-editorial-photo site-editorial-photo--lead" onClick={() => goTo('repairs')} aria-label="Explore cycle servicing and workshop repairs">
-          <img src="/images/hero_workshop_craftsmanship_1790159761910.jpg" alt="Close-up of precision bicycle workshop craftsmanship" loading="eager" decoding="async" />
-          <span className="site-editorial-photo__index">01 / THE WORKSHOP</span>
-          <span className="site-editorial-photo__caption"><strong>Crafted with care.</strong><span>Cycle servicing & repairs <ArrowRight size={18} /></span></span>
+      <div className="site-home-slideshow">
+        <button type="button" className="site-home-slideshow__image" onClick={() => goTo('gallery')} aria-label="Open the full workshop gallery">
+          <img key={activeHomeSlide.id} src={activeHomeSlide.url} alt={activeHomeSlide.alt} loading={homeSlideIndex === 0 ? 'eager' : 'lazy'} decoding="async" />
+          <span className="site-home-slideshow__shade" aria-hidden="true" />
+          <span className="site-home-slideshow__index">{String((homeSlideIndex % homepageSlides.length) + 1).padStart(2, '0')} / {String(homepageSlides.length).padStart(2, '0')}</span>
+          <span className="site-home-slideshow__caption"><strong>{activeHomeSlide.title}</strong><span>{activeHomeSlide.caption} <ArrowRight size={18} /></span></span>
         </button>
-        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore bicycle repair services">
-          <img src="/images/bike_precision_gravel_studio_1790159773368.jpg" alt="Premium gravel bicycle photographed in a dramatic studio setting" loading="lazy" decoding="async" />
-          <span className="site-editorial-photo__index">02 / THE MACHINE</span>
-          <span className="site-editorial-photo__caption"><strong>Every ride matters.</strong><span>Explore bicycle care <ArrowRight size={18} /></span></span>
-        </button>
-        <button type="button" className="site-editorial-photo" onClick={() => goTo('repairs')} aria-label="Explore electric scooter servicing enquiries">
-          <img src="/images/scooter_performance_studio_1790159785831.jpg" alt="Modern electric scooter photographed with premium studio lighting" loading="lazy" decoding="async" />
-          <span className="site-editorial-photo__index">03 / ELECTRIC MOBILITY</span>
-          <span className="site-editorial-photo__caption"><strong>Electric. Elevated.</strong><span>Enquire about e-scooters <ArrowRight size={18} /></span></span>
-        </button>
+        {homepageSlides.length > 1 && (
+          <div className="site-home-slideshow__controls" aria-label="Gallery slideshow controls">
+            <button type="button" onClick={() => setHomeSlideIndex(index => (index - 1 + homepageSlides.length) % homepageSlides.length)} aria-label="Previous gallery image">‹</button>
+            <div className="site-home-slideshow__dots" aria-label="Choose gallery image">
+              {homepageSlides.map((slide, index) => (
+                <button key={slide.id} type="button" className={index === homeSlideIndex % homepageSlides.length ? 'is-active' : ''} onClick={() => setHomeSlideIndex(index)} aria-label={`Show gallery image ${index + 1}`} aria-current={index === homeSlideIndex % homepageSlides.length ? 'true' : undefined} />
+              ))}
+            </div>
+            <button type="button" onClick={() => setHomeSlideIndex(index => (index + 1) % homepageSlides.length)} aria-label="Next gallery image">›</button>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -1856,7 +1873,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
   return (
     <div
-      className={`site-canvas ${isDark ? '' : 'site-light'} font-ui min-h-screen rounded-[1.75rem] px-4 pb-10 pt-0 sm:px-6 lg:px-8`}
+      className={['site-canvas', isDark ? '' : 'site-light', 'font-ui min-h-screen pt-0', isEmbedded ? 'rounded-[1.75rem] px-4 pb-10 sm:px-6 lg:px-8' : 'site-public-canvas w-full rounded-none px-0 pb-24'].join(' ')}
       data-seasonal-theme={seasonalWorld?.id}
       style={seasonalWorld ? { '--site-seasonal-accent': seasonalWorld.accent } as CSSProperties : undefined}
     >
@@ -1873,8 +1890,9 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
 
       {siteHeader}
 
-      <main className="mx-auto max-w-7xl pt-10">{renderPage()}</main>
+      <main className={isEmbedded ? "mx-auto max-w-7xl pt-10" : "site-public-main w-full px-4 pt-7 sm:px-6 sm:pt-9 lg:px-8"}>{renderPage()}</main>
       {cartDrawer}
+      {context === 'public' && <WebsiteDock activePage={page} onNavigate={goTo} />}
     </div>
   );
 };
