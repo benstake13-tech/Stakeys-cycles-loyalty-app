@@ -13,6 +13,7 @@ function Host({ notes = 'Rear wheel issue' }: { notes?: string }) {
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  calls.assess.mockReset();
   calls.assess.mockImplementation(async input => normaliseRepairReport({ summary: 'Possible tyre issue.', findings: [], systems: [], questions: ['How fast does it lose air?'], photoRequests: [{ area: 'Sidewall size', instruction: 'Show the printed size', reason: 'Needed for tube sizing' }] }, input));
 });
 afterEach(cleanup);
@@ -25,7 +26,7 @@ describe('customer photo repair flow', () => {
     calls.assess.mockRejectedValueOnce(Error('offline'));
     render(<Host/>); await upload();
     expect(calls.assess).not.toHaveBeenCalled();
-    expect(calls.pending).toHaveBeenLastCalledWith(true);
+    await waitFor(() => expect(calls.pending).toHaveBeenLastCalledWith(true));
     fireEvent.click(screen.getByRole('button', { name: 'Review my bike' }));
     await screen.findByText(/Photo analysis is unavailable/);
     fireEvent.click(screen.getByRole('button', { name: 'Attach for staff without AI' }));
