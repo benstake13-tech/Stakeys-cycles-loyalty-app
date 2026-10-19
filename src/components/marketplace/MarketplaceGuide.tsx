@@ -7,7 +7,7 @@ export function MarketplaceGuide({ onSelect }: { onSelect: (view: MarketplaceVie
       { icon: MessageCircle, title: 'Talk. Offer. Agree.', body: 'Message the seller privately, ask questions and suggest a price. Both people confirm the agreement and handover plan.', action: 'Your messages', view: 'messages' },
       { icon: Gavel, title: 'Bid in an auction', body: 'See the starting price, current bid and countdown. The winning bid sets the price; no payment is taken just for bidding.', action: 'Explore auctions', view: 'auctions' },
       { icon: ShieldCheck, title: 'Sell with Stakey’s', body: 'Create a listing for review. For vehicles, add the guided photo assessment and frame details. A 20% commission applies to completed sales.', action: 'Your selling space', view: 'selling' },
-    ].map(item => <article key={item.title} className="flex flex-col rounded-2xl border border-white/10 bg-neutral-950/80 p-5">
+    ].map(item => <article key={item.title} className="marketplace-glass marketplace-guide-card flex flex-col rounded-2xl border border-white/10 bg-neutral-950/80 p-5">
       <item.icon className="mb-5 h-6 w-6 text-emerald-400" aria-hidden="true" />
       <h2 className="text-base font-bold text-white">{item.title}</h2>
       <p className="mt-2 flex-1 text-sm leading-6 text-neutral-400">{item.body}</p>

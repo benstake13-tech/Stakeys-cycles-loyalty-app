@@ -63,7 +63,7 @@ export function MarketplaceAuction({
     : auction.status === 'ended' ? 'Auction ended'
     : auction.status === 'no_sale' ? 'No bids received' : 'Auction cancelled';
 
-  return <section className="rounded-xl border border-emerald-400/30 bg-emerald-950/20 p-3" aria-label="Bike auction">
+  return <section className="marketplace-glass rounded-xl border border-emerald-400/30 bg-emerald-950/20 p-3" aria-label="Bike auction">
     <div className="flex items-start justify-between gap-3">
       <div>
         <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-emerald-300"><Gavel className="h-4 w-4"/> Bike auction</p>
