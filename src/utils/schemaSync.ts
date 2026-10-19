@@ -73,6 +73,18 @@ export interface SchemaAuditReport {
 const NOW = 'NOW()';
 
 export const EXPECTED_SCHEMA: ExpectedTable[] = [
+  {
+    name: 'bike_donation_requests', primaryKey: 'id', securityManaged: true,
+    columns: [
+      {name:'id',type:'uuid'}, {name:'user_id',type:'uuid'},
+      {name:'donor_name',type:'text'}, {name:'email',type:'text'},
+      {name:'phone',type:'text'}, {name:'postcode',type:'text'},
+      {name:'bike_details',type:'text'}, {name:'condition',type:'text'},
+      {name:'notes',type:'text'}, {name:'consent_to_contact',type:'boolean'},
+      {name:'status',type:'text'}, {name:'created_at',type:'timestamptz',default:NOW},
+      {name:'updated_at',type:'timestamptz',default:NOW},
+    ],
+  },
   // Marketplace tables are fully defined by the security-focused
   // 20261014_marketplace.sql migration (including generated ledger columns,
   // triggers and RLS); this entry keeps the general table audit aware of them.
@@ -89,6 +101,7 @@ export const EXPECTED_SCHEMA: ExpectedTable[] = [
       { name: 'description', type: 'text', default: "''" },
       { name: 'asking_price', type: 'numeric' },
       { name: 'status', type: 'text', default: "'pending_approval'" },
+      { name: 'sold_at', type: 'timestamptz' },
       { name: 'created_at', type: 'timestamptz', default: NOW },
       { name: 'updated_at', type: 'timestamptz', default: NOW },
     ],
