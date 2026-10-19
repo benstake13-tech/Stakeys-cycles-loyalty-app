@@ -1,36 +1,36 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Bike, Home, MapPin, Settings2, ShoppingBag, Tag, Wrench, X } from 'lucide-react';
+import { Settings2, X } from 'lucide-react';
 import type { WebsitePageId } from '../types/websiteContent';
 import './WebsiteDock.css';
+import { GlassDockIcon } from './navigation/GlassDockIcon';
 
-type DockDestination = Extract<WebsitePageId, 'home' | 'shop' | 'repairs' | 'sell' | 'offers' | 'visit'>;
+type DockDestination = Extract<WebsitePageId, 'home' | 'marketplace' | 'sell' | 'gallery' | 'faqs' | 'visit' | 'join'> | 'membership';
 type DockSettings = { magnification: number; spacing: number; labels: boolean };
 
 const DEFAULT_SETTINGS: DockSettings = { magnification: 100, spacing: 26, labels: true };
 const SETTINGS_KEY = 'stakeys.website-dock.settings.v1';
-const destinations: Array<{ id: DockDestination; label: string; icon: typeof Home }> = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'shop', label: 'Shop', icon: ShoppingBag },
-  { id: 'repairs', label: 'Repairs', icon: Wrench },
-  { id: 'sell', label: 'Sell', icon: Bike },
-  { id: 'offers', label: 'Offers', icon: Tag },
-  { id: 'visit', label: 'Visit', icon: MapPin },
+const destinations: Array<{id:DockDestination;label:string}> = [
+  {id:'home',label:'Home'},{id:'marketplace',label:'Marketplace'},
+  {id:'sell',label:'Sell'},{id:'gallery',label:'Gallery'},
+  {id:'faqs',label:'FAQs'},{id:'visit',label:'Location'},
+  {id:'join',label:'Join the Team'},{id:'membership',label:'Member ID / Join Us'},
 ];
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
 }
 
-export function WebsiteDock({ activePage, onNavigate }: {
+export function WebsiteDock({ activePage, onNavigate, onMember }: {
   activePage: WebsitePageId;
+  onMember?: () => void;
   onNavigate: (page: WebsitePageId) => void;
 }) {
   const [settings, setSettings] = useState<DockSettings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const pointerX = useRef<number | null>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const scales = useRef<number[]>(Array(7).fill(1));
-  const targets = useRef<number[]>(Array(7).fill(1));
+  const scales = useRef<number[]>(Array(destinations.length+1).fill(1));
+  const targets = useRef<number[]>(Array(destinations.length+1).fill(1));
   const frame = useRef<number | null>(null);
   const reducedMotion = useRef(false);
 
@@ -148,17 +148,16 @@ export function WebsiteDock({ activePage, onNavigate }: {
       <nav className="website-dock" aria-label="Quick website navigation" onPointerMove={handlePointerMove} onPointerLeave={handlePointerLeave}>
         <span className="website-dock-sheen" aria-hidden="true" />
         {destinations.map((item, index) => {
-          const Icon = item.icon;
           const active = activePage === item.id;
           return <button key={item.id} ref={element => { itemRefs.current[index] = element; }} type="button"
             className="website-dock-item" aria-current={active ? 'page' : undefined}
-            aria-label={item.label} onClick={() => onNavigate(item.id)}>
-            <span className="website-dock-glyph"><Icon size={23} strokeWidth={1.8} /></span>
+            aria-label={item.label} onClick={() => item.id==='membership' ? (onMember ? onMember() : onNavigate('marketplace')) : onNavigate(item.id)}>
+            <span className="website-dock-glyph"><GlassDockIcon index={index} /></span>
             <span className="website-dock-label">{item.label}</span>
             <span className="website-dock-active-dot" aria-hidden="true" />
           </button>;
         })}
-        <button ref={element => { itemRefs.current[6] = element; }} type="button" className={`website-dock-item website-dock-settings-trigger ${settingsOpen ? 'is-open' : ''}`}
+        <button ref={element => { itemRefs.current[destinations.length] = element; }} type="button" className={`website-dock-item website-dock-settings-trigger ${settingsOpen ? 'is-open' : ''}`}
           aria-label="Dock settings" aria-expanded={settingsOpen} onClick={() => setSettingsOpen(open => !open)}>
           <span className="website-dock-glyph"><Settings2 size={22} strokeWidth={1.8} /></span>
           <span className="website-dock-label">Settings</span>
