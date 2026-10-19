@@ -1,6 +1,6 @@
 import { announceMilestone } from '../utils/milestoneAnimations';
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
-import { Bike, CheckCircle2, CircleAlert, Clock3, Gavel, ImagePlus, LoaderCircle, MapPin, MessageCircle, RefreshCw, Send, ShieldCheck, Store, X } from 'lucide-react';
+import { Bike, CheckCircle2, CircleAlert, Clock3, Gavel, ImagePlus, LoaderCircle, MapPin, MessageCircle, RefreshCw, Send, ShieldCheck, Ban, Search, ArrowLeft, Store, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useShop } from '../context/ShopContext';
@@ -10,6 +10,7 @@ import { MarketplaceRecords } from './MarketplaceRecords';
 import { MarketplaceManualSale } from './MarketplaceManualSale';
 import { MarketplaceActivity } from './marketplace/MarketplaceActivity';
 import './marketplace/marketplaceGlass.css';
+import './marketplace/messenger.css';
 import { MarketplaceInboxEmpty } from './marketplace/MarketplaceInboxEmpty';
 import { MarketplaceGuide, type MarketplaceView } from './marketplace/MarketplaceGuide';
 const MemberLogin = lazy(() => import('./LoginScreen').then(module => ({ default: module.LoginScreen })));
@@ -104,6 +105,19 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [threadDeal, setDeal] = useState<DealTerms|null>(null);
   const [messageDraft, setMessageDraft] = useState('');
+  const [chatSummary, setChatSummary] = useState<Record<string,{other_name:string;last_message:string|null;last_message_at:string|null;unread_count:number}>>({});
+  const [chatSearch, setChatSearch] = useState('');
+  const [messengerState, setMessengerState] = useState<{conversationId:string;blocked_by_me:boolean;messaging_available:boolean;other_read_at:string|null}|null>(null);
+  const [blockConfirmation, setBlockConfirmation] = useState(false);
+  const [blockBusy, setBlockBusy] = useState(false);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [hasOlder, setHasOlder] = useState(false);
+  const loadedThread = useRef<string|null>(null);
+  const messageListRef = useRef<HTMLDivElement|null>(null);
+  const stickToBottom = useRef(true);
+  const lastMarkedRead = useRef('');
+  const chatVisible = useRef(false); chatVisible.current=view==='messages'&&!staff&&enabled;
+
   const [offerDraft, setOfferDraft] = useState('');
   const [manualLocation, setManualLocation] = useState('');
   const [editingLocation, setEditingLocation] = useState(false);
@@ -117,9 +131,17 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   chatScope.current = { userId, conversationId: selectedConversation?.id };
   const [threadConversationId, setThreadConversationId] = useState<string | null>(null);
   const deal = threadConversationId === selectedConversation?.id ? threadDeal : null;
+  const activeMessengerState = messengerState?.conversationId===selectedConversation?.id ? messengerState : null;
+  const messagingAvailable = activeMessengerState?.messaging_available===true;
+  const unreadTotal = conversations.filter(chat=>chat.buyer_id===userId||chat.seller_id===userId).reduce((total,chat)=>total+Number(chatSummary[chat.id]?.unread_count||0),0);
+  useEffect(()=>{
+    if (stickToBottom.current && messageListRef.current) messageListRef.current.scrollTop=messageListRef.current.scrollHeight;
+  },[chatMessages]);
+
   useEffect(() => {
     setSelectedConversation(null); setConversations([]); setChatMessages([]); setDeal(null);
     setMessageDraft(''); setOfferDraft(''); setChatError(''); setShowForm(false);
+    setChatSummary({}); setMessengerState(null); setBlockConfirmation(false); setChatSearch(''); loadedThread.current=null;
     if (userId) setAppNotice(false);
   }, [userId]);
   useEffect(() => {
@@ -233,6 +255,9 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
     setChatError('');
     const rows = ((data || []) as any[]).map(row => ({...row, listing:Array.isArray(row.listing)?row.listing[0]||null:row.listing})) as Conversation[];
     setConversations(rows);
+    const summary = await supabase.rpc('marketplace_messenger_summary');
+    if (chatScope.current.userId!==userId) return;
+    if (!summary?.error && Array.isArray(summary?.data)) setChatSummary(Object.fromEntries(summary.data.map((row:any)=>[row.conversation_id,row])));
     if (selectedConversation) setSelectedConversation(rows.find(row=>row.id===selectedConversation.id) || null);
   }, [staff,userId,enabled,selectedConversation?.id]);
 
@@ -245,13 +270,29 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
 
   const loadThread = useCallback(async (conversationId:string) => {
     const scopeUser = chatScope.current.userId;
-    const [messagesResult, dealResult] = await Promise.all([
-      supabase.from('marketplace_messages').select('id,conversation_id,sender_id,body,created_at').eq('conversation_id',conversationId).order('created_at',{ascending:false}).limit(300),
+    const [messagesResult, dealResult, statusResult] = await Promise.all([
+      supabase.from('marketplace_messages').select('id,conversation_id,sender_id,body,created_at').eq('conversation_id',conversationId).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(300),
       supabase.from('marketplace_deal_terms').select('proposed_price,proposed_by,agreed_price,accepted_by,location_method,location_details,location_set_by,buyer_location_confirmed_at,seller_location_confirmed_at').eq('conversation_id',conversationId).maybeSingle(),
+      supabase.rpc('marketplace_messenger_state',{p_conversation_id:conversationId}),
     ]);
     if (chatScope.current.userId !== scopeUser || chatScope.current.conversationId !== conversationId) return;
     if (messagesResult.error) { toast.error('Could not load this conversation.'); return; }
-    setChatMessages([...(messagesResult.data || [])].reverse() as ChatMessage[]);
+    const latest=[...(messagesResult.data || [])].reverse() as ChatMessage[];
+    const firstLoad=loadedThread.current!==conversationId;
+    if(firstLoad){ loadedThread.current=conversationId; setHasOlder(latest.length===300); }
+    setChatMessages(previous=>{
+      if(firstLoad) return latest;
+      const merged=new Map(previous.filter(m=>m.conversation_id===conversationId).map(m=>[m.id,m]));
+      latest.forEach(m=>merged.set(m.id,m));
+      return [...merged.values()].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id));
+    });
+    setMessengerState(statusResult?.data && !statusResult.error ? {...statusResult.data,conversationId} : null);
+    if(latest.length && chatVisible.current && document.visibilityState!=='hidden' && lastMarkedRead.current!==`${scopeUser}:${conversationId}:${latest[latest.length-1].id}`) {
+      const read=await supabase.rpc('mark_marketplace_chat_read',{p_conversation_id:conversationId,p_message_id:latest[latest.length-1].id});
+      if(!read?.error) lastMarkedRead.current=`${scopeUser}:${conversationId}:${latest[latest.length-1].id}`;
+      if(!read?.error && chatScope.current.userId===scopeUser) setChatSummary(prev=>prev[conversationId]?{...prev,[conversationId]:{...prev[conversationId],unread_count:0}}:prev);
+    }
+    if (chatScope.current.userId !== scopeUser || chatScope.current.conversationId !== conversationId) return;
     setThreadConversationId(conversationId);
     if (dealResult.error && dealResult.error.code !== 'PGRST116') toast.error('Could not load the price agreement.');
     setDeal((dealResult.data || null) as DealTerms|null);
@@ -260,10 +301,13 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   useEffect(() => {
     if (!selectedConversation) { setChatMessages([]); setDeal(null); return; }
     setChatMessages([]); setDeal(null); setMessageDraft(''); setOfferDraft('');
+    setMessengerState(null); setBlockConfirmation(false); loadedThread.current=null; stickToBottom.current=true; setHasOlder(false);
     void loadThread(selectedConversation.id);
     const timer = window.setInterval(() => { void loadThread(selectedConversation.id); }, 6000);
     return () => window.clearInterval(timer);
   }, [selectedConversation?.id,loadThread,loadConversations]);
+
+  useEffect(()=>{const refreshVisible=()=>{if(view==='messages'&&selectedConversation&&document.visibilityState!=='hidden')void loadThread(selectedConversation.id);};refreshVisible();document.addEventListener('visibilitychange',refreshVisible);return()=>document.removeEventListener('visibilitychange',refreshVisible);},[view,selectedConversation?.id,loadThread]);
 
   // Postgres Changes respects the participant RLS policies; polling remains a reconnect fallback.
   useEffect(() => {
@@ -282,10 +326,45 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
     const refreshThread = () => { void loadThread(id); void loadConversations(); };
     const channel = supabase.channel(`marketplace-thread:${userId}:${id}`)
       .on('postgres_changes', {event:'INSERT',schema:'public',table:'marketplace_messages',filter:`conversation_id=eq.${id}`}, refreshThread)
+      .on('postgres_changes', {event:'UPDATE',schema:'public',table:'marketplace_conversations',filter:`id=eq.${id}`}, refreshThread)
+      .on('postgres_changes', {event:'*',schema:'public',table:'marketplace_chat_reads',filter:`conversation_id=eq.${id}`}, refreshThread)
       .on('postgres_changes', {event:'*',schema:'public',table:'marketplace_deal_terms',filter:`conversation_id=eq.${id}`}, refreshThread)
       .subscribe(status => { if (status==='SUBSCRIBED') refreshThread(); });
     return () => { void supabase.removeChannel(channel); };
   }, [staff,userId,enabled,selectedConversation?.id,loadThread,loadConversations]);
+
+  const loadOlderMessages = async () => {
+    if(!selectedConversation || historyBusy || !chatMessages.length) return;
+    const scope={...chatScope.current}; const first=chatMessages[0]; const viewport=messageListRef.current;
+    const oldHeight=viewport?.scrollHeight||0, oldTop=viewport?.scrollTop||0;
+    setHistoryBusy(true); stickToBottom.current=false;
+    try {
+      const result=await supabase.rpc('marketplace_chat_page',{p_conversation_id:selectedConversation.id,p_before_created_at:first.created_at,p_before_id:first.id});
+      if(chatScope.current.userId!==scope.userId || chatScope.current.conversationId!==scope.conversationId)return;
+      if(result.error)throw result.error;
+      const rows=(result.data||[]) as ChatMessage[];
+      setChatMessages(prev=>[...new Map([...rows,...prev].map(m=>[m.id,m])).values()].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.id.localeCompare(b.id)));
+      setHasOlder(rows.length===50);
+      requestAnimationFrame(()=>{if(viewport && messageListRef.current===viewport)viewport.scrollTop=oldTop+viewport.scrollHeight-oldHeight;});
+    } catch {toast.error('Older messages could not be loaded. Please retry.');}
+    finally{setHistoryBusy(false);}
+  };
+  const toggleBlock = async () => {
+    if(!selectedConversation || !activeMessengerState || blockBusy)return;
+    const scope={...chatScope.current};const blocked=!activeMessengerState.blocked_by_me;
+    setBlockBusy(true);
+    try {
+      const result=await supabase.rpc('set_marketplace_user_block',{p_conversation_id:selectedConversation.id,p_blocked:blocked});
+      if(result.error)throw result.error;
+      if(chatScope.current.userId!==scope.userId || chatScope.current.conversationId!==scope.conversationId)return;
+      setBlockConfirmation(false);setMessageDraft('');
+      // A block remains enforced in the database even before the status refresh.
+      if(blocked)setMessengerState({...activeMessengerState,messaging_available:false,blocked_by_me:true});
+      await loadThread(selectedConversation.id);void loadConversations();
+      toast.success(blocked?'Member blocked across all marketplace chats.':'Your block has been removed.');
+    }catch{toast.error('Could not update this block. Please retry.');}
+    finally{setBlockBusy(false);}
+  };
 
   const startConversation = async (item:Listing) => {
     if (!userId) { setAppNotice(true); return; }
@@ -305,7 +384,8 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   const sendMessage = async (event:React.FormEvent) => {
     event.preventDefault();
     const body = messageDraft.trim();
-    if (!selectedConversation || !body || !userId) return;
+    if (!selectedConversation || !body || !userId || !messagingAvailable) return;
+    stickToBottom.current=true;
     setChatBusy(true);
     try {
       const { error } = await supabase.from('marketplace_messages').insert({conversation_id:selectedConversation.id,sender_id:userId,body});
@@ -320,6 +400,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   const proposePrice = async (event:React.FormEvent) => {
     event.preventDefault();
     const price = Number(offerDraft);
+    if (!messagingAvailable) return;
     if (!selectedConversation || !Number.isFinite(price) || price<=0) { toast.error('Enter a valid agreed-price offer.'); return; }
     const { error } = await supabase.rpc('propose_marketplace_price',{p_conversation_id:selectedConversation.id,p_price:price});
     if (error) toast.error(error.message || 'Could not send the price offer.');
@@ -327,6 +408,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   };
 
   const acceptPrice = async () => {
+    if (!messagingAvailable) return;
     if (!selectedConversation) return;
     const { error } = await supabase.rpc('accept_marketplace_price',{p_conversation_id:selectedConversation.id});
     if (error) toast.error(error.message || 'Could not accept the price.');
@@ -334,6 +416,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   };
 
   const setLocation = async (method:'manual'|'whatsapp', details:string) => {
+    if (!messagingAvailable) return;
     if (!selectedConversation) return;
     const { error } = await supabase.rpc('set_marketplace_handover_location',{p_conversation_id:selectedConversation.id,p_method:method,p_details:details});
     if (error) toast.error(error.message || 'Could not save the handover location.');
@@ -341,6 +424,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
   };
 
   const confirmLocation = async () => {
+    if (!messagingAvailable) return;
     if (!selectedConversation) return;
     const { error } = await supabase.rpc('confirm_marketplace_handover_location',{p_conversation_id:selectedConversation.id});
     if (error) toast.error(error.message || 'Could not confirm the location.');
@@ -569,7 +653,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
     {staff && manualSaleListing && <MarketplaceManualSale listing={manualSaleListing} onClose={() => setManualSaleListing(null)} onRecorded={async () => { if (userId) announceMilestone({ id:`marketplace-sold:${manualSaleListing.id}`, scope:userId, kind:'sale', title:'Sale recorded', detail:'The buyer and offline sale are in the marketplace record.' }); await load(); setRecordsVersion(version => version + 1); }}/>}
     {!staff && <MarketplaceActivity listings={listings.filter(item=>item.status==='active')} auctionCount={Object.values(auctions).filter(auction=>auction.status==='live'&&Boolean(auction.ends_at)&&Date.parse(auction.ends_at!)>now).length} conversationCount={conversations.filter(chat=>chat.buyer_id===userId||chat.seller_id===userId).length} signedIn={Boolean(userId)} loading={loading} onMessages={()=>setView('messages')} onOpenListing={id=>{const item=listings.find(row=>row.id===id);if(item){setDetailListing(item);setDetailPhotoIndex(0);}}}/>}
     {!staff && <>
-      <nav aria-label="Marketplace workspace" className="marketplace-workspace grid grid-cols-2 gap-2 sm:grid-cols-5">{([['browse','Browse all'],['auctions','Auctions'],['selling','My listings'],['messages','Messages'],['guide','How it works']] as const).map(([id,label]) => <button type="button" key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)} className={`min-h-12 rounded-xl border px-3 text-sm font-bold ${view===id?'border-emerald-400/50 bg-emerald-400/15 text-emerald-200':'border-white/10 bg-neutral-950/80 text-neutral-300'}`}>{label}</button>)}</nav>
+      <nav aria-label="Marketplace workspace" className="marketplace-workspace grid grid-cols-2 gap-2 sm:grid-cols-5">{([['browse','Browse all'],['auctions','Auctions'],['selling','My listings'],['messages','Messages'],['guide','How it works']] as const).map(([id,label]) => <button type="button" key={id} aria-current={view===id?'page':undefined} onClick={()=>setView(id)} className={`min-h-12 rounded-xl border px-3 text-sm font-bold ${view===id?'border-emerald-400/50 bg-emerald-400/15 text-emerald-200':'border-white/10 bg-neutral-950/80 text-neutral-300'}`}>{label}{id==='messages'&&unreadTotal>0&&<span className="messenger-unread ml-2">{unreadTotal}</span>}</button>)}</nav>
       {(view==='browse'||view==='guide') && <MarketplaceGuide onSelect={setView}/>}
       {!userId && (view==='selling'||view==='messages') && <section className="marketplace-glass grid gap-5 rounded-2xl border border-emerald-400/20 bg-neutral-950/90 p-6 md:grid-cols-2" aria-label="Marketplace member area">
         <div><MessageCircle className="h-7 w-7 text-emerald-400"/><h2 className="mt-4 text-xl font-bold text-white">{view==='messages'?'Your private negotiation space':'Your selling dashboard'}</h2><p className="mt-3 text-sm leading-6 text-neutral-400">{view==='messages'?'Your conversations stay linked to each listing. Ask questions, propose a price, respond with a counter-offer and agree a handover together.':'Track listings awaiting review, live adverts, auctions and completed sales. Your own items appear here when you start selling.'}</p><button type="button" onClick={()=>setAppNotice(true)} className="mt-5 min-h-11 rounded-xl bg-emerald-400 px-5 font-bold text-neutral-950">Sign in or create an account</button></div>
@@ -579,25 +663,27 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
     </>}
     {appNotice && !userId && <div className="fixed inset-0 z-[100] overflow-y-auto bg-black/85 p-3 sm:p-8" role="dialog" aria-modal="true" aria-label="Marketplace member sign in" id="marketplace-member-dialog"><div className="relative mx-auto max-w-5xl rounded-2xl border border-emerald-400/20 bg-neutral-950"><button id="marketplace-member-close" type="button" onClick={()=>setAppNotice(false)} className="relative z-10 m-3 min-h-11 rounded-xl border border-white/20 px-4 text-white">Close sign in</button><Suspense fallback={<p className="p-8 text-white">Loading member sign in…</p>}><MemberLogin audience="customer"/></Suspense></div></div>}
     {!staff && userId && view==='messages' && <section className="marketplace-glass rounded-2xl border border-emerald-400/20 bg-neutral-950/80 p-4 sm:p-5" data-testid="marketplace-messages">
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 font-bold text-white"><MessageCircle className="h-5 w-5 text-emerald-300"/>Messages and sale agreements</h2><p className="mt-1 text-xs leading-5 text-neutral-400">Chat privately, agree the price, then arrange a safe handover. Only the buyer and seller can see these messages.</p></div><button type="button" onClick={()=>void loadConversations()} className="min-h-10 rounded-lg border border-white/10 px-3 text-xs text-neutral-300">Refresh chats</button></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 font-bold text-white"><MessageCircle className="h-5 w-5 text-emerald-300"/>Messages and sale agreements{unreadTotal>0&&<span className="messenger-unread">{unreadTotal} unread</span>}</h2><p className="mt-1 text-xs leading-5 text-neutral-400">Chat privately, agree the price, then arrange a safe handover. Only the buyer and seller can see these messages.</p></div><button type="button" onClick={()=>void loadConversations()} className="min-h-10 rounded-lg border border-white/10 px-3 text-xs text-neutral-300">Refresh chats</button></div>
       {chatError && <p role="alert" className="mt-3 text-sm text-amber-200">{chatError}</p>}
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(180px,.7fr)_minmax(0,1.3fr)]">
-        <div className="space-y-2">{conversations.length===0&&<p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-neutral-500">Your marketplace conversations will appear here.</p>}{conversations.filter(chat=>chat.buyer_id===userId||chat.seller_id===userId).map(chat=><button key={chat.id} type="button" onClick={()=>setSelectedConversation(chat)} className={`w-full rounded-xl border p-3 text-left ${selectedConversation?.id===chat.id?'border-emerald-400/50 bg-emerald-950/30':'border-white/10 bg-neutral-900/70'}`}><span className="block truncate text-sm font-semibold text-white">{chat.listing?.title||'Marketplace listing'}</span><span className="mt-1 block truncate text-xs text-neutral-400">{chat.listing?.make_model||''} · {chat.buyer_id===userId?'You are buying':'You are selling'}</span></button>)}</div>
+      <div className={`messenger-workspace ${selectedConversation?'has-thread':''}`}>
+        <div className="messenger-inbox space-y-2"><label className="messenger-search"><Search size={16}/><input aria-label="Search conversations" placeholder="Search people or listings" value={chatSearch} onChange={e=>setChatSearch(e.target.value)}/></label>{conversations.length===0&&<p className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-neutral-500">Your marketplace conversations will appear here.</p>}{conversations.filter(chat=>(chat.buyer_id===userId||chat.seller_id===userId)&&`${chat.listing?.title||''} ${chatSummary[chat.id]?.other_name||''}`.toLowerCase().includes(chatSearch.toLowerCase())).map(chat=><button key={chat.id} type="button" onClick={()=>setSelectedConversation(chat)} className={`w-full rounded-xl border p-3 text-left ${selectedConversation?.id===chat.id?'border-emerald-400/50 bg-emerald-950/30':'border-white/10 bg-neutral-900/70'}`}><span className="messenger-peer">{chatSummary[chat.id]?.other_name||'Marketplace member'}{Number(chatSummary[chat.id]?.unread_count)>0&&<span className="messenger-unread">{chatSummary[chat.id].unread_count}</span>}</span><span className="block truncate text-sm font-semibold text-white">{chat.listing?.title||'Marketplace listing'}</span><span className="mt-1 block truncate text-xs text-neutral-400">{chat.listing?.make_model||''} · {chat.buyer_id===userId?'You are buying':'You are selling'}</span>{chatSummary[chat.id]?.last_message&&<span className="messenger-preview">{chatSummary[chat.id].last_message}</span>}</button>)}</div>
         {!selectedConversation&&<MarketplaceInboxEmpty/>}
-        {selectedConversation && <div className="min-w-0 space-y-4 rounded-xl border border-white/10 bg-neutral-900/60 p-3 sm:p-4">
-          <div className="flex items-center justify-between gap-2"><h3 className="truncate font-semibold text-white">{selectedConversation.listing?.title||'Sale chat'}</h3><button type="button" aria-label="Close conversation" onClick={()=>setSelectedConversation(null)} className="rounded-lg p-2 text-neutral-400 hover:text-white"><X className="h-4 w-4"/></button></div>
+        {selectedConversation && <div className="messenger-thread min-w-0 space-y-4 rounded-xl border border-white/10 bg-neutral-900/60 p-3 sm:p-4">
+          <div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="messenger-peer">{chatSummary[selectedConversation.id]?.other_name||'Marketplace member'}</p><h3 className="truncate font-semibold text-white">{selectedConversation.listing?.title||'Sale chat'}</h3></div><div className="flex items-center gap-2"><button type="button" disabled={!activeMessengerState||blockBusy} onClick={()=>activeMessengerState?.blocked_by_me?void toggleBlock():setBlockConfirmation(true)} className="messenger-block"><Ban size={14}/>{activeMessengerState?.blocked_by_me?'Unblock member':'Block member'}</button></div><button type="button" aria-label="Close conversation" onClick={()=>setSelectedConversation(null)} className="rounded-lg p-2 text-neutral-400 hover:text-white"><ArrowLeft className="h-4 w-4"/></button></div>
+          {blockConfirmation&&<div className="messenger-block-confirm" role="alert"><strong>Block this member?</strong><p>Stops messages and offers in both directions across all listings. Existing chat history stays available. You can unblock them here.</p><div><button type="button" disabled={blockBusy} onClick={()=>void toggleBlock()}>Confirm block</button><button type="button" onClick={()=>setBlockConfirmation(false)}>Cancel</button></div></div>}
+          {!messagingAvailable&&<p role="status" className="messenger-status">{activeMessengerState?.blocked_by_me?'You blocked this member. Unblock to resume contact, unless they have also blocked you.':activeMessengerState?'Messaging is unavailable for this conversation.':'Checking conversation access…'}</p>}
           <ol aria-label={`Sale progress: price ${priceAgreed?'agreed':'pending'}, location ${locationChosen?'chosen':'pending'}, handover plan ${meetupConfirmed?'confirmed':'pending'}`} className="grid grid-cols-3 gap-2 rounded-xl border border-[#39FF14]/15 bg-neutral-950/70 p-3">{[{label:'Price',done:priceAgreed},{label:'Location',done:locationChosen},{label:'Handover plan',done:meetupConfirmed}].map((step,index)=><li key={step.label} className="relative flex flex-col items-center gap-1.5 text-center">{index>0&&<span aria-hidden="true" className={`absolute right-1/2 top-3 h-px w-full ${step.done?'bg-[#39FF14]':'bg-white/15'}`}/>}<span className={`relative z-10 grid h-6 w-6 place-items-center rounded-full border text-[10px] font-bold ${step.done?'border-[#39FF14] bg-[#39FF14] text-neutral-950':'border-white/20 bg-neutral-900 text-neutral-500'}`}>{step.done?'✓':index+1}</span><span className={`text-[10px] font-bold uppercase tracking-wide ${step.done?'text-[#39FF14]':'text-neutral-400'}`}>{step.label}</span></li>)}</ol>
-          <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg bg-neutral-950/80 p-3" aria-live="polite">{chatMessages.length===0?<p className="text-sm text-neutral-500">Start the conversation. Keep payment links and one-time codes out of chat.</p>:chatMessages.filter(msg=>msg.conversation_id===selectedConversation.id).map(msg=><div key={msg.id} className={`max-w-[88%] rounded-xl px-3 py-2 text-sm ${msg.sender_id===userId?'ml-auto bg-emerald-400/15 text-emerald-50':'bg-white/10 text-neutral-200'}`}><p className="whitespace-pre-wrap break-words">{msg.body}</p><time className="mt-1 block text-[10px] opacity-60">{new Date(msg.created_at).toLocaleString()}</time></div>)}</div>
-          <form onSubmit={sendMessage} className="flex gap-2"><input aria-label="Private message" disabled={chatBusy} value={messageDraft} onChange={e=>setMessageDraft(e.target.value)} maxLength={2000} placeholder="Write a private message" className="min-h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-neutral-950 px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"/><button disabled={chatBusy||!messageDraft.trim()} aria-label="Send message" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#39FF14] px-3 font-bold text-neutral-950 disabled:cursor-not-allowed disabled:opacity-40"><Send className="h-4 w-4"/><span className="hidden sm:inline">Send</span></button></form>{awaitingPriceAction&&<p className="-mt-3 text-[11px] text-amber-200">A price offer needs your response. Accept it or send a counter-offer below. You can keep chatting while you decide.</p>}{awaitingLocationAction&&<p className="-mt-3 text-[11px] text-amber-200">Review the proposed meeting point below, or discuss a different plan in chat.</p>}
-          {selectedAuction ? <p className="rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-3 text-xs text-emerald-100">The winning auction bid sets the sale price. Arrange and confirm the handover below.</p> : <form onSubmit={proposePrice} className="flex flex-wrap items-end gap-2 rounded-xl border border-white/10 bg-neutral-950/70 p-3"><label className="min-w-40 flex-1 text-xs font-semibold text-neutral-300">Propose or update sale price (£)<input value={offerDraft} onChange={e=>setOfferDraft(e.target.value)} type="number" min="1" max="50000" step="0.01" inputMode="decimal" placeholder={deal?Number(deal.proposed_price).toFixed(2):'0.00'} className="mt-1.5 min-h-10 w-full rounded-lg border border-white/10 bg-neutral-900 px-3 text-sm text-white"/></label><button disabled={chatBusy||!offerDraft} className="min-h-10 rounded-lg border border-emerald-400/30 px-3 text-xs font-bold text-emerald-200 disabled:opacity-50">Send price offer</button></form>}
+          <div ref={messageListRef} onScroll={e=>{const node=e.currentTarget;stickToBottom.current=node.scrollHeight-node.scrollTop-node.clientHeight<70;}} className="messenger-history space-y-2 overflow-y-auto rounded-lg bg-neutral-950/80 p-3" role="log" aria-label="Conversation messages" aria-live="polite">{hasOlder&&<button type="button" disabled={historyBusy} onClick={()=>void loadOlderMessages()} className="messenger-history-more">{historyBusy?'Loading history…':'Load older messages'}</button>}{chatMessages.length===0?<p className="text-sm text-neutral-500">Start the conversation. Keep payment links and one-time codes out of chat.</p>:chatMessages.filter(msg=>msg.conversation_id===selectedConversation.id).map(msg=><div key={msg.id} className={`max-w-[88%] rounded-xl px-3 py-2 text-sm ${msg.sender_id===userId?'ml-auto bg-emerald-400/15 text-emerald-50':'bg-white/10 text-neutral-200'}`}><p className="whitespace-pre-wrap break-words">{msg.body}</p><time className="mt-1 block text-[10px] opacity-60">{new Date(msg.created_at).toLocaleString()}{msg.sender_id===userId&&<span> · {activeMessengerState?.other_read_at&&Date.parse(activeMessengerState.other_read_at)>=Date.parse(msg.created_at)?'Read':'Sent'}</span>}</time></div>)}</div>
+          <form onSubmit={sendMessage} className="flex gap-2"><input aria-label="Private message" disabled={chatBusy||!messagingAvailable} value={messageDraft} onChange={e=>setMessageDraft(e.target.value)} maxLength={2000} placeholder="Write a private message" className="min-h-11 min-w-0 flex-1 rounded-lg border border-white/10 bg-neutral-950 px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"/><button disabled={chatBusy||!messagingAvailable||!messageDraft.trim()} aria-label="Send message" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#39FF14] px-3 font-bold text-neutral-950 disabled:cursor-not-allowed disabled:opacity-40"><Send className="h-4 w-4"/><span className="hidden sm:inline">Send</span></button></form>{awaitingPriceAction&&<p className="-mt-3 text-[11px] text-amber-200">A price offer needs your response. Accept it or send a counter-offer below. You can keep chatting while you decide.</p>}{awaitingLocationAction&&<p className="-mt-3 text-[11px] text-amber-200">Review the proposed meeting point below, or discuss a different plan in chat.</p>}
+          <fieldset disabled={!messagingAvailable} className="messenger-agreements">{selectedAuction ? <p className="rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-3 text-xs text-emerald-100">The winning auction bid sets the sale price. Arrange and confirm the handover below.</p> : <form onSubmit={proposePrice} className="flex flex-wrap items-end gap-2 rounded-xl border border-white/10 bg-neutral-950/70 p-3"><label className="min-w-40 flex-1 text-xs font-semibold text-neutral-300">Propose or update sale price (£)<input value={offerDraft} onChange={e=>setOfferDraft(e.target.value)} type="number" min="1" max="50000" step="0.01" inputMode="decimal" placeholder={deal?Number(deal.proposed_price).toFixed(2):'0.00'} className="mt-1.5 min-h-10 w-full rounded-lg border border-white/10 bg-neutral-900 px-3 text-sm text-white"/></label><button disabled={chatBusy||!offerDraft} className="min-h-10 rounded-lg border border-emerald-400/30 px-3 text-xs font-bold text-emerald-200 disabled:opacity-50">Send price offer</button></form>}
           {deal && <div className="space-y-3 rounded-xl border border-emerald-400/20 bg-emerald-950/20 p-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="font-semibold text-white">{deal.agreed_price!==null?`Both parties agreed ${money(Number(deal.agreed_price))}`:`Price proposed: ${money(Number(deal.proposed_price))}`}</p><p className="mt-1 text-xs text-neutral-300">{deal.agreed_price!==null?`No platform commission · seller proceeds: ${money(Number(deal.agreed_price))}.`:`Waiting for ${deal.proposed_by===userId?'the other party':'you'} to accept or make a counter-offer.`}</p></div>{deal.agreed_price===null&&deal.proposed_by!==userId&&<button type="button" onClick={()=>void acceptPrice()} className="min-h-10 rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Accept price</button>}</div>
             {deal.agreed_price!==null && <div className="space-y-3 border-t border-white/10 pt-3"><p className="text-xs leading-5 text-neutral-300">Price agreement confirmed. You can now arrange a handover point. Do not use a home address; choose a public, busy place in daylight.</p>
-              {deal.location_method && !editingLocation ? <div className="rounded-lg border border-white/10 bg-neutral-950/60 p-3"><p className="font-semibold text-white">{deal.location_method==='manual'?'Proposed meeting place':'WhatsApp handover planning'}</p><p className="mt-1 break-words text-sm text-neutral-300">{deal.location_details}</p><p className="mt-2 text-xs text-neutral-400">{deal.buyer_location_confirmed_at&&deal.seller_location_confirmed_at?'Both parties confirmed this handover plan.':`Location confirmed by ${deal.location_set_by===userId?'you':'the other party'}; waiting for the other person.`}</p><div className="mt-3 flex flex-wrap gap-2">{!(deal.buyer_location_confirmed_at&&deal.seller_location_confirmed_at)&&<button type="button" onClick={()=>void confirmLocation()} className="min-h-10 rounded-lg border border-emerald-400/40 px-3 text-xs font-bold text-emerald-200">Confirm this location</button>}<button type="button" onClick={()=>setEditingLocation(true)} className="min-h-10 rounded-lg border border-white/15 px-3 text-xs font-semibold text-neutral-200">Suggest a different location</button></div></div> : <div className="space-y-3"><p className="text-xs leading-5 text-neutral-400">Choose a busy, public place in daylight. Suggesting a new location clears the other person’s confirmation so you both review the same plan.</p><div className="grid gap-3 sm:grid-cols-2"><form onSubmit={e=>{e.preventDefault();void setLocation('manual',manualLocation);}} className="space-y-2"><label className="block text-xs font-semibold text-neutral-300">Enter a public meeting place<input value={manualLocation} onChange={e=>setManualLocation(e.target.value)} maxLength={500} placeholder="e.g. named staffed café or public meeting point" className="mt-1.5 min-h-10 w-full rounded-lg border border-white/10 bg-neutral-950 px-3 text-sm text-white"/></label><button disabled={!manualLocation.trim()} className="min-h-10 w-full rounded-lg border border-white/10 px-3 text-xs font-bold text-white disabled:opacity-50">{editingLocation?'Suggest meeting place':'Save meeting place'}</button></form><div className="flex flex-col justify-end gap-2"><a href={`https://wa.me/?text=${encodeURIComponent(`Hi, about ${selectedConversation.listing?.title||'the bike'}: we agreed ${money(Number(deal.agreed_price))}. Let’s choose a busy public meeting place in daylight.`)}`} target="_blank" rel="noreferrer" onClick={()=>void setLocation('whatsapp','Use WhatsApp to agree a public meeting point; confirm the exact location here before travelling.')} className="inline-flex min-h-10 items-center justify-center rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Arrange location in WhatsApp</a><p className="text-[11px] leading-4 text-neutral-500">WhatsApp opens a share picker. Choose the other party yourself; only share location details with them.</p></div></div></div>}
+              {deal.location_method && !editingLocation ? <div className="rounded-lg border border-white/10 bg-neutral-950/60 p-3"><p className="font-semibold text-white">{deal.location_method==='manual'?'Proposed meeting place':'WhatsApp handover planning'}</p><p className="mt-1 break-words text-sm text-neutral-300">{deal.location_details}</p><p className="mt-2 text-xs text-neutral-400">{deal.buyer_location_confirmed_at&&deal.seller_location_confirmed_at?'Both parties confirmed this handover plan.':`Location confirmed by ${deal.location_set_by===userId?'you':'the other party'}; waiting for the other person.`}</p><div className="mt-3 flex flex-wrap gap-2">{!(deal.buyer_location_confirmed_at&&deal.seller_location_confirmed_at)&&<button type="button" onClick={()=>void confirmLocation()} className="min-h-10 rounded-lg border border-emerald-400/40 px-3 text-xs font-bold text-emerald-200">Confirm this location</button>}<button type="button" onClick={()=>setEditingLocation(true)} className="min-h-10 rounded-lg border border-white/15 px-3 text-xs font-semibold text-neutral-200">Suggest a different location</button></div></div> : <div className="space-y-3"><p className="text-xs leading-5 text-neutral-400">Choose a busy, public place in daylight. Suggesting a new location clears the other person’s confirmation so you both review the same plan.</p><div className="grid gap-3 sm:grid-cols-2"><form onSubmit={e=>{e.preventDefault();void setLocation('manual',manualLocation);}} className="space-y-2"><label className="block text-xs font-semibold text-neutral-300">Enter a public meeting place<input value={manualLocation} onChange={e=>setManualLocation(e.target.value)} maxLength={500} placeholder="e.g. named staffed café or public meeting point" className="mt-1.5 min-h-10 w-full rounded-lg border border-white/10 bg-neutral-950 px-3 text-sm text-white"/></label><button disabled={!manualLocation.trim()} className="min-h-10 w-full rounded-lg border border-white/10 px-3 text-xs font-bold text-white disabled:opacity-50">{editingLocation?'Suggest meeting place':'Save meeting place'}</button></form><div className="flex flex-col justify-end gap-2"><a href={`https://wa.me/?text=${encodeURIComponent(`Hi, about ${selectedConversation.listing?.title||'the bike'}: we agreed ${money(Number(deal.agreed_price))}. Let’s choose a busy public meeting place in daylight.`)}`} target="_blank" rel="noreferrer" aria-disabled={!messagingAvailable} tabIndex={messagingAvailable?0:-1} onClick={event=>{if(!messagingAvailable){event.preventDefault();return;}void setLocation('whatsapp','Use WhatsApp to agree a public meeting point; confirm the exact location here before travelling.');}} className="inline-flex min-h-10 items-center justify-center rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Arrange location in WhatsApp</a><p className="text-[11px] leading-4 text-neutral-500">WhatsApp opens a share picker. Choose the other party yourself; only share location details with them.</p></div></div></div>}
               {deal.buyer_location_confirmed_at&&deal.seller_location_confirmed_at&&<div className="rounded-lg bg-emerald-400/10 p-3 text-xs font-semibold text-emerald-100">Handover plan agreed by both parties. {checkoutEnabled?<button type="button" disabled={buyingId===selectedConversation.listing_id} onClick={()=>void buyAgreedDeal()} className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-400 px-3 font-bold text-neutral-950">{buyingId===selectedConversation.listing_id&&<LoaderCircle className="h-4 w-4 animate-spin"/>}Pay agreed price with SumUp</button>:<span className="mt-1 block font-normal text-neutral-300">Contact the seller to arrange payment before completing the private sale.</span>}</div>}
             </div>}
           </div>}
-          <aside className="rounded-xl border border-amber-400/20 bg-amber-950/15 p-3 text-xs leading-5 text-amber-100/80"><b className="text-amber-200">Safe handover and payment</b><p className="mt-1">Stakey’s Cycles provides the marketplace without taking a per-sale commission. The sale, condition, payment and any dispute remain between buyer and seller. Meet in a busy, well-lit public place during daytime, take someone with you, inspect the bike and serial number, confirm payment has cleared before handing it over, and never share verification codes or follow payment links sent by a buyer. Leave if you feel pressured or unsafe. Customer feedback and feature requests are always welcome.</p></aside>
+          <aside className="rounded-xl border border-amber-400/20 bg-amber-950/15 p-3 text-xs leading-5 text-amber-100/80"><b className="text-amber-200">Safe handover and payment</b><p className="mt-1">Stakey’s Cycles provides the marketplace without taking a per-sale commission. The sale, condition, payment and any dispute remain between buyer and seller. Meet in a busy, well-lit public place during daytime, take someone with you, inspect the bike and serial number, confirm payment has cleared before handing it over, and never share verification codes or follow payment links sent by a buyer. Leave if you feel pressured or unsafe. Customer feedback and feature requests are always welcome.</p></aside></fieldset>
         </div>}
       </div>
     </section>}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { GlassDockIcon } from '../navigation/GlassDockIcon';
 import type { DockTabId } from './MacOSDock';
 
 /** A single 24px grid and stroke system for the seven staff destinations. */
@@ -12,5 +13,7 @@ export function StaffDockIcon({ id }: { id: DockTabId }) {
     sales: <><path d="M3.5 4h8.2l9.05 9.05a2 2 0 0 1 0 2.83l-4.87 4.87a2 2 0 0 1-2.83 0L4 11.7V4.5a.5.5 0 0 1 .5-.5Z"/><circle cx="8" cy="8" r="1.15"/><path className="dock-icon-accent" d="m12 17 5-5m-5 0h.01m5 5h.01" strokeWidth="2.4"/></>,
     more: <><rect x="3" y="3" width="7.5" height="7.5" rx="1.7"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.7"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.7"/><rect className="dock-icon-accent" x="13.5" y="13.5" width="7.5" height="7.5" rx="1.7"/></>,
   };
+  const artwork: Partial<Record<DockTabId,number>>={home:0,stock:1,sales:2,workshop:6};
+  if(artwork[id]!==undefined)return <GlassDockIcon index={artwork[id]!}/>;
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{details[id]}</svg>;
 }
