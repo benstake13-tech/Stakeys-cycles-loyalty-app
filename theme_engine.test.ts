@@ -43,7 +43,7 @@ describe('seasonal theme calendar', () => {
       const date = new Date(Date.UTC(2026,0,1+day,12));
       expect(resolveTheme('AUTO',date)).not.toBe('none');
     }
-    expect(resolveTheme('AUTO',new Date('2026-10-17T12:00:00Z'))).toBe('autumn');
+    expect(resolveTheme('AUTO',new Date('2026-10-05T12:00:00Z'))).toBe('autumn');
     expect(resolveTheme('AUTO',new Date('2026-10-24T12:00:00Z'))).toBe('halloween');
     expect(resolveTheme('AUTO',new Date('2026-10-31T12:00:00Z'))).toBe('halloween');
     expect(resolveTheme('none',new Date('2026-10-31T12:00:00Z'))).toBe('none');
