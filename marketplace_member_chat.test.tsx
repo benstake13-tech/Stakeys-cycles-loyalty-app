@@ -1,8 +1,8 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const state = vi.hoisted(() => ({ user: null as any, empty: false, failSend: false, blocked:false, peerBlocked:false, preview:null as string|null, unread:0, oldHistory:false, insert: vi.fn(), rpc: vi.fn(), subscriptions: [] as any[], removeChannel: vi.fn() }));
-vi.mock('./src/context/ShopContext', () => ({ useShop: () => ({ currentUser: state.user }) }));
+const state = vi.hoisted(() => ({ user: null as any, empty: false, failSend: false, blocked:false, peerBlocked:false, preview:null as string|null, unread:0, oldHistory:false, logout: vi.fn(), insert: vi.fn(), rpc: vi.fn(), subscriptions: [] as any[], removeChannel: vi.fn() }));
+vi.mock('./src/context/ShopContext', () => ({ useShop: () => ({ currentUser: state.user, logoutUser: state.logout }) }));
 vi.mock('./src/components/LoginScreen', () => ({ LoginScreen: () => <div>Member sign in form</div> }));
 vi.mock('./src/components/AiBikeIdentifier', () => ({ AiBikeIdentifier: () => null }));
 vi.mock('./src/lib/supabase', () => ({ supabase: { channel: (name:string) => { const channel:any={on:(_event:string,filter:any,callback:any)=>{state.subscriptions.push({name,filter,callback});return channel;},subscribe:()=>channel};return channel; }, removeChannel: state.removeChannel, rpc: state.rpc, from: (table: string) => {
@@ -122,4 +122,15 @@ describe('website marketplace members', () => {
     expect(state.rpc).toHaveBeenCalledWith('marketplace_chat_page',expect.objectContaining({p_conversation_id:'chat',p_before_created_at:'2026-10-17T11:00:00Z'}));
   });
 
+});
+
+it('logs a website member out and removes private conversation content', async()=>{
+ state.user={uid:'buyer'};const {rerender}=render(<MarketplacePanel showLogout/>);
+ fireEvent.click(screen.getByRole('button',{name:'Messages'}));
+ fireEvent.click(await screen.findByRole('button',{name:/Local bike.*You are buying/}));
+ await screen.findByText('Would £180 work for you?');
+ fireEvent.click(screen.getByRole('button',{name:'Log out'}));expect(state.logout).toHaveBeenCalledOnce();
+ state.user=null;rerender(<MarketplacePanel showLogout/>);
+ await waitFor(()=>expect(screen.queryByText('Would £180 work for you?')).toBeNull());
+ expect(screen.queryByRole('button',{name:'Log out'})).toBeNull();
 });
