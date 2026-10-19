@@ -143,6 +143,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; showLogou
   useEffect(() => {
     setSelectedConversation(null); setConversations([]); setChatMessages([]); setDeal(null);
     setMessageDraft(''); setOfferDraft(''); setChatError(''); setShowForm(false);
+    setManualSaleListing(null);setDetailListing(null);
     setChatSummary({}); setMessengerState(null); setBlockConfirmation(false); setChatSearch(''); loadedThread.current=null;
     if (userId) setAppNotice(false);
   }, [userId]);
