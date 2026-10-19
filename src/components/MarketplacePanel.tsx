@@ -349,7 +349,7 @@ const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialVi
 
   const buyAgreedDeal = async () => {
     if (!selectedConversation || !deal?.agreed_price || !userId) return;
-    if (!checkoutEnabled) { toast.error('Card checkout is not enabled. Contact the seller to arrange payment before completing the private sale.'); return; }
+    if (!checkoutEnabled) { toast.error('Card checkout is not enabled. Agree payment directly with the seller before the handover.'); return; }
     setBuyingId(selectedConversation.listing_id);
     try {
       const { data, error } = await supabase.functions.invoke('marketplace-payments', { body:{action:'create',conversation_id:selectedConversation.id} });
