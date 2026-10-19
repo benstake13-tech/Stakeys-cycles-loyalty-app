@@ -53,9 +53,20 @@ const marketplaceInspectionFromResult = (result:any):MarketplaceInspection => ({
 
 /** Shared marketplace surface used by the public website and customer app. */
 export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> = ({ staff = false, enabled = true }) => {
+  const [personalChat, setPersonalChat] = useState(false);
+  return <>
+    {staff && <nav aria-label="Staff marketplace workspace" className="marketplace-workspace mb-4 flex gap-2 p-2">
+      <button type="button" aria-pressed={!personalChat} onClick={()=>setPersonalChat(false)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-emerald-200">Marketplace management</button>
+      <button type="button" aria-pressed={personalChat} onClick={()=>setPersonalChat(true)} className="min-h-11 rounded-xl px-4 text-sm font-bold text-emerald-200">My marketplace chats</button>
+    </nav>}
+    <MarketplaceContent key={`${staff}-${personalChat}`} staff={staff && !personalChat} enabled={enabled} initialView={personalChat?'messages':'browse'}/>
+  </>;
+};
+
+const MarketplaceContent: React.FC<{ staff: boolean; enabled: boolean; initialView: MarketplaceView }> = ({ staff, enabled, initialView }) => {
   const { currentUser } = useShop();
   const userId = currentUser?.uid;
-  const [view, setView] = useState<MarketplaceView>('browse');
+  const [view, setView] = useState<MarketplaceView>(initialView);
   const [chatError, setChatError] = useState('');
   const checkoutEnabled = import.meta.env.VITE_MARKETPLACE_PAYMENTS_ENABLED === 'true';
   const [appNotice, setAppNotice] = useState(false);
@@ -253,6 +264,28 @@ export const MarketplacePanel: React.FC<{ staff?: boolean; enabled?: boolean }> 
     const timer = window.setInterval(() => { void loadThread(selectedConversation.id); }, 6000);
     return () => window.clearInterval(timer);
   }, [selectedConversation?.id,loadThread,loadConversations]);
+
+  // Postgres Changes respects the participant RLS policies; polling remains a reconnect fallback.
+  useEffect(() => {
+    if (staff || !userId || !enabled || typeof supabase.channel !== 'function') return;
+    const refreshInbox = () => { void loadConversations(); };
+    const channel = supabase.channel(`marketplace-inbox:${userId}`)
+      .on('postgres_changes', {event:'*',schema:'public',table:'marketplace_conversations',filter:`buyer_id=eq.${userId}`}, refreshInbox)
+      .on('postgres_changes', {event:'*',schema:'public',table:'marketplace_conversations',filter:`seller_id=eq.${userId}`}, refreshInbox)
+      .subscribe(status => { if (status==='SUBSCRIBED') refreshInbox(); });
+    return () => { void supabase.removeChannel(channel); };
+  }, [staff,userId,enabled,loadConversations]);
+
+  useEffect(() => {
+    if (staff || !userId || !enabled || !selectedConversation || typeof supabase.channel !== 'function') return;
+    const id = selectedConversation.id;
+    const refreshThread = () => { void loadThread(id); void loadConversations(); };
+    const channel = supabase.channel(`marketplace-thread:${userId}:${id}`)
+      .on('postgres_changes', {event:'INSERT',schema:'public',table:'marketplace_messages',filter:`conversation_id=eq.${id}`}, refreshThread)
+      .on('postgres_changes', {event:'*',schema:'public',table:'marketplace_deal_terms',filter:`conversation_id=eq.${id}`}, refreshThread)
+      .subscribe(status => { if (status==='SUBSCRIBED') refreshThread(); });
+    return () => { void supabase.removeChannel(channel); };
+  }, [staff,userId,enabled,selectedConversation?.id,loadThread,loadConversations]);
 
   const startConversation = async (item:Listing) => {
     if (!userId) { setAppNotice(true); return; }
