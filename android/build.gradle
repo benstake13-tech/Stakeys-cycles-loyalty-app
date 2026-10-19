@@ -24,6 +24,15 @@ allprojects {
     }
 }
 
+// APK release scripts use a new directory for every flavor build. This keeps
+// interrupted/default packaging intermediates out of installable downloads.
+def stakeysBuildRoot = providers.gradleProperty('stakeysBuildRoot').orNull
+if (stakeysBuildRoot != null) {
+    allprojects {
+        layout.buildDirectory.set(file("${stakeysBuildRoot}/${project.name}"))
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
