@@ -155,3 +155,12 @@ it('removes a sold advert from an open public page at the 48-hour boundary',asyn
  expect(screen.queryByText('Local bike')).toBeNull();
  }finally{cleanup();vi.useRealTimers();}
 });
+
+it('clears the sale completion dialog and buyer details when the account changes',async()=>{
+ state.user={uid:'seller'};const {rerender}=render(<MarketplacePanel showLogout/>);
+ fireEvent.click(await screen.findByRole('button',{name:'Mark as complete'}));
+ fireEvent.change(screen.getByLabelText('Buyer name'),{target:{value:'Private buyer'}});
+ state.user=null;rerender(<MarketplacePanel showLogout/>);
+ await waitFor(()=>expect(screen.queryByRole('dialog',{name:'Record offline marketplace sale'})).toBeNull());
+ expect(screen.queryByDisplayValue('Private buyer')).toBeNull();
+});
