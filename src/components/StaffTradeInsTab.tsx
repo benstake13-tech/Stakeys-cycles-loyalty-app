@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import {BikeDonationInbox} from './BikeDonationInbox';
 import { RefreshCw, Phone, Mail, Trash2, Inbox, CheckCircle2, Sparkles, Camera } from 'lucide-react';
 import { useTradeInRequests, updateTradeInStatus, deleteTradeInRequest, setTradeInFinalOffer, TradeInRequest } from '../context/TradeInStore';
 
@@ -50,9 +51,12 @@ const FinalOfferInput: React.FC<{ id: string; value?: number }> = ({ id, value }
  */
 export const StaffTradeInsTab: React.FC = () => {
   const requests = useTradeInRequests();
+  const [donationsOpen,setDonationsOpen]=useState(false);
 
   return (
     <div className="space-y-6" data-testid="staff-tradeins">
+      <button type="button" aria-expanded={donationsOpen} onClick={()=>setDonationsOpen(!donationsOpen)} className="min-h-11 rounded-xl border border-emerald-300/30 bg-emerald-950/30 px-4 text-sm font-bold text-emerald-200">{donationsOpen?'Hide bicycle donations':'Bicycle donation offers'}</button>
+      {donationsOpen&&<BikeDonationInbox/>}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-white flex items-center gap-2">

@@ -18,7 +18,7 @@ describe('marketplace public and installed app access',()=>{
   render(<MarketplacePanel/>);
   expect(await screen.findByText('Local bike')).toBeTruthy();
   expect(state.select.mock.calls[0][0]).not.toContain('seller_id');
-  expect(state.eq).toHaveBeenCalledWith('status','active');
+  expect(state.select.mock.calls[0][0]).toContain('sold_at');
   fireEvent.click(screen.getByRole('button',{name:'List your ride'}));
   expect(screen.getByRole('dialog',{name:'Marketplace member sign in'})).toBeTruthy();
   fireEvent.click(screen.getByRole('button',{name:'Close sign in'}));
@@ -106,7 +106,7 @@ describe('marketplace public and installed app access',()=>{
   state.user={uid:'staff-1'};state.status='pending_approval';render(<MarketplacePanel staff/>);
   fireEvent.click(await screen.findByRole('button',{name:'Approve listing'}));
   await waitFor(()=>expect(state.milestone).toHaveBeenCalledWith(expect.objectContaining({kind:'listing',title:'Listing approved',scope:'staff-1'})));
-  fireEvent.click(await screen.findByRole('button',{name:'Mark sold'}));
+  fireEvent.click(await screen.findByRole('button',{name:'Mark as complete'}));
   expect(screen.getByRole('dialog',{name:'Record offline marketplace sale'})).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Buyer name'),{target:{value:'Local Rider'}});
   fireEvent.change(screen.getByLabelText('Buyer email or phone'),{target:{value:'rider@example.com'}});
