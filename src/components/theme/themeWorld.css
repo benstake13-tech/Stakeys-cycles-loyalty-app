@@ -71,3 +71,8 @@
 @media(max-width:600px){.easter-celebration{padding:12px}.easter-celebration-card{padding:14px 18px 19px;border-radius:23px}.easter-celebration-character .theme-world-preview{min-height:150px}.easter-celebration-card>p{font-size:12px}}
 @media(prefers-reduced-motion:reduce){.easter-celebration,.easter-celebration-card{animation-duration:.01ms;animation-delay:0ms}}
 @media(max-width:600px){.theme-scene-dialog>.theme-world-preview{aspect-ratio:4/3}.theme-scene-launcher{bottom:calc(env(safe-area-inset-bottom) + 96px);font-size:9px}.easter-hunt{margin:0 12px 12px;padding:13px}.easter-hunt-heading h3{font-size:15px}}
+
+/* Dimensional storefront lettering over the existing seasonal shop photography. */
+.theme-signage{transform:translateZ(0)}
+.theme-shop-sign{fill:#fff2c8;font:850 49px 'Plus Jakarta Sans',system-ui,sans-serif;letter-spacing:4px;paint-order:stroke fill;stroke:#07180f;stroke-width:2.5px;stroke-linejoin:round;filter:drop-shadow(0 2px 0 #a98238) drop-shadow(0 4px 1px #000b)}
+@media(max-width:700px){.theme-shop-sign{font-size:45px;letter-spacing:3px}}
