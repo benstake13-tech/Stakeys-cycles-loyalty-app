@@ -159,9 +159,15 @@ export function activeHoliday(date: Date = new Date()): HolidayOccurrence | null
  * Effective theme given a manual override. `'AUTO'`/`null` falls back to the
  * calendar; a concrete theme id is honoured regardless of the date.
  */
+/** UK season backdrop keeps the shop visible between holiday windows. */
+export function seasonForDate(date: Date = new Date()): 'spring' | 'summer' | 'autumn' | 'winter' {
+  const month = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', month: 'numeric' }).format(date));
+  return month >= 3 && month <= 5 ? 'spring' : month >= 6 && month <= 8 ? 'summer' : month >= 9 && month <= 11 ? 'autumn' : 'winter';
+}
+
 export function resolveTheme(override: ThemeOverride, date: Date = new Date()): SeasonalThemeId {
   if (override && override !== 'AUTO') return isSeasonalThemeId(override) ? override : 'none';
-  return activeHoliday(date)?.theme ?? 'none';
+  return activeHoliday(date)?.theme ?? seasonForDate(date);
 }
 
 /** The next `count` upcoming holidays (by celebration date) from `date`. */
