@@ -33,9 +33,20 @@ describe('seasonal theme calendar', () => {
 
   it('honours a manual override over the calendar', () => {
     const summer = new Date('2026-07-15T12:00:00Z');
-    expect(resolveTheme('AUTO', summer)).toBe('none');
+    expect(resolveTheme('AUTO', summer)).toBe('summer');
     expect(resolveTheme('christmas', summer)).toBe('christmas');
-    expect(resolveTheme(null, summer)).toBe('none');
+    expect(resolveTheme(null, summer)).toBe('summer');
+  });
+
+  it('keeps an automatic shop backdrop throughout the year and switches for holidays', () => {
+    for (let day=0;day<365;day++) {
+      const date = new Date(Date.UTC(2026,0,1+day,12));
+      expect(resolveTheme('AUTO',date)).not.toBe('none');
+    }
+    expect(resolveTheme('AUTO',new Date('2026-10-17T12:00:00Z'))).toBe('autumn');
+    expect(resolveTheme('AUTO',new Date('2026-10-24T12:00:00Z'))).toBe('halloween');
+    expect(resolveTheme('AUTO',new Date('2026-10-31T12:00:00Z'))).toBe('halloween');
+    expect(resolveTheme('none',new Date('2026-10-31T12:00:00Z'))).toBe('none');
   });
 
   it('lists upcoming holidays in chronological order', () => {
