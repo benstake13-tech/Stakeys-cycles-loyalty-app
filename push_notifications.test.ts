@@ -204,6 +204,25 @@ describe('pushNotifications (OneSignal)', () => {
     }
   });
 
+  it.each([
+    ['admin', true, true], ['staff', true, true], ['admin', false, false], ['customer', true, false],
+  ])('recovers a paused %s native subscription only with Android permission %s', async (role, permission, shouldOptIn) => {
+    const bridge = {
+      getStatus: vi.fn(async () => ({ initialized: true, appId: APP_ID, permission, optedIn: false })),
+      initialize: vi.fn(async () => {}), login: vi.fn(async () => {}),
+      addTags: vi.fn(async () => {}), optIn: vi.fn(async () => {}),
+    };
+    vi.doMock('@capacitor/core', () => ({
+      Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' }, registerPlugin: () => bridge,
+    }));
+    try {
+      const { linkUser } = await load();
+      await linkUser('staff-uuid', { role: String(role) });
+      expect(bridge.login).toHaveBeenCalledWith({ externalId: 'staff-uuid' });
+      expect(bridge.optIn).toHaveBeenCalledTimes(shouldOptIn ? 1 : 0);
+    } finally { vi.doUnmock('@capacitor/core'); vi.resetModules(); }
+  });
+
   it('adminPushTarget addresses the owner_email tag group at the admin inbox', async () => {
     const { adminPushTarget, ADMIN_NOTIFICATION_EMAIL } = await load();
     expect(ADMIN_NOTIFICATION_EMAIL).toBe('stakeyscycle95@gmail.com');

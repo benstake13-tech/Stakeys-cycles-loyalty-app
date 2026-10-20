@@ -15,3 +15,8 @@ verify_jwt = true
 
 [functions.marketplace-auctions]
 verify_jwt = true
+
+[functions.staff-event-push]
+# Private scheduled worker: its database-generated dispatch token is checked
+# by a service-role-only RPC before claiming any events.
+verify_jwt = false
