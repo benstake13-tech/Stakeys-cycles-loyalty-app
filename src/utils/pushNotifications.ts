@@ -361,6 +361,14 @@ export async function linkUser(userId: string, tags?: Record<string, string | nu
   const native = nativePush();
   if (native) {
     await native.login({ externalId: userId });
+    if (tags?.role === 'staff' || tags?.role === 'admin') {
+      // Recover a paused staff SDK subscription after reinstall/sign-in, but
+      // never bypass Android permission or prompt repeatedly on app startup.
+      try {
+        const status = await native.getStatus();
+        if (status.permission && !status.optedIn) await native.optIn();
+      } catch (error) { console.warn('[OneSignal] Staff subscription recovery failed', error); }
+    }
     if (tags) {
       const stringTags: Record<string, string> = {};
       for (const [key, value] of Object.entries(tags)) stringTags[key] = String(value);

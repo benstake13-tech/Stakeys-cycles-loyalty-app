@@ -32,8 +32,8 @@ public final class ApplicationClass extends Application {
             if (url == null || url.trim().isEmpty()) return;
 
             Uri clicked = Uri.parse(url);
-            String bookingId = clicked.getQueryParameter("booking");
-            if (!"1".equals(clicked.getQueryParameter("staff")) || bookingId == null || bookingId.trim().isEmpty()) return;
+            if (!"https".equals(clicked.getScheme()) || !"www.stakeys-cycles.co.uk".equals(clicked.getHost())
+                || !"1".equals(clicked.getQueryParameter("staff"))) return;
 
             getSharedPreferences("native_push_receipt", MODE_PRIVATE).edit()
                 .putString("pendingOpenUrl", url).apply();
