@@ -84,7 +84,7 @@ import {
 import { rehydrateBookingEmailLedger } from '../utils/bookingEmailLedger';
 import { resetEmailSendGuard } from '../utils/sendOnce';
 import { staffBookingAudio, WorkshopAudioVolume } from '../utils/staffAlertAudio';
-import { sendPushToUser, requestPushPermission, getPushPermission, adminPushTarget } from '../utils/pushNotifications';
+import { requestPushPermission, getPushPermission } from '../utils/pushNotifications';
 import { buildBookingNotification } from '../utils/bookingNotifications';
 import { isSosBooking, sosStatusOf } from '../utils/sosRepair';
 import { isStaffSurface, isFullSurface } from '../config/surface';
@@ -1550,10 +1550,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // name or contact details. Tapping it opens the booking in the staff app.
       const alert = buildBookingNotification(latest);
       staffBookingAudio.dispatchPushNotification(alert.title, alert.body);
-      // Server-to-server push to the admin inbox so the booking reaches the
-      // workshop phone even when the app is closed. Targeted by owner_email tag
-      // (the whole staff group), never a broadcast segment.
-      void sendPushToUser(undefined, alert.title, alert.body, alert.url, adminPushTarget());
+      // The database outbox sends one native staff alert, independently of
+      // how many terminals observe this booking. Keep foreground audio local.
 
       toast(`🚨 NEW WORKSHOP BOOKING #${latest.id}!\n${alert.sourceLabel} • ${latest.serviceTitle}`, {
         icon: '🔔',
@@ -3826,7 +3824,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       staffBookingAudio.playLoudBookingPing();
       staffBookingAudio.dispatchPushNotification(alert.title, alert.body);
     }
-    void sendPushToUser(undefined, alert.title, alert.body, alert.url, adminPushTarget());
+    // Native staff delivery is owned by the transactional database outbox.
 
     // SOS emergency repair: fire an owner-only OneSignal push (and a loud ping
     // on any staff device that has the terminal open) the moment it lands.

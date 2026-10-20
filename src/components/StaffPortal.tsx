@@ -112,6 +112,7 @@ import { CommandBar } from './staff/CommandBar';
 import { GrowthTargets } from './staff/GrowthTargets';
 
 interface StaffPortalProps {
+  notificationSection?: { section: string; nonce: number } | null;
   /** Booking id from a notification deep link that should be opened on arrival. */
   focusBookingId?: string | null;
   onFocusHandled?: () => void;
@@ -170,7 +171,7 @@ const STAFF_TABS: StaffTab[] = [
   'settings',
 ];
 
-export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocusHandled, onOpenSurface }) => {
+export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, notificationSection, onFocusHandled, onOpenSurface }) => {
   const {
     currentUser,
     users = [], // Default to empty array
@@ -284,6 +285,12 @@ export const StaffPortal: React.FC<StaffPortalProps> = ({ focusBookingId, onFocu
     { id: 'financials', label: 'Financials', icon: TrendingUp, tone: 'sky', hint: 'Financial reports' },
     { id: 'station', label: 'Staff Station', icon: Layers, tone: 'emerald', hint: 'Live station overview' },
   ];
+
+  useEffect(() => {
+    if (!notificationSection || !STAFF_TABS.includes(notificationSection.section as StaffTab)) return;
+    setStaffTab(notificationSection.section as StaffTab);
+    setShowTools(false);
+  }, [notificationSection]);
 
   // Notification deep link: when App hands us a booking id, jump to the Bookings
   // tab. The tab itself acknowledges the request once the booking is revealed.

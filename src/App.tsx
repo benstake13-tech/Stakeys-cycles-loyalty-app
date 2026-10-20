@@ -47,6 +47,7 @@ import { parseBookingDeepLink } from './utils/bookingNotifications';
 import { APP_SURFACE, isFullSurface, isStaffSurface, isWebsiteSurface } from './config/surface';
 
 interface StaffPortalProps {
+  notificationSection?: { section: string; nonce: number } | null;
   /** Booking id from a notification deep link that should be opened on arrival. */
   focusBookingId?: string | null;
   onFocusHandled?: () => void;
@@ -79,12 +80,15 @@ function AppContent() {
   // Push deep link: `?staff=1&booking=<id>` (from a tapped notification) opens
   // the staff view and focuses that booking. Parsed once on mount.
   const [focusBookingId, setFocusBookingId] = useState<string | null>(null);
+  const [notificationSection, setNotificationSection] = useState<{ section: string; nonce: number } | null>(null);
   const [staffDeepLinkRequested, setStaffDeepLinkRequested] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const target = parseBookingDeepLink(window.location.search);
     if (target.bookingId) setFocusBookingId(target.bookingId);
     if (target.staff) setStaffDeepLinkRequested(true);
+    const section = new URLSearchParams(window.location.search).get('section');
+    if (target.staff && section) setNotificationSection({ section, nonce: Date.now() });
   }, []);
 
   // Native OneSignal taps are intercepted in Android so a booking link opens
@@ -96,6 +100,8 @@ function AppContent() {
         const target = parseBookingDeepLink(new URL(url, window.location.href).search);
         if (!target.staff) return;
         if (target.bookingId) setFocusBookingId(target.bookingId);
+        const section = new URL(url, window.location.href).searchParams.get('section');
+        if (section) setNotificationSection({ section, nonce: Date.now() });
         setStaffDeepLinkRequested(true);
       } catch { /* ignore malformed notification URLs */ }
     };
@@ -580,6 +586,7 @@ function AppContent() {
             (isStaff ? (
               <React.Suspense fallback={null}>
                 <StaffPortal
+                  notificationSection={notificationSection}
                   focusBookingId={focusBookingId}
                   onFocusHandled={() => setFocusBookingId(null)}
                   onOpenSurface={goToTab}
