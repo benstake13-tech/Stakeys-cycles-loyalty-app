@@ -1326,7 +1326,7 @@ export const WebsiteReplica: React.FC<WebsiteReplicaProps> = ({
   const renderPage = () => {
     switch (page) {
       case 'marketplace':
-        return <MarketplacePanel showLogout />;
+        return <MarketplacePanel publicBrowseOnly />;
       case 'shop':
         return (
           <div className="space-y-8">

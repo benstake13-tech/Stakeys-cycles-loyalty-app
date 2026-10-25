@@ -34,7 +34,8 @@ describe('desktop macOS dock', () => {
     fireEvent.mouseEnter(nav);
     fireEvent.mouseMove(nav, { clientX: 225 }); // Centre of Till.
     const scale = (index: number) => Number((buttons[index].querySelector('.stakeys-dock-icon') as HTMLElement).style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1);
-    await waitFor(() => expect(scale(2)).toBeGreaterThan(1.53));
+    await waitFor(() => expect(scale(2)).toBeGreaterThan(1.17));
+    expect(scale(2)).toBeLessThanOrEqual(1.2);
     expect(scale(1)).toBeGreaterThan(scale(0));
     expect(scale(1)).toBeLessThan(scale(2));
     fireEvent.mouseMove(nav, { clientX: 365 }); // Move towards Stock.

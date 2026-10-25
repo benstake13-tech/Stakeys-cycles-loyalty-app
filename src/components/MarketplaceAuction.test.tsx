@@ -16,6 +16,13 @@ const props = {
 };
 
 describe('marketplace auction bids',()=>{
+  it('directs public-site visitors to the app without offering website sign-in',()=>{
+    const onUseApp=vi.fn();
+    render(<MarketplaceAuction {...props} {...({publicBrowseOnly:true} as any)} canBid={false} onUseApp={onUseApp}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Use the customer app to bid'}));
+    expect(onUseApp).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button',{name:'Sign in to bid'})).toBeNull();
+  });
   it('uses the opening bid, then a 2% step rounded up to pounds',()=>{
     expect(minimumAuctionBid(base)).toBe(100);
     expect(minimumAuctionBid({...base,highest_bid:101,bid_count:1})).toBe(104);

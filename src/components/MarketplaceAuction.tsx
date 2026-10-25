@@ -33,6 +33,7 @@ export function auctionTimeLeft(endsAt: string | null, now: number): string {
 }
 
 type Props = {
+  publicBrowseOnly?: boolean;
   auction: MarketplaceAuctionRow;
   compact?: boolean;
   now: number;
@@ -51,7 +52,7 @@ type Props = {
 
 export function MarketplaceAuction({
   auction, compact = false, now, isSeller, isStaff, canBid, hasBid, isLeading, isWinner, busy,
-  onBid, onOpen, onOpenDeal, onUseApp,
+  onBid, onOpen, onOpenDeal, onUseApp, publicBrowseOnly = false,
 }: Props) {
   const [amount, setAmount] = useState('');
   const min = minimumAuctionBid(auction);
@@ -91,7 +92,7 @@ export function MarketplaceAuction({
         </button>
         <p className="text-[11px] leading-4 text-neutral-400">The highest bid wins when time ends. No payment is taken when you bid. A bid in the final two minutes can extend the auction.</p>
       </form>
-    ) : <button type="button" onClick={onUseApp} className="mt-3 min-h-10 w-full rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">Sign in to bid</button>
+    ) : <button type="button" onClick={onUseApp} className="mt-3 min-h-10 w-full rounded-lg bg-emerald-400 px-3 text-xs font-bold text-neutral-950">{publicBrowseOnly?'Use the customer app to bid':'Sign in to bid'}</button>
     : null}
     {!compact && auction.status === 'ended' && isWinner && (
       <button type="button" onClick={onOpenDeal} className="mt-3 min-h-11 w-full rounded-lg bg-emerald-400 px-3 text-sm font-bold text-neutral-950">

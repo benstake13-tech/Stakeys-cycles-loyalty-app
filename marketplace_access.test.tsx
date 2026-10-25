@@ -1,5 +1,5 @@
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const state=vi.hoisted(()=>({native:false,user:null as any,error:null as any,select:vi.fn(),eq:vi.fn(),invoke:vi.fn(),rpc:vi.fn(),milestone:vi.fn(),mutationError:null as any,status:'active',updated:null as any,bulkFilter:null as any,bulkFilters:[] as any[]}));
 vi.mock('./src/utils/milestoneAnimations',()=>({announceMilestone:state.milestone}));
@@ -14,6 +14,31 @@ vi.mock('./src/lib/supabase',()=>({supabase:{from:(table:string)=>{
 import { MarketplacePanel } from './src/components/MarketplacePanel';
 beforeEach(()=>{cleanup();vi.clearAllMocks();state.rpc.mockResolvedValue({error:null});state.native=false;state.user=null;state.error=null;state.mutationError=null;state.status='active';state.updated=null;state.bulkFilter=null;state.bulkFilters=[];window.history.replaceState({},'','/');});
 describe('marketplace public and installed app access',()=>{
+ it('keeps the public website browse-only and replaces member login with app guidance',async()=>{
+  render(<MarketplacePanel {...({publicBrowseOnly:true} as any)}/>);
+  expect(await screen.findByText('Local bike')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button',{name:'List your ride'}));
+  expect(screen.queryByRole('dialog',{name:'Marketplace member sign in'})).toBeNull();
+  expect(screen.getByRole('dialog',{name:'Use the Stakey’s app'})).toBeTruthy();
+  expect(screen.queryByTestId('marketplace-listing-form')).toBeNull();
+ });
+ it('ignores a cached admin session on the public website marketplace',async()=>{
+  state.user={uid:'admin-1',role:'admin'};
+  render(<MarketplacePanel {...({publicBrowseOnly:true,staff:true} as any)}/>);
+  await screen.findByText('Local bike');
+  expect(state.select.mock.calls.every(call=>!String(call[0]).includes('seller_id'))).toBe(true);
+  expect(screen.queryByRole('navigation',{name:'Staff marketplace workspace'})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'List your ride'}));
+  expect(screen.queryByTestId('marketplace-listing-form')).toBeNull();
+  expect(state.rpc).not.toHaveBeenCalled();
+ });
+ it('keeps the app-use action available in public fixed-price listing details',async()=>{
+  render(<MarketplacePanel publicBrowseOnly/>);
+  fireEvent.click(await screen.findByRole('button',{name:'View details for Local bike'}));
+  fireEvent.click(within(screen.getByRole('dialog',{name:'Local bike'})).getByRole('button',{name:'Use app to message seller'}));
+  expect(screen.getByRole('dialog',{name:'Use the Stakey’s app'})).toBeTruthy();
+  expect(screen.queryByRole('dialog',{name:'Marketplace member sign in'})).toBeNull();
+ });
  it('lets visitors browse approved listings without a login screen or exposed seller id',async()=>{
   render(<MarketplacePanel/>);
   expect(await screen.findByText('Local bike')).toBeTruthy();

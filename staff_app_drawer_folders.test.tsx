@@ -12,6 +12,11 @@ const apps = [
 ];
 
 describe('StaffAppDrawer folders', () => {
+  it('shows useful app descriptions and excludes the retired hanger app', () => {
+    render(<StaffAppDrawer apps={[...apps,{id:'hangers',label:'Derailleur Hangers',hint:'Retired tool',icon:LayoutGrid}]} activeApp="" mode="phone" onSelect={vi.fn()} onClose={vi.fn()}/>);
+    expect(screen.getByText('Manage service bookings')).toBeTruthy();
+    expect(screen.queryByRole('button',{name:'Derailleur Hangers'})).toBeNull();
+  });
   it('groups apps into collapsible folders and shows their counts', () => {
     render(<StaffAppDrawer apps={apps} activeApp="bookings" mode="phone" onSelect={vi.fn()} onClose={vi.fn()} />);
 
