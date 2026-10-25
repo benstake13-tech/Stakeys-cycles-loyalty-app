@@ -31,14 +31,14 @@
 .staff-phone-navigation svg { color: #6dffa9; }
 .staff-app-drawer-backdrop { position: fixed; z-index: 50; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px; background: #000b; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
 .staff-app-drawer { display: flex; flex-direction: column; width: min(100%, 840px); max-height: calc(100dvh - 48px); min-height: 0; overflow: hidden; box-sizing: border-box; padding: 26px; border-radius: 28px; border: 1px solid #c5ffdc3b; background: linear-gradient(140deg, #1b3029f5, #07120df9); color: #f2fff7; box-shadow: inset 0 1px #fff2, 0 30px 100px #0008; font-family: 'Plus Jakarta Sans', sans-serif; outline: none; }
-.staff-app-drawer-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.staff-app-drawer-header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .staff-app-drawer-header span { font-size: 9px; letter-spacing: .2em; color: #6df5ab; }
 .staff-app-drawer-header h2 { margin: 5px 0 0; font-size: 25px; font-weight: 650; }
 .staff-app-drawer-header button { display: grid; place-items: center; min-width: 44px; min-height: 44px; border-radius: 14px; border: 1px solid #ffffff20; background: #ffffff08; color: #deffea; cursor: pointer; }
-.staff-app-search { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #a6ffca30; border-radius: 14px; background: #0004; color: #8cdcae; }
+.staff-app-search { flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid #a6ffca30; border-radius: 14px; background: #0004; color: #8cdcae; }
 .staff-app-search input { width: 100%; min-width: 0; border: 0; background: transparent; color: #fff; outline: none; font-size: 16px; }
-.staff-app-search button { display: grid; place-items: center; border: 0; background: none; color: #b3d9c1; padding: 3px; cursor: pointer; }
-.staff-app-count { margin: 14px 0; font-size: 11px; color: #9bb6a7; }
+.staff-app-search button { min-width:44px; min-height:44px; display: grid; place-items: center; border: 0; background: none; color: #b3d9c1; padding: 3px; cursor: pointer; }
+.staff-app-count { flex-shrink: 0; margin: 14px 0; font-size: 11px; color: #9bb6a7; }
 .staff-app-folders { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0; max-height: 100%; overscroll-behavior-y: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #4c8062 #0b1912; touch-action: pan-y; padding: 2px 4px 6px; }
 .staff-app-folder + .staff-app-folder { margin-top: 9px; }
 .staff-app-folder { overflow: hidden; border: 1px solid #b4ffcf20; border-radius: 17px; background: #0002; }
@@ -50,14 +50,19 @@
 .staff-app-folder-chevron.is-open { transform: rotate(180deg); }
 .staff-app-folder-toggle:hover { background: #b4ffcf12; }
 .staff-app-folder-toggle:focus-visible { outline: 2px solid #9dffc4; outline-offset: -2px; }
-.staff-app-library { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px 10px; overflow-y: auto; min-height: 0; overscroll-behavior: contain; padding: 8px; }
-.staff-app-library button { display: flex; flex-direction: column; align-items: center; gap: 9px; min-height: 98px; padding: 8px 4px; border: 1px solid transparent; border-radius: 16px; background: transparent; color: #effff6; font-size: 11px; text-align: center; cursor: pointer; }
-.staff-app-icon { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 17px; color: #89ffb6; border: 1px solid #b4ffcf38; background: linear-gradient(145deg, #335c46, #122d20); box-shadow: inset 0 1px #fff3, 0 5px 14px #0004; }
+.staff-app-library { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; min-height: 0; overscroll-behavior: contain; padding: 8px; }
+.staff-app-library button { display: flex; align-items: center; gap: 12px; min-width: 0; min-height: 72px; padding: 10px; border: 1px solid transparent; border-radius: 16px; background: transparent; color: #effff6; font-size: 11px; text-align: left; cursor: pointer; }
+.staff-app-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 12px; color: #89ffb6; border: 1px solid #b4ffcf38; background: linear-gradient(145deg, #335c46, #122d20); box-shadow: inset 0 1px #fff3, 0 5px 14px #0004; }
 .staff-app-library button:hover, .staff-app-library button[aria-current="page"] { border-color: #7affad50; background: #a6ffc80a; }
 .staff-app-drawer button:focus-visible, .staff-app-drawer input:focus-visible, .staff-phone-navigation button:focus-visible { outline: 2px solid #9dffc4; outline-offset: 3px; }
 .staff-app-empty { display: flex; align-items: center; flex-direction: column; padding: 26px 12px; text-align: center; color: #9db6a7; }
 .staff-app-empty button { padding: 10px 14px; border: 1px solid #8bffb638; border-radius: 12px; background: #142d20; color: #a4ffca; cursor: pointer; }
-.staff-app-drawer--phone { width: 100%; max-height: 100dvh; height: 100dvh; height: 100svh; border-radius: 0; padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; }
+.staff-app-drawer--phone { width: 100%; max-height: 100dvh; height: 100svh; height: 100dvh; border-radius: 0; padding: calc(20px + env(safe-area-inset-top, 0px)) 16px calc(20px + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; }
 .staff-app-drawer-backdrop--phone { padding: 0; }
-.staff-app-drawer--phone .staff-app-library { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.staff-app-drawer--phone .staff-app-library { grid-template-columns: minmax(0, 1fr); }
 @media (prefers-reduced-motion: reduce) { .staff-app-drawer *, .staff-phone-navigation * { scroll-behavior: auto !important; } }
+
+.staff-app-description { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.staff-app-description strong { font-size:13px; font-weight:650; line-height:1.4; }
+.staff-app-description small { color:#9db6a7; font-size:11px; line-height:1.45; overflow-wrap:anywhere; }
+@media(max-width:560px) { .staff-app-library { grid-template-columns:minmax(0,1fr); } }
