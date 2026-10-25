@@ -1,25 +1,19 @@
 /* Viewport-mounted navigation: modal overlays (z-50) stay above the dock. */
 .stakeys-macos-dock {
   position: fixed; z-index: 40; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  transform: translateX(-50%); width: min(calc(100% - 20px), 560px); box-sizing: border-box;
-  padding: 10px 10px 13px; border-radius: 25px; border: 1px solid #d3ffe437;
-  background: linear-gradient(155deg, #a9f2cf20, #091a13b8 48%, #07100cd9);
+  transform: translateX(-50%); width: min(calc(100% - 20px), 520px); box-sizing: border-box;
+  padding: 8px 10px 12px; border-radius: 22px; border: 1px solid #d3ffe437;
+  background: #0c1b15e0;
   backdrop-filter: blur(20px) saturate(140%); -webkit-backdrop-filter: blur(20px) saturate(140%);
-  box-shadow: inset 0 1px 0 #ffffff38, inset 0 -1px 0 #ffffff0d, 0 16px 48px #0009, 0 0 28px #05c14712;
+  box-shadow: inset 0 1px 0 #ffffff38, inset 0 -1px 0 #ffffff0d, 0 16px 48px #0009, 0 0 0 transparent;
   color: #f1fff7; font-family: 'Plus Jakarta Sans', sans-serif;
 }
 .stakeys-dock-items { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; align-items: end; }
 .stakeys-dock-slot { position: relative; min-width: 0; }
-.stakeys-dock-slot > button { width: 100%; height: 67px; border: 0; padding: 2px 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; border-radius: 14px; position: relative; -webkit-tap-highlight-color: transparent; }
-.stakeys-dock-icon { --glyph-accent: #74f7ab; width: 43px; height: 43px; max-width: 100%; flex: none; border-radius: 13px; display: flex; align-items: center; justify-content: center; transform-origin: center bottom; transform: translate3d(0, 0, 0) scale(1); will-change: transform; color: #f1fff7; border: 1px solid #d9ffea2e; background: linear-gradient(150deg, #305743, #12291e 72%); box-shadow: inset 0 1px 1px #fff3, 0 4px 10px #0005; transition: border-color 130ms ease, box-shadow 130ms ease; }
-.stakeys-dock-icon svg { width: 27px; height: 27px; overflow: visible; }
+.stakeys-dock-slot > button { width: 100%; height: 62px; border: 0; padding: 2px 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; cursor: pointer; border-radius: 14px; position: relative; -webkit-tap-highlight-color: transparent; }
+.stakeys-dock-icon { --glyph-accent: #74f7ab; width: 38px; height: 38px; max-width: 100%; flex: none; border-radius: 13px; display: flex; align-items: center; justify-content: center; transform-origin: center bottom; transform: translate3d(0, 0, 0) scale(1); will-change: transform; color: #f1fff7; border: 1px solid #d9ffea2e; background: #ffffff08; box-shadow: inset 0 1px 1px #fff3, 0 4px 10px #0005; transition: border-color 130ms ease, box-shadow 130ms ease; }
+.stakeys-dock-icon svg { width: 23px; height: 23px; overflow: visible; }
 .stakeys-dock-icon .dock-icon-accent { stroke: var(--glyph-accent); }
-.stakeys-dock-icon--sync { --glyph-accent: #79e7d1; background: linear-gradient(150deg, #2b5d56, #112a28 72%); }
-.stakeys-dock-icon--till { --glyph-accent: #a1ffbb; background: linear-gradient(150deg, #237550, #0b3e2c 72%); }
-.stakeys-dock-icon--workshop { --glyph-accent: #c8eedf; background: linear-gradient(150deg, #485955, #1b2b2b 72%); }
-.stakeys-dock-icon--stock { --glyph-accent: #ffdc98; background: linear-gradient(150deg, #665440, #2a241c 72%); }
-.stakeys-dock-icon--sales { --glyph-accent: #adf988; background: linear-gradient(150deg, #386744, #183523 72%); }
-.stakeys-dock-icon--more { --glyph-accent: #83f5bb; background: linear-gradient(150deg, #40574e, #192c25 72%); }
 .stakeys-dock-label { color: #cfecdb; font-size: 10px; font-weight: 650; line-height: 1; white-space: nowrap; letter-spacing: .01em; }
 .stakeys-dock-slot > button:focus-visible { outline: 2px solid #a6ffce; outline-offset: 3px; }
 .stakeys-dock-active { position: absolute; bottom: -7px; width: 5px; height: 5px; border-radius: 50%; background: #67ffa7; box-shadow: 0 0 9px #05ff7f; opacity: 0; }

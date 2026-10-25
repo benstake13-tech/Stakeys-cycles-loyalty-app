@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Settings2, X } from 'lucide-react';
+import { Settings2, X, House, Store, Tag, Images, CircleHelp, MapPin, Wrench, ContactRound } from 'lucide-react';
 import type { WebsitePageId } from '../types/websiteContent';
 import './WebsiteDock.css';
-import { GlassDockIcon } from './navigation/GlassDockIcon';
 
 type DockDestination = Extract<WebsitePageId, 'home' | 'marketplace' | 'sell' | 'gallery' | 'faqs' | 'visit' | 'join'> | 'membership';
 type DockSettings = { magnification: number; spacing: number; labels: boolean };
 
-const DEFAULT_SETTINGS: DockSettings = { magnification: 100, spacing: 26, labels: true };
+const DEFAULT_SETTINGS: DockSettings = { magnification: 45, spacing: 12, labels: true };
 const SETTINGS_KEY = 'stakeys.website-dock.settings.v1';
+const dockIcons = [House, Store, Tag, Images, CircleHelp, MapPin, Wrench, ContactRound];
 const destinations: Array<{id:DockDestination;label:string}> = [
   {id:'home',label:'Home'},{id:'marketplace',label:'Marketplace'},
   {id:'sell',label:'Sell'},{id:'gallery',label:'Gallery'},
@@ -40,8 +40,8 @@ export function WebsiteDock({ activePage, onNavigate, onMember }: {
       if (saved) {
         const parsed = JSON.parse(saved) as Partial<DockSettings>;
         setSettings({
-          magnification: clamp(parsed.magnification ?? 100, 0, 100),
-          spacing: clamp(parsed.spacing ?? 26, 8, 26),
+          magnification: clamp(parsed.magnification ?? 45, 0, 100),
+          spacing: clamp(parsed.spacing ?? 12, 8, 26),
           labels: typeof parsed.labels === 'boolean' ? parsed.labels : true,
         });
       }
@@ -98,11 +98,11 @@ export function WebsiteDock({ activePage, onNavigate, onMember }: {
     // Measure the icon tiles themselves: their centres stay stable while the glyphs scale.
     targets.current = itemRefs.current.map(button => {
       const glyph = button?.querySelector<HTMLElement>('.website-dock-glyph');
-      if (!glyph) return 1;
-      const rect = glyph.getBoundingClientRect();
+      if (!button || !glyph) return 1;
+      const rect = button.getBoundingClientRect();
       const distance = Math.abs(clientX - (rect.left + rect.width / 2));
       const influence = Math.exp(-(distance * distance) / (2 * 82 * 82));
-      return 1 + (settings.magnification / 100) * 0.72 * influence;
+      return 1 + (settings.magnification / 100) * 0.2 * influence;
     });
     if (frame.current === null) frame.current = requestAnimationFrame(animate);
   }
@@ -149,10 +149,11 @@ export function WebsiteDock({ activePage, onNavigate, onMember }: {
         <span className="website-dock-sheen" aria-hidden="true" />
         {destinations.map((item, index) => {
           const active = activePage === item.id;
+          const Icon = dockIcons[index];
           return <button key={item.id} ref={element => { itemRefs.current[index] = element; }} type="button"
             className="website-dock-item" aria-current={active ? 'page' : undefined}
             aria-label={item.label} onClick={() => item.id==='membership' ? (onMember ? onMember() : onNavigate('marketplace')) : onNavigate(item.id)}>
-            <span className="website-dock-glyph"><GlassDockIcon index={index} /></span>
+            <span className="website-dock-glyph"><Icon size={23} strokeWidth={1.7} aria-hidden="true" /></span>
             <span className="website-dock-label">{item.label}</span>
             <span className="website-dock-active-dot" aria-hidden="true" />
           </button>;

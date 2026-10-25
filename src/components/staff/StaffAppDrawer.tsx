@@ -15,7 +15,7 @@ type AppFolder = 'Workspace' | 'Workshop' | 'Sales & Growth' | 'Admin & System' 
 const FOLDER_ORDER: AppFolder[] = ['Workspace', 'Workshop', 'Sales & Growth', 'Admin & System', 'Previews'];
 const folderFor = (app: StaffApp): AppFolder => {
   if (app.id.startsWith('surface:')) return 'Previews';
-  if (['bookings', 'till', 'repair_guide', 'weather', 'ev_codes', 'hangers', 'ble_bench'].includes(app.id)) return 'Workshop';
+  if (['bookings', 'till', 'repair_guide', 'weather', 'ev_codes', 'ble_bench'].includes(app.id)) return 'Workshop';
   if (['promotions', 'discount_codes', 'referrals', 'tradeins', 'marketplace', 'offer_prices', 'reviews'].includes(app.id)) return 'Sales & Growth';
   if (['settings', 'backend', 'logs', 'staff_roster', 'google_business', 'website_cms', 'targets', 'accounts'].includes(app.id)) return 'Admin & System';
   return 'Workspace';
@@ -37,7 +37,8 @@ export const StaffAppDrawer: React.FC<{
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   const titleId = useId();
-  const visible = apps.filter(app => `${app.label} ${app.hint} ${app.keywords || ''}`.toLowerCase().includes(query.trim().toLowerCase()));
+  const searchQuery = query.trim().toLowerCase();
+  const visible = apps.filter(app => app.id !== 'hangers' && `${app.label} ${app.hint} ${app.keywords || ''}`.toLowerCase().includes(searchQuery));
   const folders = FOLDER_ORDER.map(folder => ({ folder, apps: visible.filter(app => folderFor(app) === folder) })).filter(group => group.apps.length);
 
   useEffect(() => {
@@ -86,21 +87,21 @@ export const StaffAppDrawer: React.FC<{
       <div className="staff-app-folders">
         {folders.map(({ folder, apps: folderApps }) => <section key={folder} className="staff-app-folder" aria-labelledby={`${titleId}-${folder}`}>
           <h3 id={`${titleId}-${folder}`} aria-label={folder}>
-            <button type="button" className="staff-app-folder-toggle" aria-expanded={Boolean(query) || openFolders.has(folder)} aria-controls={`${titleId}-${folder}-apps`}
+            <button type="button" className="staff-app-folder-toggle" aria-expanded={Boolean(searchQuery) || openFolders.has(folder)} aria-controls={`${titleId}-${folder}-apps`}
               onClick={() => setOpenFolders(current => {
                 const next = new Set(current);
                 if (next.has(folder)) next.delete(folder); else next.add(folder);
                 return next;
               })}>
               <span className="staff-app-folder-label">{folder}<small className="staff-app-folder-count">{folderApps.length}</small></span>
-              <ChevronDown size={17} className={`staff-app-folder-chevron ${query || openFolders.has(folder) ? 'is-open' : ''}`} aria-hidden="true" />
+              <ChevronDown size={17} className={`staff-app-folder-chevron ${searchQuery || openFolders.has(folder) ? 'is-open' : ''}`} aria-hidden="true" />
             </button>
           </h3>
-          {(query || openFolders.has(folder)) && <nav id={`${titleId}-${folder}-apps`} className="staff-app-library" aria-label={`${folder} apps`}>
+          {(searchQuery || openFolders.has(folder)) && <nav id={`${titleId}-${folder}-apps`} className="staff-app-library" aria-label={`${folder} apps`}>
             {folderApps.map(app => <button key={app.id} type="button" onClick={() => onSelect(app.id)} aria-label={app.label}
               aria-current={activeApp === app.id ? 'page' : undefined} title={app.hint}>
               <span className="staff-app-icon"><app.icon size={27} strokeWidth={1.65} aria-hidden="true" /></span>
-              <span>{app.label}</span>
+              <span className="staff-app-description"><strong>{app.label}</strong><small>{app.hint}</small></span>
             </button>)}
           </nav>}
         </section>)}

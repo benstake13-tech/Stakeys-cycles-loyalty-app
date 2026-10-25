@@ -123,7 +123,7 @@ export const MacOSDock: React.FC<MacOSDockProps> = ({ activeTab, onSelectTab, on
   const magnifyAt = (clientX: number) => {
     if (reducedMotion) return;
     if (!centres.current.length) measureCentres();
-    targetScales.current = centres.current.map(centre => 1 + .55 * Math.exp(-((clientX - centre) ** 2) / (2 * 68 ** 2)));
+    targetScales.current = centres.current.map(centre => 1 + .18 * Math.exp(-((clientX - centre) ** 2) / (2 * 68 ** 2)));
     scheduleMagnification();
   };
 
