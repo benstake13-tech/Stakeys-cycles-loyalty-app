@@ -3162,6 +3162,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         : target.serviceVouchers,
     };
 
+    // Confirm the durable profile write before claiming a successful spin.
+    // updateUserProfileInDb reports failures as false rather than throwing.
+    const profileSaved = await updateUserProfileInDb(userId, target.membershipNumber, {
+      stamps: updatedStamps,
+      tickets: updatedTickets,
+      points: updatedPoints,
+      lastSpunAt: now,
+    });
+    if (!profileSaved) {
+      return { success: false, message: 'The spin could not be saved. Please check your connection and try again.' };
+    }
+
     setUsers((prev) => prev.map((u) => (u.uid === userId ? updatedUser : u)));
     if (currentUser?.uid === userId) {
       setCurrentUser(updatedUser);
@@ -3190,12 +3202,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setStampLogs((prev) => [newLog, ...prev]);
 
     // Remote Database Mutation: profile progress, spin cooldown, audit log, prize voucher
-    updateUserProfileInDb(userId, target.membershipNumber, {
-      stamps: updatedStamps,
-      tickets: updatedTickets,
-      points: updatedPoints,
-      lastSpunAt: now,
-    }).catch((e) => console.warn('[DB SYNC] Error saving weekly wheel spin in DB:', e));
     insertStampLogToDb(newLog).catch((e) =>
       console.warn('[DB SYNC] Error inserting weekly wheel log in DB:', e)
     );
