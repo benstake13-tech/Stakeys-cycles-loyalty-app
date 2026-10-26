@@ -5,7 +5,7 @@ import { requiresInstalledApp } from './src/utils/appAccess';
 import { AppRequiredScreen } from './src/components/AppRequiredScreen';
 afterEach(cleanup);
 describe('installed app access', () => {
-  it.each(['staff', 'customer'] as const)('covers %s browser routes but preserves native authentication', surface => {
+  it.each(['customer'] as const)('covers %s browser routes but preserves native authentication', surface => {
     for (const path of ['/', '/login', '/register', '/garage']) {
       expect(requiresInstalledApp(surface, false, path)).toBe(true);
       expect(requiresInstalledApp(surface, true, path)).toBe(false);
@@ -13,6 +13,12 @@ describe('installed app access', () => {
     expect(requiresInstalledApp(surface, false, '/reset-password')).toBe(false);
     expect(requiresInstalledApp(surface, false, '/reset-password/')).toBe(false);
     expect(requiresInstalledApp(surface, false, '/reset-password/login')).toBe(true);
+  });
+  it('allows staff browser sign-in, Google authorisation and workspace routes', () => {
+    for (const path of ['/', '/login', '/register', '/staff', '/oauth/callback', '/reset-password', '/reset-password/login']) {
+      expect(requiresInstalledApp('staff', false, path)).toBe(false);
+      expect(requiresInstalledApp('staff', true, path)).toBe(false);
+    }
   });
   it('keeps the public website and local development accessible', () => {
     expect(requiresInstalledApp('website', false, '/')).toBe(false);
