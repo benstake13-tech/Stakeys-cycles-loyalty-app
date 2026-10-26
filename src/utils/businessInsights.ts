@@ -30,6 +30,7 @@ export interface BusinessInsights {
   updatedAt?: string;
   stale?: boolean;
   needsReconnect?: boolean;
+  issue?: { code: string; title: string; message: string; actionLabel?: string; actionUrl?: string; quotaLimit?: number | null };
 }
 
 const WINDOW_LABEL = 'Last 28 days';

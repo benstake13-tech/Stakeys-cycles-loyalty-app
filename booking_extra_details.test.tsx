@@ -40,6 +40,20 @@ beforeEach(() => {
 const flush = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
 
 describe('BookingPortal optional extra detail', () => {
+  it('starts with the bike step and lets riders move through details without losing input', () => {
+    render(<BookingPortal />);
+    expect(screen.getByPlaceholderText(/John Smith/i).closest('[hidden]')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Go to step: Issues/i }));
+    const notes = screen.getByPlaceholderText(/Describe any other issue/i);
+    expect(notes.closest('[hidden]')).toBeNull();
+    fireEvent.change(notes, { target: { value: 'Brakes need checking' } });
+    fireEvent.click(screen.getByRole('button', { name: /Go to step 04:/i }));
+    expect(screen.getByPlaceholderText(/John Smith/i).closest('[hidden]')).toBeNull();
+    expect((notes as HTMLTextAreaElement).value).toBe('Brakes need checking');
+    fireEvent.click(screen.getByRole('button', { name: /Go to step 01:/i }));
+    fireEvent.invalid(screen.getByPlaceholderText(/John Smith/i));
+    expect(screen.getByPlaceholderText(/John Smith/i).closest('[hidden]')).toBeNull();
+  });
   it('keeps the extra detail fields collapsed until the customer asks for them', () => {
     render(<BookingPortal />);
     expect(screen.getByText(/Additional details/i)).toBeTruthy();
@@ -50,6 +64,7 @@ describe('BookingPortal optional extra detail', () => {
   it('folds optional access notes, extra detail and contact preference into the booking notes', async () => {
     render(<BookingPortal />);
 
+    fireEvent.click(screen.getByRole('button', { name: /Go to step 04:/i }));
     fireEvent.click(screen.getByText(/Additional details/i));
     fireEvent.change(screen.getByPlaceholderText(/Gate code 1234/i), {
       target: { value: 'Side gate, code 4455' },

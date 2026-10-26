@@ -106,7 +106,7 @@ export const PhoneBookingPanel: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [openScript, setOpenScript] = useState(true);
+  const [openScript, setOpenScript] = useState(false);
 
   const patchBike = (patch: Partial<BikeIdentityValue>) =>
     setBikeIdentity((prev) => ({ ...prev, ...patch }));
@@ -278,8 +278,7 @@ export const PhoneBookingPanel: React.FC = () => {
             Phone Bookings
           </h2>
           <p className="text-xs text-neutral-400 mt-1">
-            Log a booking taken over the phone. It uses the same workshop system as online bookings —
-            follow the script, fill the form, and it drops straight into the queue.
+            Take the caller’s details, choose the repair and time, then log the booking.
           </p>
         </div>
       </header>
@@ -289,6 +288,8 @@ export const PhoneBookingPanel: React.FC = () => {
         <button
           type="button"
           onClick={() => setOpenScript((s) => !s)}
+          aria-expanded={openScript}
+          aria-controls="phone-booking-call-script"
           className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left cursor-pointer"
         >
           <span className="flex items-center gap-2.5">
@@ -296,7 +297,7 @@ export const PhoneBookingPanel: React.FC = () => {
             <span>
               <span className="block text-sm font-bold text-white">Phone call script</span>
               <span className="block text-xs text-neutral-400">
-                Read through these steps with the caller before filling in the form.
+                Open for prompts and checks while taking a booking.
               </span>
             </span>
           </span>
@@ -306,7 +307,7 @@ export const PhoneBookingPanel: React.FC = () => {
         </button>
 
         {openScript && (
-          <ol className="px-4 sm:px-5 pb-5 space-y-4">
+          <ol id="phone-booking-call-script" className="px-4 sm:px-5 pb-5 space-y-4">
             {CALL_SCRIPT.map((step, i) => (
               <li key={step.title} className="flex gap-3">
                 <span className="w-6 h-6 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-xs font-bold flex items-center justify-center shrink-0">

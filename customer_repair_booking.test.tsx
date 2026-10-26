@@ -12,6 +12,7 @@ import { BookingPortal } from './src/components/BookingPortal';
 beforeEach(() => { calls.create.mockReset(); calls.create.mockResolvedValue({ id: 'mock-report-booking' }); });
 afterEach(cleanup);
 async function addPhoto() {
+  fireEvent.click(screen.getByRole('button', { name: /Go to step 02:/i }));
   fireEvent.change(screen.getByLabelText('Choose repair photos'), { target: { files: [new File(['image'], 'bike.jpg', { type: 'image/jpeg' })] } });
   await screen.findByText('1/6 photos');
 }

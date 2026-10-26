@@ -14,7 +14,8 @@ vi.mock('./src/utils/oauthService', () => ({
   startOAuthPopup: vi.fn(),
 }));
 
-vi.mock('./src/utils/businessInsights', () => ({
+vi.mock('./src/utils/businessInsights', async (importOriginal) => ({
+  ...await importOriginal<typeof import('./src/utils/businessInsights')>(),
   fetchInsights: vi.fn(),
   refreshServerManaged: vi.fn(async () => {}),
   isServerManaged: vi.fn(() => false),

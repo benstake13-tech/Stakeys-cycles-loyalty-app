@@ -1,3 +1,4 @@
+import { describeGoogleIssue } from './_googleIssues.js';
 import { randomUUID } from 'node:crypto';
 import { resolveSupabaseUrl, resolveServiceKey, resolveAdminEmails } from '../auth/_shared.js';
 import { resolveProvider, exchangeToken } from '../oauth/_shared.js';
@@ -13,6 +14,7 @@ function publicReport(row, admin) {
     locations: row.locations || [], accountLabel: (row.locations || []).find(l => l.name === row.location_name)?.title || 'Google Business Profile',
     metrics: row.snapshot?.metrics || null, hasData: Boolean(row.snapshot?.hasData), period: row.snapshot?.period,
     updatedAt: row.updated_at, stale: Boolean(row.last_error) || !row.updated_at || Date.now() - Date.parse(row.updated_at) > REFRESH_MS,
+    issue: row.last_issue || (/quota exceeded/i.test(row.last_error || '') ? describeGoogleIssue({ error: { message: row.last_error } }, 429) : undefined),
     message: row.last_error || (!row.location_name ? 'An administrator must select the shop location.' : undefined), needsReconnect: row.needs_reconnect,
   };
 }
@@ -72,10 +74,10 @@ export async function googleShared(req, res) {
         const token = await refresh(req.body.refreshToken);
         if (!token.ok || !token.data?.access_token) return res.status(400).json({ error: 'Google did not accept this connection. Authorise Google again with offline access.' });
         if (!String(token.data.scope || '').split(' ').includes('https://www.googleapis.com/auth/business.manage')) return res.status(400).json({ error: 'Authorise Google Business Profile access before linking.' });
-        row = (await db('POST', '?on_conflict=id', { id: 'primary', connection_version: randomUUID(), refresh_token: token.data.refresh_token || req.body.refreshToken, location_name: null, locations: [], snapshot: null, updated_at: null, last_attempt_at: null, last_error: null, needs_reconnect: false }))[0];
+        row = (await db('POST', '?on_conflict=id', { id: 'primary', connection_version: randomUUID(), refresh_token: token.data.refresh_token || req.body.refreshToken, location_name: null, locations: [], snapshot: null, updated_at: null, last_attempt_at: null, last_error: null, last_issue: null, needs_reconnect: false }))[0];
       } else if (req.body?.location && row) {
         if (!(row.locations || []).some(location => location.name === req.body.location)) return res.status(400).json({ error: 'Choose a location returned by your linked Google account.' });
-        row = (await db('PATCH', '?id=eq.primary', { connection_version: randomUUID(), location_name: req.body.location, snapshot: null, updated_at: null, last_attempt_at: null, last_error: null }))[0];
+        row = (await db('PATCH', '?id=eq.primary', { connection_version: randomUUID(), location_name: req.body.location, snapshot: null, updated_at: null, last_attempt_at: null, last_error: null, last_issue: null }))[0];
       } else return res.status(400).json({ error: 'An offline refresh token is required. Authorise Google and link the account.' });
     }
     if (!row) return res.status(200).json({ connected: false, canManage: admin, metrics: null, message: 'An administrator needs to link the shop’s Google Business account once.' });
@@ -90,27 +92,27 @@ export async function googleShared(req, res) {
       const token = await refresh(row.refresh_token);
       if (!token.ok || !token.data?.access_token) {
         const revoked = token.data?.error === 'invalid_grant';
-        row = (await db('PATCH', '?id=eq.primary', { last_error: revoked ? 'Google access expired or was revoked. An administrator needs to reconnect.' : 'Google is temporarily unavailable. Showing the last successful report.', needs_reconnect: revoked }))[0];
+        row = (await db('PATCH', '?id=eq.primary', { last_error: revoked ? 'Google access expired or was revoked. An administrator needs to reconnect.' : 'Google is temporarily unavailable. Showing the last successful report.', needs_reconnect: revoked, last_issue: null }))[0];
         return send();
       }
       const googleAuth = { Authorization: `Bearer ${token.data.access_token}` };
       if (!row.location_name) {
         const accounts = await googleInsights('accounts', {}, googleAuth);
-        if (accounts.status !== 200) throw new Error(accounts.data?.error?.message || 'Google could not list the business locations.');
+        if (accounts.status !== 200) throw Object.assign(new Error(accounts.data?.error?.message || 'Google could not list the business locations.'), { providerData: accounts.data, providerStatus: accounts.status });
         const locations = accounts.data.locations || [];
-        row = (await db('PATCH', '?id=eq.primary', { locations, location_name: locations.length === 1 ? locations[0].name : null, last_error: locations.length ? null : 'Google returned no accessible business locations.' }))[0];
+        row = (await db('PATCH', '?id=eq.primary', { locations, location_name: locations.length === 1 ? locations[0].name : null, last_issue: null, last_error: locations.length ? null : 'Google returned no accessible business locations.' }))[0];
       }
       if (row.location_name) {
         const report = await googleInsights('performance', { location: row.location_name }, googleAuth);
-        if (report.status !== 200) throw new Error(report.data?.error?.message || 'Google could not load performance data.');
+        if (report.status !== 200) throw Object.assign(new Error(report.data?.error?.message || 'Google could not load performance data.'), { providerData: report.data, providerStatus: report.status });
         if (report.data.hasData) {
-          row = (await db('PATCH', '?id=eq.primary', { snapshot: report.data, updated_at: new Date().toISOString(), last_error: null, needs_reconnect: false, ...(token.data.refresh_token ? { refresh_token: token.data.refresh_token } : {}) }))[0];
-        } else row = (await db('PATCH', '?id=eq.primary', { last_error: 'Google has not returned new performance data yet. Any saved figures remain visible.' }))[0];
+          row = (await db('PATCH', '?id=eq.primary', { snapshot: report.data, updated_at: new Date().toISOString(), last_error: null, last_issue: null, needs_reconnect: false, ...(token.data.refresh_token ? { refresh_token: token.data.refresh_token } : {}) }))[0];
+        } else row = (await db('PATCH', '?id=eq.primary', { last_issue: null, last_error: 'Google has not returned new performance data yet. Any saved figures remain visible.' }))[0];
       }
     } catch (error) {
       if (error instanceof ConnectionChanged) throw error;
       // Only Google read errors reach here; never return token endpoint payloads or credentials.
-      row = (await db('PATCH', '?id=eq.primary', { last_error: String(error.message || 'Google could not update the report.').slice(0, 1200) }))[0];
+      row = (await db('PATCH', '?id=eq.primary', { last_error: String(error.message || 'Google could not update the report.').slice(0, 1200), last_issue: describeGoogleIssue(error.providerData, error.providerStatus) }))[0];
     }
     return send();
   } catch (error) {

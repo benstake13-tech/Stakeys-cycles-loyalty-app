@@ -17,9 +17,11 @@ beforeEach(() => {
 });
 
 describe('PhoneBookingPanel', () => {
-  it('shows the staff call script', () => {
+  it('keeps the call script available as optional help', () => {
     render(<PhoneBookingPanel />);
     expect(screen.getByText(/Phone call script/i)).toBeTruthy();
+    expect(screen.queryByText(/Open the call/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Phone call script/i }));
     expect(screen.getByText(/Open the call/i)).toBeTruthy();
   });
 
