@@ -22,3 +22,13 @@ Google documentation:
 - https://developers.google.com/my-business/reference/performance/rest/v1/DailyMetric
 - https://developers.google.com/my-business/reference/performance/rest/v1/locations/fetchMultiDailyMetricsTimeSeries
 - https://developers.google.com/my-business/content/prereqs
+
+## Shared connection: direct data on every staff device
+
+The staff Google screen now reads a protected shared shop connection. Sign in to the staff website as the owner allowed by server `ADMIN_EMAILS`, then press **Link once for all staff devices** if Google is already authorised (otherwise authorise Google). The offline refresh token is verified and saved server-side, and removed from that browser's local Google token store. Other staff devices only need their normal staff-app login.
+
+Enable **My Business Account Management API**, **My Business Business Information API**, and **Business Profile Performance API** in the same Google Cloud project as the OAuth client. A successful OAuth consent does not itself enable these APIs. Google approval is required if the project has zero API quota. The screenshot's disabled-API error cannot be fixed by refreshing the app.
+
+Reports update on open, every five minutes while visible, and when returning online or to the page. Last-success figures remain available on the server when Google is temporarily unavailable; the screen labels saved/stale data and its update time. There is no paid cron service and no claim that Google's figures are real-time. Only explicit owner selection changes the shared business location. Google revocation/expiry requires owner reconnection; consent-app Testing mode can impose short-lived offline grants.
+
+Database verification: `public.google_business_connection` has RLS enabled, no client policy and no anon/authenticated privileges. Only the server service role reads/writes it. Authenticated staff read through `/api/business/google-shared`; owner allowlisting additionally protects connect/disconnect/location changes. Never reapply an old broad profiles policy migration over the live role guards.

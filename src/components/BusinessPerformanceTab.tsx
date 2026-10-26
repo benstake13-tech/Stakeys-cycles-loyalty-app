@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Building2,
   Facebook,
@@ -21,6 +21,7 @@ import {
   startOAuthPopup,
 } from '../utils/oauthService';
 import { fetchInsights, BusinessInsights, refreshServerManaged, isServerManaged } from '../utils/businessInsights';
+import { fetchSharedGoogleInsights, linkSharedGoogle, disconnectSharedGoogle } from '../utils/sharedGoogleMetrics';
 
 interface ProviderState {
   insights: BusinessInsights | null;
@@ -53,27 +54,69 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
   const patch = (provider: OAuthProvider, next: Partial<ProviderState>) =>
     setStates((prev) => ({ ...prev, [provider]: { ...prev[provider], ...next } }));
 
-  const load = useCallback(async (provider: OAuthProvider, location?: string) => {
+  const pending = useRef({ google: false, meta: false });
+  const generations = useRef({ google: 0, meta: 0 });
+  const locations = useRef<Partial<Record<OAuthProvider, string>>>({});
+  const mounted = useRef(true);
+
+  const load = useCallback(async (provider: OAuthProvider, location?: string, selectLocation = false) => {
+    if (pending.current[provider]) return;
+    pending.current[provider] = true;
+    const generation = ++generations.current[provider];
     patch(provider, { loading: true, error: null });
-    const insights = await fetchInsights(provider, location);
-    patch(provider, { insights, loading: false });
+    try {
+      const shared = provider === 'google' ? await fetchSharedGoogleInsights(location, selectLocation) : null;
+      let insights = shared;
+      if (!shared || (!shared.connected && getStoredToken(provider))) {
+        insights = await fetchInsights(provider, location);
+        if (shared) insights = { ...insights, canManage: shared.canManage };
+      }
+      if (!mounted.current || generations.current[provider] !== generation) return;
+      if (insights?.locationName) locations.current[provider] = insights.locationName;
+      setStates(previous => {
+        const saved = previous[provider].insights;
+        // Keep the last successful figures through temporary errors, never across locations.
+        const keep = saved?.metrics.length && insights?.connected && saved.shared === insights.shared && saved.connectionId === insights.connectionId && saved.locationName === insights.locationName && !insights.metrics.length;
+        const next = keep ? { ...saved, stale: true, message: insights?.message || 'Could not update the report.' } : insights;
+        return { ...previous, [provider]: { ...previous[provider], insights: next, loading: false } };
+      });
+    } catch (error: any) {
+      if (!mounted.current || generations.current[provider] !== generation) return;
+      patch(provider, { loading: false, error: error?.message || 'Could not update the report.' });
+      setStates(previous => ({ ...previous, [provider]: { ...previous[provider], insights: previous[provider].insights ? { ...previous[provider].insights!, stale: true } : null } }));
+    } finally {
+      if (generations.current[provider] === generation) pending.current[provider] = false;
+    }
   }, []);
 
-  // On mount, always load Meta from the server-side token (no login), and load
-  // Google when a saved connection exists, letting the token service refresh it.
   useEffect(() => {
-    void (async () => {
-      await refreshServerManaged();
+    mounted.current = true;
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      void load('google', locations.current.google);
       if (!googleOnly) void load('meta');
-      const googleToken = getStoredToken('google');
-      if (googleToken) void load('google');
-    })();
+    };
+    void refreshServerManaged().finally(refresh);
+    const timer = window.setInterval(refresh, 5 * 60 * 1000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      mounted.current = false;
+      generations.current.google++; generations.current.meta++;
+      pending.current.google = false; pending.current.meta = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [load, googleOnly]);
 
   const handleConnect = async (provider: OAuthProvider) => {
     patch(provider, { authorising: true, error: null });
     try {
-      await startOAuthPopup(provider);
+      if (provider === 'google') await linkSharedGoogle(Boolean(states.google.insights?.needsReconnect));
+      else await startOAuthPopup(provider);
       await load(provider);
     } catch (err: any) {
       patch(provider, { error: err?.message || 'Authorization failed.' });
@@ -82,9 +125,19 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
     }
   };
 
-  const handleDisconnect = (provider: OAuthProvider) => {
-    disconnectProvider(provider);
-    patch(provider, { insights: null, error: null });
+  const handleDisconnect = async (provider: OAuthProvider) => {
+    generations.current[provider]++;
+    pending.current[provider] = true;
+    patch(provider, { loading: true });
+    try {
+      if (provider === 'google' && states.google.insights?.shared) await disconnectSharedGoogle();
+      else disconnectProvider(provider);
+      generations.current[provider]++;
+      pending.current[provider] = false;
+      locations.current[provider] = undefined;
+      patch(provider, { insights: null, error: null, loading: false });
+      if (provider === 'google') await load(provider);
+    } catch (error: any) { pending.current[provider] = false; patch(provider, { loading: false, error: error.message }); }
   };
 
   return (
@@ -96,7 +149,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
             <h3 className="text-xl font-bold text-white">{googleOnly ? 'Google Business Performance' : 'Google & Meta Business Performance'}</h3>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
               Profile views, website clicks, call-button clicks and other customer actions. These figures do not measure physical visits or completed calls.
-              Google requires authorisation from the account that manages your Business Profile. Reporting can be delayed; — means unavailable.
+              Link the shop’s Google account once to show its data directly on staff devices. Refreshes automatically every five minutes while open. Google reporting can be delayed; — means unavailable.
             </p>
           </div>
         </div>
@@ -109,6 +162,8 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
             const token = getStoredToken(provider);
             const browserConnected = Boolean(token && !isTokenExpired(token));
             const serverManaged = isServerManaged(provider);
+            const shared = provider === 'google' && Boolean(state.insights?.shared);
+            const canManage = state.insights?.canManage !== false;
             const connected = browserConnected || serverManaged || Boolean(state.insights?.connected);
             // Meta is read entirely from the server-side token — it never shows a
             // link/authorise prompt, only results (or a note that the token is unset).
@@ -134,7 +189,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
 
                   {connected ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wide">
-                      <ShieldCheck className="w-3 h-3" /> {serverManaged && !browserConnected ? 'Server linked' : 'Authorised'}
+                      <ShieldCheck className="w-3 h-3" /> {shared ? 'Shop connected' : serverManaged && !browserConnected ? 'Server linked' : 'Authorised'}
                     </span>
                   ) : isMeta && metaLive ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold uppercase tracking-wide">
@@ -151,7 +206,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                   )}
                 </div>
 
-                {!isMeta && !configured && !serverManaged && (
+                {!isMeta && !configured && !serverManaged && !shared && (
                   <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-[11px] text-amber-300">
                     <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
@@ -170,7 +225,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                 {provider === 'google' && Boolean(state.insights?.locations?.length) && (
                   <label className="text-xs text-neutral-300">Business location
                     <select aria-label="Google business location" value={state.insights?.locationName || ''}
-                      disabled={state.loading} onChange={event => void load(provider, event.target.value)}
+                      disabled={state.loading || !canManage} onChange={event => void load(provider, event.target.value, true)}
                       className="mt-1 block w-full rounded-lg bg-neutral-900 border border-neutral-700 p-2 text-white">
                       <option value="" disabled>Select a business location</option>
                       {state.insights?.locations?.map(location => <option key={location.name} value={location.name}>{location.title || location.name}</option>)}
@@ -189,13 +244,14 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                         type="button"
                         onClick={() => load(provider, state.insights?.locationName)}
                         className="text-neutral-400 hover:text-white transition-colors"
-                        title="Refresh"
+                        aria-label="Refresh metrics" title="Refresh" disabled={state.loading}
                       >
                         <RefreshCcw className={`w-3.5 h-3.5 ${state.loading ? 'animate-spin' : ''}`} />
                       </button>
                     </div>
 
-                    {state.insights.metrics.length > 0 && state.insights.message && <p className="text-xs text-amber-300 mb-2">{state.insights.message}</p>}
+                    {state.insights.updatedAt && <p className="text-xs text-neutral-400 mb-2">{state.insights.stale ? 'Saved report · ' : ''}Last updated {new Date(state.insights.updatedAt).toLocaleString()}</p>}
+                    {state.insights.metrics.length > 0 && state.insights.message && <p className="text-xs text-amber-300 mb-2 [overflow-wrap:anywhere]">{state.insights.message}</p>}
                     {state.insights.metrics.length > 0 ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {state.insights.metrics.map((metric, idx) => (
@@ -230,7 +286,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                         ))}
                       </div>
                     ) : (
-                      <p className="text-[11px] text-neutral-500">
+                      <p className="text-[11px] text-neutral-400 [overflow-wrap:anywhere]">
                         {state.insights.message || 'No metrics returned.'}
                       </p>
                     )}
@@ -238,7 +294,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                 )}
 
                 {!connected && state.insights && state.insights.message && (
-                  <p className="text-[11px] text-neutral-500">{state.insights.message}</p>
+                  <p className="text-[11px] text-neutral-400 break-words">{state.insights.message}</p>
                 )}
 
                 {state.error && (
@@ -247,8 +303,8 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                   </p>
                 )}
 
-                <div className="flex items-center gap-2 mt-auto pt-1">
-                  {isMeta || serverManaged ? (
+                <div className="flex flex-wrap items-center gap-2 mt-auto pt-1">
+                  {isMeta || serverManaged || shared ? (
                     <button
                       type="button"
                       onClick={() => load(provider, state.insights?.locationName)}
@@ -256,7 +312,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                     >
                       <RefreshCcw className={`w-4 h-4 ${state.loading ? 'animate-spin' : ''}`} /> Refresh
                     </button>
-                  ) : token ? (
+                  ) : token && provider !== 'google' ? (
                     <button
                       type="button"
                       onClick={() => handleDisconnect(provider)}
@@ -267,7 +323,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                   ) : (
                     <button
                       type="button"
-                      disabled={!configured || state.authorising}
+                      disabled={!configured || state.authorising || !canManage}
                       onClick={() => handleConnect(provider)}
                       className="pressable px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-400 text-neutral-950 text-xs font-bold flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -276,10 +332,16 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                       ) : (
                         <Building2 className="w-4 h-4" />
                       )}
-                      Authorise with Google
+                      {!canManage ? 'Ask an administrator to connect Google' : token?.refreshToken ? 'Link once for all staff devices' : 'Authorise with Google'}
                     </button>
                   )}
 
+                  {shared && canManage && (
+                    <>
+                      {state.insights?.needsReconnect && <button type="button" disabled={state.authorising} onClick={() => handleConnect(provider)} className="pressable px-3 py-2 rounded-xl bg-emerald-400 text-neutral-950 text-xs font-semibold">Reconnect Google</button>}
+                      <button type="button" disabled={state.loading} onClick={() => handleDisconnect(provider)} className="pressable px-3 py-2 rounded-xl bg-neutral-800 text-white text-xs">Disconnect shop Google</button>
+                    </>
+                  )}
                   <a
                     href={
                       provider === 'google'
