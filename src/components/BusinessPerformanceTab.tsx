@@ -44,7 +44,7 @@ const PROVIDER_META: Record<OAuthProvider, { icon: React.FC<any>; accent: string
   },
 };
 
-export const BusinessPerformanceTab: React.FC = () => {
+export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ googleOnly = false }) => {
   const [states, setStates] = useState<Record<OAuthProvider, ProviderState>>({
     google: { ...emptyState },
     meta: { ...emptyState },
@@ -53,22 +53,22 @@ export const BusinessPerformanceTab: React.FC = () => {
   const patch = (provider: OAuthProvider, next: Partial<ProviderState>) =>
     setStates((prev) => ({ ...prev, [provider]: { ...prev[provider], ...next } }));
 
-  const load = useCallback(async (provider: OAuthProvider) => {
+  const load = useCallback(async (provider: OAuthProvider, location?: string) => {
     patch(provider, { loading: true, error: null });
-    const insights = await fetchInsights(provider);
+    const insights = await fetchInsights(provider, location);
     patch(provider, { insights, loading: false });
   }, []);
 
   // On mount, always load Meta from the server-side token (no login), and load
-  // Google only when it is already authorised in this browser.
+  // Google when a saved connection exists, letting the token service refresh it.
   useEffect(() => {
     void (async () => {
       await refreshServerManaged();
-      void load('meta');
+      if (!googleOnly) void load('meta');
       const googleToken = getStoredToken('google');
-      if (googleToken && !isTokenExpired(googleToken)) void load('google');
+      if (googleToken) void load('google');
     })();
-  }, [load]);
+  }, [load, googleOnly]);
 
   const handleConnect = async (provider: OAuthProvider) => {
     patch(provider, { authorising: true, error: null });
@@ -93,24 +93,23 @@ export const BusinessPerformanceTab: React.FC = () => {
         <div className="flex items-start gap-3 pb-4 border-b border-neutral-800">
           <TrendingUp className="w-6 h-6 text-emerald-500 shrink-0" />
           <div>
-            <h3 className="text-xl font-bold text-white">Google &amp; Meta Business Performance</h3>
+            <h3 className="text-xl font-bold text-white">{googleOnly ? 'Google Business Performance' : 'Google & Meta Business Performance'}</h3>
             <p className="text-xs text-neutral-400 mt-1 max-w-2xl">
-              How customers find the shop across Google Search, Maps, Facebook and Instagram.
-              Meta results are read from a secure server-side token and appear here automatically,
-              with no Facebook login. Google uses a one-time Authorise with Google connection.
+              Profile views, website clicks, call-button clicks and other customer actions. These figures do not measure physical visits or completed calls.
+              Google requires authorisation from the account that manages your Business Profile. Reporting can be delayed; — means unavailable.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mt-5">
-          {(['google', 'meta'] as OAuthProvider[]).map((provider) => {
+        <div className={`grid grid-cols-1 ${googleOnly ? '' : 'lg:grid-cols-2'} gap-5 mt-5`}>
+          {((googleOnly ? ['google'] : ['google', 'meta']) as OAuthProvider[]).map((provider) => {
             const meta = PROVIDER_META[provider];
             const state = states[provider];
             const configured = isProviderConfigured(provider);
             const token = getStoredToken(provider);
             const browserConnected = Boolean(token && !isTokenExpired(token));
             const serverManaged = isServerManaged(provider);
-            const connected = browserConnected || serverManaged;
+            const connected = browserConnected || serverManaged || Boolean(state.insights?.connected);
             // Meta is read entirely from the server-side token — it never shows a
             // link/authorise prompt, only results (or a note that the token is unset).
             const isMeta = provider === 'meta';
@@ -156,8 +155,7 @@ export const BusinessPerformanceTab: React.FC = () => {
                   <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 p-3 text-[11px] text-amber-300">
                     <TriangleAlert className="w-4 h-4 shrink-0 mt-0.5" />
                     <span>
-                      Set <code className="font-mono">{OAUTH_PROVIDERS[provider].clientIdEnv}</code> to
-                      enable the “Authorise with Google” button.
+                      The Google connection needs setting up before you can authorise your business account. Your metrics will appear after setup and consent.
                     </span>
                   </div>
                 )}
@@ -169,15 +167,27 @@ export const BusinessPerformanceTab: React.FC = () => {
                   </p>
                 )}
 
+                {provider === 'google' && Boolean(state.insights?.locations?.length) && (
+                  <label className="text-xs text-neutral-300">Business location
+                    <select aria-label="Google business location" value={state.insights?.locationName || ''}
+                      disabled={state.loading} onChange={event => void load(provider, event.target.value)}
+                      className="mt-1 block w-full rounded-lg bg-neutral-900 border border-neutral-700 p-2 text-white">
+                      <option value="" disabled>Select a business location</option>
+                      {state.insights?.locations?.map(location => <option key={location.name} value={location.name}>{location.title || location.name}</option>)}
+                    </select>
+                  </label>
+                )}
+                {state.loading && <p role="status" className="text-xs text-neutral-400">Loading performance…</p>}
                 {connected && state.insights && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] text-neutral-400">
                         {state.insights.accountLabel} · {state.insights.windowLabel}
+                        {state.insights.period && ` (${state.insights.period.start} – ${state.insights.period.end}, UTC)`}
                       </span>
                       <button
                         type="button"
-                        onClick={() => load(provider)}
+                        onClick={() => load(provider, state.insights?.locationName)}
                         className="text-neutral-400 hover:text-white transition-colors"
                         title="Refresh"
                       >
@@ -185,6 +195,7 @@ export const BusinessPerformanceTab: React.FC = () => {
                       </button>
                     </div>
 
+                    {state.insights.metrics.length > 0 && state.insights.message && <p className="text-xs text-amber-300 mb-2">{state.insights.message}</p>}
                     {state.insights.metrics.length > 0 ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {state.insights.metrics.map((metric, idx) => (
@@ -240,12 +251,12 @@ export const BusinessPerformanceTab: React.FC = () => {
                   {isMeta || serverManaged ? (
                     <button
                       type="button"
-                      onClick={() => load(provider)}
+                      onClick={() => load(provider, state.insights?.locationName)}
                       className="pressable px-3.5 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold flex items-center gap-2"
                     >
                       <RefreshCcw className={`w-4 h-4 ${state.loading ? 'animate-spin' : ''}`} /> Refresh
                     </button>
-                  ) : browserConnected ? (
+                  ) : token ? (
                     <button
                       type="button"
                       onClick={() => handleDisconnect(provider)}

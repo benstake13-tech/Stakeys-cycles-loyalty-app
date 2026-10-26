@@ -1,3 +1,4 @@
+import { googleInsights } from './api/business/_google.js';
 import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'vite';
@@ -157,87 +158,8 @@ async function exchangeMetaLongLived(clientId: string, clientSecret: string, sho
       }
 
       if (provider === 'google') {
-        if (apiPath === 'accounts') {
-          const response = await fetch(
-            'https://mybusinessaccountmanagement.googleapis.com/v1/accounts',
-            { headers: authHeader }
-          );
-          const data = await response.json();
-          if (!response.ok) return res.status(response.status).json(data);
-
-          const accountName = data?.accounts?.[0]?.name;
-          if (accountName) {
-            try {
-              const locResp = await fetch(
-                `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title`,
-                { headers: authHeader }
-              );
-              const locData = await locResp.json();
-              data.locations = locData.locations || [];
-            } catch {
-              data.locations = [];
-            }
-          }
-          return res.json(data);
-        }
-
-        if (apiPath === 'performance') {
-          const location = params.location;
-          if (!location) return res.status(400).json({ error: 'no_location' });
-
-          const end = new Date();
-          const start = new Date(end.getTime() - 28 * 24 * 60 * 60 * 1000);
-          const daily = [
-            'CALL_CLICKS',
-            'WEBSITE_CLICKS',
-            'BUSINESS_DIRECTION_REQUESTS',
-            'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
-            'BUSINESS_IMPRESSIONS_MOBILE_SEARCH',
-            'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
-            'BUSINESS_IMPRESSIONS_MOBILE_MAPS',
-          ];
-          const url = new URL(
-            `https://businessprofileperformance.googleapis.com/v1/${location}:fetchMultiDailyMetricsTimeSeries`
-          );
-          daily.forEach((m) => url.searchParams.append('dailyMetrics', m));
-          url.searchParams.set('dailyRange.startDate.year', String(start.getFullYear()));
-          url.searchParams.set('dailyRange.startDate.month', String(start.getMonth() + 1));
-          url.searchParams.set('dailyRange.startDate.day', String(start.getDate()));
-          url.searchParams.set('dailyRange.endDate.year', String(end.getFullYear()));
-          url.searchParams.set('dailyRange.endDate.month', String(end.getMonth() + 1));
-          url.searchParams.set('dailyRange.endDate.day', String(end.getDate()));
-
-          const response = await fetch(url.toString(), { headers: authHeader });
-          const data = await response.json();
-          if (!response.ok) return res.status(response.status).json(data);
-
-          const sums: Record<string, number> = {};
-          for (const series of data?.multiDailyMetricTimeSeries || []) {
-            for (const m of series.dailyMetricTimeSeries || []) {
-              const total = (m.timeSeries?.datedValues || []).reduce(
-                (acc: number, dv: any) => acc + Number(dv.value || 0),
-                0
-              );
-              sums[m.dailyMetric] = (sums[m.dailyMetric] || 0) + total;
-            }
-          }
-          const search =
-            (sums.BUSINESS_IMPRESSIONS_DESKTOP_SEARCH || 0) + (sums.BUSINESS_IMPRESSIONS_MOBILE_SEARCH || 0);
-          const maps =
-            (sums.BUSINESS_IMPRESSIONS_DESKTOP_MAPS || 0) + (sums.BUSINESS_IMPRESSIONS_MOBILE_MAPS || 0);
-          return res.json({
-            metrics: {
-              profileViews: search + maps,
-              websiteClicks: sums.WEBSITE_CLICKS,
-              directionRequests: sums.BUSINESS_DIRECTION_REQUESTS,
-              calls: sums.CALL_CLICKS,
-              searchViews: search,
-              mapsViews: maps,
-            },
-          });
-        }
-
-        return res.status(400).json({ error: 'Unknown google path' });
+        const result = await googleInsights(apiPath, params, authHeader);
+        return res.status(result.status).json(result.data);
       }
 
       res.status(400).json({ error: 'Unknown provider' });

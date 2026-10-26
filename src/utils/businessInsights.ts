@@ -21,6 +21,9 @@ export interface BusinessInsights {
   windowLabel: string;
   metrics: BusinessMetric[];
   message?: string;
+  locations?: { name: string; title?: string }[];
+  locationName?: string;
+  period?: { start: string; end: string };
 }
 
 const WINDOW_LABEL = 'Last 28 days';
@@ -162,42 +165,34 @@ async function fetchMetaMetricRows(
   };
 }
 
-export async function fetchGoogleInsights(): Promise<BusinessInsights> {
+export async function fetchGoogleInsights(selectedLocation?: string): Promise<BusinessInsights> {
   const accounts = await proxyFetch('google', 'accounts');
-  if (!accounts.ok) {
-    return offline('google', accounts.error === 'not_connected' ? 'Not connected' : 'Google API unavailable', accounts.error);
-  }
-
-  const accountList: any[] = accounts.data?.accounts || [];
-  const accountLabel = accountList[0]?.accountName || 'Google Business Profile';
-
-  // Business Profile Performance API needs a location; fetch the first one.
-  const locationName = accountList[0]?.name
-    ? accounts.data?.locations?.[0]?.name
-    : undefined;
-
-  const metricsResp = await proxyFetch('google', 'performance', {
-    location: locationName || '',
-  });
-
-  const live = Boolean(metricsResp.ok && metricsResp.data?.metrics);
-  const m = metricsResp.data?.metrics || {};
-
-  return {
-    provider: 'google',
-    connected: true,
-    live,
-    accountLabel,
-    windowLabel: WINDOW_LABEL,
-    metrics: [
-      { label: 'Profile Views', value: fmt(m.profileViews), delta: m.profileViewsDelta, hint: 'Searches + Maps views' },
-      { label: 'Website Clicks', value: fmt(m.websiteClicks), delta: m.websiteClicksDelta },
-      { label: 'Direction Requests', value: fmt(m.directionRequests), delta: m.directionRequestsDelta },
-      { label: 'Calls', value: fmt(m.calls), delta: m.callsDelta },
-      { label: 'Search Views', value: fmt(m.searchViews), hint: 'Google Search impressions' },
-      { label: 'Maps Views', value: fmt(m.mapsViews), hint: 'Google Maps impressions' },
-    ].filter((x) => live || x.value !== '—' || !live),
-    message: live ? undefined : 'Connected, but no performance rows were returned for this location.',
+  if (!accounts.ok) return offline('google', 'Google Business Profile', accounts.error);
+  const locations: { name: string; title?: string }[] = accounts.data?.locations || [];
+  const location = locations.find(item => item.name === selectedLocation) || (locations.length === 1 ? locations[0] : undefined);
+  const base: BusinessInsights = {
+    provider: 'google', connected: true, live: false, windowLabel: 'Last 28 complete days', metrics: [], locations,
+    accountLabel: location?.title || 'Google Business Profile', locationName: location?.name,
+  };
+  if (!location) return { ...base, message: locations.length ? 'Select the business location to view its performance.' : 'No accessible business locations found. Connect the Google account that manages Stakeys Cycles.' };
+  const result = await proxyFetch('google', 'performance', { location: location.name });
+  if (!result.ok) return { ...base, message: `Google could not load performance: ${result.error}` };
+  const m = result.data?.metrics || {};
+  const live = result.data?.hasData ?? Object.values(m).some(value => value != null);
+  const fields = [
+    ['Profile Views', 'profileViews', 'Combined daily Search and Maps impressions; not physical shop visits.'],
+    ['Website Clicks', 'websiteClicks', 'Clicks from your Business Profile to your website; not all website sessions.'],
+    ['Calls', 'calls', 'Call-button clicks, not confirmed or completed calls.'],
+    ['Direction Requests', 'directionRequests', 'Requests for directions; not confirmed visits.'],
+    ['Search Views', 'searchViews', 'Google Search impressions'], ['Maps Views', 'mapsViews', 'Google Maps impressions'],
+    ['Search · Mobile', 'searchMobile', 'Mobile Search impressions'], ['Search · Desktop', 'searchDesktop', 'Desktop Search impressions'],
+    ['Maps · Mobile', 'mapsMobile', 'Mobile Maps impressions'], ['Maps · Desktop', 'mapsDesktop', 'Desktop Maps impressions'],
+    ['Bookings', 'bookings', 'Bookings through Reserve with Google, where available.'],
+    ['Messaging Clicks', 'messagingClicks', 'Clicks on a supported profile messaging button, where available.'],
+  ];
+  return { ...base, live, period: result.data?.period,
+    metrics: fields.map(([label, key, hint]) => ({ label, value: fmt(m[key]), hint })),
+    message: live ? undefined : 'Google returned no performance data for this period. Unavailable metrics show —.',
   };
 }
 
@@ -355,9 +350,9 @@ function offline(provider: OAuthProvider, accountLabel: string, error?: string |
   };
 }
 
-export async function fetchInsights(provider: OAuthProvider): Promise<BusinessInsights> {
+export async function fetchInsights(provider: OAuthProvider, location?: string): Promise<BusinessInsights> {
   try {
-    return provider === 'google' ? await fetchGoogleInsights() : await fetchMetaInsights();
+    return provider === 'google' ? await fetchGoogleInsights(location) : await fetchMetaInsights();
   } catch (err: any) {
     return offline(provider, 'Unavailable', err?.message);
   }
