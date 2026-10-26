@@ -89,8 +89,8 @@ describe('staff header navigation', () => {
   });
 });
 
-// Browser landing pages must replace the app, including existing web sessions.
-describe('browser app blanket', () => {
+// Customer browser landing pages remain app-only; staff can sign in on the web.
+describe('browser surface access', () => {
   it('keeps the public shop domain reachable even when a hosted app surface setting is stale', () => {
     hoisted.native = false; hoisted.publicWebsite = true;
     render(<App/>);
@@ -107,15 +107,27 @@ describe('browser app blanket', () => {
       expect(screen.queryByTestId('customer-portal')).toBeNull();
     }
   });
-  it('replaces authenticated app navigation in a browser', () => {
+  it('keeps staff workspace access while covering customer browser sessions', () => {
     hoisted.native = false;
+    hoisted.user = { uid: 's1', displayName: 'Sam Staff', membershipNumber: '001', role: 'staff' };
     render(<App />);
     if (isWebsiteSurface) {
       expect(screen.getByTestId('website')).toBeTruthy();
+    } else if (isStaffSurface || isFullSurface) {
+      expect(screen.getByTestId('staff-portal')).toBeTruthy();
+      expect(screen.queryByText(/This web address does not provide account access/)).toBeNull();
     } else {
       expect(screen.getByText(/This web address does not provide account access/)).toBeTruthy();
       expect(screen.queryByRole('tab')).toBeNull();
       expect(screen.queryByTestId('login')).toBeNull();
+    }
+  });
+  it('shows staff browser sign-in instead of installation guidance', () => {
+    hoisted.native = false; hoisted.user = null;
+    render(<App />);
+    if (isStaffSurface || isFullSurface) {
+      expect(screen.getByTestId('login')).toBeTruthy();
+      expect(screen.queryByText(/This web address does not provide account access/)).toBeNull();
     }
   });
   it('preserves the APK login screen', () => {
