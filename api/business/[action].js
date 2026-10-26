@@ -1,3 +1,4 @@
+import { googleShared } from './_googleShared.js';
 import { googleInsights } from './_google.js';
 /**
  * Vercel serverless function — business metrics (dispatched by action).
@@ -68,6 +69,7 @@ async function businessInsights(req, res) {
 
 export default async function handler(req, res) {
   const action = String(req.query.action || '');
+  if (action === 'google-shared') return googleShared(req, res);
   if (action === 'status') {
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
