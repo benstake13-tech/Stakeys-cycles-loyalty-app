@@ -45,6 +45,8 @@ function fillAndSubmit() {
 }
 
 function applyCode(code: string) {
+  const section = screen.getByPlaceholderText('Discount code').closest('details');
+  if (section && !section.open) fireEvent.click(section.querySelector('summary')!);
   fireEvent.change(screen.getByPlaceholderText('Discount code'), { target: { value: code } });
   fireEvent.click(screen.getByText('Apply'));
 }
@@ -64,6 +66,18 @@ beforeEach(() => {
 });
 
 describe('BookingPortal discount code', () => {
+  it('keeps optional discount entry folded away until requested', () => {
+    render(<BookingPortal />);
+    const section = screen.getByPlaceholderText('Discount code').closest('details');
+    expect(section).toBeTruthy();
+    expect(section!.open).toBe(false);
+    fireEvent.click(section!.querySelector('summary')!);
+    expect(section!.open).toBe(true);
+    fireEvent.change(screen.getByPlaceholderText('Discount code'), { target: { value: 'WEB-5OFF' } });
+    fireEvent.click(section!.querySelector('summary')!);
+    fireEvent.click(section!.querySelector('summary')!);
+    expect((screen.getByPlaceholderText('Discount code') as HTMLInputElement).value).toBe('WEB-5OFF');
+  });
   it('captures a valid public code and records it on the booking', async () => {
     render(<BookingPortal />);
     applyCode('web-5off');

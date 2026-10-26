@@ -32,3 +32,13 @@ Enable **My Business Account Management API**, **My Business Business Informatio
 Reports update on open, every five minutes while visible, and when returning online or to the page. Last-success figures remain available on the server when Google is temporarily unavailable; the screen labels saved/stale data and its update time. There is no paid cron service and no claim that Google's figures are real-time. Only explicit owner selection changes the shared business location. Google revocation/expiry requires owner reconnection; consent-app Testing mode can impose short-lived offline grants.
 
 Database verification: `public.google_business_connection` has RLS enabled, no client policy and no anon/authenticated privileges. Only the server service role reads/writes it. Authenticated staff read through `/api/business/google-shared`; owner allowlisting additionally protects connect/disconnect/location changes. Never reapply an old broad profiles policy migration over the live role guards.
+
+## Quota errors on the free API
+
+API enablement, OAuth consent and Basic API Access approval are separate. A Google `429` does not by itself establish a billing problem or a zero quota. The report records only whitelisted diagnostic metadata. An explicit `quota_limit_value=0` shows the Basic API Access action; an unknown/positive limit shows quota/usage guidance. Disabled-service metadata selects the actual project and API when Google supplies it. Other provider errors remain visible alongside unavailable metric cards, and no data is invented. The Google performance view does not redirect to Google's external business dashboard.
+
+Authoritative references:
+- https://developers.google.com/my-business/content/limits
+- https://developers.google.com/my-business/content/pricing
+
+The Google Cloud quota console could not be loaded in the agent browser. No claim is made that approval has been granted or that a configured zero limit has been verified until the API returns that metadata.

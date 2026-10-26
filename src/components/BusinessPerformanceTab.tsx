@@ -20,7 +20,7 @@ import {
   disconnectProvider,
   startOAuthPopup,
 } from '../utils/oauthService';
-import { fetchInsights, BusinessInsights, refreshServerManaged, isServerManaged } from '../utils/businessInsights';
+import { fetchInsights, BusinessInsights, refreshServerManaged, isServerManaged, googleReportMetrics } from '../utils/businessInsights';
 import { fetchSharedGoogleInsights, linkSharedGoogle, disconnectSharedGoogle } from '../utils/sharedGoogleMetrics';
 
 interface ProviderState {
@@ -170,6 +170,7 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
             const isMeta = provider === 'meta';
             const metaLive = isMeta && (state.insights?.metrics?.length ?? 0) > 0;
             const Icon = meta.icon;
+            const metrics = state.insights?.metrics.length ? state.insights.metrics : provider === 'google' && connected ? googleReportMetrics({}) : [];
 
             return (
               <div
@@ -251,10 +252,17 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                     </div>
 
                     {state.insights.updatedAt && <p className="text-xs text-neutral-400 mb-2">{state.insights.stale ? 'Saved report · ' : ''}Last updated {new Date(state.insights.updatedAt).toLocaleString()}</p>}
-                    {state.insights.metrics.length > 0 && state.insights.message && <p className="text-xs text-amber-300 mb-2 [overflow-wrap:anywhere]">{state.insights.message}</p>}
-                    {state.insights.metrics.length > 0 ? (
+                    {!state.insights.issue && state.insights.message && <p className="text-xs text-amber-300 mb-2 [overflow-wrap:anywhere]">{state.insights.message}</p>}
+                    {state.insights.issue && (
+                      <div className="rounded-xl border border-amber-400/25 bg-amber-500/5 p-3 mb-3 text-xs text-neutral-200" role="status">
+                        <p className="font-semibold text-amber-200">{state.insights.issue.title}</p>
+                        <p className="mt-1 [overflow-wrap:anywhere]">{state.insights.issue.message}</p>
+                        {canManage && state.insights.issue.actionUrl && <a href={state.insights.issue.actionUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex min-h-11 items-center gap-1 text-emerald-300 underline">{state.insights.issue.actionLabel} <ExternalLink className="w-3 h-3" /></a>}
+                      </div>
+                    )}
+                    {metrics.length > 0 ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {state.insights.metrics.map((metric, idx) => (
+                        {metrics.map((metric, idx) => (
                           <div
                             key={idx}
                             className="bg-neutral-900/70 border border-neutral-800 rounded-xl p-3"
@@ -342,18 +350,14 @@ export const BusinessPerformanceTab: React.FC<{ googleOnly?: boolean }> = ({ goo
                       <button type="button" disabled={state.loading} onClick={() => handleDisconnect(provider)} className="pressable px-3 py-2 rounded-xl bg-neutral-800 text-white text-xs">Disconnect shop Google</button>
                     </>
                   )}
-                  <a
-                    href={
-                      provider === 'google'
-                        ? 'https://business.google.com/'
-                        : 'https://business.facebook.com/'
-                    }
+                  {provider === 'meta' && <a
+                    href="https://business.facebook.com/"
                     target="_blank"
                     rel="noreferrer"
                     className="ml-auto inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white"
                   >
                     Open dashboard <ExternalLink className="w-3 h-3" />
-                  </a>
+                  </a>}
                 </div>
               </div>
             );

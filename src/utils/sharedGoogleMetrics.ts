@@ -25,7 +25,7 @@ export async function fetchSharedGoogleInsights(location?: string, selectLocatio
     accountLabel: report.accountLabel || 'Google Business Profile', windowLabel: 'Last 28 complete days',
     metrics: report.metrics ? googleReportMetrics(report.metrics) : [],
     locations: report.locations || [], locationName: report.locationName, period: report.period,
-    updatedAt: report.updatedAt, stale: Boolean(report.stale), message: report.message,
+    issue: report.issue, updatedAt: report.updatedAt, stale: Boolean(report.stale), message: report.message,
   };
 }
 
