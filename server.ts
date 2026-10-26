@@ -1,3 +1,4 @@
+import { googleShared } from './api/business/_googleShared.js';
 import { googleInsights } from './api/business/_google.js';
 import 'dotenv/config';
 import express from 'express';
@@ -17,6 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 async function startServer() {
   const app = express();
   app.use(express.json());
+  app.all('/api/business/google-shared', googleShared);
 
   /* ------------------------------------------------------------------ *
    * OAuth 2.0 (Authorization Code + PKCE) token exchange.

@@ -24,6 +24,12 @@ export interface BusinessInsights {
   locations?: { name: string; title?: string }[];
   locationName?: string;
   period?: { start: string; end: string };
+  shared?: boolean;
+  connectionId?: string;
+  canManage?: boolean;
+  updatedAt?: string;
+  stale?: boolean;
+  needsReconnect?: boolean;
 }
 
 const WINDOW_LABEL = 'Last 28 days';
@@ -165,6 +171,21 @@ async function fetchMetaMetricRows(
   };
 }
 
+export function googleReportMetrics(m: Record<string, number | null>): BusinessMetric[] {
+  const fields = [
+    ['Profile Views', 'profileViews', 'Combined daily Search and Maps impressions; not physical shop visits.'],
+    ['Website Clicks', 'websiteClicks', 'Clicks from your Business Profile to your website; not all website sessions.'],
+    ['Calls', 'calls', 'Call-button clicks, not confirmed or completed calls.'],
+    ['Direction Requests', 'directionRequests', 'Requests for directions; not confirmed visits.'],
+    ['Search Views', 'searchViews', 'Google Search impressions'], ['Maps Views', 'mapsViews', 'Google Maps impressions'],
+    ['Search · Mobile', 'searchMobile', 'Mobile Search impressions'], ['Search · Desktop', 'searchDesktop', 'Desktop Search impressions'],
+    ['Maps · Mobile', 'mapsMobile', 'Mobile Maps impressions'], ['Maps · Desktop', 'mapsDesktop', 'Desktop Maps impressions'],
+    ['Bookings', 'bookings', 'Bookings through Reserve with Google, where available.'],
+    ['Messaging Clicks', 'messagingClicks', 'Clicks on a supported profile messaging button, where available.'],
+  ];
+  return fields.map(([label, key, hint]) => ({ label, value: fmt(m[key]), hint }));
+}
+
 export async function fetchGoogleInsights(selectedLocation?: string): Promise<BusinessInsights> {
   const accounts = await proxyFetch('google', 'accounts');
   if (!accounts.ok) return offline('google', 'Google Business Profile', accounts.error);
@@ -179,19 +200,8 @@ export async function fetchGoogleInsights(selectedLocation?: string): Promise<Bu
   if (!result.ok) return { ...base, message: `Google could not load performance: ${result.error}` };
   const m = result.data?.metrics || {};
   const live = result.data?.hasData ?? Object.values(m).some(value => value != null);
-  const fields = [
-    ['Profile Views', 'profileViews', 'Combined daily Search and Maps impressions; not physical shop visits.'],
-    ['Website Clicks', 'websiteClicks', 'Clicks from your Business Profile to your website; not all website sessions.'],
-    ['Calls', 'calls', 'Call-button clicks, not confirmed or completed calls.'],
-    ['Direction Requests', 'directionRequests', 'Requests for directions; not confirmed visits.'],
-    ['Search Views', 'searchViews', 'Google Search impressions'], ['Maps Views', 'mapsViews', 'Google Maps impressions'],
-    ['Search · Mobile', 'searchMobile', 'Mobile Search impressions'], ['Search · Desktop', 'searchDesktop', 'Desktop Search impressions'],
-    ['Maps · Mobile', 'mapsMobile', 'Mobile Maps impressions'], ['Maps · Desktop', 'mapsDesktop', 'Desktop Maps impressions'],
-    ['Bookings', 'bookings', 'Bookings through Reserve with Google, where available.'],
-    ['Messaging Clicks', 'messagingClicks', 'Clicks on a supported profile messaging button, where available.'],
-  ];
   return { ...base, live, period: result.data?.period,
-    metrics: fields.map(([label, key, hint]) => ({ label, value: fmt(m[key]), hint })),
+    metrics: googleReportMetrics(m),
     message: live ? undefined : 'Google returned no performance data for this period. Unavailable metrics show —.',
   };
 }
