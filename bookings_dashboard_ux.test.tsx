@@ -221,3 +221,20 @@ describe('StaffBookingsTab Fix Bookings repair', () => {
     expect(screen.getByTestId('bookings-fix-note').textContent).toContain('1 restored');
   });
 });
+
+ describe('Booking filters disclosure', () => {
+  it('starts with a compact queue and keeps filtering available on demand', () => {
+    render(<StaffBookingsTab />);
+    const toggle = screen.getByRole('button', { name: /Filter bookings/i });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('button', { name: 'Scooters' })).toBeNull();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: 'E-Bikes' }));
+    expect(screen.queryByText('Ben Pearson')).toBeNull();
+    expect(screen.getByText('Ada Lovelace')).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(screen.getByRole('button', { name: /Clear filters/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByText('Ben Pearson')).toBeTruthy();
+  });
+});

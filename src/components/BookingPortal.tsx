@@ -299,19 +299,26 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
 
   // Collapsible step sections so the (long) form is quicker to scan on mobile.
   const [openSteps, setOpenSteps] = useState<Record<string, boolean>>({
-    vehicle: true,
-    issues: true,
-    schedule: true,
-    contact: true,
+    vehicle: !initialBike && !initialIssueIds?.length && !initialOtherNotes,
+    issues: Boolean(initialBike || initialIssueIds?.length || initialOtherNotes),
+    schedule: false,
+    contact: false,
   });
   const toggleStep = (id: string) =>
     setOpenSteps((prev) => ({ ...prev, [id]: !prev[id] }));
   const goToStep = (id: string) => {
-    setOpenSteps((prev) => ({ ...prev, [id]: true }));
+    setOpenSteps({ vehicle: false, issues: false, schedule: false, contact: false, [id]: true });
     requestAnimationFrame(() => {
-      document.getElementById(`booking-step-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById(`booking-step-${id}`)?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
     });
   };
+
+  const nextStepButton = (id: string, label: string) => (
+    <button type="button" onClick={() => goToStep(id)}
+      className="mt-4 px-4 py-2.5 rounded-xl bg-emerald-500 text-neutral-950 text-xs font-bold cursor-pointer">
+      {t.goToStep}: {label} →
+    </button>
+  );
 
   const resolvedModelName = resolveModel(bikeIdentity);
   const bikeStepComplete = Boolean(bikeIdentity.brand && resolvedModelName);
@@ -443,20 +450,24 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
 
     if (!customerName.trim()) {
       setFormError('Please enter your full name.');
+      goToStep('contact');
       return;
     }
     if (!customerPhone.trim()) {
       setFormError('Please enter your phone number so our workshop team can contact you.');
+      goToStep('contact');
       return;
     }
     if (customerEmail.trim() && !customerEmail.includes('@')) {
       setFormError('Please enter a valid email address or leave it blank to be notified via phone.');
+      goToStep('contact');
       return;
     }
     // Express SOS collects its own location field, so the classic call-out
     // address box (which never renders in express mode) must not block it.
     if (serviceType === 'home_visit' && !homeAddress.trim() && !(isSos && sosMode === 'express')) {
       setFormError('Please enter the address where we should meet you for the call-out.');
+      goToStep('schedule');
       return;
     }
     if (isSos && sosMode === 'express') {
@@ -483,6 +494,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
     }
     if (serviceType === 'in_shop' && !preferredDate) {
       setFormError('Please choose a preferred drop-off date.');
+      goToStep('schedule');
       return;
     }
 
@@ -494,6 +506,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
       !repairReport
     ) {
       setFormError('Please select at least one problem symptom or describe your issue.');
+      goToStep('issues');
       return;
     }
 
@@ -1016,7 +1029,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
           <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#090b0e] via-[#090b0e]/85 to-[#090b0e]/40" />
         </div>
 
-        <div className="relative z-10 p-6 sm:p-8 md:p-10">
+        <div className="relative z-10 p-5 sm:p-6">
           <div className="flex items-center gap-2 text-xs text-neutral-400 font-mono mb-2">
             <span className="text-emerald-400 font-semibold tracking-wider uppercase">
               {t.workshop}
@@ -1027,7 +1040,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             <span>{t.genuineParts}</span>
           </div>
 
-          <h1 className="font-display text-2xl sm:text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
+          <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-white tracking-tight text-balance">
             {t.heroTitle}
           </h1>
           <p className="text-sm text-neutral-300 mt-2 max-w-xl leading-relaxed">
@@ -1068,7 +1081,16 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
       )}
 
       {/* Booking Form */}
-      <form onSubmit={handleSubmit} className="space-y-6" dir={rtl ? 'rtl' : 'ltr'} lang={language}>
+      <form onSubmit={handleSubmit} onInvalidCapture={(event) => {
+        const step = (event.target as HTMLElement).closest('[id^="booking-step-"]')?.id.replace('booking-step-', '');
+        if (step) {
+          event.preventDefault();
+          goToStep(step);
+          const input = event.target as HTMLInputElement;
+          setFormError(input.validationMessage);
+          requestAnimationFrame(() => input.focus());
+        }
+      }} className="space-y-6" dir={rtl ? 'rtl' : 'ltr'} lang={language}>
         {/* Language picker — lets the rider read the WHOLE form in their own
             tongue. Kept sticky at the top of the form so the choice is always
             reachable; the workshop still always receives an English job sheet
@@ -1100,8 +1122,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
           )}
         </div>
 
-        {/* Live summary — sticks to the top while the form scrolls. */}
-        <div className="sticky top-2 z-20 bg-[#0d1015]/95 backdrop-blur border border-neutral-800 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs shadow-lg">
+        {/* Inline overview: the language selector is the only sticky header. */}
+        <div className="bg-[#0d1015] border border-neutral-800 rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
           <span className="flex items-center gap-1.5 text-white font-semibold">
             <Bike className="w-3.5 h-3.5 text-emerald-400" />
             {bikeIdentity.brand} {resolveModel(bikeIdentity) || '—'}
@@ -1342,6 +1364,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
           <button
             type="button"
             onClick={() => toggleStep('vehicle')}
+            aria-expanded={openSteps.vehicle}
             className="w-full flex items-center gap-3 text-left cursor-pointer"
           >
             <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
@@ -1366,8 +1389,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             />
           </button>
 
-          {openSteps.vehicle && (
-            <div className="space-y-5 pt-2">
+            <div hidden={!openSteps.vehicle} className="space-y-5 pt-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {BIKE_CATEGORY_OPTIONS.map((cat) => (
                   <button
@@ -1408,8 +1430,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
                 showCategory={false}
                 idPrefix="booking-bike"
               />
+              {nextStepButton('issues', t.stepIssues)}
             </div>
-          )}
         </div>
 
         {/* STEP 2: Problem Identification & Services */}
@@ -1418,6 +1440,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             <button
               type="button"
               onClick={() => toggleStep('issues')}
+              aria-expanded={openSteps.issues}
               className="flex items-center gap-3 text-left cursor-pointer flex-1 min-w-0"
             >
               <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
@@ -1439,7 +1462,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             </button>
 
             {/* Mode Switcher Tabs */}
-            <div className="inline-flex p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold self-start sm:self-auto">
+            <div className={`${openSteps.issues ? 'inline-flex' : 'hidden'} p-1 bg-neutral-900/90 border border-neutral-800 rounded-xl text-xs font-semibold self-start sm:self-auto`}>
               <button
                 type="button"
                 onClick={() => setProblemSelectionMode('checklist')}
@@ -1470,7 +1493,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             </div>
           </div>
 
-          {(isCustomerSurface || isFullSurface) && !isSos && <div hidden={!openSteps.issues}><CustomerRepairAssistant
+          {(isCustomerSurface || isFullSurface) && !isSos && <div hidden={!openSteps.issues} className="space-y-4"><CustomerRepairAssistant
             bike={`${bikeIdentity.brand} ${resolveModel(bikeIdentity)} ${bikeIdentity.year}`.trim()}
             symptoms={selectedIssueIds.map(id => ALL_BIKE_ISSUES_MAP.get(id)?.label || id)}
             notes={problemNotes}
@@ -1481,8 +1504,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             knownSafetyConcern={selectedIssueIds.some(id => ['brakes-weak', 'brakes-pull-handlebar', 'brakes-fluid-leak', 'frame-loose-handlebars', 'gears-chain-stuck', 'wheels-broken-spoke'].includes(id))}
             disabled={isSubmitting}
           /></div>}
-          {openSteps.issues && (
-          <>
+          <div hidden={!openSteps.issues} className="space-y-4">
           {/* Mode 1: Multi-Select Issues Checklist */}
           {problemSelectionMode === 'checklist' ? (
             <div className="space-y-4 pt-1">
@@ -1552,8 +1574,8 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
               </div>
             </div>
           </div>
-          </>
-          )}
+          {nextStepButton('schedule', t.stepDropOff)}
+          </div>
         </div>
 
         {/* STEP 3: Choose Date, Time & Contact Info */}
@@ -1561,6 +1583,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
           <button
             type="button"
             onClick={() => toggleStep('schedule')}
+            aria-expanded={openSteps.schedule}
             className="w-full flex items-center gap-3 text-left cursor-pointer"
           >
             <div className={`w-7 h-7 rounded-lg border font-mono font-bold text-xs flex items-center justify-center shrink-0 ${
@@ -1589,8 +1612,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             />
           </button>
 
-          {openSteps.schedule && (
-          <>
+          <div hidden={!openSteps.schedule && !isSos} className="space-y-4">
           {/* How would you like it fixed? */}
           <div className="pt-2">
             <label className="block text-xs font-medium text-neutral-300 mb-1.5">
@@ -1756,6 +1778,18 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
           </div>
           )}
 
+          {nextStepButton('contact', t.stepContact)}
+          </div>
+        </div>
+
+        <div id="booking-step-contact" className="scroll-mt-24 bg-[#0d1015] border border-neutral-800 rounded-2xl p-6 sm:p-8 space-y-4">
+          <button type="button" onClick={() => toggleStep('contact')} aria-expanded={openSteps.contact}
+            className="w-full flex items-center gap-3 text-left cursor-pointer">
+            <span className="w-7 h-7 rounded-lg border border-neutral-800 text-emerald-400 text-xs flex items-center justify-center">04</span>
+            <span className="flex-1 font-bold text-white">{t.stepContact}</span>
+            <ChevronDown className={`w-4 h-4 text-neutral-500 ${openSteps.contact ? 'rotate-180' : ''}`} />
+          </button>
+          <div hidden={!openSteps.contact && !isSos} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
             <div>
               <label className="block text-xs font-medium text-neutral-300 mb-1.5">
@@ -1865,6 +1899,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             <button
               type="button"
               onClick={() => setShowExtraDetails((v) => !v)}
+              aria-expanded={showExtraDetails}
               className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left cursor-pointer"
             >
               <span className="flex items-center gap-2 text-xs font-semibold text-neutral-200">
@@ -1927,8 +1962,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
               </div>
             )}
           </div>
-          </>
-          )}
+          </div>
         </div>
         </>)}
 
@@ -1967,11 +2001,11 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
 
         {/* Optional discount code — hidden in Express SOS to prevent drop-off. */}
         {!expressSosActive && (
-        <div className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-2">
-          <div className="flex items-center gap-2 text-xs font-bold text-white">
-            <Tag className="w-4 h-4 text-emerald-400" />
+        <details open={Boolean(discountInput || appliedDiscount)} className="p-4 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-2">
+          <summary className="text-xs font-bold text-white cursor-pointer">
+            <Tag className="inline-block w-4 h-4 text-emerald-400 mx-2" />
             <span>{t.discountTitle}</span>
-          </div>
+          </summary>
           {appliedDiscount ? (
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold text-emerald-400">
@@ -2006,7 +2040,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
           <p className="text-[10px] text-neutral-500">
             {t.discountHelp}
           </p>
-        </div>
+        </details>
         )}
 
         {/* Error Notice — the express screen shows its own inline error. */}

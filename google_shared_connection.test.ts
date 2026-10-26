@@ -88,3 +88,12 @@ it('retains the previous report but asks the owner to reconnect when Google revo
  vi.stubGlobal('fetch',vi.fn(async(url:any,init:any={})=>String(url)==='https://oauth2.googleapis.com/token'?response({error:'invalid_grant'},400):original(url,init)));
  const r=await req();expect(r.body.needsReconnect).toBe(true);expect(r.body.metrics.calls).toBe(8);expect(r.body.message).toMatch(/reconnect/);expect(row.refresh_token).toBe('PRIVATE_GOOGLE_REFRESH');
 });
+it('stores a zero-quota approval diagnosis without exposing raw Google metadata',async()=>{
+ row.location_name=null;row.last_attempt_at='2020-01-01T00:00:00Z';const original=fetch;
+ vi.stubGlobal('fetch',vi.fn(async(url:any,init:any={})=>{
+  if(String(url)==='https://oauth2.googleapis.com/token')return response({access_token:'PRIVATE_ACCESS'});
+  if(String(url).includes('mybusinessaccountmanagement.googleapis.com'))return response({error:{message:'Quota exceeded',details:[{metadata:{quota_limit_value:'0',access_token:'PRIVATE_EXTRA'}}]}},429);
+  return original(url,init);
+ }));
+ const r=await req();expect(r.body.issue.code).toBe('GOOGLE_ACCESS_NOT_APPROVED');expect(row.last_issue.quotaLimit).toBe(0);expect(r.body.metrics.calls).toBe(8);expect(JSON.stringify(r.body)).not.toContain('PRIVATE');
+});

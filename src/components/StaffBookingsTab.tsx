@@ -156,6 +156,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
 
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState<string>('all');
+  const [showBookingFilters, setShowBookingFilters] = useState(false);
   // Completed/cancelled jobs are hidden from the default feed so a busy
   // workshop isn't cluttered; they live behind the "Completed" toggle.
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
@@ -1095,6 +1096,22 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
           </button>
         </div>
 
+        <div className="flex items-center justify-between gap-3 text-xs">
+          <button type="button" onClick={() => setShowBookingFilters((open) => !open)}
+            aria-expanded={showBookingFilters} aria-controls="staff-booking-filters"
+            className="flex items-center gap-2 px-3 py-2 rounded-lg text-neutral-300 hover:text-white cursor-pointer">
+            <Filter className="w-3.5 h-3.5" /> Filter bookings
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showBookingFilters ? 'rotate-180' : ''}`} />
+          </button>
+          {(selectedStatusFilter !== 'all' || selectedVehicleFilter !== 'all') && (
+            <button type="button" onClick={() => { setSelectedStatusFilter('all'); setSelectedVehicleFilter('all'); }}
+              className="px-3 py-2 text-emerald-300 hover:text-white cursor-pointer">
+              Clear filters
+            </button>
+          )}
+          <span className="text-neutral-400 ml-auto" role="status">{filteredBookings.length} shown</span>
+        </div>
+        {showBookingFilters && <div id="staff-booking-filters" className="space-y-2 border-t border-neutral-800 pt-3">
         {/* Status filters — touch-friendly horizontal scroll on mobile */}
         <div className="flex items-center gap-2 text-xs overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="text-neutral-400 font-semibold mr-1 flex items-center gap-1 shrink-0">
@@ -1128,7 +1145,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
                   )}
                 </span>
               ) : (
-                status.replace('_', ' ')
+                status.replaceAll('_', ' ')
               )}
             </button>
           ))}
@@ -1150,6 +1167,7 @@ export const StaffBookingsTab: React.FC<StaffBookingsTabProps> = ({ focusBooking
             </button>
           ))}
         </div>
+        </div>}
       </div>
 
       {/* Bookings List */}
