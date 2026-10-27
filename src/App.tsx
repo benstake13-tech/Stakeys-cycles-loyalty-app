@@ -65,6 +65,19 @@ function AppContent() {
   const { currentUser, logoutUser, loginStaff, theme, bookings } = useShop();
   const isDark = theme === 'dark';
   const [showGuestBooking, setShowGuestBooking] = useState(false);
+  const [websitePath, setWebsitePath] = useState(() => window.location.pathname);
+  useEffect(() => {
+    if (!isWebsiteSurface) return;
+    const onHistoryChange = () => setWebsitePath(window.location.pathname);
+    window.addEventListener('popstate', onHistoryChange);
+    return () => window.removeEventListener('popstate', onHistoryChange);
+  }, []);
+  const navigateWebsite = (path: string) => {
+    if (window.location.pathname !== path) window.history.pushState({}, '', path);
+    setWebsitePath(path);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+  const isBookingsPage = /^\/bookings\/?$/.test(websitePath);
   // Logged-out visitors land on the public marketing website, not the login form.
   const [publicView, setPublicView] = useState<'website' | 'login'>('website');
 
@@ -306,19 +319,19 @@ function AppContent() {
     return (
       <div className={`min-h-screen ${isDark ? 'bg-[#090b0e] text-neutral-100' : 'bg-slate-50 text-neutral-900'} font-['Plus_Jakarta_Sans',sans-serif]`}>
         <main className="relative z-10 w-full mx-auto pb-8">
-          {showGuestBooking ? (
-            <div className="pt-6">
+          {isBookingsPage ? (
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
               <button
                 type="button"
-                onClick={() => setShowGuestBooking(false)}
+                onClick={() => navigateWebsite('/')}
                 className="mb-5 rounded-xl border border-emerald-500/30 bg-[#0d1015]/80 px-4 py-2 text-sm font-semibold text-emerald-300 backdrop-blur hover:border-emerald-400 focus-visible:outline-2 focus-visible:outline-emerald-400"
               >
                 ← Back to website
               </button>
-              <BookingPortal onBookingComplete={() => setShowGuestBooking(false)} />
+              <BookingPortal />
             </div>
           ) : (
-            <WebsiteReplica context="public" onBookService={() => setShowGuestBooking(true)} />
+            <WebsiteReplica context="public" onBookService={() => navigateWebsite('/bookings')} />
           )}
         </main>
         <ShopAssistant surface="website" />
