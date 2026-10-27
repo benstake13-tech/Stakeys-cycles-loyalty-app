@@ -13,8 +13,10 @@ beforeEach(() => { calls.create.mockReset(); calls.create.mockResolvedValue({ id
 afterEach(cleanup);
 async function addPhoto() {
   fireEvent.click(screen.getByRole('button', { name: /Go to step 02:/i }));
+  fireEvent.click(screen.getByText('Add photos or get help identifying the problem (optional)'));
   fireEvent.change(screen.getByLabelText('Choose repair photos'), { target: { files: [new File(['image'], 'bike.jpg', { type: 'image/jpeg' })] } });
   await screen.findByText('1/6 photos');
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Attach for staff without AI' }) as HTMLButtonElement).disabled).toBe(false));
 }
 describe('customer photo report on the real booking form', () => {
   it('prevents accidental photo loss and submits the attached report without inventing a default symptom', async () => {
