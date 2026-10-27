@@ -1493,7 +1493,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             </div>
           </div>
 
-          {(isCustomerSurface || isFullSurface) && !isSos && <div hidden={!openSteps.issues} className="space-y-4"><CustomerRepairAssistant
+          {(isCustomerSurface || isFullSurface) && !isSos && <div hidden={!openSteps.issues}><details onInvalidCapture={(event) => { event.currentTarget.open = true; }} className="rounded-xl border border-neutral-800 p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-emerald-400">Add photos or get help identifying the problem (optional)</summary>
+            <div className="pt-4"><CustomerRepairAssistant
             bike={`${bikeIdentity.brand} ${resolveModel(bikeIdentity)} ${bikeIdentity.year}`.trim()}
             symptoms={selectedIssueIds.map(id => ALL_BIKE_ISSUES_MAP.get(id)?.label || id)}
             notes={problemNotes}
@@ -1503,7 +1505,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
             onPendingChange={setRepairPhotosPending}
             knownSafetyConcern={selectedIssueIds.some(id => ['brakes-weak', 'brakes-pull-handlebar', 'brakes-fluid-leak', 'frame-loose-handlebars', 'gears-chain-stuck', 'wheels-broken-spoke'].includes(id))}
             disabled={isSubmitting}
-          /></div>}
+          /></div></details></div>}
           <div hidden={!openSteps.issues} className="space-y-4">
           {/* Mode 1: Multi-Select Issues Checklist */}
           {problemSelectionMode === 'checklist' ? (
@@ -1555,7 +1557,9 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
           )}
 
           {/* Dynamic Workshop Diagnostic Summary Card */}
-          <div className="p-4 rounded-xl bg-neutral-950/80 border border-neutral-800/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <details className="rounded-xl border border-neutral-800/90 p-4 text-xs">
+            <summary className="cursor-pointer text-neutral-300">View service estimate</summary>
+          <div className="pt-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="space-y-0.5">
               <span className="text-neutral-400 block text-[11px] font-mono uppercase tracking-wider">
                 Intake Assessment Summary
@@ -1574,6 +1578,7 @@ export const BookingPortal: React.FC<BookingPortalProps> = ({ initialBikeId, ini
               </div>
             </div>
           </div>
+          </details>
           {nextStepButton('schedule', t.stepDropOff)}
           </div>
         </div>
