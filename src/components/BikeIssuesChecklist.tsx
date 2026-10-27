@@ -41,19 +41,8 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
   const t = useBookingPhrases();
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Track open/collapsed state of categories (open by default as in <details open>)
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {
-    const initial: Record<string, boolean> = {};
-    BIKE_ISSUES_CATEGORIES.forEach((cat) => {
-      // Open all by default (<details open>), except E-Bike only if not e-bike vehicle
-      if (cat.id === 'cat-ebike') {
-        initial[cat.id] = vehicleCategory === 'ebike' || vehicleCategory === 'electric_scooter';
-      } else {
-        initial[cat.id] = true;
-      }
-    });
-    return initial;
-  });
+  // Keep the full catalogue available without presenting every symptom at once.
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
 
   const toggleCategory = (categoryId: string, nextState?: boolean) => {
     setOpenCategories((prev) => ({
@@ -132,13 +121,11 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-neutral-800">
         <div>
           <legend className="font-display text-base sm:text-lg font-bold text-white flex items-center gap-2">
-            <span>Select all problems that apply:</span>
-            <span className="text-xs font-normal text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-              Choose all that apply
-            </span>
+            <span>What needs attention?</span>
+
           </legend>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Check every symptom or issue you’re experiencing. Our workshop certified mechanics will inspect each one during workshop intake.
+            Open a category and choose any symptoms. You can also describe the problem below.
           </p>
         </div>
 
@@ -222,7 +209,7 @@ export const BikeIssuesChecklist: React.FC<BikeIssuesChecklistProps> = ({
           </div>
         ) : (
           filteredCategories.map((cat) => {
-            const isOpen = openCategories[cat.id] ?? true;
+            const isOpen = searchQuery.trim().length > 0 || (openCategories[cat.id] ?? false);
             const categorySelectedCount = cat.items.filter((item) =>
               selectedIssueIds.includes(item.id)
             ).length;
