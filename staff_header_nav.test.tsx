@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, within, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, within, cleanup, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@capacitor/core', () => ({ Capacitor: { isNativePlatform: () => hoisted.native } }));
@@ -30,7 +30,8 @@ vi.mock('./src/context/ShopContext', () => ({
 
 vi.mock('./src/components/StaffPortal', () => ({ StaffPortal: ({ onOpenSurface }: any) => <div data-testid="staff-portal"><button onClick={() => onOpenSurface('customer')}>Open customer preview</button></div> }));
 vi.mock('./src/components/CustomerPortal', () => ({ CustomerPortal: () => <div data-testid="customer-portal" /> }));
-vi.mock('./src/components/WebsiteReplica', () => ({ WebsiteReplica: () => <div data-testid="website" /> }));
+vi.mock('./src/components/WebsiteReplica', () => ({ WebsiteReplica: ({ onBookService }: any) => <div data-testid="website"><button onClick={onBookService}>Book a repair</button></div> }));
+vi.mock('./src/components/BookingPortal', () => ({ BookingPortal: () => <div data-testid="booking-page">Workshop booking</div> }));
 vi.mock('./src/components/ShopAssistant', () => ({ ShopAssistant: () => null }));
 vi.mock('./src/components/PromotionsCarousel', () => ({ PromotionsCarousel: () => <div data-testid="promotions" /> }));
 vi.mock('./src/components/WinnerAnnouncementBanner', () => ({ WinnerAnnouncementBanner: () => null }));
@@ -134,5 +135,32 @@ describe('browser surface access', () => {
     hoisted.user = null;
     render(<App />);
     if (!isWebsiteSurface) expect(screen.getByTestId('login')).toBeTruthy();
+  });
+});
+
+
+describe('public bookings page', () => {
+  it('opens directly at /bookings and retains the page on refresh', () => {
+    hoisted.publicWebsite = true; hoisted.user = null;
+    window.history.replaceState({}, '', '/bookings');
+    const view = render(<App />);
+    expect(screen.getByTestId('booking-page')).toBeTruthy();
+    expect(screen.queryByTestId('website')).toBeNull();
+    view.unmount(); render(<App />);
+    expect(screen.getByTestId('booking-page')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Back to website/ }));
+    expect(window.location.pathname).toBe('/');
+    expect(screen.getByTestId('website')).toBeTruthy();
+  });
+  it('uses the bookings URL for website calls to action and responds to browser history', () => {
+    hoisted.publicWebsite = true; hoisted.user = null;
+    render(<App />);
+    fireEvent.click(screen.getByRole('button', { name: 'Book a repair' }));
+    expect(window.location.pathname).toBe('/bookings');
+    expect(screen.getByTestId('booking-page')).toBeTruthy();
+    act(() => { window.history.replaceState({}, '', '/'); window.dispatchEvent(new PopStateEvent('popstate')); });
+    expect(screen.getByTestId('website')).toBeTruthy();
+    act(() => { window.history.replaceState({}, '', '/bookings/'); window.dispatchEvent(new PopStateEvent('popstate')); });
+    expect(screen.getByTestId('booking-page')).toBeTruthy();
   });
 });
